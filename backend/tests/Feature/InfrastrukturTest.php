@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Tests\TestCase;
@@ -40,6 +39,23 @@ class InfrastrukturTest extends TestCase
         $this->assertSame('sistem', DB::scalar(
             "SELECT schemaname FROM pg_tables WHERE tablename = 'migrations'"
         ));
+    }
+
+    public function test_tabel_bawaan_users_tidak_ada_dan_token_sanctum_di_sistem(): void
+    {
+        $this->assertSame(0, DB::scalar(
+            "SELECT count(*) FROM pg_tables WHERE tablename IN ('users', 'password_reset_tokens', 'sessions')"
+        ));
+        $this->assertSame('uuid', DB::scalar(
+            "SELECT data_type FROM information_schema.columns
+              WHERE table_schema = 'sistem' AND table_name = 'personal_access_tokens' AND column_name = 'id'"
+        ));
+    }
+
+    public function test_simrs_analitik_tidak_bisa_membaca_skema_akses(): void
+    {
+        $this->assertFalse(DB::scalar("SELECT has_table_privilege('simrs_analitik', 'akses.pengguna', 'SELECT')"));
+        $this->assertTrue(DB::scalar("SELECT has_table_privilege('simrs_analitik', 'sdm.pegawai', 'SELECT')"));
     }
 
     public function test_skema_sistem_boleh_dml_penuh(): void
@@ -95,22 +111,5 @@ class InfrastrukturTest extends TestCase
     public function test_redis_tersedia(): void
     {
         $this->assertSame('PONG', (string) Redis::connection()->ping());
-    }
-
-    /**
-     * Pastikan perintah ditolak karena kurang hak (SQLSTATE 42501). Dibungkus savepoint
-     * agar transaksi tes tidak ikut batal dan perintah berikutnya tetap bisa jalan.
-     */
-    private function assertDitolak(callable $perintah): void
-    {
-        try {
-            DB::transaction($perintah);
-        } catch (QueryException $e) {
-            $this->assertSame('42501', $e->getCode(), $e->getMessage());
-
-            return;
-        }
-
-        $this->fail('Perintah seharusnya ditolak, tetapi berhasil.');
     }
 }
