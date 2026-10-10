@@ -6,13 +6,13 @@
 
 | Atribut | Nilai |
 |---|---|
-| Versi dokumen | 0.10.1 |
+| Versi dokumen | 0.10.2 |
 | Tanggal | 10 Oktober 2026 |
 | Penyusun | Eza (Karyasistemnusantara) · disusun bersama Claude |
 | Sumber konteks | Lampiran 1 *Visual Layar SIMRS* (15 layar), Lampiran 2 *Visual Dasbor Berjenjang* (7 dasbor + contoh kewenangan), HTML *Dasbor Berjenjang Karsitara*, *Pedoman Identitas USU* (2021) dan folder Logo |
 | Tech stack | Laravel 12 (PHP 8.3+) · Vue 3 + TypeScript · PostgreSQL 16 · Redis · Laravel Reverb |
 | Status | **Produk generik** (3.4). Fase 0 mode produk selesai dengan satu gerbang tertunda: uji SUS (16.1). Keputusan yang biasanya diambil RS dicatat sebagai keputusan produk di 17.2 dan dikonfirmasi tiap RS saat implementasi |
-| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · **v0.10.1** hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) |
+| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · v0.10.1 hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) · **v0.10.2** kontrak autentikasi dan MFA (10.3.2) |
 
 > **Konvensi penandaan sumber**
 > - **[K]** = fitur/aturan tertulis eksplisit di dokumen konteks (Lampiran 1/2/HTML).
@@ -1830,6 +1830,29 @@ app/
 | Autentikasi | SPA: cookie Sanctum stateful + CSRF; mesin-ke-mesin: token Sanctum bercakupan; kios: token perangkat (7.01.1) | — |
 
 Endpoint di bagian lain dokumen ini dan di panel **Spek dev** prototipe adalah usulan dengan konvensi ini; nama final mengikuti tiket.
+
+#### 10.3.2 Kontrak autentikasi dan MFA
+
+Kontrak ini mengikat backend (tiket 1.1, 1.1b) dan halaman masuk (tiket 1.4a). Perubahan kontrak hanya lewat PRD.
+
+**Kapan MFA wajib** (14.2, 9.2.4): superadmin, peran sensitif, dan akses dari luar jaringan RS. Sebelum peran ada (tiket 1.2), penentunya kolom `akses.pengguna.wajib_mfa` dan daftar CIDR jaringan RS di konfigurasi; sesudahnya diturunkan dari peran.
+
+| Langkah | Permintaan | Respons sukses | Galat |
+|---|---|---|---|
+| 1. Sandi | `POST /api/v1/autentikasi/masuk` `{nama_pengguna, sandi}` | `200` salah satu: `{"status":"masuk","pengguna":{…}}` · `{"status":"perlu_mfa","tantangan_id":"<uuid>","metode":["totp","kode_cadangan"],"kedaluwarsa_pada":"<ISO 8601>"}` · `{"status":"perlu_daftar_mfa","tantangan_id":"<uuid>","kedaluwarsa_pada":"<ISO 8601>"}` | Tidak berubah dari tiket 1.1: `401 kredensial_salah`, `403 akun_terkunci`, `403 akun_nonaktif`, `403 asal_tidak_diizinkan`, `429` |
+| 2a. Kode MFA | `POST /api/v1/autentikasi/mfa` `{tantangan_id, metode, kode}` | `200 {"status":"masuk","pengguna":{…}}` | `401 kode_mfa_salah` · `401 tantangan_tidak_berlaku` (kedaluwarsa, sudah dipakai, atau dari sesi lain; klien kembali ke langkah 1) · `403 akun_terkunci` · `429` |
+| 2b. Daftar MFA (pertama kali) | `POST /api/v1/autentikasi/mfa/daftar` `{tantangan_id}` | `200 {"uri_otpauth":"otpauth://…","qr_svg":"<svg…>"}` | `401 tantangan_tidak_berlaku` |
+| 2c. Konfirmasi daftar | `POST /api/v1/autentikasi/mfa/daftar/konfirmasi` `{tantangan_id, kode}` | `200 {"status":"masuk","pengguna":{…},"kode_cadangan":["…" ×10]}`; kode cadangan **hanya ditampilkan sekali** | `401 kode_mfa_salah` · `401 tantangan_tidak_berlaku` |
+
+Aturan:
+- `pengguna` berisi bentuk `PenggunaResource` yang sama dengan `GET /api/v1/saya`, ditambah `mfa_aktif` (boolean).
+- Selama status `perlu_mfa`/`perlu_daftar_mfa`, sesi **belum masuk**: `GET /api/v1/saya` tetap `401 belum_masuk`, dan tidak ada endpoint lain yang bisa dipakai. Tantangan terikat ke sesi (cookie) yang membuatnya, sekali pakai, berlaku 5 menit.
+- ID sesi diganti (`regenerate`) setelah langkah yang menghasilkan `status: masuk`.
+- Kode MFA salah dihitung ke penghitung gagal yang sama dengan sandi; 5 kali gagal → `akun_terkunci` 15 menit.
+- TOTP RFC 6238: 6 digit, periode 30 detik, toleransi ±1 periode; kode yang sudah dipakai tidak bisa dipakai lagi dalam periodenya. Rahasia disimpan terenkripsi (`mfa_rahasia_enkripsi`). Kode cadangan: 10 buah, disimpan dengan hash Argon2id, sekali pakai.
+- Audit: `autentikasi.mfa_berhasil`, `autentikasi.mfa_gagal`, `autentikasi.mfa_didaftarkan`, `autentikasi.kode_cadangan_dipakai`; tanpa kode, rahasia, maupun URI otpauth di log.
+- Halaman masuk disusun sebagai mesin status `sandi → (perlu_mfa → kode) | (perlu_daftar_mfa → pindai QR → konfirmasi → tampilkan kode cadangan) → masuk`. Sampai tiket 1.1b merge, respons sukses tanpa `status` diperlakukan sebagai `masuk`.
+- WebAuthn (14.2) menyusul sebagai `metode` tambahan tanpa mengubah bentuk kontrak.
 
 ### 10.4 Struktur frontend (Vue 3)
 
