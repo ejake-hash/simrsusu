@@ -265,6 +265,12 @@
   .cx-lock{margin-top:6px;font-size:12.5px;background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:8px 10px}
   .cx-lock .link,.cx-lock button.link{background:none;border:0;padding:0;color:var(--brand-700);font-weight:600;cursor:pointer;text-decoration:underline}
   .cx-glass{margin-top:6px;color:var(--danger)}
+  .tte-pt{border:1px solid var(--border-strong);border-left:4px solid var(--brand-600);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13.5px}
+  .tte-pt b{font-size:15px}
+  .tte-al{margin-top:4px;font-size:12.5px;color:var(--muted)}
+  .tte-al.bad{color:var(--danger);font-weight:600}
+  .tte-al.bad::before{content:"⚠ "}
+  .tte-demo{background:var(--warn-bg);color:var(--warn);font-weight:600;font-size:12px;padding:6px 10px;border-radius:8px;margin-bottom:10px;letter-spacing:.02em}
 
   .nav-sub{margin:2px 0 6px 28px;border-left:1px solid var(--border);padding-left:8px}
   .nav-sub a{display:block;padding:6px 10px;border-radius:7px;color:var(--muted);text-decoration:none;font-size:13px}
@@ -406,7 +412,7 @@
   .badge-dot{color:var(--usu-hitam)!important}
 </style>
 <style id="ds-css">
-#dsBtn{position:fixed;right:16px;bottom:16px;z-index:60;display:inline-flex;align-items:center;gap:6px;border:1px solid #0B3A22;background:#1D1D1B;color:#fff;border-radius:999px;padding:8px 13px;font:600 12.5px/1 "Public Sans",system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(16,32,22,.25)}
+#dsBtn{position:fixed;left:0;top:50%;transform:translateY(-50%);writing-mode:vertical-rl;z-index:60;display:inline-flex;align-items:center;gap:6px;border:1px solid #0B3A22;border-left:0;background:#1D1D1B;color:#fff;border-radius:0 8px 8px 0;padding:10px 6px;opacity:.85;font:600 12.5px/1 "Public Sans",system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(16,32,22,.25)}
 #dsBtn:focus-visible{outline:2px solid #F3C300;outline-offset:2px}
 #dsPanel{position:fixed;top:0;right:0;height:100vh;width:min(520px,100%);background:#fff;z-index:61;box-shadow:-10px 0 40px rgba(16,32,22,.18);transform:translateX(100%);transition:transform .2s;display:flex;flex-direction:column;font:13px/1.5 "Public Sans",system-ui,sans-serif;color:#1D1D1B}
 #dsPanel.open{transform:none}
@@ -681,7 +687,22 @@ const TTE = (()=>{
   function render(){
     const o=opt, t2=o.tingkat==='T2', list=o.dokumen&&o.dokumen.length>1;
     const head = t2 ? ['TTE tersertifikasi (T2)','Lewat PSrE Privy · dokumen yang keluar RS atau bernilai hukum tinggi','t2'] : ['Tanda tangan elektronik (T1)','Tidak tersertifikasi · PIN pribadi · untuk catatan klinis harian','t1'];
-    let body = `<div class="tte-doc"><div class="src">${list?o.dokumen.length+' dokumen ditandatangani sekaligus':'Dokumen'}</div><b>${o.judul}</b>${o.isi?`<div class="tte-isi">${o.isi}</div>`:''}${list?`<ul>${o.dokumen.map(d=>`<li>${d}</li>`).join('')}</ul>`:''}</div>
+    const pt = o.pasien || (window.pasienAktif && window.pasienAktif());
+    const akun = ((document.querySelector('.user-txt b')||{}).textContent||'').trim();
+    const nm = x => (x||'').split(',')[0].replace(/\s+/g,' ').trim().toLowerCase();
+    const lain = o.penanda && akun && nm(o.penanda)!==nm(akun) && !o.sebagai;
+    const ptHtml = pt ? `<div class="tte-pt"><div class="src">Pasien</div><b>${pt.n}</b> <span class="mono">RM ${pt.rm||'—'}</span> · lahir ${pt.lahir||'—'}${pt.umur!=null?' ('+pt.umur+' th)':''}<div class="tte-al ${pt.alergi&&pt.alergi.length?'bad':''}">${pt.alergi==null?'Alergi: belum dikaji':pt.alergi.length?'Alergi: '+pt.alergi.join(', '):'Tidak ada alergi diketahui'}</div></div>` : '';
+    if (lain){
+      m().querySelector('.modal-c').innerHTML = `<div class="mh"><h2 id="tteTitle">Minta tanda tangan</h2><p>Dokumen ini harus ditandatangani pemiliknya sendiri.</p></div><div class="mb">${ptHtml}<div class="tte-doc"><div class="src">Dokumen</div><b>${o.judul}</b>${o.isi?`<div class="tte-isi">${o.isi}</div>`:''}</div>
+        <p class="tte-stmt">Penanda tangan: <b>${o.penanda}</b>. Anda masuk sebagai <b>${akun}</b>, jadi Anda tidak bisa menandatangani atas namanya. Dokumen dikirim ke antrean tanda tangan ${o.penanda.split(',')[0]}.</p></div>
+        <div class="mf"><button class="btn" id="tteCancel">Batal</button><button class="btn" id="tteAs" title="Hanya ada di prototipe">Peragaan: masuk sebagai ${o.penanda.split(',')[0]}</button><button class="btn btn-primary" id="tteSend">Kirim ke antrean ${o.penanda.split(',')[0]}</button></div>`;
+      document.getElementById('tteCancel').onclick = close;
+      document.getElementById('tteSend').onclick = () => { const o2=opt; close(); toast('Permintaan tanda tangan dikirim ke antrean '+o2.penanda.split(',')[0]+'. Dokumen tetap draf sampai ditandatangani.'); if (o2.onMinta) o2.onMinta(); };
+      document.getElementById('tteAs').onclick = () => { opt.sebagai=true; render(); };
+      setTimeout(()=>{ const x=document.getElementById('tteSend'); if (x) x.focus(); },60);
+      return;
+    }
+    let body = (o.sebagai?`<div class="tte-demo">PERAGAAN · bertindak sebagai ${o.penanda}</div>`:'') + ptHtml + `<div class="tte-doc"><div class="src">${list?o.dokumen.length+' dokumen ditandatangani sekaligus':'Dokumen'}</div><b>${o.judul}</b>${o.isi?`<div class="tte-isi">${o.isi}</div>`:''}${list?`<ul>${o.dokumen.map(d=>`<li>${d}</li>`).join('')}</ul>`:''}</div>
       <p class="tte-stmt">Saya, <b>${o.penanda||'pengguna ini'}</b>, menyatakan isi di atas benar dan saya menandatanganinya.</p>`;
     let foot = '';
     if (!t2){ body += boxes('ttePin') + `<p class="src tte-c" id="tteMsg">Masukkan PIN 6 digit. Peragaan: 6 digit apa pun; <span class="mono">000000</span> = PIN salah.</p>`;
@@ -813,12 +834,21 @@ const EPISODES = {
 /* Semua modal PIN lama di halaman diarahkan ke satu komponen TTE (T1) agar perilaku seragam */
 (function(){ const pm=document.getElementById('pinModal'); if (!pm) return;
   new MutationObserver(()=>{ if (!pm.classList.contains('show') || pm.dataset.pass) return; pm.classList.remove('show');
-    const title=((pm.querySelector('#pinTitle')||{}).textContent||'Pengesahan').replace(/ dengan PIN/i,'');
-    const isi=(pm.querySelector('#pinText')||{}).innerHTML || ((pm.querySelector('#pinP')||{}).textContent||'');
+    const title=pm.dataset.judul || ((pm.querySelector('#pinTitle')||{}).textContent||'Pengesahan').replace(/ dengan PIN/i,'');
+    const isi=pm.dataset.isi || (pm.querySelector('#pinText')||{}).innerHTML || ((pm.querySelector('#pinP')||{}).textContent||'');
+    let pasien; try { pasien = pm.dataset.pasien ? JSON.parse(pm.dataset.pasien) : undefined; } catch(e){}
     const who=pm.dataset.penanda || ((document.querySelector('.user-txt b')||{}).textContent||'');
-    TTE.sign({judul:title, isi, tingkat:'T1', penanda:who, onDone:()=>{ pm.querySelectorAll('input').forEach(i=>i.value='1'); pm.dataset.pass='1'; pm.style.visibility='hidden'; pm.classList.add('show'); pm.querySelector('#pinOk').click(); setTimeout(()=>{ pm.classList.remove('show'); pm.style.visibility=''; delete pm.dataset.pass; }, 1600); }});
+    TTE.sign({judul:title, isi, pasien, tingkat:'T1', penanda:who, onDone:()=>{ pm.querySelectorAll('input').forEach(i=>i.value='1'); pm.dataset.pass='1'; pm.style.visibility='hidden'; pm.classList.add('show'); pm.querySelector('#pinOk').click(); setTimeout(()=>{ pm.classList.remove('show'); pm.style.visibility=''; delete pm.dataset.pass; }, 1600); }});
   }).observe(pm,{attributes:true,attributeFilter:['class']});
 })();
+
+/* Aksesibilitas modal (PRD 5.1 butir 17): Esc menutup, fokus tetap di dalam modal */
+document.addEventListener('keydown', e => {
+  const md=[...document.querySelectorAll('.modal.show')].pop(); if (!md) return;
+  if (e.key==='Escape'){ if (md.querySelector('.btn.busy,[aria-busy="true"]')) return; md.classList.remove('show'); if (md.id==='tteModal' && typeof TTE!=='undefined'){} return; }
+  if (e.key==='Tab'){ const f=[...md.querySelectorAll('button,input,select,textarea,a[href],[tabindex]:not([tabindex="-1"])')].filter(x=>!x.disabled&&x.offsetParent); if (!f.length) return; const a=f[0], z=f[f.length-1];
+    if (e.shiftKey && document.activeElement===a){ e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement===z){ e.preventDefault(); a.focus(); } else if (!md.contains(document.activeElement)){ e.preventDefault(); a.focus(); } }
+});
 
 (function(){
 
@@ -832,18 +862,18 @@ const STAGE = ['telaah','siapkan','siap','diserahkan'];
 const SL = {telaah:['warn','Telaah'], siapkan:['info','Disiapkan'], siap:['brand','Siap diserahkan'], diserahkan:['ok','Diserahkan'], kembali:['bad','Kembali ke dokter']};
 const it = (n,kfa,a,q,split,price,alt,batch) => ({n,kfa,a,q,split,price,alt,batch});
 const RX = [
-  {no:'R-0921', pt:'Ny. Sri Wahyuni', info:'P · 58 th · RM 00-48-21-07', pay:'BPJS kelas 2', doc:'dr. Larasati, Sp.PD', sip:'SIP 503/1123/DPMPTSP/2024', poli:'Penyakit Dalam', race:0, in:ago(4), st:'telaah', allergy:'amoksisilin (ruam)', bb:'72 kg', egfr:68,
+  {no:'R-0921', lahir:'12 Maret 1968', pt:'Ny. Sri Wahyuni', info:'P · 58 th · RM 00-48-21-07', pay:'BPJS kelas 2', doc:'dr. Larasati, Sp.PD', sip:'SIP 503/1123/DPMPTSP/2024', poli:'Penyakit Dalam', race:0, in:ago(4), st:'telaah', allergy:'amoksisilin (ruam)', bb:'72 kg', egfr:68,
    items:[it('Metformin 500 mg tablet','93001625','2 × 1 sesudah makan',60,[14,46],520,null,[['MTF2608A','Mar 2028',420],['MTF2603C','Nov 2027',96]]),
           it('Glimepirid 2 mg tablet','93000874','1 × 1 sebelum makan pagi',30,[7,23],610,null,[['GLM2605B','Jun 2028',300]]),
           it('Amlodipin 10 mg tablet','93003418','1 × 1 pagi',30,[7,23],430,null,[['AML2602A','Feb 2027',150],['AML2607D','Jul 2028',600]]),
           it('Atorvastatin 20 mg tablet','93002217','1 × 1 malam',30,[7,23],980,null,[['ATV2604A','Apr 2028',240]])],
    hist:[['4 September 2026','30 hari','Tepat waktu'],['6 Agustus 2026','30 hari','Tepat waktu'],['8 Juli 2026','30 hari','Tepat waktu']]},
-  {no:'R-0920', pt:'Tn. B.H.', info:'L · 66 th · RM 00-12-88-30', pay:'BPJS kelas 1', doc:'dr. Fikri, Sp.JP', sip:'SIP 503/0988/DPMPTSP/2025', poli:'Jantung', race:0, in:ago(11), st:'telaah', allergy:'tidak ada', bb:'70 kg', egfr:74,
+  {no:'R-0920', lahir:'5 Februari 1960', pt:'Tn. B.H.', info:'L · 66 th · RM 00-12-88-30', pay:'BPJS kelas 1', doc:'dr. Fikri, Sp.JP', sip:'SIP 503/0988/DPMPTSP/2025', poli:'Jantung', race:0, in:ago(11), st:'telaah', allergy:'tidak ada', bb:'70 kg', egfr:74,
    items:[it('Bisoprolol 2,5 mg tablet','93000561','1 × 1 pagi',30,[7,23],720,null,[['BSP2606A','Jun 2028',210]]),
           it('Kandesartan 8 mg tablet','93001190','1 × 1 pagi',30,[7,23],1450,null,[['CDS2601B','Jan 2028',180]]),
           it('Asam asetilsalisilat 80 mg tablet','93000012','1 × 1 sesudah makan',30,[7,23],180,null,[['ASA2609A','Sep 2028',800]])],
    hist:[['9 September 2026','30 hari','Tepat waktu'],['15 Agustus 2026','30 hari','Tepat waktu']], early:'Jatah 9 September untuk 30 hari baru habis 9 Oktober; hari ini masih tersisa 0 hari · aman'},
-  {no:'R-0919', pt:'An. F.Z.', info:'P · 4 th · RM 00-75-30-09', pay:'Umum', doc:'dr. Anita, Sp.A', sip:'SIP 503/1201/DPMPTSP/2024', poli:'Anak', race:1, in:ago(15), st:'telaah', allergy:'tidak ada', bb:'16 kg', egfr:null,
+  {no:'R-0919', lahir:'2 Juli 2022', pt:'An. F.Z.', info:'P · 4 th · RM 00-75-30-09', pay:'Umum', doc:'dr. Anita, Sp.A', sip:'SIP 503/1201/DPMPTSP/2024', poli:'Anak', race:1, in:ago(15), st:'telaah', allergy:'tidak ada', bb:'16 kg', egfr:null,
    items:[it('Racikan puyer No. X: parasetamol 150 mg + ambroksol 7,5 mg','—','3 × 1 bungkus bila demam/batuk',10,null,0,null,[]),
           it('Ambroksol 30 mg tablet (bahan racikan)','93000188','—',3,null,300,{n:'Ambroksol 30 mg (paten)',price:2500},[['AMB2603A','Mar 2028',500]]),
           it('Parasetamol 500 mg tablet (bahan racikan)','93001954','—',3,null,150,{n:'Parasetamol 500 mg (paten)',price:1200},[['PCT2608B','Agu 2028',900]])],
@@ -896,11 +926,12 @@ function renderReview(){
   if (!r.items.length){ $('#rvTitle').textContent='Telaah resep'; b.innerHTML = r.st==='kembali' ? `<p class="src" style="margin:0">Menunggu perbaikan dari ${r.doc}.</p><button class="btn" id="simFix" style="margin-top:10px">Peragaan: dokter memperbaiki resep</button>` : `<p class="src" style="margin:0">Pilih resep R-0921, R-0920, atau R-0919 untuk peragaan lengkap.</p>`; const f=$('#simFix'); if (f) f.onclick=()=>{ r.st='telaah'; r.note=''; renderAllRx(); toast('Dokter memperbaiki resep. Kembali ke antrean telaah.'); }; return; }
   if (r.st==='telaah'){
     $('#rvTitle').textContent='Telaah resep';
-    b.innerHTML = REV.map(([g,items])=>`<div class="sec-label">${g}</div><ul class="rv">${items.map(([k,l])=>{ const a=auto(r,k), warn=/Perlu perhatian/.test(a); return `<li class="${r.rv[k]?'on':''}${warn?' warn':''}"><label class="check"><input type="checkbox" data-rv="${k}" ${r.rv[k]?'checked':''}> <span><b>${l}</b><small>${esc(a)}</small></span></label></li>`; }).join('')}</ul>`).join('') +
+    b.innerHTML = REV.map(([g,items])=>`<div class="sec-label">${g}</div><ul class="rv">${items.map(([k,l])=>{ const a=auto(r,k), warn=/Perlu perhatian/.test(a); return `<li class="${r.rv[k]?'on':''}${warn?' warn':''}"><label class="check"><input type="checkbox" data-rv="${k}" ${r.rv[k]?'checked':''}> <span><b>${l}</b><small>${esc(a)}</small></span></label>${warn&&r.rv[k]?`<div class="f" style="margin:6px 0 0 26px"><label for="ovr_${k}">Alasan tetap melanjutkan (wajib)</label><input id="ovr_${k}" data-ovr="${k}" value="${esc((r.ovr||{})[k]||'')}" placeholder="mis. sudah dikonfirmasi ke dokter penulis resep"></div>`:''}</li>`; }).join('')}</ul>`).join('') +
       `<div class="actions"><div class="left"><button class="btn" id="allRv">Centang semua sesuai</button></div><div class="right"><button class="btn" id="backBtn">Kembalikan ke dokter</button><button class="btn btn-primary" id="okBtn">Setujui</button></div></div>`;
-    $('#allRv').onclick = () => { REV.forEach(([,its])=>its.forEach(([k])=>r.rv[k]=1)); renderReview(); };
+    $('#allRv').onclick = () => { let skip=0; REV.forEach(([,its])=>its.forEach(([k])=>{ if (/Perlu perhatian/.test(auto(r,k))) { skip++; return; } r.rv[k]=1; })); renderReview(); if (skip) toast(skip+' butir berperingatan tidak ikut dicentang. Putuskan satu per satu.'); };
+    $$('[data-ovr]').forEach(i=>i.oninput=()=>{ r.ovr=r.ovr||{}; r.ovr[i.dataset.ovr]=i.value; });
     $('#backBtn').onclick = () => { $('#bkWhy').value=''; $('#bkNote').value = r.doseNote ? 'Dosis parasetamol untuk BB 16 kg disarankan 160–240 mg per kali.' : ''; if (r.doseNote) $('#bkWhy').value='Dosis tidak sesuai'; $('#backModal').classList.add('show'); };
-    $('#okBtn').onclick = () => { const all = REV.every(([,its])=>its.every(([k])=>r.rv[k])); if (!all) return toast('Centang seluruh butir telaah administratif, farmasetik, dan klinis.'); r.st='siapkan'; renderAllRx(); toast('Telaah disetujui oleh apt. Siti Rahma. Resep masuk penyiapan.'); };
+    $('#okBtn').onclick = () => { const all = REV.every(([,its])=>its.every(([k])=>r.rv[k])); if (!all) return toast('Centang seluruh butir telaah administratif, farmasetik, dan klinis.'); const wk=REV.flatMap(([,its])=>its.map(([k])=>k)).filter(k=>/Perlu perhatian/.test(auto(r,k))); const miss=wk.filter(k=>((r.ovr||{})[k]||'').trim().length<10); if (miss.length){ const i=$('#ovr_'+miss[0]); if (i){ i.setAttribute('aria-invalid','true'); i.focus(); } return toast('Butir berperingatan perlu alasan tertulis (minimal 10 karakter), atau kembalikan resep ke dokter.'); } r.st='siapkan'; renderAllRx(); toast('Telaah disetujui oleh apt. Siti Rahma. Resep masuk penyiapan.'); };
   } else if (r.st==='siapkan'){
     $('#rvTitle').textContent='Penyiapan';
     b.innerHTML = `<p style="margin:0;font-size:13px">Pilih batch dengan kedaluwarsa terdekat lebih dulu (FEFO). ${r.race?'Racikan dikerjakan TTK dan diperiksa apoteker.':''}</p>
@@ -911,9 +942,17 @@ function renderReview(){
   } else if (r.st==='siap'){
     $('#rvTitle').textContent='Penyerahan dan informasi obat';
     b.innerHTML = `<ul class="rv">${[['pio1','Cara dan waktu minum setiap obat'],['pio2','Efek samping yang perlu diwaspadai'],['pio3','Cara penyimpanan'],['pio4','Jadwal kontrol dan pengambilan obat berikutnya']].map(([k,l])=>`<li class="${r.rv[k]?'on':''}"><label class="check"><input type="checkbox" data-rv="${k}" ${r.rv[k]?'checked':''}> <span><b>${l}</b></span></label></li>`).join('')}</ul>
+      <div class="tte-pt" style="margin-top:10px"><div class="src">Verifikasi identitas sebelum menyerahkan (2 penanda)</div><b>${r.pt}</b> <span class="mono">${(r.info.match(/RM [\d-]+/)||['RM —'])[0]}</span> · lahir ${r.lahir||'—'}
+        <div class="f" style="margin-top:8px"><label for="idChk">Pindai kartu/QR antrean atau ketik No. RM atau tanggal lahir yang disebut penerima</label><input id="idChk" autocomplete="off" placeholder="mis. 00-48-21-07"></div><div class="help" id="idMsg"></div></div>
       <div class="f" style="margin-top:10px"><label for="rcv">Diterima oleh</label><select id="rcv"><option>Pasien sendiri</option><option>Keluarga (anak)</option><option>Keluarga (pasangan)</option></select></div>
+      <div class="f hidden" id="rcvNmF"><label for="rcvNm">Nama penerima (keluarga)</label><input id="rcvNm"></div>
       <div class="actions"><div class="left">Penerima tanda tangan di tablet loket.</div><div class="right"><button class="btn btn-primary" id="giveBtn">Serahkan obat</button></div></div>`;
-    $('#giveBtn').onclick = () => { if (!['pio1','pio2','pio3','pio4'].every(k=>r.rv[k])) return toast('Lengkapi informasi obat sebelum menyerahkan.'); r.st='diserahkan'; r.out=Date.now(); renderAllRx(); toast(`Diserahkan · waktu tunggu ${wait(r)} menit. Stok berkurang, tagihan dan MedicationDispense terkirim.` + (/BPJS/.test(r.pay)?' Task ID 7 terkirim.':'')); };
+    $('#rcv').onchange = () => $('#rcvNmF').classList.toggle('hidden', $('#rcv').value==='Pasien sendiri');
+    $('#giveBtn').onclick = () => { const rm=((r.info.match(/RM ([\d-]+)/)||[])[1]||''), v=$('#idChk').value.trim().toLowerCase();
+      const okId = v && ((rm && v.replace(/\D/g,'')===rm.replace(/\D/g,'')) || (r.lahir && v===r.lahir.toLowerCase()));
+      if (!okId){ $('#idChk').setAttribute('aria-invalid','true'); $('#idMsg').innerHTML='<span style="color:var(--danger)">Identitas belum cocok. Jangan serahkan obat.</span>'; $('#idChk').focus(); return toast('Verifikasi identitas penerima gagal atau belum diisi.'); }
+      if ($('#rcv').value!=='Pasien sendiri' && $('#rcvNm').value.trim().length<3) return toast('Isi nama keluarga yang menerima obat.');
+      if (!['pio1','pio2','pio3','pio4'].every(k=>r.rv[k])) return toast('Lengkapi informasi obat sebelum menyerahkan.'); r.st='diserahkan'; r.out=Date.now(); renderAllRx(); toast(`Diserahkan · waktu tunggu ${wait(r)} menit. Stok berkurang, tagihan dan MedicationDispense terkirim.` + (/BPJS/.test(r.pay)?' Task ID 7 terkirim.':'')); };
   } else if (r.st==='diserahkan'){
     $('#rvTitle').textContent='Selesai';
     b.innerHTML = `<div class="note ok" style="margin:0">${ICON_OK}<span>Diserahkan ${hm(r.out)} · waktu tunggu ${wait(r)} menit (standar ${r.race?60:30} menit).</span></div><ul class="outlist" style="margin-top:10px"><li>Stok depo rawat jalan berkurang per batch</li><li>Item masuk rincian tagihan${/BPJS/.test(r.pay)?'; obat kronis 23 hari ke klaim obat kronis':''}</li><li>MedicationDispense dikirim ke SATUSEHAT</li></ul>`;

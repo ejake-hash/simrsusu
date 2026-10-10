@@ -265,6 +265,12 @@
   .cx-lock{margin-top:6px;font-size:12.5px;background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:8px 10px}
   .cx-lock .link,.cx-lock button.link{background:none;border:0;padding:0;color:var(--brand-700);font-weight:600;cursor:pointer;text-decoration:underline}
   .cx-glass{margin-top:6px;color:var(--danger)}
+  .tte-pt{border:1px solid var(--border-strong);border-left:4px solid var(--brand-600);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13.5px}
+  .tte-pt b{font-size:15px}
+  .tte-al{margin-top:4px;font-size:12.5px;color:var(--muted)}
+  .tte-al.bad{color:var(--danger);font-weight:600}
+  .tte-al.bad::before{content:"⚠ "}
+  .tte-demo{background:var(--warn-bg);color:var(--warn);font-weight:600;font-size:12px;padding:6px 10px;border-radius:8px;margin-bottom:10px;letter-spacing:.02em}
 
   .nav-sub{margin:2px 0 6px 28px;border-left:1px solid var(--border);padding-left:8px}
   .nav-sub a{display:block;padding:6px 10px;border-radius:7px;color:var(--muted);text-decoration:none;font-size:13px}
@@ -410,7 +416,7 @@
   .badge-dot{color:var(--usu-hitam)!important}
 </style>
 <style id="ds-css">
-#dsBtn{position:fixed;right:16px;bottom:16px;z-index:60;display:inline-flex;align-items:center;gap:6px;border:1px solid #0B3A22;background:#1D1D1B;color:#fff;border-radius:999px;padding:8px 13px;font:600 12.5px/1 "Public Sans",system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(16,32,22,.25)}
+#dsBtn{position:fixed;left:0;top:50%;transform:translateY(-50%);writing-mode:vertical-rl;z-index:60;display:inline-flex;align-items:center;gap:6px;border:1px solid #0B3A22;border-left:0;background:#1D1D1B;color:#fff;border-radius:0 8px 8px 0;padding:10px 6px;opacity:.85;font:600 12.5px/1 "Public Sans",system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(16,32,22,.25)}
 #dsBtn:focus-visible{outline:2px solid #F3C300;outline-offset:2px}
 #dsPanel{position:fixed;top:0;right:0;height:100vh;width:min(520px,100%);background:#fff;z-index:61;box-shadow:-10px 0 40px rgba(16,32,22,.18);transform:translateX(100%);transition:transform .2s;display:flex;flex-direction:column;font:13px/1.5 "Public Sans",system-ui,sans-serif;color:#1D1D1B}
 #dsPanel.open{transform:none}
@@ -629,7 +635,22 @@ const TTE = (()=>{
   function render(){
     const o=opt, t2=o.tingkat==='T2', list=o.dokumen&&o.dokumen.length>1;
     const head = t2 ? ['TTE tersertifikasi (T2)','Lewat PSrE Privy · dokumen yang keluar RS atau bernilai hukum tinggi','t2'] : ['Tanda tangan elektronik (T1)','Tidak tersertifikasi · PIN pribadi · untuk catatan klinis harian','t1'];
-    let body = `<div class="tte-doc"><div class="src">${list?o.dokumen.length+' dokumen ditandatangani sekaligus':'Dokumen'}</div><b>${o.judul}</b>${o.isi?`<div class="tte-isi">${o.isi}</div>`:''}${list?`<ul>${o.dokumen.map(d=>`<li>${d}</li>`).join('')}</ul>`:''}</div>
+    const pt = o.pasien || (window.pasienAktif && window.pasienAktif());
+    const akun = ((document.querySelector('.user-txt b')||{}).textContent||'').trim();
+    const nm = x => (x||'').split(',')[0].replace(/\s+/g,' ').trim().toLowerCase();
+    const lain = o.penanda && akun && nm(o.penanda)!==nm(akun) && !o.sebagai;
+    const ptHtml = pt ? `<div class="tte-pt"><div class="src">Pasien</div><b>${pt.n}</b> <span class="mono">RM ${pt.rm||'—'}</span> · lahir ${pt.lahir||'—'}${pt.umur!=null?' ('+pt.umur+' th)':''}<div class="tte-al ${pt.alergi&&pt.alergi.length?'bad':''}">${pt.alergi==null?'Alergi: belum dikaji':pt.alergi.length?'Alergi: '+pt.alergi.join(', '):'Tidak ada alergi diketahui'}</div></div>` : '';
+    if (lain){
+      m().querySelector('.modal-c').innerHTML = `<div class="mh"><h2 id="tteTitle">Minta tanda tangan</h2><p>Dokumen ini harus ditandatangani pemiliknya sendiri.</p></div><div class="mb">${ptHtml}<div class="tte-doc"><div class="src">Dokumen</div><b>${o.judul}</b>${o.isi?`<div class="tte-isi">${o.isi}</div>`:''}</div>
+        <p class="tte-stmt">Penanda tangan: <b>${o.penanda}</b>. Anda masuk sebagai <b>${akun}</b>, jadi Anda tidak bisa menandatangani atas namanya. Dokumen dikirim ke antrean tanda tangan ${o.penanda.split(',')[0]}.</p></div>
+        <div class="mf"><button class="btn" id="tteCancel">Batal</button><button class="btn" id="tteAs" title="Hanya ada di prototipe">Peragaan: masuk sebagai ${o.penanda.split(',')[0]}</button><button class="btn btn-primary" id="tteSend">Kirim ke antrean ${o.penanda.split(',')[0]}</button></div>`;
+      document.getElementById('tteCancel').onclick = close;
+      document.getElementById('tteSend').onclick = () => { const o2=opt; close(); toast('Permintaan tanda tangan dikirim ke antrean '+o2.penanda.split(',')[0]+'. Dokumen tetap draf sampai ditandatangani.'); if (o2.onMinta) o2.onMinta(); };
+      document.getElementById('tteAs').onclick = () => { opt.sebagai=true; render(); };
+      setTimeout(()=>{ const x=document.getElementById('tteSend'); if (x) x.focus(); },60);
+      return;
+    }
+    let body = (o.sebagai?`<div class="tte-demo">PERAGAAN · bertindak sebagai ${o.penanda}</div>`:'') + ptHtml + `<div class="tte-doc"><div class="src">${list?o.dokumen.length+' dokumen ditandatangani sekaligus':'Dokumen'}</div><b>${o.judul}</b>${o.isi?`<div class="tte-isi">${o.isi}</div>`:''}${list?`<ul>${o.dokumen.map(d=>`<li>${d}</li>`).join('')}</ul>`:''}</div>
       <p class="tte-stmt">Saya, <b>${o.penanda||'pengguna ini'}</b>, menyatakan isi di atas benar dan saya menandatanganinya.</p>`;
     let foot = '';
     if (!t2){ body += boxes('ttePin') + `<p class="src tte-c" id="tteMsg">Masukkan PIN 6 digit. Peragaan: 6 digit apa pun; <span class="mono">000000</span> = PIN salah.</p>`;
@@ -761,12 +782,21 @@ const EPISODES = {
 /* Semua modal PIN lama di halaman diarahkan ke satu komponen TTE (T1) agar perilaku seragam */
 (function(){ const pm=document.getElementById('pinModal'); if (!pm) return;
   new MutationObserver(()=>{ if (!pm.classList.contains('show') || pm.dataset.pass) return; pm.classList.remove('show');
-    const title=((pm.querySelector('#pinTitle')||{}).textContent||'Pengesahan').replace(/ dengan PIN/i,'');
-    const isi=(pm.querySelector('#pinText')||{}).innerHTML || ((pm.querySelector('#pinP')||{}).textContent||'');
+    const title=pm.dataset.judul || ((pm.querySelector('#pinTitle')||{}).textContent||'Pengesahan').replace(/ dengan PIN/i,'');
+    const isi=pm.dataset.isi || (pm.querySelector('#pinText')||{}).innerHTML || ((pm.querySelector('#pinP')||{}).textContent||'');
+    let pasien; try { pasien = pm.dataset.pasien ? JSON.parse(pm.dataset.pasien) : undefined; } catch(e){}
     const who=pm.dataset.penanda || ((document.querySelector('.user-txt b')||{}).textContent||'');
-    TTE.sign({judul:title, isi, tingkat:'T1', penanda:who, onDone:()=>{ pm.querySelectorAll('input').forEach(i=>i.value='1'); pm.dataset.pass='1'; pm.style.visibility='hidden'; pm.classList.add('show'); pm.querySelector('#pinOk').click(); setTimeout(()=>{ pm.classList.remove('show'); pm.style.visibility=''; delete pm.dataset.pass; }, 1600); }});
+    TTE.sign({judul:title, isi, pasien, tingkat:'T1', penanda:who, onDone:()=>{ pm.querySelectorAll('input').forEach(i=>i.value='1'); pm.dataset.pass='1'; pm.style.visibility='hidden'; pm.classList.add('show'); pm.querySelector('#pinOk').click(); setTimeout(()=>{ pm.classList.remove('show'); pm.style.visibility=''; delete pm.dataset.pass; }, 1600); }});
   }).observe(pm,{attributes:true,attributeFilter:['class']});
 })();
+
+/* Aksesibilitas modal (PRD 5.1 butir 17): Esc menutup, fokus tetap di dalam modal */
+document.addEventListener('keydown', e => {
+  const md=[...document.querySelectorAll('.modal.show')].pop(); if (!md) return;
+  if (e.key==='Escape'){ if (md.querySelector('.btn.busy,[aria-busy="true"]')) return; md.classList.remove('show'); if (md.id==='tteModal' && typeof TTE!=='undefined'){} return; }
+  if (e.key==='Tab'){ const f=[...md.querySelectorAll('button,input,select,textarea,a[href],[tabindex]:not([tabindex="-1"])')].filter(x=>!x.disabled&&x.offsetParent); if (!f.length) return; const a=f[0], z=f[f.length-1];
+    if (e.shiftKey && document.activeElement===a){ e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement===z){ e.preventDefault(); a.focus(); } else if (!md.contains(document.activeElement)){ e.preventDefault(); a.focus(); } }
+});
 
 (function(){
 const kpiHTML = arr => arr.map(k=>`<div class="kpi${k[3]?' alert':''}"><div class="kpi-label">${k[0]}</div><div class="kpi-value" style="font-size:24px">${k[1]}</div><div class="kpi-meta">${k[2]}</div></div>`).join('');

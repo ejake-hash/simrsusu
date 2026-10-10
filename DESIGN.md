@@ -1,4 +1,4 @@
-# DESIGN.md — SIMRS RS Pendidikan USU
+# DESIGN.md — Karsitara SIMRS
 
 > Sumber nilai: **PRD 5.3** (identitas visual dari Pedoman Identitas USU) dan
 > **`frontend/src/design-system/tokens.css`**. File ini **tidak** menyalin nilai warna agar
@@ -6,6 +6,7 @@
 > Prioritas: keselamatan input, lalu kecepatan kerja petugas, lalu keterbacaan, baru estetika.
 
 ## Identitas
+- Warna `--brand-*` dan `--accent` serta logo RS berasal dari paket identitas per instalasi (PRD 3.4); nilai di bawah adalah paket contoh RS USU. Token status, triase, dan netral milik produk dan tidak diganti per RS.
 - Logo produk **Karsitara** (sidebar, halaman masuk), logo **RS USU** (kartu RS, kop dokumen), **Karya Sistem Nusantara** (kaki halaman masuk). Aturan: PRD 5.3.1.
 - File asli di `docs/brand/`; aplikasi memakai versi web di `frontend/public/logo/`. Lambang USU **tidak** dipakai di aplikasi.
 - Warna utama hijau USU (`--brand-600`), aksen emas (`--accent`, hanya isian/garis), teks `--text`. Huruf **Public Sans**; kode/No. RM **JetBrains Mono**.
@@ -18,6 +19,7 @@
 - Motif grafis USU hanya di halaman masuk, layar antrean, dan cetak; tidak di layar kerja klinis.
 
 ## Pola layar klinis
+- Wajib: PRD 5.1 butir 9–17 (identitas nama lengkap + No. RM + tanggal lahir di setiap daftar/pemilih/modal; `TtdModal` menampilkan pasien dan hanya untuk pemilik akun; konfirmasi aksi tak terbalikkan; Esc dan fokus modal).
 - Form panjang dibagi per bagian; tombol simpan selalu terlihat.
 - Semua form bisa dioperasikan penuh dengan keyboard (Tab/Enter), tanpa mouse.
 - Nilai kritis (lab, tanda vital) memakai warna DAN ikon/teks.

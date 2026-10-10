@@ -265,6 +265,12 @@
   .cx-lock{margin-top:6px;font-size:12.5px;background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:8px 10px}
   .cx-lock .link,.cx-lock button.link{background:none;border:0;padding:0;color:var(--brand-700);font-weight:600;cursor:pointer;text-decoration:underline}
   .cx-glass{margin-top:6px;color:var(--danger)}
+  .tte-pt{border:1px solid var(--border-strong);border-left:4px solid var(--brand-600);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13.5px}
+  .tte-pt b{font-size:15px}
+  .tte-al{margin-top:4px;font-size:12.5px;color:var(--muted)}
+  .tte-al.bad{color:var(--danger);font-weight:600}
+  .tte-al.bad::before{content:"⚠ "}
+  .tte-demo{background:var(--warn-bg);color:var(--warn);font-weight:600;font-size:12px;padding:6px 10px;border-radius:8px;margin-bottom:10px;letter-spacing:.02em}
 
   .nav-sub{margin:2px 0 6px 28px;border-left:1px solid var(--border);padding-left:8px}
   .nav-sub a{display:block;padding:6px 10px;border-radius:7px;color:var(--muted);text-decoration:none;font-size:13px}
@@ -440,7 +446,7 @@
   .badge-dot{color:var(--usu-hitam)!important}
 </style>
 <style id="ds-css">
-#dsBtn{position:fixed;right:16px;bottom:16px;z-index:60;display:inline-flex;align-items:center;gap:6px;border:1px solid #0B3A22;background:#1D1D1B;color:#fff;border-radius:999px;padding:8px 13px;font:600 12.5px/1 "Public Sans",system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(16,32,22,.25)}
+#dsBtn{position:fixed;left:0;top:50%;transform:translateY(-50%);writing-mode:vertical-rl;z-index:60;display:inline-flex;align-items:center;gap:6px;border:1px solid #0B3A22;border-left:0;background:#1D1D1B;color:#fff;border-radius:0 8px 8px 0;padding:10px 6px;opacity:.85;font:600 12.5px/1 "Public Sans",system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(16,32,22,.25)}
 #dsBtn:focus-visible{outline:2px solid #F3C300;outline-offset:2px}
 #dsPanel{position:fixed;top:0;right:0;height:100vh;width:min(520px,100%);background:#fff;z-index:61;box-shadow:-10px 0 40px rgba(16,32,22,.18);transform:translateX(100%);transition:transform .2s;display:flex;flex-direction:column;font:13px/1.5 "Public Sans",system-ui,sans-serif;color:#1D1D1B}
 #dsPanel.open{transform:none}
@@ -737,7 +743,22 @@ const TTE = (()=>{
   function render(){
     const o=opt, t2=o.tingkat==='T2', list=o.dokumen&&o.dokumen.length>1;
     const head = t2 ? ['TTE tersertifikasi (T2)','Lewat PSrE Privy · dokumen yang keluar RS atau bernilai hukum tinggi','t2'] : ['Tanda tangan elektronik (T1)','Tidak tersertifikasi · PIN pribadi · untuk catatan klinis harian','t1'];
-    let body = `<div class="tte-doc"><div class="src">${list?o.dokumen.length+' dokumen ditandatangani sekaligus':'Dokumen'}</div><b>${o.judul}</b>${o.isi?`<div class="tte-isi">${o.isi}</div>`:''}${list?`<ul>${o.dokumen.map(d=>`<li>${d}</li>`).join('')}</ul>`:''}</div>
+    const pt = o.pasien || (window.pasienAktif && window.pasienAktif());
+    const akun = ((document.querySelector('.user-txt b')||{}).textContent||'').trim();
+    const nm = x => (x||'').split(',')[0].replace(/\s+/g,' ').trim().toLowerCase();
+    const lain = o.penanda && akun && nm(o.penanda)!==nm(akun) && !o.sebagai;
+    const ptHtml = pt ? `<div class="tte-pt"><div class="src">Pasien</div><b>${pt.n}</b> <span class="mono">RM ${pt.rm||'—'}</span> · lahir ${pt.lahir||'—'}${pt.umur!=null?' ('+pt.umur+' th)':''}<div class="tte-al ${pt.alergi&&pt.alergi.length?'bad':''}">${pt.alergi==null?'Alergi: belum dikaji':pt.alergi.length?'Alergi: '+pt.alergi.join(', '):'Tidak ada alergi diketahui'}</div></div>` : '';
+    if (lain){
+      m().querySelector('.modal-c').innerHTML = `<div class="mh"><h2 id="tteTitle">Minta tanda tangan</h2><p>Dokumen ini harus ditandatangani pemiliknya sendiri.</p></div><div class="mb">${ptHtml}<div class="tte-doc"><div class="src">Dokumen</div><b>${o.judul}</b>${o.isi?`<div class="tte-isi">${o.isi}</div>`:''}</div>
+        <p class="tte-stmt">Penanda tangan: <b>${o.penanda}</b>. Anda masuk sebagai <b>${akun}</b>, jadi Anda tidak bisa menandatangani atas namanya. Dokumen dikirim ke antrean tanda tangan ${o.penanda.split(',')[0]}.</p></div>
+        <div class="mf"><button class="btn" id="tteCancel">Batal</button><button class="btn" id="tteAs" title="Hanya ada di prototipe">Peragaan: masuk sebagai ${o.penanda.split(',')[0]}</button><button class="btn btn-primary" id="tteSend">Kirim ke antrean ${o.penanda.split(',')[0]}</button></div>`;
+      document.getElementById('tteCancel').onclick = close;
+      document.getElementById('tteSend').onclick = () => { const o2=opt; close(); toast('Permintaan tanda tangan dikirim ke antrean '+o2.penanda.split(',')[0]+'. Dokumen tetap draf sampai ditandatangani.'); if (o2.onMinta) o2.onMinta(); };
+      document.getElementById('tteAs').onclick = () => { opt.sebagai=true; render(); };
+      setTimeout(()=>{ const x=document.getElementById('tteSend'); if (x) x.focus(); },60);
+      return;
+    }
+    let body = (o.sebagai?`<div class="tte-demo">PERAGAAN · bertindak sebagai ${o.penanda}</div>`:'') + ptHtml + `<div class="tte-doc"><div class="src">${list?o.dokumen.length+' dokumen ditandatangani sekaligus':'Dokumen'}</div><b>${o.judul}</b>${o.isi?`<div class="tte-isi">${o.isi}</div>`:''}${list?`<ul>${o.dokumen.map(d=>`<li>${d}</li>`).join('')}</ul>`:''}</div>
       <p class="tte-stmt">Saya, <b>${o.penanda||'pengguna ini'}</b>, menyatakan isi di atas benar dan saya menandatanganinya.</p>`;
     let foot = '';
     if (!t2){ body += boxes('ttePin') + `<p class="src tte-c" id="tteMsg">Masukkan PIN 6 digit. Peragaan: 6 digit apa pun; <span class="mono">000000</span> = PIN salah.</p>`;
@@ -869,12 +890,21 @@ const EPISODES = {
 /* Semua modal PIN lama di halaman diarahkan ke satu komponen TTE (T1) agar perilaku seragam */
 (function(){ const pm=document.getElementById('pinModal'); if (!pm) return;
   new MutationObserver(()=>{ if (!pm.classList.contains('show') || pm.dataset.pass) return; pm.classList.remove('show');
-    const title=((pm.querySelector('#pinTitle')||{}).textContent||'Pengesahan').replace(/ dengan PIN/i,'');
-    const isi=(pm.querySelector('#pinText')||{}).innerHTML || ((pm.querySelector('#pinP')||{}).textContent||'');
+    const title=pm.dataset.judul || ((pm.querySelector('#pinTitle')||{}).textContent||'Pengesahan').replace(/ dengan PIN/i,'');
+    const isi=pm.dataset.isi || (pm.querySelector('#pinText')||{}).innerHTML || ((pm.querySelector('#pinP')||{}).textContent||'');
+    let pasien; try { pasien = pm.dataset.pasien ? JSON.parse(pm.dataset.pasien) : undefined; } catch(e){}
     const who=pm.dataset.penanda || ((document.querySelector('.user-txt b')||{}).textContent||'');
-    TTE.sign({judul:title, isi, tingkat:'T1', penanda:who, onDone:()=>{ pm.querySelectorAll('input').forEach(i=>i.value='1'); pm.dataset.pass='1'; pm.style.visibility='hidden'; pm.classList.add('show'); pm.querySelector('#pinOk').click(); setTimeout(()=>{ pm.classList.remove('show'); pm.style.visibility=''; delete pm.dataset.pass; }, 1600); }});
+    TTE.sign({judul:title, isi, pasien, tingkat:'T1', penanda:who, onDone:()=>{ pm.querySelectorAll('input').forEach(i=>i.value='1'); pm.dataset.pass='1'; pm.style.visibility='hidden'; pm.classList.add('show'); pm.querySelector('#pinOk').click(); setTimeout(()=>{ pm.classList.remove('show'); pm.style.visibility=''; delete pm.dataset.pass; }, 1600); }});
   }).observe(pm,{attributes:true,attributeFilter:['class']});
 })();
+
+/* Aksesibilitas modal (PRD 5.1 butir 17): Esc menutup, fokus tetap di dalam modal */
+document.addEventListener('keydown', e => {
+  const md=[...document.querySelectorAll('.modal.show')].pop(); if (!md) return;
+  if (e.key==='Escape'){ if (md.querySelector('.btn.busy,[aria-busy="true"]')) return; md.classList.remove('show'); if (md.id==='tteModal' && typeof TTE!=='undefined'){} return; }
+  if (e.key==='Tab'){ const f=[...md.querySelectorAll('button,input,select,textarea,a[href],[tabindex]:not([tabindex="-1"])')].filter(x=>!x.disabled&&x.offsetParent); if (!f.length) return; const a=f[0], z=f[f.length-1];
+    if (e.shiftKey && document.activeElement===a){ e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement===z){ e.preventDefault(); a.focus(); } else if (!md.contains(document.activeElement)){ e.preventDefault(); a.focus(); } }
+});
 
 (function(){
 
@@ -982,16 +1012,22 @@ $('#dlOk').onclick = () => { const w=$('#dlWhy').value; if (!w){ $('#dlWhy').set
 
 /* ---------- Ceklis ---------- */
 let ckSel = C[1];
+const OK_AL = {c2:['Penisilin (urtikaria)'], c5:[], c8:null, c11:['Lateks'], c9:[]};
+const okId = c => { const al = c.id in OK_AL ? OK_AL[c.id] : []; const sisi = /kanan/.test(c.proc)?'Kanan':/kiri/.test(c.proc)?'Kiri':'Tidak berlaku (organ tunggal/garis tengah)';
+  const [n,umur] = c.pt.split(', '); return {n, umur:parseInt(umur), rm:c.rm, lahir:'tahun '+(2026-parseInt(umur)), alergi:al, sisi}; };
 function renderCk(){
-  const c=ckSel;
-  $('#ckPick').innerHTML = C.filter(x=>x.st!=='ditunda').map(x=>`<option value="${x.id}" ${x===c?'selected':''}>${ROOMS[x.room]} · ${tm(x.s)} · ${x.proc}</option>`).join('');
+  const c=ckSel, id=okId(c);
+  let box=$('#ckId'); if (!box){ box=document.createElement('div'); box.id='ckId'; $('#phases').before(box); }
+  box.innerHTML = `<div class="tte-pt" style="margin-bottom:14px"><div class="src">Identitas pasien — cocokkan dengan gelang sebelum setiap tahap</div><b>${id.n}</b> <span class="mono">RM ${id.rm}</span> · lahir ${id.lahir} (${id.umur} th)
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><span class="pill ${id.alergi==null?'warn':id.alergi.length?'bad':'neutral'}">${id.alergi==null?'Alergi belum dikaji':id.alergi.length?'⚠ Alergi: '+id.alergi.join(', '):'Tidak ada alergi diketahui'}</span><span class="pill info">Sisi operasi: ${id.sisi}</span><span class="pill ok">Persetujuan tindakan: ditandatangani</span></div></div>`;
+  $('#ckPick').innerHTML = C.filter(x=>x.st!=='ditunda').map(x=>`<option value="${x.id}" ${x===c?'selected':''}>${ROOMS[x.room]} · ${tm(x.s)} · ${x.pt.split(',')[0]} · RM ${x.rm} · ${x.proc}</option>`).join('');
   $('#ckTitle').textContent = c.proc + ' · ' + c.pt; $('#ckSub').textContent = ROOMS[c.room] + ' · ' + c.team.operator + ' · ' + c.an + ' ' + c.team.anestesi;
   const keys=['signin','timeout','signout'], names=['Sebelum induksi (Sign in)','Sebelum insisi (Time out)','Sebelum keluar kamar (Sign out)'], who=['Perawat sirkuler dan anestesi','Seluruh tim, dipimpin perawat sirkuler','Seluruh tim sebelum pasien keluar'];
   $('#phases').innerHTML = keys.map((k,i)=>{
     const locked = i>0 && !phaseDone(c,keys[i-1]), done=phaseDone(c,k);
     const extra = k==='timeout' ? `<div class="f" style="margin-top:10px"><label for="abx">Jam antibiotik profilaksis</label><input id="abx" placeholder="mis. 09.10" value="${c.ck.timeout.abx!=null?tm(c.ck.timeout.abx):''}" ${locked||done?'disabled':''}><div class="help" id="abxHelp">${abxMsg(c)}</div></div>` : '';
     return `<section class="card phase ${done?'done':''} ${locked?'locked':''}"><div class="card-h tight"><div><h2>${names[i]}</h2><p>${who[i]}</p></div><span class="pill ${done?'ok':locked?'neutral':'warn'}">${done?'Lengkap '+tm(c.ck[k].at):locked?'Terkunci':c.ck[k].done.length+'/'+WHO[k].length}</span></div>
-      <div class="card-b tight"><ul class="cklist">${WHO[k].map((it,j)=>`<li><label class="check"><input type="checkbox" data-ck="${k}" data-i="${j}" ${c.ck[k].done.includes(j)?'checked':''} ${locked||done?'disabled':''}> ${it}</label></li>`).join('')}</ul>${extra}
+      <div class="card-b tight"><ul class="cklist">${WHO[k].map((it,j)=>`<li><label class="check"><input type="checkbox" data-ck="${k}" data-i="${j}" ${c.ck[k].done.includes(j)?'checked':''} ${locked||done?'disabled':''}> ${it}${it==='Alergi diketahui'?` <b>(${id.alergi==null?'belum dikaji — kaji dulu':id.alergi.length?id.alergi.join(', '):'tidak ada'})</b>`:''}</label></li>`).join('')}</ul>${extra}
       ${done||locked?'':`<button class="btn btn-primary btn-block" data-ckdone="${k}">Konfirmasi ${['sign in','time out','sign out'][i]}</button>`}</div></section>`; }).join('');
 }
 function abxMsg(c){ const a=c.ck.timeout.abx, ins=c.times.insisi || NOW+10; if (a==null) return 'Diisi saat time out; batas 60 menit sebelum insisi.'; const d=ins-a; return d>60 ? `<span style="color:var(--danger)">${d} menit sebelum insisi: melebihi 60 menit, pertimbangkan dosis ulang.</span>` : d<0 ? 'Diberikan setelah insisi.' : `${d} menit sebelum insisi · sesuai`; }
@@ -1101,7 +1137,7 @@ function renderLp(){
   $('#lpLock').classList.toggle('hidden', !L.signed);
   if (L.signed) $('#lpLock').innerHTML = `${ICON_OK}<span>Disahkan ${c.team.operator} pukul ${L.signed}. Laporan terkunci; perubahan berikutnya sebagai adendum.</span>`;
   $('#lpSign').innerHTML = L.signed ? `<ul class="outlist">${L.out.map(o=>`<li>${o}</li>`).join('')}</ul>` : `${c.st==='berlangsung'?`<div class="note warn" style="margin-top:0">${ICON_W}<span>Operasi masih berlangsung. Laporan disahkan setelah sign out.</span></div>`:''}<button class="btn btn-primary btn-block" id="lpBtn" ${c.st==='berlangsung'?'disabled':''}>Sahkan laporan operasi</button><p class="src" style="margin:8px 0 0">Setelah disahkan: jasa operator dan anestesi, kamar dan alat, serta BMHP masuk tagihan; stok depo kamar bedah berkurang; Procedure dikirim ke SATUSEHAT.</p>`;
-  const b=$('#lpBtn'); if (b) b.onclick = () => { if ($('#lFind').value.trim().length<10){ $('#lFind').setAttribute('aria-invalid','true'); return toast('Isi temuan dan uraian tindakan.'); } $$('#pin input').forEach(i=>i.value=''); $('#pinModal').dataset.penanda = lpSel.op; $('#pinModal').classList.add('show'); };
+  const b=$('#lpBtn'); if (b) b.onclick = () => { if ($('#lFind').value.trim().length<10){ $('#lFind').setAttribute('aria-invalid','true'); return toast('Isi temuan dan uraian tindakan.'); } $$('#pin input').forEach(i=>i.value=''); $('#pinModal').dataset.penanda = lpSel.op; $('#pinModal').dataset.pasien = JSON.stringify(okId(lpSel)); $('#pinModal').dataset.judul = 'Laporan operasi · '+lpSel.proc; $('#pinModal').classList.add('show'); };
 }
 ['lDxPre','lDxPost','lProc','lFind','lBlood'].forEach(id=>$('#'+id).addEventListener('input', e => { const L=lpOf(lpSel); L[{lDxPre:'pre',lDxPost:'post',lProc:'proc',lFind:'find',lBlood:'blood'}[id]] = e.target.value; }));
 $('#lPa').addEventListener('change', e => { lpOf(lpSel).pa = e.target.checked; });

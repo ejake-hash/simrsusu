@@ -265,6 +265,12 @@
   .cx-lock{margin-top:6px;font-size:12.5px;background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:8px 10px}
   .cx-lock .link,.cx-lock button.link{background:none;border:0;padding:0;color:var(--brand-700);font-weight:600;cursor:pointer;text-decoration:underline}
   .cx-glass{margin-top:6px;color:var(--danger)}
+  .tte-pt{border:1px solid var(--border-strong);border-left:4px solid var(--brand-600);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13.5px}
+  .tte-pt b{font-size:15px}
+  .tte-al{margin-top:4px;font-size:12.5px;color:var(--muted)}
+  .tte-al.bad{color:var(--danger);font-weight:600}
+  .tte-al.bad::before{content:"⚠ "}
+  .tte-demo{background:var(--warn-bg);color:var(--warn);font-weight:600;font-size:12px;padding:6px 10px;border-radius:8px;margin-bottom:10px;letter-spacing:.02em}
 
   .nav-sub{margin:2px 0 6px 28px;border-left:1px solid var(--border);padding-left:8px}
   .nav-sub a{display:block;padding:6px 10px;border-radius:7px;color:var(--muted);text-decoration:none;font-size:13px}
@@ -404,7 +410,7 @@
   /* emas-off-igd */ :root{--accent:var(--brand-600);--accent-bg:var(--brand-50);--accent-ink:var(--brand-800)} .sb-hosp{border-top-color:var(--border)} .badge-dot{color:#fff!important}
 </style>
 <style id="ds-css">
-#dsBtn{position:fixed;right:16px;bottom:16px;z-index:60;display:inline-flex;align-items:center;gap:6px;border:1px solid #0B3A22;background:#1D1D1B;color:#fff;border-radius:999px;padding:8px 13px;font:600 12.5px/1 "Public Sans",system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(16,32,22,.25)}
+#dsBtn{position:fixed;left:0;top:50%;transform:translateY(-50%);writing-mode:vertical-rl;z-index:60;display:inline-flex;align-items:center;gap:6px;border:1px solid #0B3A22;border-left:0;background:#1D1D1B;color:#fff;border-radius:0 8px 8px 0;padding:10px 6px;opacity:.85;font:600 12.5px/1 "Public Sans",system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(16,32,22,.25)}
 #dsBtn:focus-visible{outline:2px solid #F3C300;outline-offset:2px}
 #dsPanel{position:fixed;top:0;right:0;height:100vh;width:min(520px,100%);background:#fff;z-index:61;box-shadow:-10px 0 40px rgba(16,32,22,.18);transform:translateX(100%);transition:transform .2s;display:flex;flex-direction:column;font:13px/1.5 "Public Sans",system-ui,sans-serif;color:#1D1D1B}
 #dsPanel.open{transform:none}
@@ -704,7 +710,22 @@ const TTE = (()=>{
   function render(){
     const o=opt, t2=o.tingkat==='T2', list=o.dokumen&&o.dokumen.length>1;
     const head = t2 ? ['TTE tersertifikasi (T2)','Lewat PSrE Privy · dokumen yang keluar RS atau bernilai hukum tinggi','t2'] : ['Tanda tangan elektronik (T1)','Tidak tersertifikasi · PIN pribadi · untuk catatan klinis harian','t1'];
-    let body = `<div class="tte-doc"><div class="src">${list?o.dokumen.length+' dokumen ditandatangani sekaligus':'Dokumen'}</div><b>${o.judul}</b>${o.isi?`<div class="tte-isi">${o.isi}</div>`:''}${list?`<ul>${o.dokumen.map(d=>`<li>${d}</li>`).join('')}</ul>`:''}</div>
+    const pt = o.pasien || (window.pasienAktif && window.pasienAktif());
+    const akun = ((document.querySelector('.user-txt b')||{}).textContent||'').trim();
+    const nm = x => (x||'').split(',')[0].replace(/\s+/g,' ').trim().toLowerCase();
+    const lain = o.penanda && akun && nm(o.penanda)!==nm(akun) && !o.sebagai;
+    const ptHtml = pt ? `<div class="tte-pt"><div class="src">Pasien</div><b>${pt.n}</b> <span class="mono">RM ${pt.rm||'—'}</span> · lahir ${pt.lahir||'—'}${pt.umur!=null?' ('+pt.umur+' th)':''}<div class="tte-al ${pt.alergi&&pt.alergi.length?'bad':''}">${pt.alergi==null?'Alergi: belum dikaji':pt.alergi.length?'Alergi: '+pt.alergi.join(', '):'Tidak ada alergi diketahui'}</div></div>` : '';
+    if (lain){
+      m().querySelector('.modal-c').innerHTML = `<div class="mh"><h2 id="tteTitle">Minta tanda tangan</h2><p>Dokumen ini harus ditandatangani pemiliknya sendiri.</p></div><div class="mb">${ptHtml}<div class="tte-doc"><div class="src">Dokumen</div><b>${o.judul}</b>${o.isi?`<div class="tte-isi">${o.isi}</div>`:''}</div>
+        <p class="tte-stmt">Penanda tangan: <b>${o.penanda}</b>. Anda masuk sebagai <b>${akun}</b>, jadi Anda tidak bisa menandatangani atas namanya. Dokumen dikirim ke antrean tanda tangan ${o.penanda.split(',')[0]}.</p></div>
+        <div class="mf"><button class="btn" id="tteCancel">Batal</button><button class="btn" id="tteAs" title="Hanya ada di prototipe">Peragaan: masuk sebagai ${o.penanda.split(',')[0]}</button><button class="btn btn-primary" id="tteSend">Kirim ke antrean ${o.penanda.split(',')[0]}</button></div>`;
+      document.getElementById('tteCancel').onclick = close;
+      document.getElementById('tteSend').onclick = () => { const o2=opt; close(); toast('Permintaan tanda tangan dikirim ke antrean '+o2.penanda.split(',')[0]+'. Dokumen tetap draf sampai ditandatangani.'); if (o2.onMinta) o2.onMinta(); };
+      document.getElementById('tteAs').onclick = () => { opt.sebagai=true; render(); };
+      setTimeout(()=>{ const x=document.getElementById('tteSend'); if (x) x.focus(); },60);
+      return;
+    }
+    let body = (o.sebagai?`<div class="tte-demo">PERAGAAN · bertindak sebagai ${o.penanda}</div>`:'') + ptHtml + `<div class="tte-doc"><div class="src">${list?o.dokumen.length+' dokumen ditandatangani sekaligus':'Dokumen'}</div><b>${o.judul}</b>${o.isi?`<div class="tte-isi">${o.isi}</div>`:''}${list?`<ul>${o.dokumen.map(d=>`<li>${d}</li>`).join('')}</ul>`:''}</div>
       <p class="tte-stmt">Saya, <b>${o.penanda||'pengguna ini'}</b>, menyatakan isi di atas benar dan saya menandatanganinya.</p>`;
     let foot = '';
     if (!t2){ body += boxes('ttePin') + `<p class="src tte-c" id="tteMsg">Masukkan PIN 6 digit. Peragaan: 6 digit apa pun; <span class="mono">000000</span> = PIN salah.</p>`;
@@ -836,12 +857,21 @@ const EPISODES = {
 /* Semua modal PIN lama di halaman diarahkan ke satu komponen TTE (T1) agar perilaku seragam */
 (function(){ const pm=document.getElementById('pinModal'); if (!pm) return;
   new MutationObserver(()=>{ if (!pm.classList.contains('show') || pm.dataset.pass) return; pm.classList.remove('show');
-    const title=((pm.querySelector('#pinTitle')||{}).textContent||'Pengesahan').replace(/ dengan PIN/i,'');
-    const isi=(pm.querySelector('#pinText')||{}).innerHTML || ((pm.querySelector('#pinP')||{}).textContent||'');
+    const title=pm.dataset.judul || ((pm.querySelector('#pinTitle')||{}).textContent||'Pengesahan').replace(/ dengan PIN/i,'');
+    const isi=pm.dataset.isi || (pm.querySelector('#pinText')||{}).innerHTML || ((pm.querySelector('#pinP')||{}).textContent||'');
+    let pasien; try { pasien = pm.dataset.pasien ? JSON.parse(pm.dataset.pasien) : undefined; } catch(e){}
     const who=pm.dataset.penanda || ((document.querySelector('.user-txt b')||{}).textContent||'');
-    TTE.sign({judul:title, isi, tingkat:'T1', penanda:who, onDone:()=>{ pm.querySelectorAll('input').forEach(i=>i.value='1'); pm.dataset.pass='1'; pm.style.visibility='hidden'; pm.classList.add('show'); pm.querySelector('#pinOk').click(); setTimeout(()=>{ pm.classList.remove('show'); pm.style.visibility=''; delete pm.dataset.pass; }, 1600); }});
+    TTE.sign({judul:title, isi, pasien, tingkat:'T1', penanda:who, onDone:()=>{ pm.querySelectorAll('input').forEach(i=>i.value='1'); pm.dataset.pass='1'; pm.style.visibility='hidden'; pm.classList.add('show'); pm.querySelector('#pinOk').click(); setTimeout(()=>{ pm.classList.remove('show'); pm.style.visibility=''; delete pm.dataset.pass; }, 1600); }});
   }).observe(pm,{attributes:true,attributeFilter:['class']});
 })();
+
+/* Aksesibilitas modal (PRD 5.1 butir 17): Esc menutup, fokus tetap di dalam modal */
+document.addEventListener('keydown', e => {
+  const md=[...document.querySelectorAll('.modal.show')].pop(); if (!md) return;
+  if (e.key==='Escape'){ if (md.querySelector('.btn.busy,[aria-busy="true"]')) return; md.classList.remove('show'); if (md.id==='tteModal' && typeof TTE!=='undefined'){} return; }
+  if (e.key==='Tab'){ const f=[...md.querySelectorAll('button,input,select,textarea,a[href],[tabindex]:not([tabindex="-1"])')].filter(x=>!x.disabled&&x.offsetParent); if (!f.length) return; const a=f[0], z=f[f.length-1];
+    if (e.shiftKey && document.activeElement===a){ e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement===z){ e.preventDefault(); a.focus(); } else if (!md.contains(document.activeElement)){ e.preventDefault(); a.focus(); } }
+});
 
 (function(){
 
@@ -852,7 +882,7 @@ const hm = ts => new Intl.DateTimeFormat('id-ID',{hour:'2-digit',minute:'2-digit
 const TRI = {merah:{l:'Merah',o:0,c:'bad'}, kuning:{l:'Kuning',o:1,c:'warn'}, hijau:{l:'Hijau',o:2,c:'ok'}, hitam:{l:'Hitam',o:3,c:'neutral'}};
 
 let P = [
-  {id:1, area:'Resusitasi 1', name:'Tn. H.S.', age:67, sex:'L', cc:'Nyeri dada kiri 1 jam, keringat dingin', tri:'merah', arr:minAgo(49), resp:2, status:'Tatalaksana', plan:'EKG elevasi ST, konsul Sp.JP, persiapan kateterisasi', doc:'dr. Yusuf', pay:'BPJS', v:{td:'92/60',n:118,rr:26,spo:91,t:36.4,gcs:15}, orders:[['EKG 12 sadapan','Selesai'],['Troponin I','Diperiksa alat']], flags:['bad:Alergi: tidak ada']},
+  {id:1, area:'Resusitasi 1', name:'Tn. H.S.', age:67, sex:'L', cc:'Nyeri dada kiri 1 jam, keringat dingin', tri:'merah', arr:minAgo(49), resp:2, status:'Tatalaksana', plan:'EKG elevasi ST, konsul Sp.JP, persiapan kateterisasi', doc:'dr. Yusuf', pay:'BPJS', v:{td:'92/60',n:118,rr:26,spo:91,t:36.4,gcs:15}, orders:[['EKG 12 sadapan','Selesai'],['Troponin I','Diperiksa alat']], flags:[]},
   {id:2, area:'Resusitasi 2', name:'Tn. S.B.', age:58, sex:'L', cc:'Penurunan kesadaran, GCS 9', tri:'merah', arr:minAgo(190), resp:1, status:'Menunggu kamar', plan:'ICU penuh. Dieskalasi ke Kepala IGD', doc:'dr. Yusuf', pay:'BPJS', wait:'ICU', waitSince:minAgo(140), v:{td:'168/98',n:62,rr:14,spo:96,t:37.0,gcs:9}, orders:[['CT kepala','Ekspertise'],['Analisis gas darah','Divalidasi']], flags:['warn:Risiko jatuh tinggi']},
   {id:3, area:'Observasi 1', name:'Tn. M.R.', age:71, sex:'L', cc:'Sesak napas, demam 3 hari', tri:'kuning', arr:minAgo(258), resp:3, status:'Menunggu kamar', plan:'PD-306A dipesan, sedang dibersihkan', doc:'dr. Yusuf', pay:'BPJS', wait:'Penyakit Dalam', waitSince:minAgo(190), v:{td:'130/80',n:104,rr:24,spo:93,t:38.6,gcs:15}, orders:[['Darah lengkap','Divalidasi'],['Foto toraks','Selesai']], flags:[]},
   {id:4, area:'Observasi 2', name:'An. K.P.', age:6, sex:'P', cc:'Demam hari ke-4, muntah', tri:'kuning', arr:minAgo(145), resp:4, status:'Menunggu hasil', plan:'Darah lengkap cito, sampel sudah diterima lab', doc:'dr. Mega (PPDS)', pay:'BPJS', v:{td:'90/60',n:128,rr:28,spo:97,t:38.9,gcs:15}, orders:[['Darah lengkap','Diperiksa alat'],['NS1 dengue','Diperiksa alat']], flags:['info:Anak']},
@@ -922,12 +952,16 @@ function renderAll(){ renderKpis(); renderBoard(); renderBeds(); renderEsc(); }
 
 /* ---------- Drawer ---------- */
 const drawer=$('#drawer'), dscrim=$('#dscrim');
+/* identitas & alergi terstruktur (PRD 5.1 butir 9, 15) */
+P.forEach((p,i)=>{ p.rm = p.rm || '00-'+(51+i*3)+'-'+(20+i*7)+'-'+(11+i*5); p.lahir = p.lahir || (new Date().getFullYear()-p.age)+''; if (!('alergi' in p)) p.alergi = p.id===2 ? null : p.id===6 ? ['Ketorolak (sesak)'] : []; });
+const alChip = a => a==null ? '<span class="pill warn">Alergi belum dikaji</span>' : a.length ? `<span class="pill bad">⚠ Alergi: ${a.map(esc).join(', ')}</span>` : '<span class="pill neutral">Tidak ada alergi diketahui</span>';
+window.pasienAktif = () => sel ? ({n:sel.name, rm:sel.rm, lahir:'tahun '+sel.lahir, umur:sel.age, alergi:sel.alergi}) : null;
 let dispo=null;
 function openP(id){
   sel = P.find(p=>p.id===id); dispo=null;
-  $('#dTitle').textContent = `${sel.name}, ${sel.age} th · ${sel.sex==='L'?'Laki-laki':'Perempuan'}`;
+  $('#dTitle').textContent = `${sel.name}, ${sel.age} th · ${sel.sex==='L'?'Laki-laki':'Perempuan'} · RM ${sel.rm}`;
   $('#dSub').textContent = `${sel.area} · ${sel.pay} · ${sel.cc}`;
-  $('#dFlags').innerHTML = `<span class="tri-chip ${sel.tri}">Triase ${TRI[sel.tri].l}</span>` + sel.flags.map(f=>{const [k,v]=f.split(':');return `<span class="pill ${k}">${v}</span>`;}).join('');
+  $('#dFlags').innerHTML = `<span class="tri-chip ${sel.tri}">Triase ${TRI[sel.tri].l}</span>` + alChip(sel.alergi) + sel.flags.map(f=>{const i=f.indexOf(':'), k=f.slice(0,i), v=f.slice(i+1);return `<span class="pill ${k}">${esc(v)}</span>`;}).join('');
   drawTimers();
   const v = sel.v, vit = [['TD',v.td,'mmHg',/^(9\d|8\d|1[6-9]\d)\//.test(v.td)],['Nadi',v.n,'/mnt',v.n>110||v.n<50],['Napas',v.rr,'/mnt',v.rr>24],['SpO₂',v.spo,'%',v.spo<94],['Suhu',v.t.toLocaleString('id-ID'),'°C',v.t>=38.5],['GCS',v.gcs,'',v.gcs<13]];
   $('#dVitals').innerHTML = vit.map(x=>`<div class="vt${x[3]?' abn':''}"><small>${x[0]}</small><b>${x[1]}</b><span>${x[2]}</span></div>`).join('');
@@ -966,8 +1000,8 @@ $('#dDispo').addEventListener('click', e => {
     ok:'Permintaan operasi cito dikirim ke koordinator kamar operasi. Untuk seksio sesarea emergensi, waktu keputusan sampai insisi dipantau terhadap batas 30 menit.',
     rujuk:'Rujukan keluar dibuat lewat SISRUTE. Resume rujukan disusun dari rekam medis IGD.',
     pulang:'Resume IGD dan edukasi disiapkan. Resep pulang dikirim ke depo farmasi IGD.',
-    aps:'Wajib formulir penolakan rawat bertanda tangan pasien atau keluarga, berisi penjelasan risiko.',
-    mati:'Sertifikat medis penyebab kematian disusun dokter. Pemulasaraan jenazah menerima pemberitahuan.'}[dispo];
+    aps:'Wajib formulir penolakan rawat bertanda tangan pasien atau keluarga, berisi penjelasan risiko.<label class="chkl" style="display:flex;gap:8px;margin-top:8px"><input type="checkbox" id="dApsOk"> Formulir penolakan rawat sudah ditandatangani dan diunggah</label>',
+    mati:'Sertifikat medis penyebab kematian disusun dokter. Pemulasaraan jenazah menerima pemberitahuan.<div class="f" style="margin-top:8px"><label for="dTod">Waktu kematian (wajib)</label><input type="time" id="dTod"></div>'}[dispo];
 });
 $('#dSave').onclick = () => {
   if (!sel) return;
@@ -975,7 +1009,15 @@ $('#dSave').onclick = () => {
   let msg = 'Perubahan tersimpan.';
   if (dispo==='ri'){ const w = $('#dWard').value.split(' · ')[0]; sel.status='Menunggu kamar'; sel.wait=w; sel.waitSince=Date.now(); sel.plan='Permintaan kamar ' + w + ' dikirim ' + nowHM(); msg='Tempat tidur ' + w + ' dipesan. Permintaan masuk antrean admisi.'; }
   else if (dispo==='ok'){ sel.status='Ke kamar operasi'; sel.plan='Permintaan operasi cito ' + nowHM(); msg='Dikirim ke koordinator kamar operasi.'; }
-  else if (dispo){ const lbl={rujuk:'Dirujuk',pulang:'Pulang',aps:'Pulang atas permintaan sendiri',mati:'Meninggal'}[dispo]; P = P.filter(p=>p!==sel); msg = sel.name + ': ' + lbl + '. Lama di IGD ' + fmtDur(Date.now()-sel.arr) + ' tercatat.'; }
+  else if (dispo){
+    const lbl={rujuk:'Dirujuk',pulang:'Pulang',aps:'Pulang atas permintaan sendiri',mati:'Meninggal'}[dispo];
+    if (dispo==='aps' && !($('#dApsOk')||{}).checked) return toast('APS: formulir penolakan rawat wajib ditandatangani lebih dulu.');
+    if (dispo==='mati' && !($('#dTod')||{}).value){ $('#dTod').setAttribute('aria-invalid','true'); $('#dTod').focus(); return toast('Isi waktu kematian.'); }
+    const s0=sel, tod=dispo==='mati'?$('#dTod').value.replace(':','.'):null;
+    return TTE.sign({judul:'Disposisi IGD: '+lbl+(tod?' · pukul '+tod:''), isi:'Pasien keluar dari papan IGD. Tindakan ini tidak bisa dibatalkan dari papan; koreksi hanya lewat adendum dengan alasan.', tingkat:'T1', penanda:'dr. Yusuf',
+      pasien:{n:s0.name, rm:s0.rm, lahir:'tahun '+s0.lahir, umur:s0.age, alergi:s0.alergi},
+      onDone:()=>{ P = P.filter(p=>p!==s0); closeD(); renderAll(); toast(s0.name + ' (RM ' + s0.rm + '): ' + lbl + '. Lama di IGD ' + fmtDur(Date.now()-s0.arr) + ' tercatat.'); }});
+  }
   closeD(); renderAll(); toast(msg);
 };
 document.addEventListener('click', e => {
