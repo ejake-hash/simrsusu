@@ -57,6 +57,14 @@ jobs:
       - name: Install dependensi
         run: composer install --no-interaction --prefer-dist --no-progress
 
+      # Alat debug menampilkan kueri dan binding; hanya boleh di require-dev (dicek juga saat boot).
+      - name: Larang Telescope/Debugbar di dependensi produksi
+        run: |
+          if composer show --locked --no-dev --name-only | grep -E '^(laravel/telescope|barryvdh/laravel-debugbar)$'; then
+            echo "::error::Telescope/Debugbar hanya boleh di require-dev."
+            exit 1
+          fi
+
       - name: Siapkan .env
         run: cp .env.example .env && php artisan key:generate
 

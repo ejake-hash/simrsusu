@@ -2,9 +2,10 @@
 
 namespace App\Providers;
 
+use App\Core\Log\PasangPenyamaran;
+use App\Core\PemeriksaanProduksi;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\ServiceProvider;
-use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -15,9 +16,22 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Cookie sesi wajib Secure di luar lokal (PRD 14.2). Gagal saat boot, bukan diam-diam.
-        if (! $this->app->environment('local') && ! config('session.secure')) {
-            throw new RuntimeException('SESSION_SECURE_COOKIE harus true di luar lingkungan lokal.');
+        PemeriksaanProduksi::periksa(
+            $this->app->environment(),
+            (bool) config('app.debug'),
+            (bool) config('session.secure'),
+            fn (string $kelas) => class_exists($kelas),
+        );
+
+        // Argumen fungsi tidak ikut di jejak tumpukan (bisa berisi NIK, nama, dsb.).
+        ini_set('zend.exception_ignore_args', '1');
+
+        // Semua channel log, termasuk yang ditambah kemudian di config/logging.php.
+        foreach (array_keys(config('logging.channels')) as $channel) {
+            config(["logging.channels.{$channel}.tap" => array_values(array_unique([
+                ...(array) config("logging.channels.{$channel}.tap", []),
+                PasangPenyamaran::class,
+            ]))]);
         }
 
         $this->loadMigrationsFrom(app_path('Core/Audit/Database/migrations'));
