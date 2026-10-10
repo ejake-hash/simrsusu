@@ -10,7 +10,7 @@ use Tests\TestCase;
 class InfrastrukturTest extends TestCase
 {
     /** Tabel contoh dibuat oleh simrs_migrator agar hak bawaan per skema ikut teruji. */
-    private const TABEL_CONTOH = ['inti.uji_hak_akses', 'audit.uji_hak_akses'];
+    private const TABEL_CONTOH = ['inti.uji_hak_akses', 'audit.uji_hak_akses', 'analitik.uji_hak_akses'];
 
     protected function setUp(): void
     {
@@ -71,6 +71,25 @@ class InfrastrukturTest extends TestCase
 
         $this->assertDitolak(fn () => DB::table('audit.uji_hak_akses')->where('id', 1)->update(['isi' => 'ubah']));
         $this->assertDitolak(fn () => DB::table('audit.uji_hak_akses')->where('id', 1)->delete());
+    }
+
+    public function test_skema_analitik_hanya_boleh_dibaca_aplikasi(): void
+    {
+        $this->assertSame(0, DB::table('analitik.uji_hak_akses')->count());
+
+        $this->assertDitolak(fn () => DB::table('analitik.uji_hak_akses')->insert(['id' => 1, 'isi' => 'x']));
+    }
+
+    public function test_role_pendukung_ada_dan_belum_bisa_login(): void
+    {
+        $role = DB::table('pg_roles')
+            ->whereIn('rolname', ['simrs_analitik', 'simrs_baca'])
+            ->pluck('rolcanlogin', 'rolname')
+            ->map(fn ($bisaLogin) => (bool) $bisaLogin)
+            ->all();
+        ksort($role);
+
+        $this->assertSame(['simrs_analitik' => false, 'simrs_baca' => false], $role);
     }
 
     public function test_redis_tersedia(): void

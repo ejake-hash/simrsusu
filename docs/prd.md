@@ -4,13 +4,13 @@
 
 | Atribut | Nilai |
 |---|---|
-| Versi dokumen | 0.8.1 |
+| Versi dokumen | 0.9 |
 | Tanggal | 10 Oktober 2026 |
 | Penyusun | Eza (Karyasistemnusantara) · disusun bersama Claude |
 | Sumber konteks | Lampiran 1 *Visual Layar SIMRS* (15 layar), Lampiran 2 *Visual Dasbor Berjenjang* (7 dasbor + contoh kewenangan), HTML *Dasbor Berjenjang Karsitara*, *Pedoman Identitas USU* (2021) dan folder Logo |
 | Tech stack | Laravel 12 (PHP 8.3+) · Vue 3 + TypeScript · PostgreSQL 16 · Redis · Laravel Reverb |
 | Status | Draf untuk ditelaah tim produk, Komite Medik, Rekam Medis, Keuangan, dan TI RS |
-| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · **v0.8** token antarmuka lengkap dan triase (5.3.2), aset logo web, role basis data dan tabel bawaan Laravel (11.1), skema `analitik` diseragamkan |
+| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · **v0.9** konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) |
 
 > **Konvensi penandaan sumber**
 > - **[K]** = fitur/aturan tertulis eksplisit di dokumen konteks (Lampiran 1/2/HTML).
@@ -1379,7 +1379,7 @@ Persyaratan teknis: refresh terjadwal (mis. 07.00 WIB harian + near-real-time un
 ## 9. Struktur Menu dan Pengaturan Menu per Akun
 
 ### 9.1 Pohon menu lengkap
-Menu disimpan di tabel `akses.menu` (bukan hard-coded), tiga tingkat: **grup** (huruf kapital di bawah), **menu**, dan **sub-menu**. Setiap sub-menu punya kode izin `menu.<modul>.<sub_menu>` (misal `menu.farmasi.telaah_resep`), dan sub-menu adalah unit terkecil yang diberikan superadmin (9.2). Sidebar dirender dari API `GET /api/saya/menu` yang hanya mengembalikan sub-menu yang boleh diakses.
+Menu disimpan di tabel `akses.menu` (bukan hard-coded), tiga tingkat: **grup** (huruf kapital di bawah), **menu**, dan **sub-menu**. Setiap sub-menu punya kode izin `menu.<modul>.<sub_menu>` (misal `menu.farmasi.telaah_resep`), dan sub-menu adalah unit terkecil yang diberikan superadmin (9.2). Sidebar dirender dari API `GET /api/v1/saya/menu` yang hanya mengembalikan sub-menu yang boleh diakses.
 
 ```
 BERANDA
@@ -1765,6 +1765,25 @@ app/
 - Komunikasi antar-modul **hanya** lewat *Application service interface* atau **domain event** (mis. `ResepDisetujui` → modul Tagihan membuat item tagihan; `EncounterSigned` → SATUSEHAT outbox). Dilarang query langsung tabel modul lain dari modul lain (kecuali read model di skema `analitik`).
 - Paket yang dipertimbangkan: `spatie/laravel-permission` (diperluas untuk scope & masa berlaku), `spatie/laravel-activitylog` atau audit kustom, `laravel/sanctum`, `laravel/horizon`, `laravel/reverb`, `laravel/octane` (Swoole/FrankenPHP), `spatie/laravel-data`, `maatwebsite/excel`, `barryvdh/laravel-dompdf` atau Gotenberg untuk PDF, `dcarbone/php-fhir` (atau DTO FHIR kustom). Versi pasti dipilih saat kickoff — **perlu verifikasi kompatibilitas Laravel 12**.
 
+#### 10.3.1 Konvensi API
+
+| Aturan | Ketentuan | Contoh |
+|---|---|---|
+| Prefiks dan versi | `/api/v1/`; versi baru hanya untuk perubahan yang memutus klien | `/api/v1/pasien` |
+| Nama sumber | Kata benda **bahasa Indonesia**, kebab-case, **tanpa jamak** (bahasa Indonesia tidak memakai bentuk jamak), sama dengan istilah tabel | `/api/v1/pasien/{id}`, `/api/v1/permintaan-pemeriksaan` |
+| Kepemilikan | Sumber turunan di bawah induknya, maksimal dua tingkat | `/api/v1/episode/{id}/cppt` |
+| Aksi bisnis | `POST` ke sub-sumber kata kerja Indonesia; **tidak ada `DELETE`** untuk data klinis/keuangan | `POST /api/v1/resep/{id}/sahkan`, `POST /api/v1/tagihan/{id}/batal` |
+| Konteks pengguna | Sumber milik pengguna yang sedang masuk di bawah `saya` | `GET /api/v1/saya/menu` |
+| Kios dan perangkat | Prefiks `kios`, autentikasi token perangkat | `POST /api/v1/kios/checkin` |
+| Kunci JSON | `snake_case` bahasa Indonesia, sama dengan kolom; ID berupa UUIDv7; waktu ISO 8601 dengan zona | `{"nomor_rm": "00-48-21-07", "dibuat_pada": "2026-10-10T09:12:00+07:00"}` |
+| Daftar | Paginasi kursor `?kursor=&batas=`; filter sebagai query; respons `{data: [...], meta: {kursor_berikutnya}}` | `GET /api/v1/kunjungan?poli=PD&tanggal=2026-10-10` |
+| Bagian halaman | Respons hanya memuat bagian yang diizinkan (9.2.5); bagian yang tidak diizinkan **tidak dikirim**, bukan `null` | — |
+| Galat | Satu format untuk semua: `{"galat": {"kode": "akses_ditolak", "pesan": "…", "rincian": [...]}}`; `pesan` bahasa Indonesia untuk pengguna dan **tidak memuat data pasien**; status HTTP standar (400, 401, 403, 404, 409, 422, 429, 503) | `403 {"galat":{"kode":"akses_ditolak","pesan":"Anda tidak punya izin untuk tindakan ini."}}` |
+| Idempotensi | Aksi yang memicu kiriman eksternal atau tanda tangan menerima header `Idempotency-Key` | `POST /api/v1/bpjs/sep` |
+| Autentikasi | SPA: cookie Sanctum stateful + CSRF; mesin-ke-mesin: token Sanctum bercakupan; kios: token perangkat (7.01.1) | — |
+
+Endpoint di bagian lain dokumen ini dan di panel **Spek dev** prototipe adalah usulan dengan konvensi ini; nama final mengikuti tiket.
+
 ### 10.4 Struktur frontend (Vue 3)
 
 ```
@@ -1847,10 +1866,10 @@ sequenceDiagram
 |---|---|---|
 | `simrs_migrator` | Pemilik semua skema; DDL | Perintah migrasi saat rilis saja |
 | `simrs_app` | `sistem`: `SELECT, INSERT, UPDATE, DELETE`; skema domain: `SELECT, INSERT, UPDATE` (tanpa `DELETE`; pengecualian per tabel diberikan di migrasinya dengan alasan dan direview); `audit`: `SELECT, INSERT`; `analitik`: `SELECT` saja; tanpa DDL | Aplikasi Laravel (web, antrean pekerjaan, Reverb) |
-| `simrs_analitik` | Pemilik materialized view di skema `analitik`; hanya untuk `REFRESH MATERIALIZED VIEW` terjadwal | Perintah terjadwal pembaruan dasbor |
+| `simrs_analitik` | Pemilik materialized view di skema `analitik` (`CREATE` di skema itu, syarat pemindahan kepemilikan); `SELECT` pada skema domain agar `REFRESH` berjalan; tanpa hak tulis di skema domain | Perintah terjadwal pembaruan dasbor |
 | `simrs_baca` | `SELECT` pada skema `analitik` dan replika baca | Dasbor dan pelaporan |
 
-Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis mengikuti. Satu role per pengguna manusia (DBA) dengan MFA di bastion; tidak ada akun bersama (14.2).
+Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis mengikuti. `simrs_analitik` dan `simrs_baca` dibuat **`NOLOGIN`** sampai modul dasbor dibangun (fase 4); `simrs_migrator` menjadi anggota `simrs_analitik` agar migrasi dapat memindahkan kepemilikan materialized view. Satu role per pengguna manusia (DBA) dengan MFA di bastion; tidak ada akun bersama (14.2).
 
 **Tabel bawaan Laravel:** `migrations`, `jobs`, `failed_jobs`, `cache`, `sessions`, `personal_access_tokens` berada di skema `sistem`. Tabel `users` dan `password_reset_tokens` **tidak dipakai**; autentikasi memakai `akses.pengguna` (11.2) sehingga hanya ada satu tabel pengguna.
 
@@ -2928,14 +2947,14 @@ FR         : FR-xx-yy, …            (wajib, dari prd.md)
 Regulasi   : <pasal> [confidence]    (bila FR bersumber [R])
 Akses      : sub-menu <kode>, bagian <kode>, aksi <lihat/input/perbaiki/…>
 Tabel      : <skema.tabel>, …
-API        : <METHOD /api/...>
+API        : <METHOD /api/v1/...>
 Uji penerimaan:
   - Given … When … Then …
   - Akun tanpa izin bagian → bagian tidak dirender dan API 403
 Di luar lingkup tiket: …
 ```
 
-**Contoh (FR-09-13):** *Given* akun Siti berperan Kasir Rawat Jalan dan dicabut bagian `kasir.tagihan.diskon`, *when* Siti membuka Tagihan pasien, *then* panel Diskon tidak dirender, `POST /api/tagihan/{id}/diskon` mengembalikan 403, respons `GET /api/tagihan/{id}` tidak memuat kunci `diskon`, dan percobaan tercatat di `audit.log_aktivitas`.
+**Contoh (FR-09-13):** *Given* akun Siti berperan Kasir Rawat Jalan dan dicabut bagian `kasir.tagihan.diskon`, *when* Siti membuka Tagihan pasien, *then* panel Diskon tidak dirender, `POST /api/v1/tagihan/{id}/diskon` mengembalikan 403, respons `GET /api/v1/tagihan/{id}` tidak memuat kunci `diskon`, dan percobaan tercatat di `audit.log_aktivitas`.
 
 ### D.7 Definition of Done (semua tiket)
 

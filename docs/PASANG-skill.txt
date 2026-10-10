@@ -1,0 +1,20 @@
+CARA PASANG — Paket skill Claude Code untuk SIMRS
+=================================================
+
+1. Ekstrak isi zip ini ke ROOT proyek Laravel Anda (folder yang berisi artisan).
+   Hasilnya: .claude/skills/..., DESIGN.md, CLAUDE.md
+   (Folder .claude tersembunyi di macOS/Linux; di Windows aktifkan "Hidden items" untuk melihatnya.)
+
+2. Jika proyek SUDAH punya CLAUDE.md: jangan ditimpa. Salin blok mulai dari
+   "<!-- simrs-skills -->" ke bagian bawah CLAUDE.md Anda.
+
+3. Pasang Playwright CLI (perlu Node.js), sekali per komputer:
+      npm install -g @playwright/cli@0.1.22
+
+4. Isi bagian TODO:
+      grep -rn TODO .claude/skills DESIGN.md CLAUDE.md
+   (Windows PowerShell: Select-String -Path .claude\skills\*\SKILL.md,DESIGN.md,CLAUDE.md -Pattern TODO)
+
+5. Commit .claude/, DESIGN.md, CLAUDE.md lalu buka ulang sesi Claude Code (CLI atau panel VS Code).
+
+Asal-usul dan daftar perubahan: .claude/skills/SOURCES.md
