@@ -24,6 +24,9 @@
         <env name="ARGON_MEMORY" value="1024"/>
         <env name="ARGON_TIME" value="1"/>
         <env name="SANCTUM_STATEFUL_DOMAINS" value="localhost:5173"/>
+        <!-- Hanya untuk tes pemalsuan audit (RantaiAuditTest); sama dengan docker-compose dan CI. -->
+        <env name="DB_SUPERUSER_USERNAME" value="postgres"/>
+        <env name="DB_SUPERUSER_PASSWORD" value="postgres"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
         <env name="DB_CONNECTION" value="pgsql"/>
