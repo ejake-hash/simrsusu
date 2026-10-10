@@ -30,11 +30,14 @@ npm run dev                          # http://localhost:5173, /api diteruskan ke
 |---|---|---|
 | `simrs_migrator` | `php artisan migrate --database=pgsql_migrator` | pemilik semua skema dan tabel (DDL) |
 | `simrs_app` | aplikasi saat berjalan (koneksi `pgsql` bawaan) | tanpa DDL; DML per skema, lihat di bawah |
+| `simrs_analitik` | `REFRESH MATERIALIZED VIEW` dasbor (NOLOGIN sampai fase 4) | pemilik materialized view di `analitik`; `SELECT` skema domain |
+| `simrs_baca` | dasbor/pelaporan (NOLOGIN sampai fase 4) | `SELECT` skema `analitik` |
 
 | Skema | Hak `simrs_app` |
 |---|---|
 | `sistem` | `SELECT, INSERT, UPDATE, DELETE` |
 | `audit` | `SELECT, INSERT` (log tidak bisa diubah atau dihapus) |
+| `analitik` | `SELECT` saja |
 | skema domain lainnya | `SELECT, INSERT, UPDATE` (tanpa hapus permanen, PRD 11.1; pembatalan memakai `status`) |
 
 Migrasi **harus** memakai `--database=pgsql_migrator`; `php artisan migrate` biasa akan gagal karena `simrs_app` tidak boleh membuat tabel.
@@ -44,3 +47,8 @@ Tes memakai `DatabaseTransactions` lewat `Tests\TestCase`. `RefreshDatabase`, `D
 
 Skrip `docker/postgres/init/00-init.sh` jalan otomatis saat volume Postgres pertama kali dibuat, dan dipakai juga di CI.
 Skrip ini aman dijalankan ulang. Setelah mengubahnya, jalankan `docker compose down -v` lalu `docker compose up -d`.
+
+## Panduan untuk AI dan tim
+
+- `docs/prd.md` adalah sumber kebenaran; `CLAUDE.md` merangkum konvensi; `DESIGN.md` merujuk token di PRD 5.3.
+- Skill Claude Code ada di `.claude/skills/` (asal-usul di `.claude/skills/SOURCES.md`, cara pasang di `docs/PASANG-skill.txt`). Skill pihak ketiga yang bentrok dengan PRD diberi blok "Aturan proyek SIMRS" di bagian atasnya.
