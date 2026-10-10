@@ -12,7 +12,7 @@
 | — | Node 24 | Selesai | #7 |
 | — | PRD v0.10.2 kontrak MFA | Selesai | #8 |
 | 1.4a | Halaman masuk (frontend), e2e, Retry-After | Selesai | #9 |
-| 1.4b | Halaman masuk: penyelarasan visual dengan prototipe (motif, ilustrasi, label), cek sesi tahan server mati | Selesai | — |
+| 1.4b | Halaman masuk: penyelarasan visual dengan prototipe (motif, ilustrasi, label), cek sesi tahan server mati | Selesai | #10 |
 | **1.0b** | Kebersihan repo: folder modul, Larastan, aturan worktree | **Siap dikerjakan** | — |
 | **1.1b** | MFA TOTP + kode cadangan, backend dan langkah MFA di halaman masuk | **Siap dikerjakan** (1.4a sudah merge) | — |
 | 1.2 | Menu, peran, izin, `AccessEvaluator` lapis 1–3, `GET /api/v1/saya/menu` | Menunggu 1.1b | — |
