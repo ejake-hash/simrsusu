@@ -2,6 +2,15 @@
 import { profilRsDariEnv } from '@/app/profilRs'
 
 const profilRs = profilRsDariEnv()
+
+type StatusTempatTidur = 'terisi' | 'rencana-pulang' | 'dibersihkan' | 'kosong'
+
+// Ilustrasi panel merek, bukan data nyata. Pola tetap (37 dan 100 saling prima, jadi 72 nilai
+// berbeda tersebar rata) agar tampilan dan tangkapan layar tidak berubah tiap dimuat.
+const ILUSTRASI_TEMPAT_TIDUR: StatusTempatTidur[] = Array.from({ length: 72 }, (_, i) => {
+  const r = ((i * 37 + 11) % 100) / 100
+  return r < 0.68 ? 'terisi' : r < 0.76 ? 'rencana-pulang' : r < 0.84 ? 'dibersihkan' : 'kosong'
+})
 </script>
 
 <template>
@@ -36,13 +45,25 @@ const profilRs = profilRsDariEnv()
     </main>
 
     <!-- Panel merek: dekoratif, disembunyikan dari pembaca layar dan di layar sempit. -->
-    <aside class="panel-merek" aria-hidden="true">
+    <aside class="panel-merek" aria-hidden="true" :style="profilRs.motif ? { '--motif': `url(${profilRs.motif})` } : undefined">
       <div>
         <span class="tag"><span class="titik"></span>Satu data untuk seluruh rumah sakit</span>
         <p class="judul-merek">Pelayanan, pendapatan, dan mutu dalam <em>satu layar kerja.</em></p>
         <p class="lead-merek">
           Dari pendaftaran sampai klaim, setiap pencatatan langsung menjadi rekam medis, tagihan, dan laporan, tanpa entri ulang.
         </p>
+      </div>
+      <div class="ilustrasi">
+        <div class="ilustrasi-kepala"><span>Peta tempat tidur</span><span>Ilustrasi</span></div>
+        <div class="petak">
+          <span v-for="(status, i) in ILUSTRASI_TEMPAT_TIDUR" :key="i" class="tt" :class="`tt-${status}`"></span>
+        </div>
+        <div class="legenda">
+          <span><i class="tt-terisi"></i>Terisi</span>
+          <span><i class="tt-dibersihkan"></i>Dibersihkan</span>
+          <span><i class="tt-kosong"></i>Kosong</span>
+          <span><i class="tt-rencana-pulang"></i>Rencana pulang</span>
+        </div>
       </div>
       <ul class="poin">
         <li><b>Paperless</b>Pengesahan elektronik dengan PIN, catatan terkunci, perubahan jadi adendum.</li>
@@ -59,6 +80,7 @@ const profilRs = profilRsDariEnv()
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
   min-height: 100vh;
   background: var(--surface);
+  line-height: 1.5;
 }
 
 /* ── Kolom form ── */
@@ -120,7 +142,6 @@ const profilRs = profilRsDariEnv()
 .kaki {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 6px;
   margin-top: 28px;
   color: var(--muted);
@@ -145,6 +166,16 @@ const profilRs = profilRsDariEnv()
   border-radius: 20px;
   background: linear-gradient(160deg, var(--usu-gelap) 0%, var(--brand-800) 55%, var(--brand-900) 100%);
   color: var(--surface);
+}
+/* Motif identitas RS (PRD 5.3.2 aturan 4: hanya halaman masuk, antrean, cetak). */
+.panel-merek::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--motif, none);
+  background-size: 52px 52px;
+  opacity: 0.07;
+  mask-image: radial-gradient(ellipse at 75% 25%, var(--surface) 25%, transparent 75%);
 }
 .panel-merek::after {
   content: '';
@@ -195,6 +226,61 @@ const profilRs = profilRsDariEnv()
   margin: 0;
   color: var(--brand-100);
 }
+.ilustrasi {
+  max-width: 440px;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--surface) 12%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 6%, transparent);
+}
+.ilustrasi-kepala {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+  color: var(--brand-100);
+  font-size: 12px;
+}
+.petak {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 5px;
+}
+.tt {
+  aspect-ratio: 1;
+  border-radius: 4px;
+}
+.legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: var(--space-3);
+  color: var(--brand-100);
+  font-size: 11px;
+}
+.legenda span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legenda i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.tt-terisi {
+  background: color-mix(in srgb, var(--brand-500) 80%, var(--accent));
+}
+.tt-rencana-pulang {
+  background: var(--accent);
+}
+.tt-dibersihkan {
+  background: color-mix(in srgb, var(--surface) 32%, transparent);
+}
+.tt-kosong {
+  background: color-mix(in srgb, var(--surface) 14%, transparent);
+}
+
 .poin {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -224,8 +310,10 @@ const profilRs = profilRsDariEnv()
   .panel-form {
     padding: var(--space-6) var(--space-4);
   }
-  .kaki {
-    justify-content: center;
+  /* Form di atas, bukan di tengah layar: tetap terlihat saat keyboard ponsel terbuka. */
+  .isi {
+    align-items: flex-start;
+    padding: var(--space-8) 0;
   }
 }
 

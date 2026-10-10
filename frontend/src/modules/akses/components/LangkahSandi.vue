@@ -96,6 +96,7 @@ function ubahTampilanSandi(): void {
 
 <template>
   <section aria-labelledby="judul-masuk">
+    <p class="label-atas">SIMRS · Rumah Sakit Pendidikan</p>
     <h1 id="judul-masuk">Masuk ke akun Anda</h1>
     <p class="lead">Gunakan nama pengguna yang diberikan Unit TI.</p>
 
@@ -198,12 +199,21 @@ function ubahTampilanSandi(): void {
     </form>
 
     <p class="bantuan">
-      Lupa sandi atau akun terkunci? Hubungi admin SIMRS<template v-if="kontakAdmin"> di {{ kontakAdmin }}</template>.
+      Lupa sandi atau akun terkunci? Hubungi admin SIMRS<template v-if="kontakAdmin">
+        di <span class="kontak">{{ kontakAdmin }}</span></template>.
     </p>
   </section>
 </template>
 
 <style scoped>
+.label-atas {
+  margin: 0 0 10px;
+  color: var(--brand-600);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 h1 {
   margin: 0 0 var(--space-2);
   font-size: 26px;
@@ -266,6 +276,9 @@ input {
     font-size: var(--text-base);
   }
 }
+input:hover {
+  border-color: var(--subtle);
+}
 input:focus-visible {
   outline: none;
   border-color: var(--brand-600);
@@ -323,6 +336,10 @@ input[aria-invalid='true'] {
   color: var(--muted);
   font-size: 13px;
   text-align: center;
+}
+
+.kontak {
+  white-space: nowrap;
 }
 
 .tombol-utama {
