@@ -1,4 +1,4 @@
-# CLAUDE.md — SIMRS RS Pendidikan USU
+# CLAUDE.md — Karsitara SIMRS (produk generik RS Tipe B pendidikan)
 
 ## Urutan sumber kebenaran
 1. **`docs/prd.md`** — kebutuhan, aturan bisnis, regulasi, database, hak akses, UI. Selalu dibaca lebih dulu untuk bagian yang dikerjakan.
@@ -14,6 +14,12 @@
 
 <!-- simrs-skills -->
 ## Konvensi wajib (ringkasan PRD)
+
+**Produk generik (PRD 3.4)**
+- Satu instalasi = satu RS (tidak multi-tenant). Beda antar-RS = data induk, aturan, atau `inti.modul_aktif`; **dilarang** cabang kode per RS (`if rs == ...`) atau fork per pelanggan.
+- Nama, logo, kop, dan warna merek dari `inti.profil_rs.paket_identitas`. Paket RS USU hanya contoh; jangan dipakai di demo publik.
+- Keputusan yang biasanya dari RS ada di PRD 17.2. Butir bertanda *perlu verifikasi* tidak boleh dikodekan keras.
+- Aturan UX 5.1 butir 9–17 adalah syarat terima komponen bersama (identitas 2 penanda, TTE hanya pemilik akun, aksi massal tidak menelan peringatan).
 
 **Database (PRD 11.1)**
 - Nama skema, tabel, kolom **bahasa Indonesia**, `snake_case`, tabel **tunggal** (`pasien`, `resep_item`). Tabel bawaan Laravel tetap Inggris di skema `sistem`.

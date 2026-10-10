@@ -1,16 +1,18 @@
-# PRD — SIMRS RS Pendidikan Prof. dr. Chairuddin P. Lubis USU
+# PRD — Karsitara SIMRS untuk RS Umum Tipe B Pendidikan
+
+*Profil contoh konfigurasi: RS Pendidikan Prof. dr. Chairuddin P. Lubis USU*
 
 **Product Requirements Document · Sistem Informasi Manajemen Rumah Sakit (SIMRS) Paperless**
 
 | Atribut | Nilai |
 |---|---|
-| Versi dokumen | 0.9 |
+| Versi dokumen | 0.10 |
 | Tanggal | 10 Oktober 2026 |
 | Penyusun | Eza (Karyasistemnusantara) · disusun bersama Claude |
 | Sumber konteks | Lampiran 1 *Visual Layar SIMRS* (15 layar), Lampiran 2 *Visual Dasbor Berjenjang* (7 dasbor + contoh kewenangan), HTML *Dasbor Berjenjang Karsitara*, *Pedoman Identitas USU* (2021) dan folder Logo |
 | Tech stack | Laravel 12 (PHP 8.3+) · Vue 3 + TypeScript · PostgreSQL 16 · Redis · Laravel Reverb |
-| Status | Draf untuk ditelaah tim produk, Komite Medik, Rekam Medis, Keuangan, dan TI RS |
-| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · **v0.9** konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) |
+| Status | **Produk generik** (3.4). Fase 0 mode produk selesai dengan satu gerbang tertunda: uji SUS (16.1). Keputusan yang biasanya diambil RS dicatat sebagai keputusan produk di 17.2 dan dikonfirmasi tiap RS saat implementasi |
+| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · **v0.10** mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E |
 
 > **Konvensi penandaan sumber**
 > - **[K]** = fitur/aturan tertulis eksplisit di dokumen konteks (Lampiran 1/2/HTML).
@@ -27,7 +29,7 @@
 2. [Tujuan, Sasaran, dan Ukuran Keberhasilan](#2-tujuan-sasaran-dan-ukuran-keberhasilan)
 3. [Lingkup dan Batasan](#3-lingkup-dan-batasan)
 4. [Persona dan Peran Pengguna](#4-persona-dan-peran-pengguna)
-5. [Prinsip Produk dan Desain UI (identitas RS USU)](#5-prinsip-produk-dan-desain-ui)
+5. [Prinsip Produk dan Desain UI (paket identitas; contoh RS USU)](#5-prinsip-produk-dan-desain-ui)
 6. [Katalog Modul (01–58)](#6-katalog-modul)
 7. [Spesifikasi Fitur per Modul](#7-spesifikasi-fitur-per-modul)
 8. [Dasbor Berjenjang (Dasbor 1–7)](#8-dasbor-berjenjang)
@@ -42,7 +44,7 @@
 17. [Risiko, Asumsi, dan Pertanyaan Terbuka](#17-risiko-asumsi-dan-pertanyaan-terbuka)
 18. [Glosarium](#18-glosarium)
 
-Lampiran: [A. Katalog Formulir RM](#lampiran-a-katalog-formulir-rekam-medis-elektronik) · [B. Alur Tambahan](#lampiran-b-alur-tambahan--perlu-atau-tidak) · [C. Peta Paperless](#lampiran-c-peta-paperless) · [D. Panduan Serah Terima ke Tim Pengembang](#lampiran-d-panduan-serah-terima-ke-tim-pengembang)
+Lampiran: [A. Katalog Formulir RM](#lampiran-a-katalog-formulir-rekam-medis-elektronik) · [B. Alur Tambahan](#lampiran-b-alur-tambahan--perlu-atau-tidak) · [C. Peta Paperless](#lampiran-c-peta-paperless) · [D. Panduan Serah Terima ke Tim Pengembang](#lampiran-d-panduan-serah-terima-ke-tim-pengembang) · [E. Hasil Fase 0](#lampiran-e-hasil-fase-0-mode-produk)
 
 ---
 
@@ -70,9 +72,11 @@ Bagian ini sengaja diletakkan paling awal. Beberapa hal di konteks **tidak konsi
 
 ---
 
+> **Keputusan produk untuk T-1–T-9** (Fase 0 tanpa RS) ada di [17.2](#172-log-keputusan-fase-0-dan-konfirmasi-rs). Kolom *Rekomendasi* di atas tetap menjadi pertanyaan konfirmasi ke setiap RS pengguna.
+
 ## 1. Ringkasan Produk
 
-SIMRS terpadu untuk RS Pendidikan USU yang mencakup **alur pasien (front-office s.d. pulang), penunjang, pendapatan & klaim, keuangan BLU, SDM & kredensial, logistik & aset, mutu & keselamatan, pendidikan klinis, penelitian & uji klinik, integrasi nasional, dan dasbor berjenjang**, dalam satu basis data transaksi.
+**Karsitara SIMRS** adalah produk generik untuk RS umum Tipe B pendidikan. RS Pendidikan USU dipakai sebagai profil contoh konfigurasi (identitas, struktur unit, contoh layar), bukan sebagai satu-satunya pengguna. Produk mencakup **alur pasien (front-office s.d. pulang), penunjang, pendapatan & klaim, keuangan BLU, SDM & kredensial, logistik & aset, mutu & keselamatan, pendidikan klinis, penelitian & uji klinik, integrasi nasional, dan dasbor berjenjang**, dalam satu basis data transaksi.
 
 ### 1.1 Prinsip yang diturunkan dari konteks [K]
 
@@ -110,13 +114,25 @@ Seluruh modul pada [Bagian 6](#6-katalog-modul) (01–58), dasbor berjenjang, pe
 ### 3.2 Di luar lingkup (kecuali disepakati)
 - Perangkat keras medis dan driver alat (hanya antarmuka/bridge).
 - PACS penuh (SIMRS terhubung ke PACS; penyediaan PACS [I] bisa memakai Orthanc/vendor terpisah).
-- Sistem akademik FK USU (SIMRS hanya bertukar data rotasi & penilaian).
+- Sistem akademik fakultas mitra (contoh: FK USU); SIMRS hanya bertukar data rotasi & penilaian.
 - ERP penggajian penuh (SIMRS menyediakan data jasa pelayanan & kehadiran ke sistem gaji) — **perlu keputusan**.
 
 ### 3.3 Asumsi
 - RS berstatus **BLU** (konteks memakai SAP-BLU, RBA, PER-36/PB/2016) [K].
 - RS punya akses resmi BPJS (cons-id, secret, user key) dan SATUSEHAT (organization ID, client id/secret).
 - Pengesahan harian memakai TTE tidak tersertifikasi berbasis PIN (T1); TTE tersertifikasi lewat PSrE (mis. Privy, Peruri, VIDA, BSrE) hanya untuk dokumen keluar RS dan bernilai hukum tinggi (T2) — lihat 7.57 [I].
+
+### 3.4 Mode produk generik [I]
+
+| Aturan | Isi |
+|---|---|
+| **Satu instalasi = satu RS** | Tidak multi-tenant dalam satu database. Setiap RS punya database, kunci enkripsi, cadangan, dan log audit sendiri. Alasan: pemisahan data rekam medis dan tanggung jawab pengendali data per RS (UU PDP) lebih sederhana dibuktikan. |
+| **Instalasi kosong** | Instalasi baru tidak berisi data RS apa pun. Isi pertama datang dari wizard penyiapan (FR-54-08) dan paket data referensi nasional (FR-54-09). |
+| **Beda antar-RS = konfigurasi** | Struktur unit, TT, kelas rawat, tarif, alur persetujuan, batas waktu tugas, dokumen T1/T2, modul aktif, dan indikator adalah data induk atau aturan. **Dilarang** cabang kode per RS (`if rs == ...`) dan fork per pelanggan. |
+| **Modul aktif per instalasi** | Modul 01–58 dinyalakan per instalasi dan per unit (feature flag, tabel `inti.modul_aktif`). Modul inti fase 1–2 tidak bisa dimatikan. |
+| **Identitas RS** | Nama, logo, kop, dan warna `--brand-*`/`--accent` diisi dari paket identitas per instalasi (`inti.profil_rs`). Token lain (status, triase, netral) tetap milik produk agar keselamatan visual sama di semua RS. Paket bawaan = Karsitara; paket RS USU adalah contoh. Logo RS USU **tidak boleh** dipakai di demo publik atau materi pemasaran tanpa izin tertulis USU. |
+| **Data demo** | Hanya sintetis, dari seeder terpisah yang ditolak berjalan bila `APP_ENV=production` (FR-54-10). |
+| **Validasi lapangan** | Keputusan di 17.2 diambil tanpa RS; setiap RS pertama (*design partner*) wajib meninjaunya sebelum pilot fase 2 (16.1). |
 
 ---
 
@@ -211,6 +227,18 @@ Daftar peran berikut menjadi **template peran** di modul Kendali Akses (54). Set
 7. **Keamanan klinis di depan:** banner alergi, risiko jatuh, subjek uji klinik, DNR, isolasi tampil konsisten di header pasien [K].
 8. **Keyboard-first** untuk pendaftaran, kasir, koding, farmasi.
 
+Butir 9–17 ditambahkan dari tinjauan heuristik Fase 0 (Lampiran E). Semuanya syarat terima komponen bersama, bukan saran.
+
+9. **Dua penanda identitas di semua titik pasien.** Setiap daftar, pemilih (dropdown), papan, ceklis, dan modal yang menyangkut satu pasien menampilkan **nama lengkap + No. RM + tanggal lahir**. Inisial hanya untuk layar publik (antrean, display). Pasien berinisial atau bernama mirip dalam satu daftar diberi penanda *nama mirip*.
+10. **Modal TTE menyebut apa dan siapa.** Modal `TtdModal` memuat pasien (butir 9), jenis dokumen, ringkasan isi, dan nama penanda tangan **sama dengan akun yang login**. Menandatangani atas nama orang lain tidak mungkin; yang ada hanya *minta tanda tangan* ke antrean orang tersebut.
+11. **Aksi tak terbalikkan dikonfirmasi dengan objeknya.** Disposisi meninggal/pulang/APS, kirim klaim, rilis data, finalisasi koding, tetapkan HAIs, penyerahan obat: konfirmasi menyebut pasien atau jumlah berkas, alasan bila relevan, dan dokumen wajib (misal formulir APS) sebelum aktif.
+12. **Aksi massal tidak menelan peringatan.** "Centang semua", "setujui semua", dan sejenisnya tidak pernah mencakup butir berstatus peringatan atau perlu perhatian; butir itu diputuskan satu per satu dengan alasan.
+13. **Validasi di field, bukan hanya toast.** Format identitas (NIK 16 digit, kartu BPJS 13 digit), rentang fisiologis dan angka stok divalidasi di klien dan server. Batas rentang berasal dari data induk, bukan kode. Field yang salah ditandai dan diberi pesan di dekatnya.
+14. **Data yang sudah mengunci tidak bisa berubah diam-diam.** Setelah SEP terbit, resep disahkan, atau hasil divalidasi, mengubah data pengunci (poli, dokter, penjamin, item) hanya lewat aksi eksplisit (*ubah/batal SEP*, *adendum*) dengan peringatan dampaknya.
+15. **"Tidak ada" berbeda dengan "belum dikaji".** Contoh alergi: *Tidak ada alergi diketahui* tampil netral dan eksplisit; *Belum dikaji* tampil sebagai peringatan; alergi nyata tampil merah dengan ikon. Teks status tidak boleh dipotong menjadi label yang bermakna lain.
+16. **Persetujuan hanya untuk penyetuju yang dituju.** Tombol setujui/berikan/rilis hanya dirender untuk akun yang menjadi penyetuju sah (lapis aksi 9.2). Memulihkan akses yang dicabut adalah perubahan akses biasa: beralasan, tercatat, dan mengikuti 9.2.4.
+17. **Aksesibilitas modal dan tabel.** Fokus pindah ke modal saat dibuka dan kembali saat ditutup, `Esc` menutup modal (kecuali saat memproses), ada tautan *lewati ke konten*, dan baris tabel yang bisa dipilih dapat dijangkau keyboard. Panel pengembang tidak pernah menutupi tombol aksi.
+
 ### 5.2 Tata letak (diturunkan dari Lampiran 1) [K]
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -235,6 +263,8 @@ Daftar peran berikut menjadi **template peran** di modul Kendali Akses (54). Set
 Sidebar 248px (collapsible ke 64px ikon), hanya menampilkan menu yang diizinkan untuk akun. Bagian atas sidebar memuat logo Karsitara; di bawahnya kartu RS berisi logo RS USU dan nama resmi rumah sakit (5.3.1).
 
 ### 5.3 Identitas visual dan design token
+
+> **Paket identitas RS USU (contoh).** Seluruh 5.3.1–5.3.2 di bawah adalah isi paket identitas untuk instalasi RS USU (3.4). Untuk RS lain, logo dan warna `--brand-*`/`--accent` diganti dari wizard penyiapan; aturan kontras, token status, triase, dan netral tetap berlaku untuk semua paket.
 
 **Sumber:** *Pedoman Identitas Universitas Sumatera Utara* (2021, 44 halaman) dan file logo resmi di folder `Logo` (Karsitara, Karya Sistem Nusantara, RS USU). Pedoman itu ditulis untuk komunikasi universitas (logo, cetak, presentasi), **bukan untuk antarmuka aplikasi**. Jadi warna dan huruf diturunkan dari pedoman, sedangkan aturan aplikasi (kontras, status, triase) ditambahkan di sini [I].
 
@@ -1260,7 +1290,24 @@ Daftar 13 INM pada konteks [K]: kebersihan tangan; penggunaan APD; identifikasi 
 | FR-54-03 | Data induk lain [I]: organisasi & unit, KSM, poliklinik, jadwal, ruang/kelas/TT, ICD, tindakan, paket, penjamin, kontrak, akun (COA), pusat biaya, wilayah, agama/pekerjaan, satuan, pemasok, alat, indikator, jenis tugas & SLA, template formulir, nilai rujukan lab | M | [I] |
 | FR-54-04 | Hak akses menu tiga tingkat, aksi, dan cakupan data — diatur lengkap di Bagian 9.2–9.3 (FR-09-01 s.d. FR-09-11) | M | [K] |
 | FR-54-05 | Audit trail: login, akses RM (lihat/cetak/ekspor), perubahan data, pembukaan dasbor sensitif (contoh: "Direktur, 2 Okt 2026, 07.12 WIB") | M | [K] |
-| FR-54-07 | SSO (opsional dengan akun USU), kebijakan sandi, dan sesi; MFA mengikuti 9.2.4 | M | [I] |
+| FR-54-07 | SSO (opsional, ke penyedia identitas milik RS/universitas), kebijakan sandi, dan sesi; MFA mengikuti 9.2.4 | M | [I] |
+| FR-54-08 | **Wizard penyiapan instalasi kosong** (3.4), urutan wajib: (1) dua akun superadmin bernama + MFA, (2) profil RS dan paket identitas (warna merek diuji kontras otomatis; ditolak bila teks di latar putih < 4,5:1 atau isian < 3:1), (3) unit organisasi, KSM, poli, bangsal/kamar/TT, kelas rawat, (4) muat paket referensi (FR-54-09), (5) pegawai dan izin praktik minimal, (6) penjamin dan tarif, (7) formularium, (8) kredensial integrasi (disimpan di vault, diuji ke sandbox), (9) modul aktif. Tiap langkah bisa diulang, tercatat di audit, dan instalasi **tidak bisa melayani pasien** sebelum langkah 1–6 lengkap | M | [I] |
+| FR-54-09 | **Paket data referensi** dimuat dengan sumber, versi, dan tanggal muat di `inti.paket_referensi`; pembaruan versi tidak menghapus kode lama (kode lama ditandai tidak aktif dan tetap terbaca di data historis). Isi dan status lisensi per paket di tabel di bawah | M | [I] |
+| FR-54-10 | **Data demo sintetis** untuk pelatihan dan demo: nama, NIK, dan No. RM dibangkitkan dan tidak valid secara format nasional bila memungkinkan; seeder menolak berjalan di produksi; setiap layar instalasi demo diberi pita *DEMO — data fiktif* | M | [I] |
+
+**Paket referensi (FR-54-09)**
+
+| Paket | Cara masuk | Catatan lisensi/sumber | Keyakinan |
+|---|---|---|---|
+| Wilayah (provinsi s.d. kelurahan) | Dikemas produk, diperbarui per rilis | Kode Kemendagri; versi terbaru perlu dicek setiap rilis | [Medium] |
+| ICD-10 dan ICD-9-CM (versi INA-CBG) | Dikemas produk atau dari aplikasi E-Klaim | Hak cipta ICD-10 milik WHO; izin mendistribusikan di dalam produk komersial **perlu verifikasi** | [Medium] |
+| ICD-10-IM / ICD-9-CM-IM (iDRG) | Sama, adapter terpisah (T-5) | Status rilis dan distribusi **perlu verifikasi live** | [Low] |
+| KFA (obat dan alkes) | **Tidak dikemas**; sinkron per instalasi lewat API SATUSEHAT dengan kredensial RS | Mengikuti ketentuan SATUSEHAT | [High] |
+| LOINC | Dikemas subset lab yang dipakai | Lisensi gratis Regenstrief dengan syarat atribusi | [High] |
+| SNOMED CT | **Tidak dikemas**; hanya kode yang diperlukan profil SATUSEHAT | Butuh lisensi; status keanggotaan Indonesia **perlu verifikasi** | [Low] |
+| UCUM (satuan) | Dikemas | Bebas dipakai | [High] |
+| Referensi BPJS (poli, dokter, faskes, diagnosa) | Tidak dikemas; ditarik lewat VClaim per instalasi | Kredensial RS | [High] |
+| Agama, pendidikan, pekerjaan, status kawin, dll. | Dikemas | Mengikuti kode variabel RME/SATUSEHAT; daftar kode resmi **perlu verifikasi** | [Medium] |
 
 ### 7.55 Ambulans [I]
 | ID | Kebutuhan | Prio |
@@ -1919,7 +1966,9 @@ Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis
 #### `inti` — organisasi dan referensi
 | Tabel | Kolom utama |
 |---|---|
-| `profil_rs` | id, nama, kode_kemenkes, kelas, status_blu, satusehat_org_id, kode_ppk_bpjs, alamat |
+| `profil_rs` | id, nama, kode_kemenkes, kelas, status_blu, satusehat_org_id, kode_ppk_bpjs, alamat, paket_identitas jsonb (logo, kop, warna brand/accent), status_penyiapan |
+| `modul_aktif` | modul_no, unit_organisasi_id (null = seluruh RS), aktif_sejak, diaktifkan_oleh |
+| `paket_referensi` | id, sistem, versi, sumber, catatan_lisensi, dimuat_pada, dimuat_oleh, jumlah_kode |
 | `unit_organisasi` | id, induk_id, kode, nama, jenis (instalasi/bidang/bagian/ruang/poli/depo), satusehat_lokasi_id, pusat_biaya_id, aktif |
 | `ksm` | id, kode, nama, ketua_pegawai_id |
 | `poliklinik` | id, unit_organisasi_id, kode_poli_bpjs, nama, ruang, lantai |
@@ -2276,7 +2325,7 @@ erDiagram
 | **Alat laboratorium / middleware LIS** | masuk | hasil alat | HL7 v2 ORU / ASTM E1394 | 19 | [K] |
 | **PACS / modalitas** | dua arah | order radiologi | DICOM MWL, HL7 ORM/ORU, URL viewer | 20 | [K] |
 | **Mesin presensi** | masuk | harian | kehadiran | 39 | [I] |
-| **Sistem akademik FK USU** | dua arah | rotasi | daftar peserta didik, rotasi, nilai | 46 | [I] |
+| **Sistem akademik fakultas mitra** (contoh FK USU) | dua arah | rotasi | daftar peserta didik, rotasi, nilai | 46 | [I] |
 | **Crossref/Scopus/SINTA** | masuk | berkala | metadata publikasi | 47 | [K] (DOI) |
 | **WA/SMS/Email gateway** | keluar | notifikasi | pengingat, kuitansi, hasil | 53 | [K] |
 | **Aplikasi Kemenkeu (BLU)** | keluar | periodik | laporan keuangan | 31 | **perlu verifikasi** sistem & format |
@@ -2615,13 +2664,32 @@ Pencarian web diblokir kebijakan organisasi; teks dibuka langsung dari JDIH BPK 
 
 | Fase | Durasi indikatif | Isi | Kriteria keluar |
 |---|---|---|---|
-| **0. Discovery & desain** | 6–8 minggu | Konfirmasi T-1–T-9, workshop per instalasi, finalisasi data induk, desain UI high-fidelity, uji klik dengan pengguna, arsitektur infrastruktur | Dokumen kebutuhan per modul disetujui pemilik; prototipe SUS ≥ 70 |
+| **0. Discovery & desain (mode produk)** | selesai Okt 2026, kecuali SUS | Log keputusan produk (17.2), tinjauan heuristik prototipe, aturan UX 9–17, wizard dan paket referensi, protokol SUS (Lampiran E) | Lihat 16.1 |
 | **1. Fondasi** | 8–10 minggu | Platform: IAM/menu (54), master data, audit, TTE (57), notifikasi (53), integration gateway (49/50 dasar), design system | Login/RBAC/menu dinamis berjalan; sandbox BPJS & SATUSEHAT terhubung |
 | **2. Alur pasien inti (go-live 1)** | 12–16 minggu | 01, 02, 03, 04, 05, 07, 08, 19, 20, 22, 26, 28, 50, 49 | Pilot 2 poli + 1 bangsal + IGD; SEP & SATUSEHAT ≥ 98% |
 | **3. Pendapatan & penunjang lanjut** | 10–12 minggu | 09, 10, 11, 12, 14, 15, 16, 17, 18, 21, 27, 29, 30, 45 | Klaim bulan pertama terkirim dari SIMRS |
 | **4. Tata kelola & keuangan** | 10–12 minggu | 31, 32, 33, 34, 35, 37, 38, 39, 40, 42, 43, 51, 52 | Tutup buku mingguan pertama; INM terkirim; dasbor 1–6 |
 | **5. Pendidikan, penelitian & pelengkap** | 8–10 minggu | 46, 47, 06, 13, 23, 24, 25, 36, 41, 44, 48, 55, 56, 58, dasbor 7 | Protokol baru seluruhnya via sistem |
 | **6. Stabilisasi & akreditasi** | berkelanjutan | optimasi, audit keamanan, persiapan survei STARKES | SLA terpenuhi 3 bulan |
+
+### 16.1 Fase 0 tanpa RS: pengganti dan status
+
+Tanpa akses ke RS, tiga hal tidak bisa dikerjakan apa adanya. Penggantinya lebih lemah dan risikonya dicatat di 17.1.
+
+| Kegiatan asli | Pengganti mode produk | Status (10 Okt 2026) |
+|---|---|---|
+| Konfirmasi T-1–T-9 dan workshop per instalasi | Keputusan produk oleh pemilik produk, dengan dasar regulasi dan butir yang dibuat konfigurasi (17.2) | Selesai |
+| Persetujuan dokumen kebutuhan oleh pemilik proses RS | Persetujuan pemilik produk atas PRD v0.10; konfirmasi RS dipindah ke awal implementasi tiap RS | Selesai (menunggu tanda tangan pemilik produk) |
+| Finalisasi data induk RS | Wizard penyiapan dan paket referensi nasional (FR-54-08…10) | Didefinisikan; dibangun di fase 1 |
+| Uji klik dan SUS ≥ 70 dengan pengguna RS | (a) Tinjauan heuristik ahli atas 20 prototipe; (b) uji SUS dengan tenaga kesehatan dan staf administrasi dari luar RS mana pun yang bisa direkrut | (a) Selesai: 154 temuan, 9 keparahan 4 sudah diperbaiki di prototipe (Lampiran E.1). (b) **Tertunda** |
+| Arsitektur infrastruktur | Arsitektur referensi satu-instalasi-satu-RS (3.4, 10) dengan pilihan on-premise atau pusat data dalam negeri | Selesai |
+
+**Kriteria keluar yang berlaku:**
+1. Tidak ada temuan heuristik keparahan 4 yang terbuka. ✔
+2. Temuan keparahan 3 menjadi syarat terima tiket komponen/modul terkait (Lampiran E.1). ✔
+3. Log keputusan 17.2 disetujui pemilik produk. ☐
+4. **Gerbang SUS dipindah:** SUS ≥ 70 (protokol E.2) wajib tercapai **sebelum pilot fase 2**, bukan sebelum fase 1. Fase 1 (fondasi) boleh mulai karena hampir tidak bergantung pada alur kerja klinis.
+5. **Design partner:** minimal satu RS meninjau 17.2 dan mengikuti uji SUS sebelum pilot fase 2. Tanpa ini, fase 2 hanya boleh berjalan sampai lingkungan staging.
 
 Strategi go-live: **bertahap per unit** dengan feature flag, dukungan *floor walker* 24/7 dua minggu pertama, prosedur downtime teruji.
 
@@ -2640,29 +2708,41 @@ Strategi go-live: **bertahap per unit** dengan feature flag, dukungan *floor wal
 | Kepatuhan PDP pada data riset & pendidikan | Sedang | Tinggi | DPIA, ruang analisis, pseudonim, DPO |
 | Interoperabilitas alat lab/PACS lama | Sedang | Sedang | Middleware; inventaris protokol alat di fase 0 |
 | Kinerja tabel besar | Sedang | Sedang | Partisi, read replica, indeks, uji beban |
-| Ketidaksesuaian klasifikasi (T-1) memengaruhi kewajiban layanan | Sedang | Sedang | Konfirmasi di fase 0 |
+| Ketidaksesuaian klasifikasi (T-1) memengaruhi kewajiban layanan | Sedang | Sedang | Klasifikasi jadi data induk; kewajiban layanan dicek per RS saat implementasi |
+| **Produk dibangun tanpa RS nyata** (Fase 0 mode produk): alur kerja asumsi berbeda dari praktik, fitur tidak dipakai, beban konfigurasi tinggi | Tinggi | Tinggi | Variasi dijadikan konfigurasi (3.4); design partner sebelum pilot fase 2 (16.1); uji SUS dengan tenaga kesehatan luar RS; temuan lapangan masuk sebagai perubahan konfigurasi dulu, kode belakangan |
 
-### 17.2 Pertanyaan terbuka (perlu jawaban RS)
-1. Klasifikasi resmi & jumlah TT riil? (T-1)
-2. Daftar resmi modul 01–54 di surat penawaran — apakah sesuai pengisian [I] di Bagian 6? (T-2)
-3. SIMRS menggantikan sistem apa saja yang berjalan sekarang (billing lama, LIS, PACS, aplikasi keuangan)? Mana yang dipertahankan?
-4. Opini hukum: keabsahan tanda tangan pasien di tablet (tidak tersertifikasi) untuk persetujuan tindakan.
-5. Hosting: on-premise di RS atau pusat data USU/cloud dalam negeri?
-6. Kebijakan harga pokok persediaan (FIFO vs rata-rata tertimbang)?
-7. Apakah remunerasi & penggajian masuk lingkup?
-8. Batas waktu eskalasi per jenis tugas (default diambil dari konteks: 2×24 jam resume, 24 jam TBaK, 4 jam menunggu kamar, 2×24 jam insiden)?
-9. Format SAP vs SAK yang dipakai untuk laporan resmi?
-10. Sistem tujuan pelaporan INM (T-6) dan dasar hukum penelitian (T-3)?
-11. Sistem akademik FK USU yang akan diintegrasikan untuk data rotasi?
-12. PSrE mana yang dipilih, model biayanya (per tanda tangan/kuota), apakah tersedia tanda tangan massal dan penandatanganan berbasis hash, serta di mana dokumen disimpan PSrE? (7.57.3)
-13. Daftar dokumen yang wajib T2 vs cukup T1 disahkan Komite Medik dan bagian hukum.
-14. Kebijakan RS untuk batas waktu formulir yang tidak diatur regulasi (Lampiran A) dan siapa yang menyetujui perbaikan data administratif setelah 2 × 24 jam.
-15. Dokumen KMK 1128/2022 (STARKES) versi resmi untuk mencocokkan Lampiran A.
-16. Konfirmasi penerimaan versi elektronik oleh pihak luar: e-resep narkotika (dinkes/BPOM), berita acara pemusnahan, surat keterangan kematian (Dukcapil), visum (penyidik) — Lampiran C.
-17. Cara pencatatan pasien WNA dan pasien tanpa NIK di SATUSEHAT (B-01, B-03).
-18. Dasar pemrosesan data RME untuk logbook pendidikan (pseudonim) ditetapkan pejabat PDP.
-19. Logo RS USU versi vektor (SVG/AI) dan izin pemakaian di aplikasi; apakah RS punya pedoman identitas sendiri di luar Pedoman Identitas USU (5.3.1).
-20. Konfirmasi Humas/Promosi USU atas nilai HEX yang tidak cocok dengan RGB di pedoman (Pantone 349 C dan warna formal) (5.3.2).
+### 17.2 Log keputusan Fase 0 dan konfirmasi RS
+
+Setiap baris berisi keputusan produk (berlaku sekarang), bagian yang dibuat konfigurasi, dan apa yang tetap harus dikonfirmasi tiap RS saat implementasi. Keputusan bertanda *perlu verifikasi* tidak boleh dikodekan keras (D.7).
+
+| # | Pokok | Keputusan produk | Konfigurasi per RS | Konfirmasi RS saat implementasi |
+|---|---|---|---|---|
+| T-1 / 1 | Klasifikasi dan jumlah TT | Produk menyasar RS umum Tipe B pendidikan; kapasitas uji beban **500 TT** dan jam sibuk poli 14.1. Tidak ada angka TT di kode | `profil_rs.kelas`, ruang, TT, KSM | Klasifikasi resmi dan kewajiban layanannya |
+| T-2 / 2 | Daftar modul | Katalog 01–58 (Bagian 6) adalah lingkup produk | `inti.modul_aktif` | Modul yang dibeli/dinyalakan |
+| T-3 / 10b | Dasar hukum penelitian | "Permenkes 6/2026" **tidak dipakai** sebagai rujukan sampai terverifikasi; dasar sementara PP 28/2024 dan pedoman KEPPKN, ditandai *perlu verifikasi* | Teks dasar hukum di layar penelitian | Nomor dan pasal yang benar |
+| T-4 | Kelas rawat dan KRIS | Model kelas mendukung kelas lama dan KRIS berdampingan dengan tanggal berlaku | `kelas_rawat`, aturan selisih biaya | Jadwal KRIS yang berlaku (*perlu verifikasi live*) |
+| T-5 | INA-CBG dan iDRG | Grouper sebagai adapter; keduanya bisa aktif dengan tanggal berlaku | Adapter aktif | Status iDRG saat go-live |
+| T-6 / 10a | Tujuan pelaporan INM | Adapter pelaporan dengan dua mode: kirim API (bila tersedia) atau ekspor berkas untuk unggah manual. Nama sistem tujuan *perlu verifikasi* | Mode adapter, kredensial | Sistem dan format resmi |
+| T-7 | Paperless | Paperless internal + cetak terkendali ber-QR untuk dokumen keluar (Lampiran C) | Daftar dokumen cetak terkendali | Penerimaan dokumen elektronik oleh pihak luar (no. 16) |
+| T-8 | Alur pengecualian | Lampiran B menjadi bagian lingkup | Alur yang dimatikan | — |
+| T-9 | Baseline dan target | Tidak ada angka bawaan; target indikator diisi RS dan bisa diubah tanpa rilis (FR-32-02) | Target per indikator | Baseline dari data RS |
+| 3 | Sistem lama yang diganti | Produk berdiri sendiri lengkap; LIS/PACS/akuntansi luar dapat dihubungkan lewat adapter (HL7 v2, FHIR, DICOM) bila RS mempertahankannya; migrasi lewat templat impor | Adapter aktif, templat migrasi | Daftar sistem yang dipertahankan |
+| 4 | Tanda tangan pasien di tablet | Bawaan: goresan + OTP ke nomor pasien/wali, bukti disimpan (7.57). Dokumen yang dipilih RS bisa dinaikkan ke PSrE | Tingkat per jenis dokumen | **Opini hukum per RS** |
+| 5 | Hosting | Satu instalasi satu RS; dipasang on-premise atau di pusat data dalam negeri; cadangan di lokasi berbeda (Permenkes 24/2022 Ps. 20) | Topologi | Lokasi dan penyedia |
+| 6 | Harga pokok persediaan | Bawaan **rata-rata tertimbang bergerak**; pengeluaran fisik tetap FEFO. Metode lain (FIFO) disediakan sebagai pilihan | Metode per RS | Kebijakan akuntansi RS. Kesesuaian dengan standar akuntansi yang dipakai RS *perlu verifikasi* [Medium] |
+| 7 | Remunerasi dan penggajian | Jasa pelayanan dan remunerasi (modul 30) di dalam lingkup; penggajian penuh di luar lingkup, data dikirim ke sistem gaji | Format ekspor | Sistem gaji tujuan |
+| 8 | Batas waktu eskalasi | Bawaan dari konteks: 2×24 jam resume, 24 jam TBaK, 4 jam menunggu kamar, 2×24 jam insiden; disimpan di `jenis_tugas` | Semua batas | Kebijakan RS |
+| 9 | Standar laporan keuangan | Bagan akun dipetakan ke dua keluaran (SAP dan SAK); laporan resmi dipilih per RS | Pemetaan akun | Standar yang diwajibkan untuk RS tersebut (*perlu verifikasi*) |
+| 11 | Sistem akademik | API dan impor CSV generik untuk rotasi dan penilaian peserta didik | Pemetaan kolom | Sistem fakultas mitra |
+| 12 | PSrE | Antarmuka adapter PSrE dengan satu implementasi tiruan (*mock*) untuk pengembangan; tanda tangan berbasis hash dan massal diwajibkan di kontrak adapter | Penyedia, kredensial | Penyedia, biaya, lokasi simpan dokumen |
+| 13 | Dokumen T1 vs T2 | Daftar bawaan dari 7.57 dan Lampiran A | Tingkat per jenis dokumen | Pengesahan Komite Medik dan bagian hukum |
+| 14 | Batas waktu formulir dan penyetuju perbaikan setelah 2×24 jam | Batas bawaan Lampiran A; penyetuju bawaan Kepala Instalasi Rekam Medis | Batas dan penyetuju | Kebijakan RS |
+| 15 | KMK 1128/2022 (STARKES) | Pemetaan Lampiran A ditandai *belum dicocokkan*; tidak dipakai sebagai klaim kepatuhan sampai dicocokkan dengan teks resmi | — | Dokumen resmi |
+| 16 | Penerimaan dokumen elektronik pihak luar | Bawaan cetak terkendali untuk e-resep narkotika, berita acara pemusnahan, surat kematian, visum | Daftar dokumen | Konfirmasi dinkes/BPOM/Dukcapil/penyidik |
+| 17 | Pasien WNA dan tanpa NIK | Identitas disimpan (paspor/tanpa identitas, B-01, B-03); pengiriman ke SATUSEHAT ditahan di kotak keluar sampai ID tersedia. Aturan SATUSEHAT untuk kasus ini *perlu verifikasi* | — | Juknis SATUSEHAT terbaru |
+| 18 | Logbook pendidikan | Pseudonim bawaan; templat DPIA disediakan | Aturan pseudonim | Penetapan pejabat PDP RS |
+| 19 | Logo RS | Paket identitas per instalasi (3.4); logo RS USU hanya untuk instalasi/uji RS USU | Logo, kop | Berkas vektor dan izin pemakaian |
+| 20 | HEX pedoman USU | Tetap memakai nilai hasil render (5.3.2) untuk paket RS USU | Warna paket | Konfirmasi Humas USU |
 
 ---
 
@@ -2969,7 +3049,7 @@ Di luar lingkup tiket: …
 
 ### D.8 Yang harus dijawab klien sebelum sprint terkait
 
-| Sebelum mengerjakan | Pertanyaan 17.2 yang harus terjawab |
+| Sebelum mengerjakan | Butir 17.2 yang harus dikonfirmasi RS (keputusan produk sudah ada; konfirmasi diperlukan sebelum dipakai di RS tersebut) |
 |---|---|
 | TTE T2 (fase 1–2) | No. 12 (PSrE, biaya, hash), no. 13 (daftar dokumen T1/T2) |
 | Persetujuan tindakan di tablet | No. 4 (opini hukum tanda tangan pasien) |
@@ -2977,6 +3057,62 @@ Di luar lingkup tiket: …
 | Farmasi narkotika | No. 16 (konfirmasi e-resep narkotika) |
 | Eskalasi tugas | No. 8 (batas waktu per jenis tugas) |
 | Keuangan BLU | No. 6, 7, 9 |
+
+---
+
+## Lampiran E. Hasil Fase 0 (mode produk)
+
+### E.1 Tinjauan heuristik prototipe
+
+Metode: 10 heuristik Nielsen, keselamatan pasien, dan WCAG 2.1 AA. Setiap halaman dirender di 1440×900 dan 390×844, dan alur utamanya dijalankan. Keparahan: 4 = keselamatan pasien/kebocoran data, 3 = mayor, 2 = minor, 1 = kosmetik. Rincian lengkap per temuan ada di repo `docs/fase0/tinjauan-heuristik.md`. Ini **tinjauan ahli, bukan uji pengguna**; tidak menggantikan E.2.
+
+| Kelompok halaman | K4 | K3 | K2 | K1 |
+|---|---|---|---|---|
+| Masuk, beranda, pendaftaran, anjungan, display | 0 | 10 | 19 | 9 |
+| Rawat jalan, IGD, rawat inap, kamar operasi, rekam medis | 6 | 13 | 20 | 0 |
+| Farmasi, penunjang, kasir, casemix, integrasi | 2 | 12 | 20 | 3 |
+| Data induk, mutu, SDM, logistik, penelitian | 1 | 11 | 25 | 3 |
+| **Jumlah** | **9** | **46** | **84** | **15** |
+
+**Temuan keparahan 4 dan tindak lanjut**
+
+| ID | Temuan | Aturan PRD | Status prototipe |
+|---|---|---|---|
+| RJ-1 | Modal TTE tidak menyebut pasien | 5.1 butir 10 | Diperbaiki |
+| OK-1 | Modal TTE menyebut dokter lain sebagai penanda tangan, padahal yang login perawat | 5.1 butir 10 | Diperbaiki |
+| IGD-1 | "Alergi: tidak ada" terpotong menjadi chip merah "Alergi" | 5.1 butir 15 | Diperbaiki |
+| IGD-2 | Disposisi meninggal/pulang/APS tersimpan tanpa konfirmasi | 5.1 butir 11 | Diperbaiki |
+| RI-1 | Daftar pasien bangsal dan eMAR tanpa No. RM; inisial kembar | 5.1 butir 9 | Diperbaiki |
+| OK-2 | Ceklis keselamatan operasi tanpa No. RM, tanggal lahir, alergi | 5.1 butir 9 | Diperbaiki |
+| F1 | "Centang semua sesuai" ikut mencentang butir *perlu perhatian* | 5.1 butir 12 | Diperbaiki |
+| F2 | Penyerahan obat tanpa verifikasi identitas pasien | 5.1 butir 9, 11 | Diperbaiki |
+| PN-1 | Sekretaris Komite Etik bisa menyetujui sebagai DPO dan merilis data | 5.1 butir 16 | Diperbaiki |
+
+Ikut diperbaiki di komponen bersama prototipe: `Esc` menutup modal dan fokus tidak keluar dari modal; tombol *Spek dev* tidak lagi menutupi tombol aksi; `TtdModal` menolak tanda tangan atas nama orang lain (termasuk ekspertise radiologi oleh analis). Beberapa halaman prototipe masih memakai inisial pasien; untuk implementasi berlaku 5.1 butir 9.
+
+Temuan keparahan 3 menjadi **syarat terima** tiket modul terkait (dicantumkan di bagian *Uji penerimaan* tiket, D.6). Temuan yang berulang di banyak halaman sudah diangkat menjadi aturan 5.1 butir 9–17. Ketidakcocokan data fiktif antarhalaman (misal nominal racikan atau kode diagnosis berbeda) hanya masalah prototipe dan tidak menjadi kebutuhan.
+
+### E.2 Protokol uji SUS
+
+| Unsur | Ketentuan |
+|---|---|
+| Peserta | Minimal 5 orang per kelompok peran, 5 kelompok: petugas pendaftaran, dokter, perawat, apoteker/TTK, kasir. Tenaga kesehatan atau staf administrasi RS mana pun; belum pernah melihat prototipe |
+| Bahan | Prototipe `docs/html/` dengan data fiktif; tidak ada data pasien asli |
+| Tugas per kelompok | Pendaftaran: daftarkan pasien lama BPJS ke poli dan terbitkan SEP. Dokter: tulis SOAP, beri resep, sahkan dengan PIN. Perawat: berikan obat terjadwal di eMAR termasuk satu obat dengan cek ganda. Apoteker: telaah resep yang punya satu masalah dosis lalu serahkan obat. Kasir: terima pembayaran pasien umum dan cetak kuitansi |
+| Ukuran | Selesai/tidak, waktu, jumlah kesalahan (terutama salah pasien), lalu kuesioner SUS segera setelah tugas |
+| Penilaian | Butir ganjil: skor − 1; butir genap: 5 − skor; jumlah × 2,5 → 0–100. Target **≥ 70 per kelompok** dan **≥ 75 rata-rata** (G-8); tidak ada kesalahan salah pasien |
+| Kuesioner | 10 butir SUS (Brooke, 1986), skala 1 *sangat tidak setuju* – 5 *sangat setuju*. Gunakan adaptasi bahasa Indonesia yang sudah divalidasi bila tersedia; terjemahan di bawah **belum divalidasi** |
+
+1. Saya rasa saya akan sering memakai sistem ini.
+2. Sistem ini terasa rumit tanpa perlu.
+3. Sistem ini mudah dipakai.
+4. Saya butuh bantuan orang teknis untuk bisa memakai sistem ini.
+5. Fungsi-fungsi di sistem ini terpadu dengan baik.
+6. Terlalu banyak hal yang tidak konsisten di sistem ini.
+7. Kebanyakan orang akan cepat belajar memakai sistem ini.
+8. Sistem ini sangat merepotkan untuk dipakai.
+9. Saya merasa yakin saat memakai sistem ini.
+10. Saya perlu belajar banyak hal sebelum bisa memakai sistem ini.
 
 ---
 
