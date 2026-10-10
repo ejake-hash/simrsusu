@@ -20,12 +20,20 @@ cd backend
 composer install && cp .env.example .env && php artisan key:generate
 php artisan migrate --database=pgsql_migrator
 composer test                        # migrasi simrs_test sebagai migrator, lalu phpunit
+php artisan db:seed                  # akun sintetis contoh.admisi/perawat/dokter (ditolak di production)
 php artisan serve                    # http://127.0.0.1:8000
 
 cd ../frontend
 npm install
 npm run dev                          # http://localhost:5173, /api diteruskan ke backend
 ```
+
+## Autentikasi
+
+SPA masuk dengan cookie sesi Sanctum (bukan token di `localStorage`):
+`GET /sanctum/csrf-cookie` → `POST /api/v1/autentikasi/masuk` → `GET /api/v1/saya` → `POST /api/v1/autentikasi/keluar`.
+Aturan sandi, penguncian, batas laju, dan batas diam sesi ada di `backend/config/autentikasi.php`;
+alasannya di [`docs/adr/`](docs/adr/).
 
 ## Role database
 

@@ -6,13 +6,13 @@
 
 | Atribut | Nilai |
 |---|---|
-| Versi dokumen | 0.10 |
+| Versi dokumen | 0.10.1 |
 | Tanggal | 10 Oktober 2026 |
 | Penyusun | Eza (Karyasistemnusantara) · disusun bersama Claude |
 | Sumber konteks | Lampiran 1 *Visual Layar SIMRS* (15 layar), Lampiran 2 *Visual Dasbor Berjenjang* (7 dasbor + contoh kewenangan), HTML *Dasbor Berjenjang Karsitara*, *Pedoman Identitas USU* (2021) dan folder Logo |
 | Tech stack | Laravel 12 (PHP 8.3+) · Vue 3 + TypeScript · PostgreSQL 16 · Redis · Laravel Reverb |
 | Status | **Produk generik** (3.4). Fase 0 mode produk selesai dengan satu gerbang tertunda: uji SUS (16.1). Keputusan yang biasanya diambil RS dicatat sebagai keputusan produk di 17.2 dan dikonfirmasi tiap RS saat implementasi |
-| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · **v0.10** mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E |
+| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · **v0.10.1** hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) |
 
 > **Konvensi penandaan sumber**
 > - **[K]** = fitur/aturan tertulis eksplisit di dokumen konteks (Lampiran 1/2/HTML).
@@ -1825,7 +1825,7 @@ app/
 | Kunci JSON | `snake_case` bahasa Indonesia, sama dengan kolom; ID berupa UUIDv7; waktu ISO 8601 dengan zona | `{"nomor_rm": "00-48-21-07", "dibuat_pada": "2026-10-10T09:12:00+07:00"}` |
 | Daftar | Paginasi kursor `?kursor=&batas=`; filter sebagai query; respons `{data: [...], meta: {kursor_berikutnya}}` | `GET /api/v1/kunjungan?poli=PD&tanggal=2026-10-10` |
 | Bagian halaman | Respons hanya memuat bagian yang diizinkan (9.2.5); bagian yang tidak diizinkan **tidak dikirim**, bukan `null` | — |
-| Galat | Satu format untuk semua: `{"galat": {"kode": "akses_ditolak", "pesan": "…", "rincian": [...]}}`; `pesan` bahasa Indonesia untuk pengguna dan **tidak memuat data pasien**; status HTTP standar (400, 401, 403, 404, 409, 422, 429, 503) | `403 {"galat":{"kode":"akses_ditolak","pesan":"Anda tidak punya izin untuk tindakan ini."}}` |
+| Galat | Satu format untuk semua: `{"galat": {"kode": "akses_ditolak", "pesan": "…", "rincian": [...]}}`; `pesan` bahasa Indonesia untuk pengguna dan **tidak memuat data pasien**; status HTTP standar (400, 401, 403, 404, 409, 422, 429, 503); token CSRF tidak valid = 403 `csrf_tidak_valid` (bukan 419 bawaan Laravel) | `403 {"galat":{"kode":"akses_ditolak","pesan":"Anda tidak punya izin untuk tindakan ini."}}` |
 | Idempotensi | Aksi yang memicu kiriman eksternal atau tanda tangan menerima header `Idempotency-Key` | `POST /api/v1/bpjs/sep` |
 | Autentikasi | SPA: cookie Sanctum stateful + CSRF; mesin-ke-mesin: token Sanctum bercakupan; kios: token perangkat (7.01.1) | — |
 
@@ -1913,7 +1913,7 @@ sequenceDiagram
 |---|---|---|
 | `simrs_migrator` | Pemilik semua skema; DDL | Perintah migrasi saat rilis saja |
 | `simrs_app` | `sistem`: `SELECT, INSERT, UPDATE, DELETE`; skema domain: `SELECT, INSERT, UPDATE` (tanpa `DELETE`; pengecualian per tabel diberikan di migrasinya dengan alasan dan direview); `audit`: `SELECT, INSERT`; `analitik`: `SELECT` saja; tanpa DDL | Aplikasi Laravel (web, antrean pekerjaan, Reverb) |
-| `simrs_analitik` | Pemilik materialized view di skema `analitik` (`CREATE` di skema itu, syarat pemindahan kepemilikan); `SELECT` pada skema domain agar `REFRESH` berjalan; tanpa hak tulis di skema domain | Perintah terjadwal pembaruan dasbor |
+| `simrs_analitik` | Pemilik materialized view di skema `analitik` (`CREATE` di skema itu, syarat pemindahan kepemilikan); `SELECT` pada skema domain agar `REFRESH` berjalan, **kecuali** skema `akses`, `ttd`, `audit`, dan `sistem` (berisi hash sandi, PIN, kunci, dan jejak audit); tanpa hak tulis di skema domain. Data dari skema yang dikecualikan hanya lewat view khusus yang dibuat migrasi dan ditinjau | Perintah terjadwal pembaruan dasbor |
 | `simrs_baca` | `SELECT` pada skema `analitik` dan replika baca | Dasbor dan pelaporan |
 
 Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis mengikuti. `simrs_analitik` dan `simrs_baca` dibuat **`NOLOGIN`** sampai modul dasbor dibangun (fase 4); `simrs_migrator` menjadi anggota `simrs_analitik` agar migrasi dapat memindahkan kepemilikan materialized view. Satu role per pengguna manusia (DBA) dengan MFA di bastion; tidak ada akun bersama (14.2).
@@ -2582,8 +2582,8 @@ Dasar: Permenkes 24/2022 Ps. 29 (kerahasiaan, integritas, ketersediaan), Ps. 20 
 
 | Area | Kebutuhan |
 |---|---|
-| **Autentikasi** | Sandi minimal 12 karakter, dicek terhadap daftar sandi bocor, disimpan Argon2id; tanpa kewajiban ganti berkala kecuali ada indikasi bocor. MFA (aplikasi autentikator atau WebAuthn) wajib untuk peran sensitif, superadmin, dan akses dari luar jaringan RS. Kunci 15 menit setelah 5 kali gagal. Pesan galat tidak membedakan nama pengguna dan sandi yang salah |
-| **Sesi** | Sesi berbasis cookie `HttpOnly`, `Secure`, `SameSite=Strict` (Sanctum SPA), bukan token di `localStorage`. Kedaluwarsa tidak aktif: 15 menit di komputer bersama/area publik, 60 menit di perangkat pribadi terdaftar. Ganti pengguna cepat di komputer ruangan (kartu pegawai/PIN) tanpa menutup aplikasi. Sesi dicabut seketika saat akun dinonaktifkan atau perannya berubah |
+| **Autentikasi** | Sandi minimal 12 karakter, dicek terhadap daftar sandi bocor, disimpan Argon2id; tanpa kewajiban ganti berkala kecuali ada indikasi bocor. MFA (aplikasi autentikator atau WebAuthn) wajib untuk peran sensitif, superadmin, dan akses dari luar jaringan RS. Kunci 15 menit setelah 5 kali gagal, berlaku juga untuk nama pengguna yang tidak ada agar keberadaan akun tidak bisa ditebak; verifikasi hash tetap dijalankan untuk akun yang tidak ada agar waktu respons setara. Pesan galat tidak membedakan nama pengguna dan sandi yang salah; status *nonaktif* hanya diungkap bila sandi benar. Setiap penguncian akun nyata dicatat di audit dan diberitahukan ke pemilik akun (penguncian massal dapat dipakai untuk mengganggu layanan) |
+| **Sesi** | Sesi berbasis cookie `HttpOnly`, `Secure`, `SameSite=Strict` (Sanctum SPA), bukan token di `localStorage`. Kedaluwarsa tidak aktif: 15 menit di komputer bersama/area publik, 60 menit di perangkat pribadi terdaftar. Ganti pengguna cepat di komputer ruangan (kartu pegawai/PIN) tanpa menutup aplikasi. Sesi dicabut saat akun dinonaktifkan atau perannya berubah, diperiksa di setiap permintaan; koneksi realtime (Reverb) ikut diputus. Masa hidup sesi di penyimpanan (`SESSION_LIFETIME`) lebih panjang dari batas diam terpanjang agar pengguna menerima `sesi_kedaluwarsa`, bukan `belum_masuk` |
 | **Otorisasi** | Model 9.2 diperiksa di server; pemeriksaan per objek di setiap endpoint (mencegah IDOR); respons dibentuk sesuai izin bagian dan kolom; tidak ada endpoint tanpa kebijakan akses (diuji otomatis di CI) |
 | **Aplikasi web** | Validasi semua masukan di server; perlindungan *mass assignment*; CSRF; CORS hanya domain RS; header keamanan (CSP ketat, HSTS, X-Frame-Options, Referrer-Policy); batas laju per pengguna dan per IP; unggahan berkas dicek tipe, ukuran, dan dipindai antivirus sebelum disimpan |
 | **Data** | TLS 1.2+ di semua jalur termasuk antar-server; enkripsi disk dan cadangan; kolom sensitif dienkripsi aplikasi; kunci di KMS/HSM dengan rotasi tahunan; pengguna basis data aplikasi tanpa hak DDL (role `simrs_app`, 11.1); tabel audit hanya bisa ditambah (hak `INSERT` saja); data pribadi disamarkan di log dan di lingkungan uji (data uji sintetis, bukan salinan produksi) |

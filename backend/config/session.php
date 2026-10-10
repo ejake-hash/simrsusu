@@ -32,6 +32,8 @@ return [
     |
     */
 
+    // Harus lebih lama dari batas diam terpanjang (config/autentikasi.php) supaya sesi diam
+    // diakhiri middleware SesiPengguna dengan kode sesi_kedaluwarsa, bukan hilang diam-diam.
     'lifetime' => (int) env('SESSION_LIFETIME', 120),
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
@@ -169,7 +171,8 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    // Wajib true di luar lokal (PRD 14.2); dicek saat boot di AppServiceProvider.
+    'secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV', 'production') !== 'local'),
 
     /*
     |--------------------------------------------------------------------------
@@ -199,7 +202,7 @@ return [
     |
     */
 
-    'same_site' => env('SESSION_SAME_SITE', 'lax'),
+    'same_site' => env('SESSION_SAME_SITE', 'strict'),
 
     /*
     |--------------------------------------------------------------------------

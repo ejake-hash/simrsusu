@@ -10,7 +10,7 @@ use Tests\TestCase;
 class InfrastrukturTest extends TestCase
 {
     /** Tabel contoh dibuat oleh simrs_migrator agar hak bawaan per skema ikut teruji. */
-    private const TABEL_CONTOH = ['inti.uji_hak_akses', 'audit.uji_hak_akses', 'analitik.uji_hak_akses'];
+    private const TABEL_CONTOH = ['inti.uji_hak_akses', 'audit.uji_hak_akses', 'analitik.uji_hak_akses', 'ttd.uji_hak_akses'];
 
     protected function setUp(): void
     {
@@ -40,6 +40,28 @@ class InfrastrukturTest extends TestCase
         $this->assertSame('sistem', DB::scalar(
             "SELECT schemaname FROM pg_tables WHERE tablename = 'migrations'"
         ));
+    }
+
+    public function test_tabel_bawaan_users_tidak_ada_dan_token_sanctum_di_sistem(): void
+    {
+        $this->assertSame(0, DB::scalar(
+            "SELECT count(*) FROM pg_tables WHERE tablename IN ('users', 'password_reset_tokens', 'sessions')"
+        ));
+        $this->assertSame('uuid', DB::scalar(
+            "SELECT data_type FROM information_schema.columns
+              WHERE table_schema = 'sistem' AND table_name = 'personal_access_tokens' AND column_name = 'id'"
+        ));
+    }
+
+    public function test_simrs_analitik_gagal_select_di_akses_ttd_audit_sistem(): void
+    {
+        // ttd.uji_hak_akses baru dibuat migrator, jadi hak bawaan (DEFAULT PRIVILEGES) ikut teruji.
+        foreach (['akses.pengguna', 'ttd.uji_hak_akses', 'audit.log_aktivitas', 'sistem.migrations'] as $tabel) {
+            $this->assertSame('42501', $this->selectSebagaiAnalitik($tabel), "simrs_analitik seharusnya ditolak di $tabel");
+        }
+
+        // Kontrol: skema domain biasa tetap bisa dibaca untuk REFRESH materialized view.
+        $this->assertNull($this->selectSebagaiAnalitik('sdm.pegawai'));
     }
 
     public function test_skema_sistem_boleh_dml_penuh(): void
@@ -97,20 +119,19 @@ class InfrastrukturTest extends TestCase
         $this->assertSame('PONG', (string) Redis::connection()->ping());
     }
 
-    /**
-     * Pastikan perintah ditolak karena kurang hak (SQLSTATE 42501). Dibungkus savepoint
-     * agar transaksi tes tidak ikut batal dan perintah berikutnya tetap bisa jalan.
-     */
-    private function assertDitolak(callable $perintah): void
+    /** Mengembalikan SQLSTATE bila ditolak, null bila berhasil. Migrator anggota simrs_analitik. */
+    private function selectSebagaiAnalitik(string $tabel): ?string
     {
+        $migrator = DB::connection('pgsql_migrator');
         try {
-            DB::transaction($perintah);
+            $migrator->transaction(function () use ($migrator, $tabel) {
+                $migrator->statement('SET LOCAL ROLE simrs_analitik');
+                $migrator->select("SELECT 1 FROM $tabel LIMIT 1");
+            });
         } catch (QueryException $e) {
-            $this->assertSame('42501', $e->getCode(), $e->getMessage());
-
-            return;
+            return $e->getCode();
         }
 
-        $this->fail('Perintah seharusnya ditolak, tetapi berhasil.');
+        return null;
     }
 }
