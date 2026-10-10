@@ -28,6 +28,20 @@ diam-diam.
 5. Aturan dipasang lewat `Password::defaults()`, jadi setiap tempat yang menetapkan sandi cukup
    memakai `Password::defaults()`.
 
+## Sumber data
+
+| Butir | Nilai |
+|---|---|
+| Repositori | [danielmiessler/SecLists](https://github.com/danielmiessler/SecLists) |
+| Commit | `cae9eab995852c183fbe5e03fc92471fcac82f0e` |
+| Berkas | `Passwords/Common-Credentials/Pwdb_top-1000000.txt`, `xato-net-10-million-passwords-1000000.txt`, `100k-most-used-passwords-NCSC.txt` |
+| Lisensi | MIT, Copyright (c) 2018 Daniel Miessler. Teks lengkap disertakan di `backend/app/Modules/Akses/Infrastructure/data/LICENSE-SecLists.txt` (syarat MIT untuk salinan) |
+| Hasil olahan | `sandi-bocor.txt.gz`, 73.078 baris, SHA-256 `83da79944411de51ade561222c10f39f9ecb0c211fc79fe345b74baabbe439c3` |
+| Cara membuat ulang | `backend/app/Modules/Akses/Infrastructure/data/SUMBER.md` |
+
+Saat memperbarui daftar, ganti commit, SHA-256, dan jumlah baris di tabel ini dan di `SUMBER.md`
+dalam commit yang sama.
+
 ## Alternatif yang dipertimbangkan
 
 | Alternatif | Alasan tidak dipilih |

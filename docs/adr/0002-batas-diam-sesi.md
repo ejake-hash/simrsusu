@@ -31,6 +31,26 @@ menit. Registri perangkat (MDM / data perangkat terdaftar) juga belum ada.
 5. Rute bersesi memakai guard `web` (cookie), bukan `auth:sanctum`, supaya token pribadi Sanctum
    tidak bisa dipakai untuk endpoint SPA.
 
+## Penguncian nama pengguna yang tidak ada
+
+Supaya status `akun_terkunci` tidak membocorkan apakah akun ada (PRD 14.2), nama pengguna yang
+tidak ada juga "terkunci" setelah 5 kali gagal. Hitungannya tidak bisa disimpan di
+`akses.pengguna` karena barisnya tidak ada, jadi:
+
+| Butir | Akun nyata | Nama yang tidak ada |
+|---|---|---|
+| Tempat simpan | `akses.pengguna.percobaan_gagal`, `terkunci_sampai` (PostgreSQL) | Cache Laravel lewat `RateLimiter`, store sesuai `CACHE_STORE` (Redis di server; `array` saat tes) |
+| Kunci | baris akun | `autentikasi:gagal-tanpa-akun:` + SHA-256 nama pengguna (huruf kecil). Nama aslinya tidak disimpan |
+| Masa berlaku | sampai `terkunci_sampai` | TTL = durasi kunci (15 menit) sejak gagal pertama dalam jendela itu |
+| Bertahan setelah restart aplikasi | Ya | Ya selama Redis tidak dikosongkan |
+| Audit | `autentikasi.gagal` dan `autentikasi.terkunci` dengan `pengguna_id` | `autentikasi.gagal` tanpa `pengguna_id`; nama pengguna tidak dicatat |
+
+Konsekuensi: bila cache Redis dikosongkan (`cache:clear`, restart Redis tanpa persistensi), nama
+fiktif yang sedang "terkunci" bisa dicoba lagi lebih awal, sedangkan akun nyata tetap terkunci. Selisih
+ini hanya terlihat oleh penyerang yang bisa memicu pengosongan cache, jadi diterima. Redis di
+`docker-compose.yml` sudah memakai `appendonly yes`. Hitungan gagal juga tetap dibatasi oleh batas
+laju per nama pengguna dan per IP (`config/autentikasi.php`).
+
 ## Alternatif yang dipertimbangkan
 
 | Alternatif | Alasan tidak dipilih |

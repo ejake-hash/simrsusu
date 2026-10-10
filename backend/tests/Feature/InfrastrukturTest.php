@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Tests\TestCase;
@@ -9,7 +10,7 @@ use Tests\TestCase;
 class InfrastrukturTest extends TestCase
 {
     /** Tabel contoh dibuat oleh simrs_migrator agar hak bawaan per skema ikut teruji. */
-    private const TABEL_CONTOH = ['inti.uji_hak_akses', 'audit.uji_hak_akses', 'analitik.uji_hak_akses'];
+    private const TABEL_CONTOH = ['inti.uji_hak_akses', 'audit.uji_hak_akses', 'analitik.uji_hak_akses', 'ttd.uji_hak_akses'];
 
     protected function setUp(): void
     {
@@ -52,10 +53,15 @@ class InfrastrukturTest extends TestCase
         ));
     }
 
-    public function test_simrs_analitik_tidak_bisa_membaca_skema_akses(): void
+    public function test_simrs_analitik_gagal_select_di_akses_ttd_audit_sistem(): void
     {
-        $this->assertFalse(DB::scalar("SELECT has_table_privilege('simrs_analitik', 'akses.pengguna', 'SELECT')"));
-        $this->assertTrue(DB::scalar("SELECT has_table_privilege('simrs_analitik', 'sdm.pegawai', 'SELECT')"));
+        // ttd.uji_hak_akses baru dibuat migrator, jadi hak bawaan (DEFAULT PRIVILEGES) ikut teruji.
+        foreach (['akses.pengguna', 'ttd.uji_hak_akses', 'audit.log_aktivitas', 'sistem.migrations'] as $tabel) {
+            $this->assertSame('42501', $this->selectSebagaiAnalitik($tabel), "simrs_analitik seharusnya ditolak di $tabel");
+        }
+
+        // Kontrol: skema domain biasa tetap bisa dibaca untuk REFRESH materialized view.
+        $this->assertNull($this->selectSebagaiAnalitik('sdm.pegawai'));
     }
 
     public function test_skema_sistem_boleh_dml_penuh(): void
@@ -111,5 +117,21 @@ class InfrastrukturTest extends TestCase
     public function test_redis_tersedia(): void
     {
         $this->assertSame('PONG', (string) Redis::connection()->ping());
+    }
+
+    /** Mengembalikan SQLSTATE bila ditolak, null bila berhasil. Migrator anggota simrs_analitik. */
+    private function selectSebagaiAnalitik(string $tabel): ?string
+    {
+        $migrator = DB::connection('pgsql_migrator');
+        try {
+            $migrator->transaction(function () use ($migrator, $tabel) {
+                $migrator->statement('SET LOCAL ROLE simrs_analitik');
+                $migrator->select("SELECT 1 FROM $tabel LIMIT 1");
+            });
+        } catch (QueryException $e) {
+            return $e->getCode();
+        }
+
+        return null;
     }
 }

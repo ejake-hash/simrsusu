@@ -7,6 +7,7 @@ use App\Modules\Akses\Models\Pengguna;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
+use Mockery;
 use Tests\Support\CsrfTetapDiperiksa;
 use Tests\TestCase;
 
@@ -66,6 +67,35 @@ class AutentikasiTest extends TestCase
         $this->assertSame($sandiSalah->json(), $tidakAda->json());
         $this->assertSame(1, $pengguna->refresh()->percobaan_gagal);
         $this->assertAudit('autentikasi.gagal', $pengguna->id);
+    }
+
+    public function test_hash_tetap_diverifikasi_saat_akun_tidak_ada(): void
+    {
+        $pengguna = $this->buatPengguna();
+        $hashDiperiksa = [];
+        // MasukPengguna menerima kontrak Hasher = binding 'hash.driver' (bukan facade Hash).
+        $hasher = Mockery::mock($this->app->make('hash.driver'))->makePartial();
+        $hasher->shouldReceive('check')->twice()
+            ->withArgs(function (string $sandi, ?string $hash) use (&$hashDiperiksa) {
+                $hashDiperiksa[] = $hash;
+
+                return true;
+            })
+            ->passthru();
+        $this->app->instance('hash.driver', $hasher);
+
+        $sandiSalah = $this->masuk($pengguna->nama_pengguna, 'bukan-sandi-yang-benar');
+        $tidakAda = $this->masuk('tidak.ada.akunnya', 'bukan-sandi-yang-benar');
+
+        // Dua-duanya memverifikasi hash Argon2id sungguhan (akun asli vs hash tiruan), jadi kerjanya setara.
+        $this->assertCount(2, $hashDiperiksa);
+        $this->assertSame($pengguna->sandi_hash, $hashDiperiksa[0]);
+        $this->assertStringStartsWith('$argon2id$', $hashDiperiksa[1]);
+        $this->assertNotSame($hashDiperiksa[0], $hashDiperiksa[1]);
+
+        $this->assertSame($sandiSalah->status(), $tidakAda->status());
+        $this->assertSame($sandiSalah->getContent(), $tidakAda->getContent());
+        $this->assertSame($this->headerTetap($sandiSalah), $this->headerTetap($tidakAda));
     }
 
     public function test_lima_kali_gagal_mengunci_akun_lima_belas_menit(): void
@@ -265,6 +295,16 @@ class AutentikasiTest extends TestCase
         }
 
         return $respons;
+    }
+
+    /** Nama header respons tanpa yang pasti berubah per permintaan (tanggal, cookie, sisa kuota laju). */
+    private function headerTetap(TestResponse $respons): array
+    {
+        $nama = array_keys($respons->headers->all());
+        $nama = array_values(array_diff($nama, ['date', 'set-cookie', 'x-ratelimit-remaining']));
+        sort($nama);
+
+        return $nama;
     }
 
     private function assertAudit(string $aksi, string $penggunaId): void
