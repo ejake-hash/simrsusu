@@ -1,10 +1,13 @@
-# SIMRS RS Pendidikan USU
+# Karsitara SIMRS
+
+SIMRS generik untuk RS Umum Tipe B pendidikan. Satu instalasi melayani satu RS. Perbedaan antar-RS diatur lewat data induk dan paket identitas, bukan cabang kode (PRD 3.4).
+RS USU hanya **paket identitas contoh** (logo, nama, warna `--brand-*`/`--accent`), dan logonya tidak boleh dipakai di demo publik tanpa izin tertulis USU.
 
 | Folder | Isi |
 |---|---|
 | `backend/` | Laravel 12 (modular monolith, PRD 10.3) |
 | `frontend/` | Vue 3 + TypeScript + Vite (PRD 10.4) |
-| `docs/` | `prd.md`, prototipe HTML, dan logo asli (`brand/`) |
+| `docs/` | `prd.md`, prototipe HTML, dan logo asli paket contoh RS USU (`brand/`) |
 | `docker/` | skrip init PostgreSQL: role, database, skema domain PRD 11.1 |
 | `.github/workflows/` | CI: tes backend (Postgres 16 + Redis) dan build frontend |
 

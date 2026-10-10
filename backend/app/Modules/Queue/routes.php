@@ -2,6 +2,6 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('api')->middleware('api')->group(function () {
+Route::prefix('api/v1')->middleware('api')->group(function () {
     //
 });
