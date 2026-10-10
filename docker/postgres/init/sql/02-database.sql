@@ -20,8 +20,37 @@ FROM unnest(ARRAY[
   'audit', 'analitik'
 ]) AS s \gexec
 
--- Tabel dan sequence yang nanti dibuat simrs_migrator otomatis bisa dipakai simrs_app.
+-- Hak bawaan global untuk tabel dihapus: hak bawaan per skema di PostgreSQL
+-- hanya bisa menambah, jadi hak global DELETE akan menimpa aturan di bawah.
 ALTER DEFAULT PRIVILEGES FOR ROLE simrs_migrator
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO simrs_app;
+  REVOKE ALL ON TABLES FROM simrs_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE simrs_migrator
   GRANT USAGE, SELECT ON SEQUENCES TO simrs_app;
+
+-- Hak per skema untuk simrs_app:
+--   sistem : SELECT, INSERT, UPDATE, DELETE (tabel bawaan Laravel: cache, jobs, sessions)
+--   audit  : SELECT, INSERT (log tidak boleh diubah atau dihapus)
+--   domain : SELECT, INSERT, UPDATE (tanpa hapus permanen, PRD 11.1; pembatalan lewat status)
+-- Untuk tiap skema: cabut dulu semuanya, lalu beri lagi, pada tabel yang sudah ada dan
+-- pada tabel yang dibuat nanti. Dengan begitu skrip ini aman dijalankan ulang.
+WITH hak(skema, izin) AS (
+  SELECT s, CASE s
+              WHEN 'sistem' THEN 'SELECT, INSERT, UPDATE, DELETE'
+              WHEN 'audit'  THEN 'SELECT, INSERT'
+              ELSE               'SELECT, INSERT, UPDATE'
+            END
+  FROM unnest(ARRAY[
+    'sistem',
+    'inti', 'akses', 'pasien', 'kunjungan', 'klinis', 'permintaan',
+    'lab', 'radiologi', 'bedah', 'darah', 'pa', 'sterilisasi',
+    'farmasi', 'logistik', 'tagihan', 'klaim', 'keuangan', 'sdm', 'mutu',
+    'pendidikan', 'riset', 'integrasi', 'notifikasi', 'dokumen', 'ttd',
+    'audit', 'analitik'
+  ]) AS s
+)
+SELECT format('REVOKE ALL ON ALL TABLES IN SCHEMA %I FROM simrs_app', skema),
+       format('GRANT %s ON ALL TABLES IN SCHEMA %I TO simrs_app', izin, skema),
+       format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA %I TO simrs_app', skema),
+       format('ALTER DEFAULT PRIVILEGES FOR ROLE simrs_migrator IN SCHEMA %I REVOKE ALL ON TABLES FROM simrs_app', skema),
+       format('ALTER DEFAULT PRIVILEGES FOR ROLE simrs_migrator IN SCHEMA %I GRANT %s ON TABLES TO simrs_app', skema, izin)
+FROM hak \gexec

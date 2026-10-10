@@ -16,8 +16,7 @@ docker compose up -d                 # PostgreSQL 16 (port 5433) + Redis 7
 cd backend
 composer install && cp .env.example .env && php artisan key:generate
 php artisan migrate --database=pgsql_migrator
-DB_DATABASE=simrs_test php artisan migrate --database=pgsql_migrator
-php artisan test
+composer test                        # migrasi simrs_test sebagai migrator, lalu phpunit
 php artisan serve                    # http://127.0.0.1:8000
 
 cd ../frontend
@@ -30,10 +29,18 @@ npm run dev                          # http://localhost:5173, /api diteruskan ke
 | Role | Dipakai untuk | Hak |
 |---|---|---|
 | `simrs_migrator` | `php artisan migrate --database=pgsql_migrator` | pemilik semua skema dan tabel (DDL) |
-| `simrs_app` | aplikasi saat berjalan (koneksi `pgsql` bawaan) | `SELECT/INSERT/UPDATE/DELETE` saja, tanpa DDL |
+| `simrs_app` | aplikasi saat berjalan (koneksi `pgsql` bawaan) | tanpa DDL; DML per skema, lihat di bawah |
+
+| Skema | Hak `simrs_app` |
+|---|---|
+| `sistem` | `SELECT, INSERT, UPDATE, DELETE` |
+| `audit` | `SELECT, INSERT` (log tidak bisa diubah atau dihapus) |
+| skema domain lainnya | `SELECT, INSERT, UPDATE` (tanpa hapus permanen, PRD 11.1; pembatalan memakai `status`) |
 
 Migrasi **harus** memakai `--database=pgsql_migrator`; `php artisan migrate` biasa akan gagal karena `simrs_app` tidak boleh membuat tabel.
 Tabel bawaan Laravel masuk ke skema `sistem` (`DB_SEARCH_PATH=sistem,public`).
+
+Tes memakai `DatabaseTransactions` lewat `Tests\TestCase`. `RefreshDatabase`, `DatabaseMigrations`, dan `DatabaseTruncation` ditolak CI karena `simrs_app` tidak boleh DDL.
 
 Skrip `docker/postgres/init/00-init.sh` jalan otomatis saat volume Postgres pertama kali dibuat, dan dipakai juga di CI.
 Skrip ini aman dijalankan ulang. Setelah mengubahnya, jalankan `docker compose down -v` lalu `docker compose up -d`.

@@ -37,6 +37,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Tes berjalan sebagai simrs_app (tanpa DDL) dan memakai DatabaseTransactions.
+      - name: Larang RefreshDatabase
+        run: |
+          if grep -rnE '(Testing\\|use[[:space:]]+)(RefreshDatabase|DatabaseMigrations|DatabaseTruncation)\b' tests; then
+            echo "::error::Pakai DatabaseTransactions (lewat Tests\\TestCase), bukan RefreshDatabase/DatabaseMigrations/DatabaseTruncation."
+            exit 1
+          fi
+
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
@@ -52,13 +60,8 @@ jobs:
       - name: Siapkan .env
         run: cp .env.example .env && php artisan key:generate
 
-      - name: Migrasi simrs_test sebagai simrs_migrator
-        run: php artisan migrate --database=pgsql_migrator --force
-        env:
-          DB_DATABASE: simrs_test
-
-      - name: Tes
-        run: php artisan test
+      - name: Tes (migrasi simrs_test sebagai simrs_migrator, lalu phpunit)
+        run: composer test
 
   frontend:
     runs-on: ubuntu-24.04

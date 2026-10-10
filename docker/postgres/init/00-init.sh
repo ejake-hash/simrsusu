@@ -9,7 +9,7 @@ ADMIN_USER="${POSTGRES_USER:-${PGUSER:-postgres}}"
 MIGRATOR_PASSWORD="${SIMRS_MIGRATOR_PASSWORD:-simrs_migrator}"
 APP_PASSWORD="${SIMRS_APP_PASSWORD:-simrs_app}"
 
-psql_admin() { psql -v ON_ERROR_STOP=1 --username "$ADMIN_USER" "$@"; }
+psql_admin() { psql --quiet -v ON_ERROR_STOP=1 --username "$ADMIN_USER" "$@"; }
 
 psql_admin --dbname postgres \
   -v migrator_password="$MIGRATOR_PASSWORD" \
