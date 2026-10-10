@@ -46,8 +46,8 @@ Quick reference for PostgreSQL best practices in this Laravel project.
 
 | Use Case | Correct Type | Avoid |
 |----------|-------------|-------|
-| IDs (primary key) | `bigint` | `int`, random UUID as PK |
-| Public IDs in URLs | separate `uuid` column (unique index) | exposing `id`, No. RM, or NIK in URLs |
+| IDs (primary key) | `uuid` UUIDv7 (PRD 11.1) | `bigint`/`int`, random UUIDv4 as PK |
+| IDs in URLs | the `id` itself (UUIDv7) | exposing No. RM or NIK in URLs |
 | Strings | `text` | `varchar(255)` |
 | Timestamps | `timestamptz` | `timestamp` |
 | Money | `numeric(10,2)` | `float` |

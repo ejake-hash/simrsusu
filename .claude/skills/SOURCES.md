@@ -16,7 +16,7 @@ Skill yang sudah diedit tim tidak akan ditimpa kecuali installer dijalankan deng
 | healthcare-phi-compliance | Ditulis ulang: regulasi Indonesia, contoh PHP/Laravel, Policy/Gate sebagai lapis utama, RLS opsional dengan set_config(..., true), audit_log via REVOKE |
 | healthcare-emr-patterns | Ditulis ulang: alur encounter Indonesia (No. RM, penjamin, CPPT/SOAP), validasi DPJP RS Pendidikan, contoh PHP, contoh NEWS2 dikoreksi |
 | healthcare-eval-harness | Ditulis ulang: PHPUnit/Pest + `php artisan test`, PostgreSQL di CI, skrip scripts/pass-rate.php |
-| postgres-patterns | Diedit: hapus asumsi Supabase (auth.uid), RLS via set_config, UUID publik terpisah dari PK bigint, statement_timeout per role, rujukan agent/skill yang tidak terpasang dihapus |
+| postgres-patterns | Diedit: hapus asumsi Supabase (auth.uid), RLS via set_config, PK UUIDv7 di tabel tipe data (tanpa kolom UUID publik terpisah), statement_timeout per role, rujukan agent/skill yang tidak terpasang dihapus |
 | web-design-guidelines | Aturan disimpan lokal (guidelines.md), tidak fetch dari internet |
 
 Skill ECC lainnya dipakai apa adanya, **kecuali** enam skill berikut yang diberi blok "Aturan proyek SIMRS (mengalahkan isi di bawah)" tepat setelah frontmatter (10 Okt 2026). Isi asli tidak diubah.

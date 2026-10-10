@@ -1,5 +1,6 @@
 /*
- * Design token SIMRS USU — sumber: PRD 5.3.2 (warna, permukaan, triase) dan 5.3.3 (huruf, ukuran, dll), PRD v0.8.
+ * Design token Karsitara SIMRS · paket identitas contoh RS USU · PRD v0.10
+ * Sumber: PRD 5.3.2 (warna, permukaan, triase) dan 5.3.3 (huruf, ukuran, dll).
  * Satu-satunya tempat nilai HEX. Komponen hanya boleh memakai var(--...).
  */
 :root {
