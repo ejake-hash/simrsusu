@@ -18,6 +18,8 @@ final class AkunSintetisSeeder extends Seeder
         'contoh.admisi' => 'Contoh Petugas Admisi',
         'contoh.perawat' => 'Contoh Perawat',
         'contoh.dokter' => 'Contoh Dokter',
+        // Khusus uji penguncian (e2e): boleh dikunci kapan saja tanpa mengganggu akun lain.
+        'contoh.terkunci' => 'Contoh Akun Uji Kunci',
     ];
 
     public function run(): void
@@ -44,6 +46,9 @@ final class AkunSintetisSeeder extends Seeder
                 'surel' => $namaPengguna.'@contoh.invalid',
                 'sandi_hash' => Hash::make($sandi),
                 'status' => 'aktif',
+                // Keadaan awal yang sama tiap seeding, agar uji e2e "terkunci" bisa diulang.
+                'percobaan_gagal' => 0,
+                'terkunci_sampai' => null,
             ])->save();
         }
 

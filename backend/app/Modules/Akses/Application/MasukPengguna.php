@@ -4,8 +4,10 @@ namespace App\Modules\Akses\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Modules\Akses\Models\Pengguna;
+use Carbon\CarbonInterface;
 use Illuminate\Cache\RateLimiter;
 use Illuminate\Contracts\Hashing\Hasher;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -14,12 +16,18 @@ use Illuminate\Support\Str;
  * Memeriksa nama pengguna + sandi dengan aturan PRD 14.2:
  * - pesan sama untuk "akun tidak ada" dan "sandi salah";
  * - 5 kali gagal beruntun mengunci 15 menit (disimpan di akses.pengguna.terkunci_sampai);
- * - nama pengguna yang tidak ada juga "terkunci" setelah 5 kali (di cache), supaya status
- *   terkunci tidak membocorkan apakah akun ada;
+ * - nama pengguna yang tidak ada juga "terkunci" setelah 5 kali (di cache) dengan sisa waktu
+ *   yang sama, supaya status terkunci tidak membocorkan apakah akun ada;
  * - status nonaktif hanya diberitahukan bila sandi benar.
  */
 final class MasukPengguna
 {
+    /**
+     * Hitungan gagal akun nyata tidak kedaluwarsa (kolom percobaan_gagal). Untuk nama yang tidak
+     * ada, hitungan disimpan di cache selama ini agar cache tidak tumbuh tanpa batas.
+     */
+    private const SIMPAN_HITUNGAN_TANPA_AKUN_DETIK = 86400;
+
     public function __construct(
         private readonly Hasher $hasher,
         private readonly RateLimiter $pembatas,
@@ -31,14 +39,14 @@ final class MasukPengguna
     {
         $nama = mb_strtolower(trim($namaPengguna));
         $pengguna = Pengguna::query()->whereRaw('lower(nama_pengguna) = ?', [$nama])->first();
-        $kunciTanpaAkun = 'autentikasi:gagal-tanpa-akun:'.hash('sha256', $nama);
+        $kunciTanpaAkun = 'autentikasi:tanpa-akun:'.hash('sha256', $nama);
 
-        $terkunci = $pengguna !== null
-            ? $pengguna->terkunci()
-            : $this->pembatas->tooManyAttempts($kunciTanpaAkun, $this->maksGagal());
+        $terkunciSampai = $pengguna !== null
+            ? ($pengguna->terkunci() ? $pengguna->terkunci_sampai : null)
+            : $this->terkunciSampaiTanpaAkun($kunciTanpaAkun);
 
-        if ($terkunci) {
-            $this->gagal($pengguna, AlasanGagalMasuk::AkunTerkunci);
+        if ($terkunciSampai !== null) {
+            $this->gagal($pengguna, AlasanGagalMasuk::AkunTerkunci, $terkunciSampai);
         }
 
         // Selalu verifikasi hash (hash tiruan bila akun tidak ada) agar waktu respons setara.
@@ -46,7 +54,7 @@ final class MasukPengguna
 
         if ($pengguna === null || ! $cocok) {
             if ($pengguna === null) {
-                $this->pembatas->hit($kunciTanpaAkun, $this->durasiKunciMenit() * 60);
+                $this->catatGagalTanpaAkun($kunciTanpaAkun);
             } elseif ($this->catatGagalDanKunci($pengguna)) {
                 $this->audit->catat('autentikasi.terkunci', $pengguna->id, 'akses.pengguna', $pengguna->id, [
                     'terkunci_sampai' => $pengguna->terkunci_sampai?->toIso8601String(),
@@ -74,13 +82,36 @@ final class MasukPengguna
     }
 
     /** @return never */
-    private function gagal(?Pengguna $pengguna, AlasanGagalMasuk $alasan): void
+    private function gagal(?Pengguna $pengguna, AlasanGagalMasuk $alasan, ?CarbonInterface $terkunciSampai = null): void
     {
         $this->audit->catat('autentikasi.gagal', $pengguna?->id, 'akses.pengguna', $pengguna?->id, [
             'alasan' => $alasan->value,
         ]);
 
-        throw new GagalMasuk($alasan);
+        throw new GagalMasuk($alasan, $terkunciSampai);
+    }
+
+    /**
+     * Tiruan catatGagalDanKunci() untuk nama yang tidak ada: hitungan gagal beruntun, lalu kunci
+     * selama durasi penuh sejak gagal terakhir. Sisa waktu kunci dikirim ke klien (Retry-After),
+     * jadi harus sama dengan akun nyata; jendela tetap RateLimiter tidak memenuhi itu.
+     */
+    private function catatGagalTanpaAkun(string $kunci): void
+    {
+        if ($this->pembatas->hit($kunci.':gagal', self::SIMPAN_HITUNGAN_TANPA_AKUN_DETIK) < $this->maksGagal()) {
+            return;
+        }
+
+        $this->pembatas->clear($kunci.':gagal');
+        $sampai = now()->addMinutes($this->durasiKunciMenit());
+        Cache::put($kunci.':terkunci-sampai', $sampai->getTimestamp(), $sampai);
+    }
+
+    private function terkunciSampaiTanpaAkun(string $kunci): ?CarbonInterface
+    {
+        $sampai = Cache::get($kunci.':terkunci-sampai');
+
+        return is_int($sampai) && $sampai > now()->getTimestamp() ? Carbon::createFromTimestamp($sampai) : null;
     }
 
     /**

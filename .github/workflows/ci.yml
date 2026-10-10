@@ -87,3 +87,77 @@ jobs:
 
       - run: npm ci
       - run: npm run build
+      - run: npm run test:unit
+
+  # Playwright ke backend sungguhan di CI dengan akun sintetis (AkunSintetisSeeder), bukan data asli.
+  e2e:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5433
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      # Sandi akun sintetis di database CI sekali pakai; bukan rahasia.
+      AKUN_SINTETIS_SANDI: e2e-ci-sintetis-kuda-biru
+      E2E_SANDI: e2e-ci-sintetis-kuda-biru
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, pgsql
+          coverage: none
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Siapkan role, database, dan skema
+        run: docker/postgres/init/00-init.sh
+
+      - name: Backend (APP_ENV=local dari .env.example, cookie tanpa Secure di http)
+        working-directory: backend
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          cp .env.example .env && php artisan key:generate
+          php artisan migrate --database=pgsql_migrator --force
+          php artisan db:seed --class='App\Modules\Akses\Database\Seeders\AkunSintetisSeeder' --force
+          php artisan serve --host=127.0.0.1 --port=8000 > ../serve.log 2>&1 &
+          curl --retry 20 --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:8000/up > /dev/null
+
+      - name: Playwright
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report/
+            serve.log
+          retention-days: 7

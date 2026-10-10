@@ -24,6 +24,9 @@ class AutentikasiTest extends TestCase
     /** @var array<string, string> cookie mentah (terenkripsi) seperti di peramban */
     private array $kue = [];
 
+    /** @var array<string, string> header tambahan untuk setiap permintaan berikutnya */
+    private array $headerTambahan = [];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -100,6 +103,7 @@ class AutentikasiTest extends TestCase
 
     public function test_lima_kali_gagal_mengunci_akun_lima_belas_menit(): void
     {
+        $this->freezeSecond();
         $pengguna = $this->buatPengguna();
 
         foreach (range(1, 5) as $_) {
@@ -108,24 +112,45 @@ class AutentikasiTest extends TestCase
 
         // Sandi benar pun ditolak selama terkunci, dan penguncian tersimpan di DB.
         $this->masuk($pengguna->nama_pengguna, self::SANDI)
-            ->assertForbidden()->assertJsonPath('galat.kode', 'akun_terkunci');
+            ->assertForbidden()->assertJsonPath('galat.kode', 'akun_terkunci')
+            ->assertHeader('Retry-After', 15 * 60);
         $this->assertTrue($pengguna->refresh()->terkunci());
-        $this->assertEqualsWithDelta(15 * 60, now()->diffInSeconds($pengguna->terkunci_sampai), 5);
+        $this->assertSame(15 * 60, $pengguna->terkunci_sampai->getTimestamp() - now()->getTimestamp());
         $this->assertAudit('autentikasi.terkunci', $pengguna->id);
 
-        $this->travel(16)->minutes();
+        // Sisa waktu dihitung dari server, bukan durasi tetap.
+        $this->travel(10)->minutes();
+        $this->masuk($pengguna->nama_pengguna, self::SANDI)->assertForbidden()->assertHeader('Retry-After', 5 * 60);
+
+        $this->travel(6)->minutes();
         $this->masuk($pengguna->nama_pengguna, self::SANDI)->assertOk();
         $this->assertSame(0, $pengguna->refresh()->percobaan_gagal);
     }
 
     public function test_status_terkunci_tidak_membocorkan_apakah_akun_ada(): void
     {
+        $this->freezeSecond();
+        $pengguna = $this->buatPengguna();
+
+        // Gagal berjarak 3 menit: jendela tetap (sejak gagal pertama) akan membuat sisa waktu
+        // nama fiktif lebih pendek daripada akun nyata.
         foreach (range(1, 5) as $_) {
+            $this->masuk($pengguna->nama_pengguna, 'sandi-salah-berulang')->assertUnauthorized();
             $this->masuk('akun.fiktif.sama.sekali', 'sandi-salah-berulang')->assertUnauthorized();
+            $this->travel(3)->minutes();
         }
 
-        $this->masuk('akun.fiktif.sama.sekali', 'apa-saja-panjang')
-            ->assertForbidden()->assertJsonPath('galat.kode', 'akun_terkunci');
+        $nyata = $this->masuk($pengguna->nama_pengguna, 'apa-saja-panjang');
+        $fiktif = $this->masuk('akun.fiktif.sama.sekali', 'apa-saja-panjang');
+
+        $fiktif->assertForbidden()->assertJsonPath('galat.kode', 'akun_terkunci');
+        $this->assertSame($nyata->status(), $fiktif->status());
+        $this->assertSame($nyata->getContent(), $fiktif->getContent());
+        $this->assertSame(12 * 60, (int) $nyata->headers->get('Retry-After'));
+        $this->assertSame($nyata->headers->get('Retry-After'), $fiktif->headers->get('Retry-After'));
+
+        $this->travel(13)->minutes();
+        $this->masuk('akun.fiktif.sama.sekali', 'apa-saja-panjang')->assertUnauthorized();
     }
 
     public function test_akun_nonaktif_ditolak_hanya_bila_sandi_benar(): void
@@ -233,6 +258,21 @@ class AutentikasiTest extends TestCase
         $this->masuk('nama.lain', 'sandi-salah-satu')->assertUnauthorized();
     }
 
+    public function test_batas_laju_per_ip_memakai_ip_klien_di_belakang_proksi(): void
+    {
+        config(['autentikasi.batas_laju.per_ip_per_menit' => 2, 'jaringan.proksi_tepercaya' => ['10.0.0.1']]);
+        $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.1']);
+
+        $this->headerTambahan = ['X-Forwarded-For' => '203.0.113.7'];
+        $this->masuk('nama.satu', 'sandi-salah-satu')->assertUnauthorized();
+        $this->masuk('nama.dua', 'sandi-salah-dua')->assertUnauthorized();
+        $this->masuk('nama.tiga', 'sandi-salah-tiga')->assertTooManyRequests()->assertHeader('Retry-After');
+
+        // Klien lain di belakang proksi yang sama punya kuota sendiri.
+        $this->headerTambahan = ['X-Forwarded-For' => '203.0.113.8'];
+        $this->masuk('nama.empat', 'sandi-salah-empat')->assertUnauthorized();
+    }
+
     public function test_validasi_memakai_format_galat(): void
     {
         $this->minta('POST', '/api/v1/autentikasi/masuk', [])
@@ -282,6 +322,7 @@ class AutentikasiTest extends TestCase
             'Origin' => self::ORIGIN,
             'Referer' => self::ORIGIN.'/',
             'X-XSRF-TOKEN' => $this->kue['XSRF-TOKEN'] ?? null,
+            ...$this->headerTambahan,
         ]);
 
         $respons = $this->withCredentials()->json($metode, $uri, $data);
