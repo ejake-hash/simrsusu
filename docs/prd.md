@@ -4,7 +4,7 @@
 
 | Atribut | Nilai |
 |---|---|
-| Versi dokumen | 0.8 |
+| Versi dokumen | 0.8.1 |
 | Tanggal | 10 Oktober 2026 |
 | Penyusun | Eza (Karyasistemnusantara) · disusun bersama Claude |
 | Sumber konteks | Lampiran 1 *Visual Layar SIMRS* (15 layar), Lampiran 2 *Visual Dasbor Berjenjang* (7 dasbor + contoh kewenangan), HTML *Dasbor Berjenjang Karsitara*, *Pedoman Identitas USU* (2021) dan folder Logo |
@@ -1846,7 +1846,8 @@ sequenceDiagram
 | Role | Hak | Dipakai oleh |
 |---|---|---|
 | `simrs_migrator` | Pemilik semua skema; DDL | Perintah migrasi saat rilis saja |
-| `simrs_app` | `SELECT, INSERT, UPDATE` pada skema domain; **hanya `INSERT`** pada skema `audit`; tanpa `DELETE` pada tabel klinis dan keuangan; tanpa DDL | Aplikasi Laravel (web, antrean pekerjaan, Reverb) |
+| `simrs_app` | `sistem`: `SELECT, INSERT, UPDATE, DELETE`; skema domain: `SELECT, INSERT, UPDATE` (tanpa `DELETE`; pengecualian per tabel diberikan di migrasinya dengan alasan dan direview); `audit`: `SELECT, INSERT`; `analitik`: `SELECT` saja; tanpa DDL | Aplikasi Laravel (web, antrean pekerjaan, Reverb) |
+| `simrs_analitik` | Pemilik materialized view di skema `analitik`; hanya untuk `REFRESH MATERIALIZED VIEW` terjadwal | Perintah terjadwal pembaruan dasbor |
 | `simrs_baca` | `SELECT` pada skema `analitik` dan replika baca | Dasbor dan pelaporan |
 
 Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis mengikuti. Satu role per pengguna manusia (DBA) dengan MFA di bastion; tidak ada akun bersama (14.2).
