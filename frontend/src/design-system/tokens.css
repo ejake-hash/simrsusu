@@ -1,0 +1,83 @@
+/*
+ * Design token SIMRS USU — sumber: PRD 5.3.2 (warna) dan 5.3.3 (huruf, ukuran, dll).
+ * Satu-satunya tempat nilai HEX. Komponen hanya boleh memakai var(--...).
+ */
+:root {
+  /* ── Merek (Pantone 349 C dan turunannya) ── */
+  --brand-900: #0B3A22;
+  --brand-800: #004A27;   /* teks di latar hijau muda, panel gelap */
+  --brand-600: #006937;   /* tombol utama, menu aktif, tautan — putih di atasnya 6,8:1 */
+  --brand-50:  #E8F4EC;   /* latar item aktif */
+  --brand-25:  #F4FAF6;   /* baris terpilih */
+
+  /* ── Warna pedoman USU ── */
+  --usu-gelap:  #135851;  /* panel merek (halaman masuk) — putih 8,3:1 */
+  --usu-hijau:  #487629;  /* Pantone 364 C — kop dokumen dan cetak */
+  --usu-emas:   #F3C300;  /* Pantone 7406 C */
+  --usu-kuning: #FAE345;  /* Pantone 106 C — teks penekanan di latar gelap (6,3:1 pada --usu-gelap) */
+
+  /* Emas hanya untuk isian/garis (1,7:1 sebagai teks). Jangan dipakai di layar IGD/triase. */
+  --accent:     var(--usu-emas);
+  --accent-ink: #7A5A00;  /* teks bernuansa emas — 6,4:1 */
+
+  /* ── Teks ── */
+  --text:   #1D1D1B;      /* Pantone Black */
+  --muted:  #565C63;      /* label, metadata — ≥ 4,5:1 */
+  --subtle: #686E75;
+
+  /* ── Status (selalu disertai teks + ikon, jangan warna saja) ── */
+  --danger:     #C21E15;  /* turunan Pantone 485 C — 6,0:1 */
+  --warn:       #8A5A00;  /* turunan Pantone 137 C — 5,4:1 */
+  --warn-bg:    #FFF4D6;
+  --success:    #187A3E;  /* 4,8:1 */
+  --success-bg: #E7F5EC;
+  --info:       #2457C5;  /* tidak ada di pedoman — 5,7:1 */
+
+  /* Triase (Merah · Kuning · Hijau · Hitam) dicadangkan hanya untuk triase.
+     Nilai HEX belum ditetapkan di PRD 5.3.2 — tambahkan di sini setelah disepakati. */
+
+  /* ── Huruf ── */
+  --font-ui:   "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;  /* No. RM, kode ICD, nomor SEP */
+  --font-weight-regular:  400;
+  --font-weight-medium:   500;
+  --font-weight-semibold: 600;
+  --font-weight-bold:     700;
+
+  /* ── Ukuran ── */
+  --text-base:  14px;
+  --text-table: 13px;
+  --text-title: 22px;
+
+  /* ── Radius ── */
+  --radius-card:  12px;
+  --radius-input: 8px;   /* input dan tombol */
+
+  /* ── Spasi (skala 4px) ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* ── Bayangan ── */
+  --shadow: 0 1px 2px rgb(0 0 0 / .05);
+
+  /* Mode gelap disediakan untuk ruang gelap (radiologi, ICU malam) — PRD 5.3.3.
+     Nilai belum ditetapkan; definisikan di blok [data-theme="dark"] setelah disepakati. */
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Angka selalu tabular (PRD 5.3.3). */
+.num,
+table {
+  font-variant-numeric: tabular-nums;
+}
