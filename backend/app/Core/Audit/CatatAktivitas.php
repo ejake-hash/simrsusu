@@ -8,7 +8,11 @@ use Illuminate\Support\Str;
 
 /**
  * Menulis ke audit.log_aktivitas (PRD 9.2.4, 14.2). simrs_app hanya punya SELECT, INSERT di
- * skema audit, jadi log tidak bisa diubah atau dihapus aplikasi.
+ * skema audit, jadi log tidak bisa diubah atau dihapus aplikasi. Kolom urutan dan hash_rantai
+ * diisi trigger di database (ADR 0003).
+ *
+ * Kunci rantai dipegang sampai transaksi pemanggil selesai: di dalam transaksi bisnis, panggil
+ * catat() sedekat mungkin dengan akhir transaksi.
  * Jangan pernah mengirim sandi, token, atau data pasien di `sebelum`/`sesudah`.
  */
 final class CatatAktivitas
@@ -37,7 +41,8 @@ final class CatatAktivitas
             'sesudah' => $sesudah === null ? null : json_encode($sesudah),
             'ip' => $this->request->ip(),
             'perangkat' => Str::limit((string) $this->request->userAgent(), 255, ''),
-            'terjadi_pada' => now(),
+            // Format eksplisit: binding Carbon bawaan Laravel membuang mikrodetik.
+            'terjadi_pada' => now()->utc()->format('Y-m-d H:i:s.uP'),
         ]);
     }
 }

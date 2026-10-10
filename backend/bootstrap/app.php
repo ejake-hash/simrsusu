@@ -13,6 +13,7 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withCommands([__DIR__.'/../app/Core/Audit/Console'])
     ->withMiddleware(function (Middleware $middleware): void {
         // Sesi + CSRF untuk permintaan dari SPA (SANCTUM_STATEFUL_DOMAINS) di grup `api`.
         // Pengganti statefulApi(): versi Sanctum memaksa SameSite=Lax.

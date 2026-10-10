@@ -30,6 +30,11 @@
 - Migrasi Laravel saja, **maju saja** di produksi, selalu `php artisan migrate --database=pgsql_migrator`.
 - Role: `simrs_migrator` (DDL), `simrs_app` (aplikasi: `sistem` DML penuh, `audit` hanya `SELECT, INSERT`, `analitik` hanya `SELECT`, domain `SELECT, INSERT, UPDATE`), `simrs_analitik`, `simrs_baca`. Tabel domain yang benar-benar perlu `DELETE` diberi hak di migrasinya sendiri dengan komentar alasan.
 
+**Audit (PRD 11.2, ADR 0003)**
+- Tulis log hanya lewat `App\Core\Audit\CatatAktivitas`. `urutan` dan `hash_rantai` diisi trigger; jangan diisi dari kode.
+- Di dalam transaksi bisnis, panggil `catat()` di akhir: kunci rantai dipegang sampai commit. Transaksi selain `READ COMMITTED` ditolak trigger.
+- Jangan pernah memasukkan sandi, token, atau data pasien ke `sebelum`/`sesudah`.
+
 **Otorisasi (PRD 9.2)**
 - Tolak kecuali diberikan. Policy/Gate Laravel lewat **`AccessEvaluator`** (lima lapis, rumus 9.2.5) adalah satu-satunya jalur; jangan cek peran langsung di controller atau komponen.
 - Data bagian halaman yang tidak diizinkan **tidak dikirim server** (bentuk `JsonResource` sesuai izin).

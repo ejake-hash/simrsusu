@@ -52,6 +52,14 @@ return [
 
     'channels' => [
 
+        // Salinan jangkar rantai audit, terpisah dari log aplikasi (ADR 0003).
+        'audit_jangkar' => [
+            'driver' => 'single',
+            'path' => env('AUDIT_JANGKAR_LOG', storage_path('logs/audit-jangkar.log')),
+            'level' => 'info',
+            'replace_placeholders' => true,
+        ],
+
         'stack' => [
             'driver' => 'stack',
             'channels' => explode(',', (string) env('LOG_STACK', 'single')),
