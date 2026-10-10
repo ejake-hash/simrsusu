@@ -5,7 +5,9 @@ namespace Tests\Feature\Audit;
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Audit\RantaiAudit;
 use Illuminate\Database\Connection;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\Process\Process;
@@ -76,7 +78,7 @@ class RantaiAuditTest extends TestCase
     public function test_hapus_baris_ekor_hanya_terdeteksi_lewat_jangkar(): void
     {
         $urutan = $this->tulisTerkomit(4);
-        $this->artisan('audit:ekspor-jangkar', ['--tanggal' => now(config('audit.zona_waktu'))->toDateString()])->assertSuccessful();
+        $this->artisan('audit:ekspor-jangkar', ['--sampai' => now()->addMinute()->toIso8601String()])->assertSuccessful();
 
         $this->superuser()->delete('DELETE FROM audit.log_aktivitas WHERE urutan = ?', [$urutan[3]]);
 
@@ -138,28 +140,33 @@ class RantaiAuditTest extends TestCase
             ->assertSuccessful();
     }
 
-    public function test_ekspor_jangkar_ke_berkas_dan_log_terpisah(): void
+    public function test_ekspor_jangkar_per_jam_ke_berkas_bulanan_dan_log_terpisah(): void
     {
         $zona = config('audit.zona_waktu');
-        $this->travelTo(now($zona)->setDate(2026, 10, 5)->setTime(23, 0));
         $audit = $this->app->make(CatatAktivitas::class);
+        $this->travelTo(now($zona)->setDate(2026, 10, 5)->setTime(22, 30));
         $audit->catat('uji.jangkar');
         $audit->catat('uji.jangkar');
-        $kepala = DB::table('audit.log_aktivitas')->orderByDesc('urutan')->first();
-        $this->travel(2)->hours();
-        $audit->catat('uji.hari.berikutnya');
+        $kepala2200 = DB::table('audit.log_aktivitas')->orderByDesc('urutan')->first();
+        $this->travel(1)->hours();
+        $audit->catat('uji.jam.berikutnya');
+        $kepala2300 = DB::table('audit.log_aktivitas')->orderByDesc('urutan')->first();
 
-        $this->artisan('audit:ekspor-jangkar', ['--tanggal' => '2026-10-05'])->assertSuccessful();
-        $this->artisan('audit:ekspor-jangkar', ['--tanggal' => '2026-10-05'])->expectsOutputToContain('sudah ada')->assertSuccessful();
+        $this->artisan('audit:ekspor-jangkar', ['--sampai' => '2026-10-05 23:00'])->assertSuccessful();
+        $this->artisan('audit:ekspor-jangkar', ['--sampai' => '2026-10-05 23:00'])->expectsOutputToContain('sudah ada')->assertSuccessful();
+        $this->artisan('audit:ekspor-jangkar', ['--sampai' => '2026-10-06 00:00'])->assertSuccessful();
 
-        $baris = array_values(array_filter(explode("\n", Storage::disk('local')->get(config('audit.jangkar.berkas')))));
-        $this->assertCount(1, $baris);
-        $jangkar = json_decode($baris[0], true);
-        $this->assertSame(['tanggal' => '2026-10-05', 'urutan' => (int) $kepala->urutan, 'hash_rantai' => $kepala->hash_rantai],
-            array_intersect_key($jangkar, array_flip(['tanggal', 'urutan', 'hash_rantai'])));
+        $berkas = Storage::disk('local')->files(config('audit.jangkar.direktori'));
+        $this->assertSame([config('audit.jangkar.direktori').'/jangkar-rantai-2026-10.jsonl'], $berkas);
+        $baris = array_map(fn ($b) => json_decode($b, true), array_values(array_filter(explode("\n", Storage::disk('local')->get($berkas[0])))));
+        $this->assertCount(2, $baris);
+        $this->assertSame(['2026-10-05T23:00:00+07:00', (int) $kepala2200->urutan, $kepala2200->hash_rantai],
+            [$baris[0]['batas'], $baris[0]['urutan'], $baris[0]['hash_rantai']]);
+        $this->assertSame((int) $kepala2300->urutan, $baris[1]['urutan']);
 
         $log = file_get_contents(config('logging.channels.audit_jangkar.path'));
-        $this->assertStringContainsString($kepala->hash_rantai, $log);
+        $this->assertStringContainsString($kepala2200->hash_rantai, $log);
+        $this->assertStringContainsString($kepala2300->hash_rantai, $log);
     }
 
     public function test_perintah_terjadwal_membuat_partisi_bulan_ini_dan_ke_depan(): void
@@ -185,6 +192,53 @@ class RantaiAuditTest extends TestCase
             ->assertFailed();
     }
 
+    public function test_partisi_default_berisi_baris_dicatat_sebagai_warning(): void
+    {
+        Log::spy();
+        $this->travelTo(now()->setDate(2031, 1, 10));
+        $this->app->make(CatatAktivitas::class)->catat('uji.ke.default');
+        $this->travelBack();
+
+        $this->artisan('audit:siapkan-partisi', ['--bulan' => 0])
+            ->expectsOutputToContain('Partisi DEFAULT berisi 1 baris')
+            ->assertSuccessful();
+
+        Log::shouldHaveReceived('warning')->once()
+            ->withArgs(fn ($pesan, $konteks) => str_contains($pesan, 'DEFAULT') && $konteks['jumlah'] === 1);
+    }
+
+    public function test_fungsi_partisi_dikeraskan(): void
+    {
+        $fungsi = DB::selectOne(<<<'SQL'
+            SELECT pg_get_userbyid(proowner) AS pemilik, prosecdef, proconfig::text AS konfigurasi
+              FROM pg_proc WHERE oid = 'audit.siapkan_partisi(date, int)'::regprocedure
+            SQL);
+        $this->assertSame('simrs_migrator', $fungsi->pemilik);
+        $this->assertTrue($fungsi->prosecdef);
+        $this->assertSame('{"search_path=pg_catalog, pg_temp"}', $fungsi->konfigurasi);
+
+        // Semua fungsi audit memakai search_path terkunci, bukan milik pemanggil.
+        $tanpaSearchPath = DB::select(<<<'SQL'
+            SELECT oid::regprocedure::text AS nama FROM pg_proc
+             WHERE pronamespace = 'audit'::regnamespace
+               AND (proconfig IS NULL OR NOT 'search_path=pg_catalog, pg_temp' = ANY (proconfig))
+            SQL);
+        $this->assertSame([], $tanpaSearchPath);
+
+        foreach (['simrs_app' => true, 'simrs_baca' => false, 'simrs_analitik' => false, 'public' => false] as $role => $boleh) {
+            $this->assertSame($boleh, DB::scalar("SELECT has_function_privilege(?, 'audit.siapkan_partisi(date, int)', 'EXECUTE')", [$role]), $role);
+        }
+
+        // simrs_app bukan pemilik: tidak bisa mengganti isi fungsi SECURITY DEFINER.
+        $this->assertDitolak(fn () => DB::statement(
+            "CREATE OR REPLACE FUNCTION audit.siapkan_partisi(acuan date, bulan_ke_depan int) RETURNS TABLE (partisi text, status text) LANGUAGE sql AS 'SELECT null::text, null::text'"
+        ));
+
+        foreach ([[null, 3], ['2026-10-01', null], ['2026-10-01', -1], ['2026-10-01', 25], ['1990-01-01', 1], ['2099-01-01', 1]] as [$acuan, $bulan]) {
+            $this->assertGalatSql('P0001', fn () => DB::select('SELECT * FROM audit.siapkan_partisi(?::date, ?)', [$acuan, $bulan]));
+        }
+    }
+
     public function test_simrs_app_tidak_bisa_update_delete_truncate_di_audit(): void
     {
         $this->app->make(CatatAktivitas::class)->catat('uji.hak');
@@ -196,6 +250,16 @@ class RantaiAuditTest extends TestCase
             $this->assertDitolak(fn () => DB::update("UPDATE $t SET aksi = 'x'"));
             $this->assertDitolak(fn () => DB::delete("DELETE FROM $t"));
             $this->assertDitolak(fn () => DB::statement("TRUNCATE $t"));
+        }
+    }
+
+    private function assertGalatSql(string $kode, callable $perintah): void
+    {
+        try {
+            DB::transaction($perintah);
+            $this->fail("Seharusnya galat SQLSTATE {$kode}.");
+        } catch (QueryException $e) {
+            $this->assertSame($kode, $e->getCode(), $e->getMessage());
         }
     }
 

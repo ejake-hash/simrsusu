@@ -4,6 +4,7 @@ namespace App\Core\Audit\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 final class SiapkanPartisi extends Command
 {
@@ -22,6 +23,18 @@ final class SiapkanPartisi extends Command
         ]);
 
         $this->table(['Partisi', 'Status'], array_map(fn ($b) => [$b->partisi, $b->status], $hasil));
+
+        // Baris di DEFAULT berarti partisi bulannya pernah terlambat dibuat. Dicatat walau bulan yang
+        // disiapkan sekarang tidak bentrok, supaya DBA memindahkannya (prosedur di ADR 0003).
+        $default = DB::selectOne('SELECT count(*) AS jumlah, min(terjadi_pada) AS awal, max(terjadi_pada) AS akhir FROM audit.log_aktivitas_default');
+        if ($default->jumlah > 0) {
+            Log::warning('Partisi DEFAULT audit.log_aktivitas berisi baris', [
+                'jumlah' => (int) $default->jumlah,
+                'terjadi_pada_awal' => $default->awal,
+                'terjadi_pada_akhir' => $default->akhir,
+            ]);
+            $this->warn("Partisi DEFAULT berisi {$default->jumlah} baris ({$default->awal} s.d. {$default->akhir}).");
+        }
 
         $bentrok = array_filter($hasil, fn ($b) => $b->status === 'bentrok_default');
         if ($bentrok !== []) {

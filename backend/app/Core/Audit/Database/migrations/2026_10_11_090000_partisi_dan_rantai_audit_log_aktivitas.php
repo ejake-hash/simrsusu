@@ -132,8 +132,16 @@ DECLARE
     awal timestamptz;
     akhir timestamptz;
 BEGIN
+    -- Fungsi ini menjalankan DDL atas nama simrs_migrator: masukan dibatasi agar simrs_app tidak
+    -- bisa membuat partisi sembarang (ribuan partisi memperlambat setiap kueri ke tabel induk).
+    IF acuan IS NULL OR bulan_ke_depan IS NULL THEN
+        RAISE EXCEPTION 'acuan dan bulan_ke_depan wajib diisi';
+    END IF;
     IF bulan_ke_depan < 0 OR bulan_ke_depan > 24 THEN
         RAISE EXCEPTION 'bulan_ke_depan harus 0..24';
+    END IF;
+    IF acuan < current_date - interval '1 year' OR acuan > current_date + interval '10 years' THEN
+        RAISE EXCEPTION 'acuan harus dalam 1 tahun ke belakang sampai 10 tahun ke depan';
     END IF;
 
     FOR i IN 0..bulan_ke_depan LOOP
@@ -168,11 +176,12 @@ SQL);
     public function down(): void
     {
         DB::unprepared(<<<'SQL'
-DROP TABLE audit.log_aktivitas;
+-- Fungsi yang memakai tipe baris tabel harus dibuang sebelum tabelnya.
 DROP FUNCTION audit.siapkan_partisi(date, int);
-DROP FUNCTION audit.sambung_rantai();
 DROP FUNCTION audit.hash_rantai(text, audit.log_aktivitas);
 DROP FUNCTION audit.kanonik_log(audit.log_aktivitas);
+DROP TABLE audit.log_aktivitas;
+DROP FUNCTION audit.sambung_rantai();
 DROP SEQUENCE audit.log_aktivitas_urutan_seq;
 
 CREATE TABLE audit.log_aktivitas (

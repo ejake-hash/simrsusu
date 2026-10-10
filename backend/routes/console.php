@@ -10,4 +10,4 @@ Artisan::command('inspire', function () {
 
 // Rantai audit (ADR 0003). Butuh cron `* * * * * php artisan schedule:run` di server.
 Schedule::command('audit:siapkan-partisi')->dailyAt('02:00')->timezone(config('audit.zona_waktu'))->onOneServer();
-Schedule::command('audit:ekspor-jangkar')->dailyAt('01:00')->timezone(config('audit.zona_waktu'))->onOneServer();
+Schedule::command('audit:ekspor-jangkar')->hourlyAt(5)->onOneServer();

@@ -1,4 +1,4 @@
-# 0003. Rantai hash audit, partisi bulanan, dan jangkar harian
+# 0003. Rantai hash audit, partisi bulanan, dan jangkar per jam
 
 - Status: Diterima
 - Tanggal: 2026-10-11
@@ -21,14 +21,24 @@ dibutuhkan adalah cara **mendeteksi** perubahan, bukan hanya mencegahnya.
 
 - `audit.log_aktivitas` berpartisi `RANGE (terjadi_pada)`, satu partisi per bulan UTC, PK
   `(id, terjadi_pada)`, plus partisi `DEFAULT` sebagai jaring pengaman.
-- Partisi dibuat fungsi `audit.siapkan_partisi(acuan, bulan_ke_depan)` milik `simrs_migrator`
-  (`SECURITY DEFINER`, `search_path` dikunci), yang hanya boleh dijalankan `simrs_app`. Perintah
-  terjadwal `audit:siapkan-partisi` (harian 02.00) membuat bulan ini + 3 bulan ke depan. Server
-  aplikasi tidak perlu kredensial DDL. Tanpa pg_partman.
+- Partisi dibuat fungsi `audit.siapkan_partisi(acuan, bulan_ke_depan)`. Perintah terjadwal
+  `audit:siapkan-partisi` (harian 02.00) membuat bulan ini + 3 bulan ke depan. Server aplikasi
+  tidak perlu kredensial DDL. Tanpa pg_partman. Karena fungsi ini menjalankan DDL atas nama
+  pemiliknya, ia dikeraskan (semua butir diuji di `RantaiAuditTest::test_fungsi_partisi_dikeraskan`):
+
+  | Butir | Ketentuan |
+  |---|---|
+  | Pemilik | `simrs_migrator`, `SECURITY DEFINER`; `simrs_app` tidak bisa mengganti isinya |
+  | `search_path` | dikunci `pg_catalog, pg_temp` di **semua** fungsi skema `audit`; nama objek ditulis lengkap |
+  | `EXECUTE` | dicabut dari `PUBLIC`, hanya `simrs_app` |
+  | Validasi masukan | `acuan` dan `bulan_ke_depan` wajib; `bulan_ke_depan` 0..24; `acuan` dalam 1 tahun ke belakang sampai 10 tahun ke depan, supaya `simrs_app` tidak bisa membuat ribuan partisi |
+
 - Bila suatu bulan sudah punya baris di `DEFAULT` (perintah terjadwal tidak jalan berbulan-bulan),
   partisinya **tidak** dibuat otomatis: fungsi melaporkan `bentrok_default` dan perintah keluar
   dengan galat. Memindahkan baris dari `DEFAULT` berarti menghapus dan menyisipkan ulang baris audit,
   jadi itu prosedur DBA (lihat Konsekuensi), bukan kemampuan aplikasi.
+- Setiap kali berjalan, perintah partisi menulis **log warning** bila `DEFAULT` berisi baris (jumlah
+  dan rentang waktu saja, tanpa isi baris), walau bulan yang disiapkan tidak bentrok.
 
 ### 2. Rantai hash
 
@@ -62,19 +72,25 @@ Lalu memeriksa jangkar yang jatuh di rentang itu.
 | Baris ekor dihapus | rantai tampak utuh; **jangkar** tidak cocok (urutan hilang) |
 | Seluruh rantai dihitung ulang setelah pemalsuan | rantai tampak utuh; **jangkar** tidak cocok |
 
-### 4. Jangkar harian di luar database
+### 4. Jangkar per jam di luar database
 
-`audit:ekspor-jangkar` (harian 01.00 waktu `AUDIT_ZONA_WAKTU`, bawaan Asia/Jakarta) mengambil baris
-dengan `urutan` terbesar yang terjadi sebelum akhir hari kemarin, lalu menyalin
-`{tanggal, zona_waktu, urutan, id, terjadi_pada, hash_rantai, diekspor_pada}` ke dua tempat:
+`audit:ekspor-jangkar` berjalan **setiap jam** (menit ke-5). Ia mengambil baris dengan `urutan`
+terbesar yang terjadi sebelum awal jam berjalan, lalu menyalin
+`{batas, urutan, id, terjadi_pada, hash_rantai, diekspor_pada}` ke dua tempat:
 
-1. berkas JSON Lines di disk Laravel `AUDIT_JANGKAR_DISK` (`AUDIT_JANGKAR_BERKAS`), satu baris per hari;
+1. berkas JSON Lines di disk Laravel `AUDIT_JANGKAR_DISK`, satu berkas per bulan di
+   `AUDIT_JANGKAR_DIREKTORI` (24 baris per hari selama masa retensi tidak menumpuk di satu berkas);
 2. channel log terpisah `audit_jangkar` (`storage/logs/audit-jangkar.log`), bukan log aplikasi.
 
-Jangkar menyimpan pasangan `(urutan, hash)`, bukan "kepala rantai pada tengah malam". Baris dari
-transaksi yang baru selesai sesudah ekspor tidak membuat jangkar salah. Ekspor diulang untuk tanggal
-yang sama tidak menambah baris bila isinya sama. Jam 01.00 memberi jeda untuk transaksi yang masih
-berjalan di sekitar tengah malam.
+Jangkar menyimpan pasangan `(urutan, hash)`, bukan "kepala rantai pada batas jam". Baris dari
+transaksi yang baru commit sesudah ekspor tidak membuat jangkar salah. Jam tanpa aktivitas
+menghasilkan pasangan yang sama dan tidak ditulis ulang.
+
+**Jendela risiko.** Baris yang ditulis sesudah jangkar terakhir belum terlindungi jangkar: penghapusan
+baris ekor atau penghitungan ulang rantai dalam jendela itu tidak terdeteksi. Dengan jangkar per jam,
+jendela ini paling lama **± 1 jam 5 menit** (bukan 24 jam seperti jangkar harian). PRD 7.57.2 meminta
+"per hari"; per jam memenuhi dan lebih ketat. Bila perlu lebih kecil lagi, jadwal bisa dirapatkan
+tanpa mengubah format.
 
 ## Alternatif yang dipertimbangkan
 
@@ -101,7 +117,8 @@ berjalan di sekitar tengah malam.
   diarahkan ke penyimpanan yang tidak bisa ditimpa admin basis data (mis. bucket MinIO dengan object
   lock, server lain), dan channel `audit_jangkar` dikirim ke SIEM. Disk `local` bawaan hanya untuk
   pengembangan.
-- Perlu cron `schedule:run`. Bila partisi tidak dibuat, baris masuk `DEFAULT` (tidak hilang).
+- Perlu cron `schedule:run`. Bila partisi tidak dibuat, baris masuk `DEFAULT` (tidak hilang) dan
+  perintah partisi berikutnya menulis warning.
   Prosedur DBA bila terjadi `bentrok_default` (sudah dicoba di `simrs_test`): dalam satu transaksi
   sebagai superuser (`session_replication_role` butuh superuser), salin
   baris bulan itu dari `DEFAULT` ke tabel sementara, hapus dari `DEFAULT`, buat partisi, sisipkan

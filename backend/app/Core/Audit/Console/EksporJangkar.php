@@ -10,46 +10,47 @@ use Illuminate\Support\Facades\Log;
 
 final class EksporJangkar extends Command
 {
-    protected $signature = 'audit:ekspor-jangkar {--tanggal= : Hari yang dijangkar (Y-m-d), bawaan kemarin}';
+    protected $signature = 'audit:ekspor-jangkar
+        {--sampai= : Batas akhir eksklusif (tanggal-waktu, zona config audit.zona_waktu); bawaan awal jam berjalan}';
 
-    protected $description = 'Menyalin hash terakhir rantai audit per hari ke berkas dan log terpisah di luar database';
+    protected $description = 'Menyalin hash terakhir rantai audit sebelum suatu batas jam ke berkas dan log terpisah di luar database';
 
     public function handle(RantaiAudit $rantai, BerkasJangkar $berkas): int
     {
         $zona = config('audit.zona_waktu');
-        $tanggal = $this->option('tanggal')
-            ? CarbonImmutable::parse($this->option('tanggal'), $zona)->startOfDay()
-            : CarbonImmutable::now($zona)->subDay()->startOfDay();
+        $batas = $this->option('sampai')
+            ? CarbonImmutable::parse($this->option('sampai'), $zona)
+            : CarbonImmutable::now($zona)->startOfHour();
 
-        $kepala = $rantai->kepalaSebelum($tanggal->addDay());
+        $kepala = $rantai->kepalaSebelum($batas);
         if ($kepala === null) {
-            $this->info("Belum ada baris audit sampai akhir {$tanggal->toDateString()}.");
+            $this->info("Belum ada baris audit sebelum {$batas->toIso8601String()}.");
 
             return self::SUCCESS;
         }
 
         $jangkar = [
-            'tanggal' => $tanggal->toDateString(),
-            'zona_waktu' => $zona,
+            'batas' => $batas->toIso8601String(),
             'urutan' => (int) $kepala->urutan,
             'id' => $kepala->id,
             'terjadi_pada' => CarbonImmutable::parse($kepala->terjadi_pada)->utc()->format('Y-m-d\TH:i:s.u\Z'),
             'hash_rantai' => trim($kepala->hash_rantai),
         ];
 
+        // Jam tanpa aktivitas menghasilkan pasangan (urutan, hash) yang sama: tidak ditulis ulang.
         foreach ($berkas->semua() as $ada) {
-            if (array_intersect_key($ada, $jangkar) == $jangkar) {
-                $this->info("Jangkar {$jangkar['tanggal']} sudah ada (urutan {$jangkar['urutan']}).");
+            if ($ada['urutan'] === $jangkar['urutan'] && $ada['hash_rantai'] === $jangkar['hash_rantai']) {
+                $this->info("Jangkar urutan {$jangkar['urutan']} sudah ada.");
 
                 return self::SUCCESS;
             }
         }
 
         $jangkar['diekspor_pada'] = CarbonImmutable::now()->utc()->format('Y-m-d\TH:i:s\Z');
-        $berkas->tambah($jangkar);
+        $tujuan = $berkas->tambah($jangkar, $batas);
         Log::channel(config('audit.jangkar.channel_log'))->info('jangkar_rantai_audit', $jangkar);
 
-        $this->info("Jangkar {$jangkar['tanggal']}: urutan {$jangkar['urutan']}, hash {$jangkar['hash_rantai']}.");
+        $this->info("Jangkar sebelum {$jangkar['batas']}: urutan {$jangkar['urutan']}, hash {$jangkar['hash_rantai']} → {$tujuan}.");
 
         return self::SUCCESS;
     }

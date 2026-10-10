@@ -2,31 +2,39 @@
 
 namespace App\Core\Audit;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Storage;
 
-/** Berkas JSON Lines berisi jangkar harian rantai audit, di luar database (ADR 0003). */
+/**
+ * Jangkar rantai audit di luar database (ADR 0003): JSON Lines, satu berkas per bulan
+ * (24 baris per hari selama masa retensi RM tidak menumpuk di satu berkas).
+ */
 final class BerkasJangkar
 {
     /** @return list<array<string, mixed>> */
     public function semua(): array
     {
-        if (! $this->disk()->exists($this->berkas())) {
-            return [];
-        }
+        $berkas = array_filter($this->disk()->files($this->direktori()), fn ($b) => str_ends_with($b, '.jsonl'));
+        sort($berkas);
 
         $jangkar = [];
-        foreach (preg_split('/\R/', (string) $this->disk()->get($this->berkas()), -1, PREG_SPLIT_NO_EMPTY) as $baris) {
-            $jangkar[] = json_decode($baris, true, flags: JSON_THROW_ON_ERROR);
+        foreach ($berkas as $b) {
+            foreach (preg_split('/\R/', (string) $this->disk()->get($b), -1, PREG_SPLIT_NO_EMPTY) as $baris) {
+                $jangkar[] = json_decode($baris, true, flags: JSON_THROW_ON_ERROR);
+            }
         }
 
         return $jangkar;
     }
 
     /** @param  array<string, mixed>  $jangkar */
-    public function tambah(array $jangkar): void
+    public function tambah(array $jangkar, CarbonImmutable $batas): string
     {
-        $this->disk()->append($this->berkas(), json_encode($jangkar, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        $berkas = $this->direktori().'/jangkar-rantai-'.$batas->utc()->format('Y-m').'.jsonl';
+        $this->disk()->append($berkas, json_encode($jangkar, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        return $berkas;
     }
 
     private function disk(): Filesystem
@@ -34,8 +42,8 @@ final class BerkasJangkar
         return Storage::disk(config('audit.jangkar.disk'));
     }
 
-    private function berkas(): string
+    private function direktori(): string
     {
-        return config('audit.jangkar.berkas');
+        return config('audit.jangkar.direktori');
     }
 }

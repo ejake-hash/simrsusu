@@ -13,7 +13,7 @@ final class VerifikasiRantai extends Command
         {--dari= : Tanggal awal (Y-m-d, zona config audit.zona_waktu)}
         {--sampai= : Tanggal akhir, ikut diperiksa (Y-m-d)}';
 
-    protected $description = 'Memeriksa rantai hash audit.log_aktivitas dan jangkar harian; melaporkan baris pertama yang putus';
+    protected $description = 'Memeriksa rantai hash audit.log_aktivitas dan jangkar per jam; melaporkan baris pertama yang putus';
 
     public function handle(RantaiAudit $rantai, BerkasJangkar $berkas): int
     {
@@ -62,7 +62,7 @@ final class VerifikasiRantai extends Command
 
             $baris = $rantai->barisDenganUrutan($urutan);
             if ($baris === null || $baris->id !== $jangkar['id'] || trim($baris->hash_rantai) !== $jangkar['hash_rantai']) {
-                $this->error("Jangkar {$jangkar['tanggal']} TIDAK COCOK: urutan {$urutan} ".($baris === null ? 'hilang' : 'berbeda').'.');
+                $this->error("Jangkar {$jangkar['batas']} TIDAK COCOK: urutan {$urutan} ".($baris === null ? 'hilang' : 'berbeda').'.');
 
                 return false;
             }
