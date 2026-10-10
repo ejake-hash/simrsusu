@@ -31,7 +31,10 @@ final class AutentikasiController
         } catch (GagalMasuk $e) {
             throw match ($e->alasan) {
                 AlasanGagalMasuk::KredensialSalah => new GalatApi(401, $e->alasan->value, 'Nama pengguna atau sandi salah.'),
-                AlasanGagalMasuk::AkunTerkunci => new GalatApi(403, $e->alasan->value, 'Akun terkunci sementara karena terlalu banyak percobaan gagal. Coba lagi nanti atau hubungi admin.'),
+                // Sisa waktu kunci lewat Retry-After (detik), sama seperti respons 429 batas laju.
+                AlasanGagalMasuk::AkunTerkunci => new GalatApi(403, $e->alasan->value, 'Akun terkunci sementara karena terlalu banyak percobaan gagal. Coba lagi nanti atau hubungi admin.', [], [
+                    'Retry-After' => max(1, $e->terkunciSampai->getTimestamp() - now()->getTimestamp()),
+                ]),
                 AlasanGagalMasuk::AkunNonaktif => new GalatApi(403, $e->alasan->value, 'Akun tidak aktif. Hubungi admin.'),
             };
         }

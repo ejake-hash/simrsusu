@@ -22,8 +22,10 @@ return [
         'durasi_menit' => (int) env('AUTENTIKASI_KUNCI_DURASI_MENIT', 15),
     ],
 
+    // Per IP dihitung dari IP klien; di belakang reverse proxy, isi PROKSI_TEPERCAYA (config/jaringan.php)
+    // agar seluruh RS tidak berbagi satu kuota IP proksi.
     'batas_laju' => [
-        'per_ip_per_menit' => (int) env('AUTENTIKASI_BATAS_PER_IP_PER_MENIT', 20),
+        'per_ip_per_menit' => (int) env('AUTENTIKASI_BATAS_PER_IP_PER_MENIT', 60),
         'per_nama_pengguna_per_menit' => (int) env('AUTENTIKASI_BATAS_PER_NAMA_PENGGUNA_PER_MENIT', 10),
     ],
 
