@@ -18,6 +18,12 @@ export const KUNCI = {
   semuaAkun: ['pengaturan', 'akun'] as const,
   akun: (id: string) => ['pengaturan', 'akun', id] as const,
   menuAkun: (id: string) => ['pengaturan', 'akun', id, 'menu'] as const,
+  /** Awalan antrean dan rincian persetujuan akses (tiket 1.2d). */
+  persetujuan: ['pengaturan', 'persetujuan'] as const,
+  daftarPersetujuan: (tab: string, status: string | undefined) => ['pengaturan', 'persetujuan', 'daftar', tab, status ?? 'semua'] as const,
+  rinciPersetujuan: (id: string) => ['pengaturan', 'persetujuan', 'rinci', id] as const,
+  permintaan: ['pengaturan', 'permintaan'] as const,
+  daftarPermintaan: (filter: object) => ['pengaturan', 'permintaan', 'daftar', filter] as const,
 }
 
 /** Pohon /menu jarang berubah (hanya saat rilis/modul dinyalakan): cukup sekali per buka halaman. */

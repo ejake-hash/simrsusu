@@ -5,6 +5,7 @@ import HalamanModul from '@/layouts/HalamanModul.vue'
 import { useKelasLayar } from '@/shared/composables/useKelasLayar'
 import DaftarAkun from '../components/pengaturan/DaftarAkun.vue'
 import RincianAkun from '../components/pengaturan/RincianAkun.vue'
+import SaranPeran from '../components/pengaturan/SaranPeran.vue'
 import { usePohonMenu } from '../pengaturan'
 
 /**
@@ -35,6 +36,7 @@ async function pilih(id: string | null) {
     uraian="Penugasan peran, pengecualian per akun (cabut selalu menang), pratinjau Lihat sebagai, dan MFA."
     kelas-terbatas
   >
+    <SaranPeran />
     <div class="tata">
       <DaftarAkun :model-value="terpilih" @update:model-value="pilih" />
       <div ref="panel" class="panel">

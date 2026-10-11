@@ -13,7 +13,10 @@ import { errorKolom, pesanError } from '../../pengaturan'
  * Mengakhiri penugasan atau pengecualian per akun (MD-1): bukan tombol hapus, wajib alasan, kalimat akibat
  * ditampilkan, baris tetap ada sebagai riwayat berstatus batal.
  */
-const props = defineProps<{ judul: string; akibat: string; aksi: (alasan: string) => Promise<unknown> }>()
+const props = withDefaults(defineProps<{ judul: string; akibat: string; aksi: (alasan: string) => Promise<unknown>; labelAlasan?: string; labelAksi?: string }>(), {
+  labelAlasan: 'Alasan mengakhiri',
+  labelAksi: 'Akhiri',
+})
 const buka = defineModel<boolean>('open', { required: true })
 
 const sibuk = ref(false)
@@ -53,7 +56,7 @@ const kirim = handleSubmit(async (v) => {
         <Ikon nama="peringatan" :ukuran="16" />
         <span>{{ akibat }} Baris ini tetap tersimpan sebagai riwayat.</span>
       </p>
-      <KolomIsian v-slot="a" label="Alasan mengakhiri" :error="errors.alasan_batal" wajib>
+      <KolomIsian v-slot="a" :label="labelAlasan" :error="errors.alasan_batal" wajib>
         <textarea v-bind="a" v-model="alasan" class="isian" rows="3" />
       </KolomIsian>
       <p v-if="error" class="catatan catatan-bahaya" role="alert">
@@ -63,7 +66,7 @@ const kirim = handleSubmit(async (v) => {
     </form>
     <template #aksi>
       <button type="button" class="tombol" :disabled="sibuk" @click="buka = false">Batal</button>
-      <Tombol type="submit" form="form-akhiri" varian="bahaya" :sibuk="sibuk">{{ sibuk ? 'Memproses…' : 'Akhiri' }}</Tombol>
+      <Tombol type="submit" form="form-akhiri" varian="bahaya" :sibuk="sibuk">{{ sibuk ? 'Memproses…' : labelAksi }}</Tombol>
     </template>
   </Dialog>
 </template>

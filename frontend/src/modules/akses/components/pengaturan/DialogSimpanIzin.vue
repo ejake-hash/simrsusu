@@ -38,6 +38,10 @@ watch(buka, (b) => {
 })
 
 const sensitifBaru = computed(() => props.ditambah.filter((k) => izinSensitif(props.indeks, k)))
+/** Nama peran penyetuju izin sensitif baru (NodeMenu.izin[].penyetuju_peran). */
+const penyetujuSensitif = computed(() =>
+  [...new Set(sensitifBaru.value.map((k) => props.indeks.perKode.get(k)?.izin.penyetuju_peran?.nama ?? 'pemilik data'))].join(', '),
+)
 
 const kirim = handleSubmit((v) => emit('simpan', { dasar_perubahan: v.dasar_perubahan, alasan: v.alasan ? v.alasan : null }))
 defineExpose({ setErrors })
@@ -72,8 +76,8 @@ defineExpose({ setErrors })
       <p v-if="sensitifBaru.length" class="catatan catatan-peringatan">
         <Ikon nama="gembok" :ukuran="16" />
         <span>
-          {{ sensitifBaru.length }} izin sensitif butuh persetujuan pemilik data. Sampai alur persetujuan tersedia, server menolak penyimpanan ini
-          seluruhnya; hapus centang izin bergembok untuk menyimpan sisanya.
+          {{ sensitifBaru.length }} izin sensitif tidak langsung berlaku: masing-masing menunggu persetujuan
+          {{ penyetujuSensitif }}. Izin lain langsung berlaku.
         </span>
       </p>
 

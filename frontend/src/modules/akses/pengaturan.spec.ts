@@ -99,24 +99,59 @@ describe('Editor peran (MD-2, 412, 409, 422)', () => {
     expect(document.body.textContent).toContain('tersimpan: 0 ditambah, 1 dicabut, 1 akun terdampak')
   })
 
-  it('409 butuh_persetujuan: dialog ditutup, pesan menyebut izin sensitifnya, baris disorot, tidak ada yang tersimpan', async () => {
+  it('izin sensitif (1.2d): ringkasan menyebut penyetujunya; sesudah simpan izin menunggu tercentang dan terkunci, belum berlaku', async () => {
     await pasang(EditorPeran, { peranId: KASIR, indeks: indeks() })
     await centang('Batal', true)
-    await centang('Cetak', false)
     await klik(tombol('Simpan perubahan'))
-    expect(document.querySelector('[role="alertdialog"]')!.textContent).toContain('1 izin sensitif butuh persetujuan')
+    expect(document.querySelector('[role="alertdialog"]')!.textContent).toContain('1 izin sensitif tidak langsung berlaku: masing-masing menunggu persetujuan Contoh Kabid Keuangan')
     await isi('Dasar perubahan', 'SK 1/2026')
     await klik([...document.querySelectorAll('[role="alertdialog"] button')].find((b) => b.textContent?.includes('Simpan perubahan')) as HTMLElement)
 
     expect(document.querySelector('[role="alertdialog"]')).toBeNull()
-    const alert = document.querySelector('[role="alert"]')!
-    expect(alert.textContent).toContain('Tidak ada yang disimpan')
-    expect(alert.textContent).toContain('Kasir → Tagihan pasien → Batal')
-    expect(document.querySelector('tr.salah')?.textContent).toContain('Tagihan pasien')
-    expect(izinServer()).toContain('kasir.tagihan.cetak')
+    expect(document.body.textContent).toMatch(/1 izin sensitif menunggu persetujuan Contoh Kabid Keuangan \(PSA-2026-\d+\)/)
+    expect(izinServer()).not.toContain('kasir.tagihan.batal')
+    const batal = kotak('Batal')
+    expect([batal.checked, batal.disabled]).toEqual([true, true])
+    expect(batal.closest('label')!.textContent).toContain('menunggu')
+    expect([...document.querySelectorAll('tr .pil-peringatan')].map((x) => x.textContent)).toContain('Menunggu persetujuan Contoh Kabid Keuangan')
+    // Tidak ada perubahan tersisa: izin menunggu termasuk dasar selisih.
+    expect(tombol('Simpan perubahan')?.disabled ?? true).toBe(true)
   })
 
-  it('412: suntingan tidak hilang; perbedaan ditampilkan, lalu diterapkan di atas versi terbaru', async () => {
+  it('izin menunggu yang sudah ditolak/ditarik orang lain dilepas sebelum simpan, tidak diajukan ulang diam-diam', async () => {
+    const minta = (metode: string, jalur: string, isiMinta?: unknown, header: Record<string, string> = {}) =>
+      server.tangani({ metode, jalur, kueri: new URLSearchParams(), header, isi: isiMinta })!
+    const awal = minta('GET', `/peran/${KASIR}`)
+    const izinAwal = (awal.isi as { data: { izin: string[] } }).data.izin
+    const p = (minta('PUT', `/peran/${KASIR}/izin`, { izin: [...izinAwal, 'kasir.tagihan.batal'], dasar_perubahan: 'SK 1' }, { 'if-match': awal.header!.ETag! }).isi as {
+      perubahan: { menunggu_persetujuan: { id: string }[] }
+    }).perubahan.menunggu_persetujuan[0]!
+    await pasang(EditorPeran, { peranId: KASIR, indeks: indeks() })
+    expect(kotak('Batal').checked).toBe(true)
+    await centang('Cetak', false)
+    // Pengajuan ditarik di tab lain; versi peran tidak berubah.
+    minta('POST', `/persetujuan-akses/${p.id}/batalkan`, { alasan: 'Ditarik di tab lain' })
+
+    await klik(tombol('Simpan perubahan'))
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull()
+    expect(document.body.textContent).toContain('Tidak lagi menunggu persetujuan (ditolak, ditarik, atau kedaluwarsa): Kasir → Tagihan pasien → Batal')
+    expect(kotak('Batal').checked).toBe(false)
+    await klik(tombol('Simpan perubahan'))
+    await isi('Dasar perubahan', 'SK 2/2026')
+    await klik([...document.querySelectorAll('[role="alertdialog"] button')].find((b) => b.textContent?.includes('Simpan perubahan')) as HTMLElement)
+    expect(document.body.textContent).toContain('tersimpan: 0 ditambah, 1 dicabut')
+    expect(document.body.textContent).not.toContain('menunggu persetujuan Contoh Kabid')
+  })
+
+  it('izin sensitif tanpa penyetuju tidak bisa dipilih (uji penerimaan 1.2d)', async () => {
+    await pasang(EditorPeran, { peranId: uid(104), indeks: indeks() })
+    await klik(tombol('Buka semua'))
+    const setujui = kotak('Setujui')
+    expect(setujui.disabled).toBe(true)
+    expect(setujui.closest('label')!.textContent).toContain('belum ada penyetuju')
+  })
+
+  it('versi berubah sebelum simpan (412 dicegah): suntingan tidak hilang; perbedaan ditampilkan, lalu diterapkan di atas versi terbaru', async () => {
     await pasang(EditorPeran, { peranId: KASIR, indeks: indeks() })
     await centang('Cetak', false)
 
@@ -130,10 +165,9 @@ describe('Editor peran (MD-2, 412, 409, 422)', () => {
       isi: { izin: [...izinServer(), 'kasir.tutup.lihat'].filter((v, i, a) => a.indexOf(v) === i), dasar_perubahan: 'Memo lain' },
     })
 
+    // Ringkasan simpan memeriksa versi terbaru lebih dulu: bentrok tampil tanpa membuka dialog.
     await klik(tombol('Simpan perubahan'))
-    await isi('Dasar perubahan', 'SK 1/2026')
-    await klik([...document.querySelectorAll('[role="alertdialog"] button')].find((b) => b.textContent?.includes('Simpan perubahan')) as HTMLElement)
-    await flushPromises()
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull()
 
     const teks = document.body.textContent!
     expect(teks).toContain('diubah orang lain sejak Anda membukanya')
@@ -300,12 +334,20 @@ describe('HalamanModul (gerbang halaman sub-menu)', () => {
     expect(document.body.textContent).toContain('isi rahasia')
   })
 
-  it('tanpa izin lihat → Halaman tidak ditemukan dan isi tidak dipasang', async () => {
+  it('tanpa izin lihat → Akses ditolak (isi tidak dipasang); Minta akses mengirim permintaan dengan alasan (1.2d)', async () => {
     useSesiStore().pengguna!.id = uid(4)
     server = pasangTiruan(klien, buatServerTiruan({ penggunaId: uid(4) }))
     await pasang(halaman(), {}, '/pengaturan/peran')
-    expect(document.querySelector('h1')?.textContent).toBe('Halaman tidak ditemukan')
+    expect(document.querySelector('h1')?.textContent).toBe('Akses ditolak')
     expect(document.body.textContent).not.toContain('isi rahasia')
+    await klik(tombol('Minta akses'))
+    // Fokus pindah ke isian alasan (tombol yang diklik hilang).
+    expect(document.activeElement?.tagName).toBe('TEXTAREA')
+    await klik(tombol('Kirim permintaan'))
+    expect(document.body.textContent).toContain('minimal 5 karakter')
+    await isi('Untuk apa akses ini dibutuhkan?', 'Membantu admin peran selama audit')
+    await klik(tombol('Kirim permintaan'))
+    expect(document.querySelector('[role="status"]')?.textContent).toMatch(/Permintaan PMA-2026-\d+ terkirim/)
   })
 
   it('ponsel (< 768 px): pesan gunakan tablet/desktop, isi tidak dipasang', async () => {

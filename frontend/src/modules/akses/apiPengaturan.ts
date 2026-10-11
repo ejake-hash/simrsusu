@@ -19,8 +19,9 @@ import type {
   PohonMenu,
   StatusMfaAkun,
 } from './tipePengaturan'
+import type { HasilPemberian, PersetujuanAkses } from './tipePersetujuan'
 
-/** Klien Pengaturan → Peran & izin, Akun & akses (docs/api/openapi.yaml v0.2.x, tiket 1.2c). */
+/** Klien Pengaturan → Peran & izin, Akun & akses (docs/api/openapi.yaml v0.2.x, tiket 1.2c; 202 menunggu persetujuan sejak 1.2d). */
 
 /** Peran beserta ETag-nya; ETag dikirim kembali sebagai If-Match saat mengubah (412 = diubah orang lain). */
 export interface PeranBerversi {
@@ -88,19 +89,21 @@ export async function ambilMenuAkun(id: string): Promise<MenuSaya> {
   return data.data
 }
 
-export async function tugaskanPeran(akunId: string, isian: IsianPenugasan): Promise<Penugasan> {
-  const { data } = await klien.post<{ data: Penugasan }>(`/akun/${akunId}/penugasan`, isian)
-  return data.data
+/** 201/200 = langsung berlaku; 202 = pemberian berisiko dicatat sebagai persetujuan menunggu (kontrak v0.4.0). */
+function hasilPemberian<T>(r: AxiosResponse<{ data: T | PersetujuanAkses }>): HasilPemberian<T> {
+  return r.status === 202 ? { menunggu: true, persetujuan: r.data.data as PersetujuanAkses } : { menunggu: false, data: r.data.data as T }
 }
 
-export async function batalkanPenugasan(akunId: string, penugasanId: string, alasanBatal: string): Promise<Penugasan> {
-  const { data } = await klien.post<{ data: Penugasan }>(`/akun/${akunId}/penugasan/${penugasanId}/batal`, { alasan_batal: alasanBatal })
-  return data.data
+export async function tugaskanPeran(akunId: string, isian: IsianPenugasan): Promise<HasilPemberian<Penugasan>> {
+  return hasilPemberian(await klien.post(`/akun/${akunId}/penugasan`, isian))
 }
 
-export async function buatIzinKhusus(akunId: string, isian: IsianIzinKhusus): Promise<IzinKhusus> {
-  const { data } = await klien.post<{ data: IzinKhusus }>(`/akun/${akunId}/izin-khusus`, isian)
-  return data.data
+export async function batalkanPenugasan(akunId: string, penugasanId: string, alasanBatal: string): Promise<HasilPemberian<Penugasan>> {
+  return hasilPemberian(await klien.post(`/akun/${akunId}/penugasan/${penugasanId}/batal`, { alasan_batal: alasanBatal }))
+}
+
+export async function buatIzinKhusus(akunId: string, isian: IsianIzinKhusus): Promise<HasilPemberian<IzinKhusus>> {
+  return hasilPemberian(await klien.post(`/akun/${akunId}/izin-khusus`, isian))
 }
 
 export async function batalkanIzinKhusus(akunId: string, izinKhususId: string, alasanBatal: string): Promise<IzinKhusus> {

@@ -1,7 +1,9 @@
 /**
- * Bentuk respons Pengaturan → Peran & izin, Akun & akses (docs/api/openapi.yaml v0.2.2, tiket 1.2c).
- * Tanpa impor nilai agar data tiruan bisa dipakai e2e (tsconfig.node) tanpa menarik klien API.
+ * Bentuk respons Pengaturan → Peran & izin, Akun & akses (docs/api/openapi.yaml v0.2.2, tiket 1.2c; tambahan v0.4.0
+ * tiket 1.2d: penyetuju izin, keadaan menunggu persetujuan). Tanpa impor nilai agar data tiruan bisa dipakai e2e
+ * (tsconfig.node) tanpa menarik klien API.
  */
+import type { IzinMenunggu, PersetujuanAkses, RingkasPeran } from './tipePersetujuan'
 export type JenisAksi = 'lihat' | 'input' | 'perbaiki' | 'sahkan' | 'verifikasi' | 'setujui' | 'batal' | 'ekspor' | 'cetak' | 'lihat_rupiah'
 
 export type TingkatNode = 'menu' | 'sub_menu' | 'bagian'
@@ -10,6 +12,8 @@ export interface IzinNode {
   kode: string
   jenis_aksi: JenisAksi
   sensitif: boolean
+  /** Izin sensitif: peran penyetuju (K3); null = belum ditetapkan, tidak bisa diberikan. Sejak 1.2d. */
+  penyetuju_peran?: RingkasPeran | null
 }
 
 export interface NodeMenu {
@@ -68,12 +72,17 @@ export interface PeranRinci extends PeranRingkas {
   dapat_disunting: boolean
   alasan_terkunci: AlasanTerkunci | null
   diubah_pada: string
+  /** Izin sensitif yang menunggu persetujuan untuk peran ini; tidak termasuk di `izin` (sejak 1.2d). */
+  izin_menunggu?: IzinMenunggu[]
 }
 
 export interface PerubahanIzin {
+  /** Yang langsung berlaku. */
   ditambah: string[]
   dicabut: string[]
   akun_terdampak: number
+  /** Izin sensitif baru yang menunggu persetujuan (sejak 1.2d). */
+  menunggu_persetujuan?: PersetujuanAkses[]
 }
 
 export interface Pelaku {
@@ -165,6 +174,8 @@ export interface AkunRinci {
   mfa: StatusMfaAkun
   penugasan: Penugasan[]
   izin_khusus: IzinKhusus[]
+  /** Penugasan, pengakhiran, dan izin khusus akun ini yang menunggu persetujuan (sejak 1.2d). */
+  menunggu_persetujuan?: PersetujuanAkses[]
 }
 
 export interface FilterAkun {
@@ -204,6 +215,8 @@ export interface IsianPenugasan {
   berlaku_sampai: string | null
   dasar_pemberian: string
   alasan: string | null
+  /** Menindaklanjuti permintaan akses akun ini (sejak 1.2d). */
+  permintaan_akses_id?: string | null
 }
 
 export interface IsianIzinKhusus {
@@ -213,4 +226,6 @@ export interface IsianIzinKhusus {
   berlaku_sampai: string | null
   dasar_pemberian: string
   alasan: string
+  /** Menindaklanjuti permintaan akses akun ini (sejak 1.2d). */
+  permintaan_akses_id?: string | null
 }

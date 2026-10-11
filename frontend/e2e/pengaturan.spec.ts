@@ -7,6 +7,8 @@ import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
  * contoh.admisi dan mereset MFA contoh.mfa, yang dipakai spec lain. Jalankan ulang seeder sebelum run berikutnya.
  */
 const RAHASIA_SUPERADMIN = process.env.E2E_SUPERADMIN_MFA_RAHASIA ?? ''
+/** Superadmin kedua (tiket 1.2d): penyetuju pengajuan superadmin pertama (kontrol ganda K4/K13). */
+const RAHASIA_SUPERADMIN_DUA = process.env.E2E_SUPERADMIN_DUA_MFA_RAHASIA ?? ''
 // Kode peran unik per run agar run lokal tanpa seeding ulang tidak bentrok kode_sudah_dipakai.
 const KODE_DASAR = `e2e_farmasi_${Date.now().toString(36)}`
 const NAMA_DASAR = `E2E Petugas Stok ${Date.now().toString(36)}`
@@ -22,11 +24,11 @@ const TANPA_SESI = { cookies: [], origins: [] }
 // Sesi akun lain dipakai ulang antar-uji: rate limit masuk per nama pengguna (10/menit) cepat habis bila tiap uji masuk.
 const sesiAkun = new Map<string, Awaited<ReturnType<BrowserContext['storageState']>>>()
 
-async function halamanAkun(browser: Browser, asal: string, nama: string): Promise<{ page: Page; tutup: () => Promise<void> }> {
+async function halamanAkun(browser: Browser, asal: string, nama: string, rahasiaTotp?: string): Promise<{ page: Page; tutup: () => Promise<void> }> {
   let sesi = sesiAkun.get(nama)
   if (!sesi) {
     const masuk = await browser.newContext({ baseURL: asal, storageState: TANPA_SESI })
-    await masukLewatApi(masuk.request, asal, nama)
+    await masukLewatApi(masuk.request, asal, nama, rahasiaTotp)
     sesi = await masuk.storageState()
     sesiAkun.set(nama, sesi)
     await masuk.close()
@@ -96,7 +98,8 @@ test('1440 px: halaman induk Pengaturan berisi kartu sub-menu, juga dari kartu B
 
   const dokter = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'contoh.dokter')
   await dokter.page.goto('/pengaturan/peran')
-  await expect(dokter.page.getByRole('heading', { level: 1, name: 'Halaman tidak ditemukan' })).toBeVisible()
+  // Halaman yang ada tetapi tidak diberikan: Akses ditolak dengan Minta akses (1.2d); alurnya diuji di bawah.
+  await expect(dokter.page.getByRole('heading', { level: 1, name: 'Akses ditolak' })).toBeVisible()
   await expect(menuUtama(dokter.page).getByRole('link', { name: /^Pengaturan/ })).toHaveCount(0)
   await dokter.tutup()
 })
@@ -328,3 +331,196 @@ test('1440 px: penugasan ber-cakupan unit tampil dengan label unit; pemegangnya 
     await expect(page.getByRole('listitem').filter({ hasText: `Unit kerja · ${kode} · ` }).getByRole('button', { name: 'Akhiri' })).toHaveCount(0)
   }
 })
+
+// ── Tiket 1.2d: persetujuan dan permintaan akses ──
+// Pengajuan oleh contoh.superadmin, keputusan oleh contoh.superadmin.dua (kontrol ganda), pengaju tidak bisa menyetujui
+// sendiri (MD-4), tarik pengajuan, dan permintaan akses dari layar Akses ditolak.
+
+test('1440 px: Akses ditolak → Minta akses (contoh.dokter) → superadmin melihat permintaannya lalu menolak dengan alasan', async ({ page, browser }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const alasan = `Membantu audit peran ${Date.now().toString(36)}`
+  const dokter = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'contoh.dokter')
+  await dokter.page.goto('/pengaturan/peran')
+  await expect(dokter.page.getByRole('heading', { level: 1, name: 'Akses ditolak' })).toBeVisible()
+  await dokter.page.getByRole('button', { name: 'Minta akses' }).click()
+  await dokter.page.getByLabel('Untuk apa akses ini dibutuhkan?').fill(alasan)
+  await dokter.page.getByRole('button', { name: 'Kirim permintaan' }).click()
+  const terkirim = dokter.page.getByRole('status').filter({ hasText: /Permintaan PMA-\d{4}-\d+ terkirim/ })
+  await expect(terkirim).toBeVisible()
+  const nomor = (await terkirim.textContent())!.match(/PMA-\d{4}-\d+/)![0]
+  // Muat ulang: permintaan yang masih menunggu ditampilkan, bukan formulir baru.
+  await dokter.page.reload()
+  await expect(dokter.page.getByText(`Permintaan Anda ${nomor}`)).toBeVisible()
+  await expect(dokter.page.getByRole('button', { name: 'Minta akses' })).toHaveCount(0)
+  await dokter.tutup()
+
+  await page.goto('/pengaturan/persetujuan?tab=permintaan')
+  const baris = page.getByRole('region', { name: 'Daftar permintaan akses' }).getByRole('row').filter({ hasText: nomor })
+  await expect(baris).toContainText('Pengaturan Sistem → Peran & izin')
+  await expect(baris).toContainText(alasan)
+  await baris.getByRole('button', { name: `Tolak ${nomor}` }).click()
+  const tolak = page.getByRole('alertdialog', { name: `Tolak permintaan ${nomor}?` })
+  await tolak.getByLabel('Alasan penolakan').fill('Akses peran hanya untuk tim TI')
+  await tolak.getByRole('button', { name: 'Tolak permintaan' }).click()
+  await expect(page.getByText(`Permintaan ${nomor} ditolak.`)).toBeVisible()
+  await expect(baris).toHaveCount(0)
+})
+
+test('1440 px: izin sensitif ke peran → menunggu persetujuan Superadmin; pengaju tidak melihat Setujui (MD-4) dan bisa menarik', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const kode = `${KODE_DASAR}_sens`
+  const nama = `${NAMA_DASAR} Sensitif`
+  await page.goto('/pengaturan/peran')
+  await page.getByRole('button', { name: 'Buat peran' }).click()
+  const buat = page.getByRole('dialog', { name: 'Buat peran' })
+  await buat.getByLabel('Kode peran').fill(kode)
+  await buat.getByLabel('Nama peran').fill(nama)
+  await buat.getByLabel('Dasar perubahan').fill('SK Direktur E2E/4')
+  await buat.getByRole('button', { name: 'Buat peran' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: nama })).toBeVisible()
+
+  await page.getByRole('searchbox', { name: 'Cari menu di matriks' }).fill('Akun & akses')
+  await page.getByRole('combobox', { name: 'Tingkat Pengaturan Sistem → Akun & akses' }).selectOption('perbaiki')
+  await page.getByRole('button', { name: 'Simpan perubahan' }).click()
+  const simpan = page.getByRole('alertdialog', { name: `Simpan perubahan izin ${nama}?` })
+  await expect(simpan).toContainText('2 izin sensitif tidak langsung berlaku: masing-masing menunggu persetujuan Superadmin')
+  await simpan.getByLabel('Dasar perubahan').fill('SK Direktur E2E/5')
+  await simpan.getByRole('button', { name: 'Simpan perubahan' }).click()
+  await expect(page.getByRole('status').filter({ hasText: /2 izin sensitif menunggu persetujuan Superadmin \(PSA-\d{4}-\d+, PSA-\d{4}-\d+\)/ })).toBeVisible()
+  // Izin menunggu tercentang dan terkunci; tingkat tidak bisa diturunkan selama menunggu.
+  const perbaiki = page.getByRole('checkbox', { name: 'Perbaiki Pengaturan Sistem → Akun & akses (sensitif)' })
+  await expect(perbaiki).toBeChecked()
+  await expect(perbaiki).toBeDisabled()
+  await expect(page.getByRole('combobox', { name: 'Tingkat Pengaturan Sistem → Akun & akses' })).toBeDisabled()
+  await expect(page.getByRole('row', { name: /Akun & akses/ }).locator('.pil').filter({ hasText: 'Menunggu persetujuan Superadmin' })).toBeVisible()
+
+  // Yang saya ajukan: tanpa tombol Setujui/Tolak; tarik keduanya.
+  await page.goto('/pengaturan/persetujuan?tab=saya_ajukan')
+  const daftar = page.getByRole('region', { name: 'Yang saya ajukan' })
+  for (const aksi of ['Input', 'Perbaiki']) {
+    await daftar.getByRole('button', { name: new RegExp(`Akun & akses → ${aksi} ke peran ${nama}`) }).click()
+    const rincian = page.getByRole('region', { name: new RegExp(`Akun & akses → ${aksi} ke peran ${nama}`) })
+    await expect(rincian).toContainText('Pengaju tidak bisa menyetujui pengajuannya sendiri.')
+    await expect(rincian.getByRole('button', { name: 'Setujui' })).toHaveCount(0)
+    await rincian.getByRole('button', { name: 'Tarik pengajuan' }).click()
+    const tarik = page.getByRole('alertdialog', { name: /Tarik pengajuan PSA-/ })
+    await tarik.getByLabel('Alasan menarik').fill('Uji e2e selesai')
+    await tarik.getByRole('button', { name: 'Tarik pengajuan' }).click()
+    await expect(rincian.getByText('Dibatalkan', { exact: true })).toBeVisible()
+  }
+
+  await page.goto('/pengaturan/peran')
+  await page.getByRole('searchbox', { name: 'Cari peran' }).fill(kode)
+  await page.getByRole('button', { name: new RegExp(nama) }).click()
+  await page.getByRole('searchbox', { name: 'Cari menu di matriks' }).fill('Akun & akses')
+  await expect(page.getByRole('checkbox', { name: 'Perbaiki Pengaturan Sistem → Akun & akses (sensitif)' })).not.toBeChecked()
+})
+
+test('1440 px: tugaskan peran Superadmin → 202 menunggu superadmin lain, tampil di rincian akun, ditarik pengaju', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await pilihAkun(page, 'contoh.data.induk', 'Contoh Admin Data Induk')
+  await page.getByRole('button', { name: 'Tugaskan peran' }).click()
+  const tugas = page.getByRole('dialog', { name: 'Tugaskan peran ke Contoh Admin Data Induk' })
+  await tugas.getByLabel('Peran').selectOption({ label: 'Superadmin · wajib MFA · butuh persetujuan superadmin lain' })
+  await tugas.getByLabel('Dasar pemberian').fill('SK Direktur E2E/6')
+  await tugas.getByRole('button', { name: 'Tugaskan' }).click()
+  await expect(page.getByRole('status').filter({ hasText: /Penugasan Superadmin menunggu persetujuan Superadmin \(PSA-\d{4}-\d+\); belum berlaku/ })).toBeVisible()
+  const menunggu = page.getByRole('region', { name: /Menunggu persetujuan/ })
+  await expect(menunggu).toContainText('Tugaskan peran Superadmin ke Contoh Admin Data Induk')
+  // Belum berlaku: tidak ada di daftar penugasan berlaku.
+  await expect(page.getByRole('listitem').filter({ hasText: 'Superadmin' }).getByRole('button', { name: 'Akhiri' })).toHaveCount(0)
+  await menunggu.getByRole('button', { name: 'Tarik pengajuan' }).click()
+  const tarik = page.getByRole('alertdialog', { name: /Tarik pengajuan PSA-/ })
+  await tarik.getByLabel('Alasan menarik').fill('Uji e2e selesai')
+  await tarik.getByRole('button', { name: 'Tarik pengajuan' }).click()
+  await expect(menunggu).toHaveCount(0)
+})
+
+test('1440 px: kontrol ganda — superadmin A menambah izin sensitif, superadmin B menyetujui → berlaku di peran', async ({ page, browser }, info) => {
+  test.skip(!RAHASIA_SUPERADMIN_DUA, 'Set E2E_SUPERADMIN_DUA_MFA_RAHASIA sesuai AkunSintetisSeeder.')
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const kode = `${KODE_DASAR}_dua`
+  const nama = `${NAMA_DASAR} Kontrol Ganda`
+  await page.goto('/pengaturan/peran')
+  await page.getByRole('button', { name: 'Buat peran' }).click()
+  const buat = page.getByRole('dialog', { name: 'Buat peran' })
+  await buat.getByLabel('Kode peran').fill(kode)
+  await buat.getByLabel('Nama peran').fill(nama)
+  await buat.getByLabel('Dasar perubahan').fill('SK Direktur E2E/7')
+  await buat.getByRole('button', { name: 'Buat peran' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: nama })).toBeVisible()
+  await page.getByRole('searchbox', { name: 'Cari menu di matriks' }).fill('Akun & akses')
+  await page.getByRole('combobox', { name: 'Tingkat Pengaturan Sistem → Akun & akses' }).selectOption('perbaiki')
+  await page.getByRole('button', { name: 'Simpan perubahan' }).click()
+  const simpan = page.getByRole('alertdialog', { name: `Simpan perubahan izin ${nama}?` })
+  await simpan.getByLabel('Dasar perubahan').fill('SK Direktur E2E/8')
+  await simpan.getByRole('button', { name: 'Simpan perubahan' }).click()
+  await expect(page.getByRole('status').filter({ hasText: /2 izin sensitif menunggu persetujuan Superadmin/ })).toBeVisible()
+
+  const b = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'contoh.superadmin.dua', RAHASIA_SUPERADMIN_DUA)
+  await b.page.setViewportSize({ width: 1440, height: 900 })
+  await b.page.goto('/pengaturan/persetujuan')
+  const antrean = b.page.getByRole('region', { name: 'Perlu saya putuskan' })
+  for (const aksi of ['Input', 'Perbaiki']) {
+    await antrean.getByRole('button', { name: new RegExp(`Akun & akses → ${aksi} ke peran ${nama}`) }).click()
+    const rincian = b.page.getByRole('region', { name: new RegExp(`Akun & akses → ${aksi} ke peran ${nama}`) })
+    await expect(rincian).toContainText('Contoh Superadmin')
+    await rincian.getByRole('button', { name: 'Setujui' }).click()
+    const dialog = b.page.getByRole('dialog', { name: /Setujui PSA-/ })
+    await expect(dialog).toContainText('Perubahan langsung berlaku')
+    await dialog.getByLabel('Catatan (opsional)').fill('Sesuai SK Direktur')
+    await dialog.getByRole('button', { name: 'Setujui' }).click()
+    await expect(rincian.getByText('Sudah berlaku')).toBeVisible()
+  }
+  await b.tutup()
+
+  // Superadmin A: izin kini berlaku (tercentang, tidak lagi terkunci "menunggu").
+  await page.reload()
+  await page.getByRole('searchbox', { name: 'Cari menu di matriks' }).fill('Akun & akses')
+  const perbaiki = page.getByRole('checkbox', { name: 'Perbaiki Pengaturan Sistem → Akun & akses (sensitif)' })
+  await expect(perbaiki).toBeChecked()
+  await expect(perbaiki).toBeEnabled()
+})
+
+test('1440 px: kontrol ganda — penugasan dan pengakhiran peran Superadmin berlaku setelah disetujui superadmin lain', async ({ page, browser }, info) => {
+  test.skip(!RAHASIA_SUPERADMIN_DUA, 'Set E2E_SUPERADMIN_DUA_MFA_RAHASIA sesuai AkunSintetisSeeder.')
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const asal = new URL(info.project.use.baseURL ?? '').origin
+  const setujuiSemua = async (pola: RegExp) => {
+    const b = await halamanAkun(browser, asal, 'contoh.superadmin.dua', RAHASIA_SUPERADMIN_DUA)
+    await b.page.setViewportSize({ width: 1440, height: 900 })
+    await b.page.goto('/pengaturan/persetujuan')
+    await b.page.getByRole('region', { name: 'Perlu saya putuskan' }).getByRole('button', { name: pola }).first().click()
+    await b.page.getByRole('region', { name: pola }).getByRole('button', { name: 'Setujui' }).click()
+    await b.page.getByRole('dialog', { name: /Setujui PSA-/ }).getByRole('button', { name: 'Setujui' }).click()
+    await expect(b.page.getByRole('region', { name: pola }).getByText('Sudah berlaku')).toBeVisible()
+    await b.tutup()
+  }
+
+  await pilihAkun(page, 'contoh.tanpa.peran', 'Contoh Akun Tanpa Peran')
+  await page.getByRole('button', { name: 'Tugaskan peran' }).click()
+  const tugas = page.getByRole('dialog', { name: 'Tugaskan peran ke Contoh Akun Tanpa Peran' })
+  await tugas.getByLabel('Peran').selectOption({ label: 'Superadmin · wajib MFA · butuh persetujuan superadmin lain' })
+  await tugas.getByLabel('Dasar pemberian').fill('SK Direktur E2E/9')
+  await tugas.getByRole('button', { name: 'Tugaskan' }).click()
+  await expect(page.getByRole('status').filter({ hasText: /menunggu persetujuan Superadmin/ })).toBeVisible()
+  await setujuiSemua(/Tugaskan peran Superadmin ke Contoh Akun Tanpa Peran/)
+
+  await page.reload()
+  await pilihAkun(page, 'contoh.tanpa.peran', 'Contoh Akun Tanpa Peran')
+  const penugasan = page.getByRole('listitem').filter({ hasText: 'Superadmin' }).filter({ hasText: 'SK Direktur E2E/9' })
+  await expect(penugasan.getByRole('button', { name: 'Akhiri' })).toBeVisible()
+
+  // Tiga superadmin aktif → pengakhiran juga butuh persetujuan superadmin lain (202), lalu berlaku.
+  await penugasan.getByRole('button', { name: 'Akhiri' }).click()
+  const akhiri = page.getByRole('alertdialog', { name: /Akhiri penugasan Superadmin/ })
+  await akhiri.getByLabel('Alasan mengakhiri').fill('Uji e2e kontrol ganda selesai')
+  await akhiri.getByRole('button', { name: 'Akhiri' }).click()
+  await expect(page.getByRole('status').filter({ hasText: /Pengakhiran Superadmin menunggu persetujuan Superadmin/ })).toBeVisible()
+  await setujuiSemua(/Akhiri penugasan peran Superadmin untuk Contoh Akun Tanpa Peran/)
+
+  await page.reload()
+  await pilihAkun(page, 'contoh.tanpa.peran', 'Contoh Akun Tanpa Peran')
+  await expect(page.getByText('Belum ada peran yang berlaku.')).toBeVisible()
+})
+

@@ -6,7 +6,7 @@ import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
 import { formatTanggalWaktu } from '@/shared/utils/waktu'
 import { ambilPeran, gantiIzinPeran, type PeranBerversi } from '../../apiPengaturan'
-import { bandingkan, kodeDariRincian, labelIzin, periksa, type IndeksMatriks } from '../../matriks'
+import { bandingkan, kodeAksi, kodeDariRincian, labelIzin, periksa, type IndeksMatriks } from '../../matriks'
 import { errorKolom, KUNCI, pesanError } from '../../pengaturan'
 import DialogInfoPeran from './DialogInfoPeran.vue'
 import DialogSimpanIzin from './DialogSimpanIzin.vue'
@@ -14,7 +14,9 @@ import MatriksIzin from './MatriksIzin.vue'
 
 /**
  * Editor satu peran: matriks + simpan dengan ringkasan dan dasar (MD-2), If-Match dan penanganan 412 tanpa
- * membuang suntingan diam-diam, 409 butuh_persetujuan dan 422 menyorot node yang ditolak.
+ * membuang suntingan diam-diam, 422 (termasuk penyetuju_belum_ditetapkan) dan 409 butuh_persetujuan (backend lama)
+ * menyorot node yang ditolak. Sejak 1.2d izin sensitif baru menjadi persetujuan menunggu: izin itu tampil tercentang
+ * dan terkunci (dasar selisih = izin + izin_menunggu) dan selalu ikut dikirim (server idempoten).
  */
 const props = defineProps<{ peranId: string; indeks: IndeksMatriks }>()
 const emit = defineEmits<{ dibuat: [id: string] }>()
@@ -34,12 +36,33 @@ const peringatan = ref<string | null>(null)
 /** Versi server yang lebih baru dari dasar sementara ada suntingan (412, atau muat ulang latar). */
 const bentrok = ref<PeranBerversi | null>(null)
 
-const selisih = computed(() => (peran.value ? bandingkan(props.indeks, peran.value.izin, izin.value) : { ditambah: [], dicabut: [] }))
+/** Izin yang menunggu persetujuan, per kode. Tidak bisa dilepas dari matriks; ditarik lewat Persetujuan akses. */
+const menunggu = computed(() => new Map((peran.value?.izin_menunggu ?? []).map((m) => [m.kode, m])))
+/** Dasar selisih: izin berlaku + izin menunggu (keduanya tampil tercentang). */
+const basis = computed(() => (peran.value ? [...peran.value.izin, ...menunggu.value.keys()] : []))
+const selisih = computed(() => (peran.value ? bandingkan(props.indeks, basis.value, izin.value) : { ditambah: [], dicabut: [] }))
 const adaPerubahan = computed(() => selisih.value.ditambah.length + selisih.value.dicabut.length > 0)
+
+/**
+ * Izin menunggu beserta prasyaratnya (lihat node itu dan lihat sub-menu induk untuk bagian): tidak boleh terlepas lewat
+ * aksi berantai (mis. lihat induk dicabut), agar simpan tidak ditolak 422 lihat_wajib/induk_belum_diberikan.
+ */
+function denganMenunggu(himpunan: Iterable<string>, kodeMenunggu: Iterable<string>): Set<string> {
+  const hasil = new Set(himpunan)
+  for (const k of kodeMenunggu) {
+    hasil.add(k)
+    const b = props.indeks.perKode.get(k)?.baris
+    const lihat = b ? kodeAksi(b.node, 'lihat') : undefined
+    const lihatInduk = b?.subInduk ? kodeAksi(b.subInduk, 'lihat') : undefined
+    if (lihat) hasil.add(lihat)
+    if (lihatInduk) hasil.add(lihatInduk)
+  }
+  return hasil
+}
 
 function terapkanDasar(b: PeranBerversi, izinBaru: Set<string>) {
   dasar.value = b
-  izin.value = izinBaru
+  izin.value = denganMenunggu(izinBaru, (b.peran.izin_menunggu ?? []).map((m) => m.kode))
   sorot.value = new Set()
   errorEditor.value = null
   peringatan.value = null
@@ -70,17 +93,18 @@ const bacaSaja = computed(() => !peran.value?.dapat_disunting || !bolehUbah.valu
 defineExpose({ adaPerubahan })
 
 const KETERANGAN_KUNCI = {
-  peran_bawaan_terkunci: 'Peran bawaan sistem: isinya dikunci. Perubahan peran Superadmin memerlukan persetujuan superadmin lain (tersedia di tiket 1.2d).',
+  peran_bawaan_terkunci: 'Peran bawaan sistem: isinya dikunci dan tidak bisa diubah dari layar.',
   peran_sendiri: 'Anda memegang peran ini. Isi peran yang Anda pegang hanya bisa diubah superadmin lain (PRD 9.2.4).',
 } as const
 
 function ubahIzin(baru: Set<string>) {
-  izin.value = baru
+  // Izin menunggu (dan prasyaratnya) tidak bisa terlepas lewat aksi berantai (mis. lihat dicabut).
+  izin.value = denganMenunggu(baru, menunggu.value.keys())
   pesan.value = null
 }
 
 function batalkan() {
-  if (peran.value) izin.value = new Set(peran.value.izin)
+  if (peran.value) izin.value = new Set(basis.value)
   sorot.value = new Set()
   errorEditor.value = null
 }
@@ -91,8 +115,36 @@ const sibuk = ref(false)
 const errorDialog = ref<string | null>(null)
 const formSimpan = ref<InstanceType<typeof DialogSimpanIzin> | null>(null)
 
-function bukaSimpan() {
+/**
+ * Sebelum ringkasan simpan, periksa versi terbaru: tolak/tarik/kedaluwarsa tidak menaikkan versi peran, jadi izin yang
+ * tidak lagi menunggu harus dilepas dari suntingan — bila tidak, izin itu terkirim lagi dan diam-diam diajukan ulang.
+ * Versi berbeda (mis. disetujui orang lain) = bentrok seperti 412.
+ */
+async function bukaSimpan() {
   errorDialog.value = null
+  const lama = dasar.value
+  if (lama) {
+    try {
+      const segar = await ambilPeran(props.peranId)
+      if (segar.peran.versi !== lama.peran.versi) {
+        bentrok.value = segar
+        return
+      }
+      const masih = new Set((segar.peran.izin_menunggu ?? []).map((m) => m.kode))
+      const basi = (lama.peran.izin_menunggu ?? []).map((m) => m.kode).filter((k) => !masih.has(k))
+      if (basi.length) {
+        dasar.value = segar
+        qc.setQueryData(KUNCI.peran(props.peranId), segar)
+        const sisa = new Set(izin.value)
+        basi.forEach((k) => sisa.delete(k))
+        izin.value = sisa
+        peringatan.value = `Tidak lagi menunggu persetujuan (ditolak, ditarik, atau kedaluwarsa): ${basi.map((k) => labelIzin(props.indeks, k)).join('; ')}. Izin itu dilepas dari suntingan; centang lagi bila ingin mengajukan ulang, lalu simpan.`
+        return
+      }
+    } catch {
+      // Gagal memeriksa: tetap lanjut; server tetap memeriksa versi (412) saat simpan.
+    }
+  }
   dialogSimpan.value = true
 }
 
@@ -109,7 +161,12 @@ async function simpan(isian: { dasar_perubahan: string; alasan: string | null })
     // Menu "Lihat sebagai" akun pemegang peran ini ikut berubah.
     void qc.invalidateQueries({ queryKey: KUNCI.semuaAkun })
     const p = hasil.perubahan
-    pesan.value = `Izin ${hasil.peran.nama} tersimpan: ${p.ditambah.length} ditambah, ${p.dicabut.length} dicabut, ${p.akun_terdampak} akun terdampak.`
+    const tunggu = (p.menunggu_persetujuan ?? []).filter((x) => x.status === 'menunggu')
+    const penyetuju = [...new Set(tunggu.map((x) => x.penyetuju_peran?.nama ?? 'pemilik data'))].join(', ')
+    pesan.value =
+      `Izin ${hasil.peran.nama} tersimpan: ${p.ditambah.length} ditambah, ${p.dicabut.length} dicabut, ${p.akun_terdampak} akun terdampak.` +
+      (tunggu.length ? ` ${tunggu.length} izin sensitif menunggu persetujuan ${penyetuju} (${tunggu.map((x) => x.nomor).join(', ')}).` : '')
+    void qc.invalidateQueries({ queryKey: KUNCI.persetujuan })
     dialogSimpan.value = false
   } catch (e) {
     tanganiGagal(e)
@@ -140,6 +197,12 @@ function tanganiGagal(e: unknown) {
     sorot.value = new Set(kode)
     const daftar = kode.map((k) => labelIzin(props.indeks, k)).join('; ')
     errorEditor.value = `Tidak ada yang disimpan. Izin sensitif butuh persetujuan pemilik data${daftar ? `: ${daftar}` : ''}. Hapus centang izin itu untuk menyimpan sisanya.`
+    return
+  }
+  if (e.kode === 'penyetuju_belum_ditetapkan') {
+    dialogSimpan.value = false
+    sorot.value = new Set(kode)
+    errorEditor.value = `Tidak ada yang disimpan. ${e.message} Baris yang ditolak disorot di matriks.`
     return
   }
   if (['lihat_wajib', 'induk_belum_diberikan', 'izin_tidak_dikenal'].includes(e.kode)) {
@@ -302,7 +365,7 @@ function infoSelesai(hasil: PeranBerversi) {
         </div>
       </div>
 
-      <MatriksIzin :indeks="indeks" :izin="izin" :tersimpan="peran.izin" :baca-saja="bacaSaja" :sorot="sorot" @update:izin="ubahIzin" />
+      <MatriksIzin :indeks="indeks" :izin="izin" :tersimpan="basis" :baca-saja="bacaSaja" :sorot="sorot" :menunggu="menunggu" @update:izin="ubahIzin" />
 
       <DialogSimpanIzin
         ref="formSimpan"

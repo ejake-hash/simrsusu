@@ -8,6 +8,7 @@ import type { IndeksMatriks } from '../../matriks'
 import { bolehUbahAkun } from '../../pengaturan'
 import type { AkunRinci, IzinKhusus } from '../../tipePengaturan'
 import DialogAkhiri from './DialogAkhiri.vue'
+import DaftarMenunggu from './DaftarMenunggu.vue'
 import DialogIzinKhusus from './DialogIzinKhusus.vue'
 
 /**
@@ -57,6 +58,7 @@ async function akhiri(alasan: string) {
       <h3>Pengecualian per akun</h3>
       <button v-if="bolehTambah && indeks" type="button" class="tombol" @click="dialogTambah = true"><Ikon nama="tambah" :ukuran="16" />Tambah pengecualian</button>
     </div>
+    <DaftarMenunggu :daftar="akun.menunggu_persetujuan ?? []" :jenis="['izin_khusus']" @berubah="emit('berubah', $event)" />
     <ul v-if="berlaku.length" class="daftar-baris">
       <li v-for="k in berlaku" :key="k.id" class="baris">
         <div>
@@ -86,7 +88,7 @@ async function akhiri(alasan: string) {
       </ul>
     </details>
 
-    <DialogIzinKhusus v-if="indeks" v-model:open="dialogTambah" :akun-id="akun.id" :nama-akun="akun.nama" :indeks="indeks" @selesai="emit('berubah', 'Pengecualian disimpan.')" />
+    <DialogIzinKhusus v-if="indeks" v-model:open="dialogTambah" :akun-id="akun.id" :nama-akun="akun.nama" :indeks="indeks" @selesai="emit('berubah', $event)" />
     <DialogAkhiri v-model:open="dialogAkhiri" :judul="`Akhiri pengecualian ${diakhiri?.sasaran_label ?? ''}?`" :akibat="akibat(diakhiri)" :aksi="akhiri" />
   </div>
 </template>

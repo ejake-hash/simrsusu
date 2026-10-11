@@ -140,13 +140,14 @@ for (const [lebar, tinggi] of [
   })
 }
 
-test('akun tanpa master_data: halaman organisasi tidak ditemukan dan daftar unit ditolak server', async ({ browser }, info) => {
+test('akun tanpa master_data: Akses ditolak (1.2d) dan daftar unit ditolak server', async ({ browser }, info) => {
   const asal = asalDari(info.project.use.baseURL)
   const masuk = await browser.newContext({ baseURL: asal, storageState: { cookies: [], origins: [] } })
   await masukLewatApi(masuk.request, asal, 'contoh.dokter')
   const page = await masuk.newPage()
   await page.goto('/master-data/organisasi')
-  await expect(page.getByRole('heading', { level: 1, name: 'Halaman tidak ditemukan' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Akses ditolak' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Minta akses' })).toBeVisible()
   expect((await masuk.request.get('/api/v1/unit-organisasi?akar=true', { headers: { Accept: 'application/json', Origin: asal, Referer: `${asal}/` } })).status()).toBe(403)
   await masuk.close()
 })
