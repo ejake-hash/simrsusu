@@ -36,7 +36,21 @@ return [
         'batas_diam_perangkat_terdaftar_menit' => (int) env('AUTENTIKASI_BATAS_DIAM_PERANGKAT_TERDAFTAR_MENIT', 60),
     ],
 
+    // MFA TOTP (PRD 10.3.2, tiket 1.1b).
+    'mfa' => [
+        // CIDR jaringan RS, dipisah koma. Akses dari luar daftar ini wajib MFA walau wajib_mfa=false.
+        // Kosong = tidak ada alamat yang dianggap jaringan RS (semua wajib MFA), bukan sebaliknya.
+        'jaringan_rs' => array_values(array_filter(array_map('trim', explode(',', (string) env('AUTENTIKASI_MFA_JARINGAN_RS', ''))))),
+        'tantangan_menit' => (int) env('AUTENTIKASI_MFA_TANTANGAN_MENIT', 5),
+        // RFC 6238: kode periode sebelum/sesudah ikut diterima untuk selisih jam ponsel.
+        'toleransi_periode' => 1,
+        // Nama yang tampil di aplikasi autentikator; isi nama RS di produksi.
+        'penerbit' => env('AUTENTIKASI_MFA_PENERBIT', env('APP_NAME', 'SIMRS')),
+    ],
+
     // Hanya untuk AkunSintetisSeeder di lokal/staging; kosong = dibuat acak dan dicetak sekali.
     'akun_sintetis_sandi' => env('AKUN_SINTETIS_SANDI'),
+    // Rahasia TOTP sintetis (Base32) untuk akun contoh.mfa; kosong = dibuat acak dan dicetak sekali.
+    'akun_sintetis_mfa_rahasia' => env('AKUN_SINTETIS_MFA_RAHASIA'),
 
 ];

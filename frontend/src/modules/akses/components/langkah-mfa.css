@@ -1,0 +1,211 @@
+/* Gaya bersama langkah MFA (LangkahKodeMfa, LangkahDaftarMfa); nilai mengikuti LangkahSandi. */
+.label-atas {
+  margin: 0 0 10px;
+  color: var(--brand-600);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+h1 {
+  margin: 0 0 var(--space-2);
+  font-size: 26px;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+h1:focus {
+  outline: none;
+}
+.lead {
+  margin: 0 0 var(--space-6);
+  color: var(--muted);
+}
+
+.kembali {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--space-4);
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.kembali:hover {
+  color: var(--text);
+}
+.kembali:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: 4px;
+}
+
+.pesan {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  border-radius: var(--radius-input);
+  font-size: 13px;
+}
+.pesan svg {
+  flex: none;
+  margin-top: 2px;
+}
+.pesan-galat {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.field {
+  margin-bottom: var(--space-4);
+}
+label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: var(--font-weight-medium);
+}
+input[type='text'] {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  /* 16px di layar sentuh mencegah zoom otomatis iOS saat fokus. */
+  font-size: max(16px, var(--text-base));
+}
+@media (pointer: fine) {
+  input[type='text'] {
+    font-size: var(--text-base);
+  }
+}
+input[type='text']:hover {
+  border-color: var(--subtle);
+}
+input[type='text']:focus-visible {
+  outline: none;
+  border-color: var(--brand-600);
+  box-shadow: var(--ring);
+}
+input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+.kode {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3em;
+}
+.galat-field {
+  margin: 6px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+.petunjuk {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tautan {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand-600);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.tautan:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: 4px;
+}
+
+.tombol-utama {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: 44px;
+  margin-top: var(--space-6);
+  border: 0;
+  border-radius: var(--radius-input);
+  background: var(--brand-600);
+  color: var(--surface);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.tombol-utama:hover {
+  background: var(--brand-700);
+}
+.tombol-utama:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand-600);
+}
+.tombol-utama:disabled {
+  border: 1px solid var(--border-input);
+  background: var(--bg);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.tombol-utama.proses:disabled {
+  border: 0;
+  background: var(--brand-700);
+  color: var(--surface);
+  cursor: progress;
+}
+.tombol-kedua {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+.tombol-kedua:hover {
+  background: var(--bg);
+}
+.tombol-kedua:focus-visible {
+  outline: none;
+  border-color: var(--brand-600);
+  box-shadow: var(--ring);
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid color-mix(in srgb, currentColor 45%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: putar 0.7s linear infinite;
+}
+@keyframes putar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+}

@@ -1,7 +1,7 @@
 /**
  * Mesin status halaman masuk (PRD 10.3.2):
  *   sandi → (perlu_mfa → kode) | (perlu_daftar_mfa → pindai QR → konfirmasi → kode cadangan) → masuk
- * Langkah MFA (tiket 1.1b) disisipkan dengan menambah komponen langkah, tanpa mengubah halaman.
+ * Tiap status punya satu komponen langkah (MasukPage); langkah MFA dari tiket 1.1b.
  */
 
 export type MetodeMfa = 'totp' | 'kode_cadangan'
@@ -18,15 +18,14 @@ export type LangkahTampil = Exclude<Langkah, { status: 'masuk' }>
 export const LANGKAH_AWAL: LangkahTampil = { status: 'sandi' }
 
 /**
- * Langkah berikut dari respons 200 langkah sandi/MFA. Sampai tiket 1.1b merge, respons tanpa
- * `status` (bentuk lama `{data: …}`) berarti masuk. Status yang tidak dikenal ditolak, bukan
- * dianggap masuk.
+ * Langkah berikut dari respons 200 langkah sandi/MFA. Sejak tiket 1.1b `status` wajib ada; status
+ * yang tidak dikenal atau tidak ada ditolak, bukan dianggap masuk.
  */
 export function langkahDariRespons(isi: unknown): Langkah {
   const respons = (isi ?? {}) as Record<string, unknown>
   const status = respons.status
 
-  if (status === undefined || status === 'masuk') {
+  if (status === 'masuk') {
     return { status: 'masuk' }
   }
   if (status === 'perlu_mfa' && typeof respons.tantangan_id === 'string') {

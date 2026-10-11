@@ -4,16 +4,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { useSesiStore } from '@/app/sesi'
 import { LANGKAH_AWAL, tujuanSetelahMasuk, type Langkah, type LangkahTampil } from '../alurMasuk'
 import LangkahSandi from '../components/LangkahSandi.vue'
-import LangkahMfaBelumTersedia from '../components/LangkahMfaBelumTersedia.vue'
+import LangkahDaftarMfa from '../components/LangkahDaftarMfa.vue'
+import LangkahKodeMfa from '../components/LangkahKodeMfa.vue'
 
-/**
- * Halaman masuk sebagai mesin status PRD 10.3.2. Tiap status punya satu komponen langkah;
- * tiket 1.1b cukup mengganti komponen perlu_mfa dan perlu_daftar_mfa di tabel ini.
- */
+/** Halaman masuk sebagai mesin status PRD 10.3.2. Tiap status punya satu komponen langkah. */
 const KOMPONEN_LANGKAH: Record<LangkahTampil['status'], Component> = {
   sandi: LangkahSandi,
-  perlu_mfa: LangkahMfaBelumTersedia,
-  perlu_daftar_mfa: LangkahMfaBelumTersedia,
+  perlu_mfa: LangkahKodeMfa,
+  perlu_daftar_mfa: LangkahDaftarMfa,
 }
 
 const sesi = useSesiStore()

@@ -6,11 +6,11 @@ use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\GalatApi;
 use App\Modules\Akses\Application\AlasanGagalMasuk;
 use App\Modules\Akses\Application\GagalMasuk;
+use App\Modules\Akses\Application\KebijakanMfa;
 use App\Modules\Akses\Application\MasukPengguna;
-use App\Modules\Akses\Application\PendaftaranPerangkat;
-use App\Modules\Akses\Http\Middleware\SesiPengguna;
+use App\Modules\Akses\Application\TantanganMfa;
+use App\Modules\Akses\Application\VerifikasiMfa;
 use App\Modules\Akses\Http\Requests\MasukRequest;
-use App\Modules\Akses\Http\Resources\PenggunaResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -18,32 +18,53 @@ use Illuminate\Support\Facades\Auth;
 
 final class AutentikasiController
 {
-    public function masuk(MasukRequest $request, MasukPengguna $masuk, PendaftaranPerangkat $perangkat): JsonResponse
-    {
-        // Sesi hanya dimulai Sanctum untuk permintaan dari domain SPA (SANCTUM_STATEFUL_DOMAINS).
-        // Klien lain tidak melewati CSRF, jadi ditolak sebelum sandi diperiksa.
-        if (! $request->hasSession()) {
-            throw new GalatApi(403, 'asal_tidak_diizinkan', 'Masuk hanya bisa dari aplikasi SIMRS.');
-        }
+    /**
+     * Langkah 1 kontrak PRD 10.3.2: {status: masuk | perlu_mfa | perlu_daftar_mfa, …}.
+     */
+    public function masuk(
+        MasukRequest $request,
+        MasukPengguna $masuk,
+        KebijakanMfa $kebijakan,
+        TantanganMfa $tantangan,
+        VerifikasiMfa $mfa,
+        PenyelesaiMasuk $penyelesai,
+    ): JsonResponse {
+        PenyelesaiMasuk::pastikanDariSpa($request);
+        $tantangan->hapus($request->session());
 
         try {
             $pengguna = $masuk->jalankan($request->validated('nama_pengguna'), $request->validated('sandi'));
         } catch (GagalMasuk $e) {
             throw match ($e->alasan) {
                 AlasanGagalMasuk::KredensialSalah => new GalatApi(401, $e->alasan->value, 'Nama pengguna atau sandi salah.'),
-                // Sisa waktu kunci lewat Retry-After (detik), sama seperti respons 429 batas laju.
-                AlasanGagalMasuk::AkunTerkunci => new GalatApi(403, $e->alasan->value, 'Akun terkunci sementara karena terlalu banyak percobaan gagal. Coba lagi nanti atau hubungi admin.', [], [
-                    'Retry-After' => max(1, $e->terkunciSampai->getTimestamp() - now()->getTimestamp()),
-                ]),
+                AlasanGagalMasuk::AkunTerkunci => PenyelesaiMasuk::galatTerkunci($e->terkunciSampai),
                 AlasanGagalMasuk::AkunNonaktif => new GalatApi(403, $e->alasan->value, 'Akun tidak aktif. Hubungi admin.'),
             };
         }
 
-        Auth::guard('web')->login($pengguna);
-        $request->session()->regenerate();
-        SesiPengguna::mulai($request, $perangkat->terdaftar($request));
+        if (! $kebijakan->wajib($pengguna, $request->ip())) {
+            return response()->json($penyelesai->selesaikan($request, $pengguna));
+        }
 
-        return (new PenggunaResource($pengguna))->response();
+        // Sesi belum masuk sampai langkah MFA lolos; penghitung gagal juga belum direset.
+        if ($pengguna->mfaAktif()) {
+            $t = $tantangan->buat($request->session(), $pengguna, 'mfa');
+
+            return response()->json([
+                'status' => 'perlu_mfa',
+                'tantangan_id' => $t['id'],
+                'metode' => $mfa->punyaKodeCadangan($pengguna) ? ['totp', 'kode_cadangan'] : ['totp'],
+                'kedaluwarsa_pada' => $t['kedaluwarsa_pada']->toIso8601String(),
+            ]);
+        }
+
+        $t = $tantangan->buat($request->session(), $pengguna, 'daftar');
+
+        return response()->json([
+            'status' => 'perlu_daftar_mfa',
+            'tantangan_id' => $t['id'],
+            'kedaluwarsa_pada' => $t['kedaluwarsa_pada']->toIso8601String(),
+        ]);
     }
 
     public function keluar(Request $request, CatatAktivitas $audit): Response

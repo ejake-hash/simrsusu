@@ -8,7 +8,11 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
-/** Data sintetis saja. @extends Factory<Pengguna> */
+/**
+ * Data sintetis saja.
+ *
+ * @extends Factory<Pengguna>
+ */
 final class PenggunaFactory extends Factory
 {
     protected $model = Pengguna::class;

@@ -8,31 +8,21 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Mockery;
-use Tests\Support\CsrfTetapDiperiksa;
+use Tests\Support\KlienSpa;
 use Tests\TestCase;
 
-/**
- * Alur SPA apa adanya: cookie dibawa antar-permintaan, CSRF tetap diperiksa, dan guard serta
- * isi sesi di memori dibuang sebelum tiap permintaan (seperti permintaan HTTP baru).
- */
+/** Alur SPA apa adanya lewat KlienSpa (cookie, CSRF, sesi baru per permintaan). */
 class AutentikasiTest extends TestCase
 {
+    use KlienSpa;
+
     private const SANDI = 'kuda-lumping-biru-29';
-
-    private const ORIGIN = 'http://localhost:5173';
-
-    /** @var array<string, string> cookie mentah (terenkripsi) seperti di peramban */
-    private array $kue = [];
-
-    /** @var array<string, string> header tambahan untuk setiap permintaan berikutnya */
-    private array $headerTambahan = [];
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        config(['sanctum.middleware.validate_csrf_token' => CsrfTetapDiperiksa::class]);
-        $this->minta('GET', '/sanctum/csrf-cookie')->assertNoContent();
+        $this->mulaiSesiSpa();
     }
 
     public function test_masuk_berhasil_membuat_sesi_dan_mengembalikan_profil(): void
@@ -42,10 +32,13 @@ class AutentikasiTest extends TestCase
         $respons = $this->masuk($pengguna->nama_pengguna, self::SANDI);
 
         $respons->assertOk()
-            ->assertJsonPath('data.id', $pengguna->id)
-            ->assertJsonPath('data.nama_pengguna', $pengguna->nama_pengguna)
-            ->assertJsonPath('data.pegawai.id', $pengguna->pegawai_id)
-            ->assertJsonMissingPath('data.sandi_hash');
+            ->assertJsonPath('status', 'masuk')
+            ->assertJsonPath('pengguna.id', $pengguna->id)
+            ->assertJsonPath('pengguna.nama_pengguna', $pengguna->nama_pengguna)
+            ->assertJsonPath('pengguna.pegawai.id', $pengguna->pegawai_id)
+            ->assertJsonPath('pengguna.mfa_aktif', false)
+            ->assertJsonMissingPath('pengguna.sandi_hash')
+            ->assertJsonMissingPath('pengguna.mfa_rahasia_enkripsi');
 
         $kueSesi = $respons->getCookie(config('session.cookie'), false);
         $this->assertTrue($kueSesi->isHttpOnly());
@@ -310,32 +303,6 @@ class AutentikasiTest extends TestCase
     private function masuk(string $namaPengguna, string $sandi): TestResponse
     {
         return $this->minta('POST', '/api/v1/autentikasi/masuk', ['nama_pengguna' => $namaPengguna, 'sandi' => $sandi]);
-    }
-
-    private function minta(string $metode, string $uri, array $data = []): TestResponse
-    {
-        $this->app['auth']->forgetGuards();
-        $this->app['session']->driver()->flush();
-
-        $this->unencryptedCookies = $this->kue;
-        $this->defaultHeaders = array_filter([
-            'Origin' => self::ORIGIN,
-            'Referer' => self::ORIGIN.'/',
-            'X-XSRF-TOKEN' => $this->kue['XSRF-TOKEN'] ?? null,
-            ...$this->headerTambahan,
-        ]);
-
-        $respons = $this->withCredentials()->json($metode, $uri, $data);
-
-        foreach ($respons->headers->getCookies() as $kue) {
-            if ($kue->isCleared()) {
-                unset($this->kue[$kue->getName()]);
-            } else {
-                $this->kue[$kue->getName()] = $kue->getValue();
-            }
-        }
-
-        return $respons;
     }
 
     /** Nama header respons tanpa yang pasti berubah per permintaan (tanggal, cookie, sisa kuota laju). */

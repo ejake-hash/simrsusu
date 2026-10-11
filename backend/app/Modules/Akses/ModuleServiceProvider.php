@@ -43,5 +43,14 @@ class ModuleServiceProvider extends ServiceProvider
             Limit::perMinute((int) config('autentikasi.batas_laju.per_nama_pengguna_per_menit'))
                 ->by('nama:'.hash('sha256', mb_strtolower(trim((string) $request->input('nama_pengguna'))))),
         ]);
+
+        // Per sesi, bukan per nama pengguna: langkah MFA tidak membawa nama; tantangan terikat ke sesi.
+        RateLimiter::for('autentikasi-mfa', fn (Request $request) => [
+            Limit::perMinute((int) config('autentikasi.batas_laju.per_ip_per_menit'))
+                ->by('ip:'.$request->ip()),
+            Limit::perMinute((int) config('autentikasi.batas_laju.per_nama_pengguna_per_menit'))
+                // ID sesi asli, bukan nilai cookie: cookie terenkripsi ulang dengan IV baru tiap respons.
+                ->by('sesi:'.hash('sha256', $request->hasSession() ? $request->session()->getId() : (string) $request->ip())),
+        ]);
     }
 }

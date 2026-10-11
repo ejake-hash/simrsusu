@@ -122,6 +122,9 @@ jobs:
       # Sandi akun sintetis di database CI sekali pakai; bukan rahasia.
       AKUN_SINTETIS_SANDI: e2e-ci-sintetis-kuda-biru
       E2E_SANDI: e2e-ci-sintetis-kuda-biru
+      # Rahasia TOTP sintetis akun contoh.mfa (Base32), juga sekali pakai; bukan rahasia.
+      AKUN_SINTETIS_MFA_RAHASIA: KRSXG5CTMVRXEZLUKRSXG5CTMVRXEZLU
+      E2E_MFA_RAHASIA: KRSXG5CTMVRXEZLUKRSXG5CTMVRXEZLU
     steps:
       - uses: actions/checkout@v5
 

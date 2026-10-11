@@ -40,6 +40,7 @@ describe('useSesiStore.pastikan', () => {
       nama_pengguna: 'contoh.admisi',
       surel: null,
       login_terakhir_pada: null,
+      mfa_aktif: false,
       pegawai: null,
     })
     const sesi = useSesiStore()
