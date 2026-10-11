@@ -103,8 +103,8 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
 
 **Syarat sebelum go-live**
 - Uji beban penulisan audit: semua penulisan antre di satu kunci rantai sampai commit (ADR 0003, PRD 14.1) → tiket 1.12.
-- `AUDIT_JANGKAR_DISK` ke penyimpanan terpisah yang tidak bisa ditimpa (mis. MinIO object lock) dan channel log `audit_jangkar` ke SIEM (ADR 0003).
-- Cron `php artisan schedule:run` di server (partisi audit, jangkar per jam; ADR 0003).
+- `AUDIT_ANCHOR_DISK` ke penyimpanan terpisah yang tidak bisa ditimpa (mis. MinIO object lock) dan channel log `audit_anchor` ke SIEM (ADR 0003).
+- Cron `php artisan schedule:run` di server (partisi audit, anchor per jam; ADR 0003).
 - `AUTENTIKASI_MFA_JARINGAN_RS` diisi jaringan RS yang sebenarnya (PRD 10.3.2; ditegakkan di tiket 1.1c).
 - Daftar sandi bocor diperbarui dari SecLists terbaru (ADR 0001, `SUMBER.md`).
 
@@ -113,13 +113,13 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
 - Dependensi frontend tertinggal satu-dua versi mayor (per 11 Okt 2026): `vite` 6 → 8, `@vitejs/plugin-vue` 5 → 6, `typescript` 5.8 → 7, `vue-tsc` 2 → 3, `vue-router` 4 → 5, `@vue/tsconfig` 0.7 → 0.9. Naikkan dalam tiket sendiri, bukan sambil lalu.
 - Profil RS di frontend sementara dari variabel Vite (`VITE_RS_NAMA`, `VITE_RS_LOGO`, `VITE_RS_MOTIF`, `VITE_RS_FOTO`, `VITE_RS_UNIT_ADMIN`, `VITE_RS_KONTAK_ADMIN`; `frontend/src/app/profilRs.ts`). Nilai contoh RS USU hanya di `frontend/.env.development`; build produksi tanpa nilai ini tidak menampilkan kartu RS, motif, dan foto gedung. Ganti dengan `inti.profil_rs` lewat API di tiket 1.8a.
 - Dari library PRD 10.4, baru axios dan TanStack Query (1.2b) yang dipakai. VeeValidate + Zod dan Tailwind/Reka UI belum dipasang; pasang saat halaman pertama yang membutuhkannya, bukan sekaligus.
-- Hak akses 1.2a yang belum lengkap: `peran_menu.tingkat_akses/urutan_khusus/label_khusus` (PRD 11.2, layar 9.3) belum dibuat, aksi diambil dari `peran_izin`; cakupan `pasien_dirawat` belum dievaluasi (butuh relasi perawatan); `inti.modul_aktif.unit_organisasi_id` belum berkunci tamu dan modul per unit belum dipakai (menunggu `inti.unit_organisasi`); larangan memberi akses ke diri sendiri dikerjakan di 1.2c-be; persetujuan pemilik data untuk izin sensitif dan perubahan peran superadmin di 1.2d (sampai itu ditolak dengan 409 `butuh_persetujuan`/`peran_bawaan_terkunci`, bukan disimpan diam-diam).
+- Hak akses 1.2a yang belum lengkap: `peran_menu.tingkat_akses/urutan_khusus/label_khusus` (PRD 11.2, layar 9.3) belum dibuat, aksi diambil dari `peran_izin`; cakupan `pasien_dirawat` belum dievaluasi (butuh relasi perawatan); `inti.modul_aktif.unit_organisasi_id` belum berkunci tamu dan modul per unit belum dipakai (menunggu `inti.unit_organisasi`, tiket 1.8a); larangan memberi akses ke diri sendiri dikerjakan di 1.2c-be; persetujuan pemilik data untuk izin sensitif dan perubahan peran superadmin di 1.2d (sampai itu ditolak dengan 409 `butuh_persetujuan`/`peran_bawaan_terkunci`, bukan disimpan diam-diam).
 - Sesudah 1.0g: worktree yang dibuat sebelum #29 merge (mis. 1.2c-fe) perlu rebase ke `main` dan mengganti `GalatApi`/`galat` → `ApiError`/`error`, `lencana` → `jumlah_tugas`, `tantangan_id` → `challenge_id`, rute `/data-induk` → `/master-data`, ikon `data_induk` → `master_data`; `.env` lokal mengganti variabel yang berganti nama (daftar di PR #29). Berkas anchor audit lokal lama ada di `storage/app/audit/jangkar`: pindahkan isinya ke `storage/app/audit/anchor` bila ingin tetap diverifikasi.
 - Teks yang sengaja masih memuat istilah lama: migrasi yang sudah berjalan (sejarah, maju saja), ADR 0003 (diberi catatan nama baru), `docs/fase0/`, prototipe `docs/html/`, badan tiket lama di backlog, dan bagian "Kerja berkelanjutan" di CLAUDE.md (teks disetujui pemilik repo apa adanya).
 - Nama ikon yang dikenal frontend = kode menu prototipe (`frontend/src/design-system/ikon/ikon.ts`: `beranda`, `pendaftaran`, `igd`, `rawat_jalan`, `rawat_inap`, `kamar_operasi`, `penunjang`, `farmasi`, `rekam_medis`, `kasir`, `casemix`, `mutu`, `sdm`, `logistik`, `penelitian`, `pendidikan`, `integrasi`, `dasbor`, `master_data`, `pengaturan`). Seeder menu 1.2a memakai nama ini; nama lain tampil sebagai ikon umum.
 - Sidebar ringkas 64 px (tablet mendatar) tidak menampilkan sub-menu. Halaman induk setiap modul wajib menampilkan navigasi sub-menunya sendiri (komponen bersama dibuat di 1.2c-fe, wajib dipakai modul berikutnya).
 - Pemilih unit kerja dan lonceng notifikasi di header prototipe belum dibuat: unit kerja menunggu `inti.unit_organisasi` (tiket 1.8a; cakupan penugasan per unit sudah ada sejak 1.2a), notifikasi di tiket 1.7.
-- Tombol, kolom isian, dan pesan galat di halaman masuk masih ditulis per komponen (`LangkahSandi.vue` dan `components/langkah-mfa.css` bergaya sama). Pindahkan ke `frontend/src/design-system/` saat komponen dasar dibuat (DESIGN.md) → tiket 1.11.
+- Tombol, kolom isian, dan pesan error di halaman masuk masih ditulis per komponen (`LangkahSandi.vue` dan `components/langkah-mfa.css` bergaya sama). Pindahkan ke `frontend/src/design-system/` saat komponen dasar dibuat (DESIGN.md) → tiket 1.11.
 
 Branch `lampiran/pr-1.4b` berisi gambar yang dirujuk deskripsi PR #10; jangan dihapus selama gambar itu masih dibutuhkan.
 
@@ -809,7 +809,7 @@ API (be)   : GET /integrasi/sistem (status per sistem: lingkungan, kredensial te
              POST /integrasi/sistem/{kode}/uji-koneksi, GET /integrasi/kotak-keluar (kursor; filter status/tujuan),
              POST /integrasi/kotak-keluar/{id}/kirim-ulang, GET /integrasi/log (dengan masking)
 Pekerjaan  :
-  be 1. Outbox integrasi.kotak_keluar (partisi) + worker queue `integrasi`: idempotency key, retry eksponensial
+  be 1. Outbox integrasi.kotak_keluar (partisi) + pekerja queue `integrasi`: idempotency key, retry eksponensial
         dengan batas, status tertahan bila data induk kurang (dengan penyebab dan pemilik unit, FR-49-04), kirim
         ulang otomatis setelah data induk diperbaiki (FR-49-05). Circuit breaker per sistem.
      2. Kredensial sesuai K9; lingkungan sandbox/produksi per sistem; perintah konsol untuk rotasi kunci.
