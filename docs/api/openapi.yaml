@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.2.3
+  version: 0.3.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -10,7 +10,7 @@ info:
     Endpoint autentikasi dan MFA: PRD 10.3.2 (belum dipindah ke berkas ini; bentuk `pengguna` di respons masuk = skema Saya).
     Kode error umum: belum_masuk (401), akses_ditolak (403), csrf_tidak_valid (403), tidak_ditemukan (404),
     validasi_gagal (422), ukuran_halaman_melebihi_batas (422), kursor_tidak_valid (422), versi_berubah (412),
-    if_match_wajib (428), terlalu_banyak_permintaan (429).
+    if_match_wajib (428), terlalu_banyak_permintaan (429). Sesi berakhir (401): sesi_kedaluwarsa, sesi_dicabut (ADR 0002).
     v0.2.0: Pengaturan Sistem → Peran & Izin, Akun & Akses (tiket 1.2c); kode menu data_induk.peran/akun → pengaturan.peran/akun.
     v0.2.1: istilah umum (tiket 1.0g, PRD 10.3.3): skema dan kunci respons `error`, field menu `jumlah_tugas`,
     kode menu `master_data`.
@@ -18,6 +18,8 @@ info:
     saat mengakhiri penugasan superadmin, 403 `akun_superadmin` pada semua perubahan /akun/{id}/* atas akun superadmin oleh
     bukan superadmin (PRD 9.2.4), AkunRinci.dapat_diubah/alasan_terkunci, bentuk `rincian` error matriks, arti `versi` peran.
     v0.2.3: GET /saya pindah ke berkas ini (tiket 1.2e, Beranda): peran berlaku, masuk sebelumnya; email tidak dikirim.
+    v0.3.0: Profil RS, unit organisasi, KSM (tiket 1.8a): /profil-rs (publik terbatas + `rinci` sesuai izin, berkas
+    identitas), /unit-organisasi, /ksm; cakupan penugasan `unit` didukung.
 servers:
   - url: /api/v1
 security:
@@ -378,7 +380,8 @@ paths:
         - 409 `peran_bawaan_terkunci`: peran superadmin hanya lewat konsol sampai tiket 1.2d (persetujuan superadmin lain).
         - 409 `peran_nonaktif`, 409 `penugasan_ganda` (peran dan cakupan yang sama masih aktif).
         - 409 `butuh_persetujuan`: peran memuat izin sensitif (PRD 9.2.4; alur persetujuan di tiket 1.2d).
-        - 422 `cakupan_belum_didukung`: selain `rs` menunggu inti.unit_organisasi dan relasi perawatan.
+        - 422 `cakupan_belum_didukung`: selain `rs` dan `unit` (unit sejak tiket 1.8a) menunggu data lokasi/KSM/depo dan relasi perawatan.
+        - 422 `cakupan_tidak_valid`: `unit` tanpa `cakupan_id`, unit tidak ada, atau unit nonaktif; `rs` dengan `cakupan_id`.
       requestBody:
         required: true
         content:
@@ -556,6 +559,343 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # Profil RS, unit organisasi, KSM (tiket 1.8a; PRD 3.4, FR-54-08 langkah 2–3, 11.2 inti.profil_rs, unit_organisasi, ksm)
+  # Izin: pengaturan.profil_rs.{lihat,perbaiki}; master_data.organisasi.{lihat,input,perbaiki} untuk unit dan KSM.
+  # Tidak ada DELETE: unit dan KSM dinonaktifkan lewat status. Perubahan: audit catat() dengan sebelum/sesudah.
+  # ---------------------------------------------------------------------------
+  /profil-rs:
+    get:
+      operationId: profilRs
+      summary: Profil dan paket identitas RS; publik terbatas untuk halaman masuk, lengkap bagi pemegang izin
+      description: |
+        Tanpa sesi boleh (halaman masuk, pita DEMO di setiap layar). Bagian `rinci` hanya dikirim bila pemanggil
+        sudah masuk dan punya izin pengaturan.profil_rs.lihat (data yang tidak diizinkan tidak dikirim server).
+        Respons di-cache publik singkat dan memakai ETag dari `versi`; instalasi kosong (belum disiapkan) tetap 200
+        dengan nilai kosong dan `paket_identitas` bawaan produk.
+      security: [{}, { sesiCookie: [] }]
+      parameters:
+        - in: header
+          name: If-None-Match
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Profil RS
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ProfilRs' }
+        '304': { description: Tidak berubah sejak versi di If-None-Match }
+        '429': { $ref: '#/components/responses/Error' }
+    put:
+      operationId: ubahProfilRs
+      summary: Ubah profil RS dan warna paket identitas (FR-54-08 langkah 2)
+      description: |
+        Izin: pengaturan.profil_rs.perbaiki. Wajib If-Match (`versi`). Ganti utuh isian di bawah; berkas gambar lewat
+        PUT /profil-rs/berkas/{jenis}.
+        Kontras warna (FR-54-08 langkah 2), 422 `kontras_kurang` dengan `rincian` = `{kolom, rasio, minimal, pesan}`:
+        - `warna.brand` dipakai sebagai teks/tautan di latar putih dan latar tombol bertulisan putih: kontras dengan
+          putih ≥ 4,5:1.
+        - `warna.accent` dipakai hanya sebagai isian (garis penanda, badge, aksen; PRD 5.3.2 aturan 2): teks di atas
+          isian itu (hitam `#1D1D1B` atau putih, mana yang lebih kontras) ≥ 3:1. Interpretasi "isian < 3:1"
+          FR-54-08; perlu konfirmasi pemilik produk.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianProfilRs' }
+      responses:
+        '200':
+          description: Profil sesudah diubah (dengan `rinci`)
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/ProfilRs' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /profil-rs/berkas/{jenis}:
+    parameters:
+      - in: path
+        name: jenis
+        required: true
+        schema: { type: string, enum: [logo, motif, foto] }
+    get:
+      operationId: berkasProfilRs
+      summary: Berkas gambar paket identitas (publik, untuk halaman masuk dan kop layar)
+      description: |
+        Tanpa sesi boleh. Dikirim dari object storage (MinIO) dengan Content-Type hasil pemeriksaan saat unggah,
+        `X-Content-Type-Options: nosniff`, dan untuk SVG `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'`.
+        URL di ProfilRs memuat versi berkas, jadi boleh di-cache lama. 404 bila belum diunggah.
+      security: [{}]
+      responses:
+        '200':
+          description: Isi berkas
+          content:
+            image/svg+xml: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+        '404': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+    put:
+      operationId: unggahBerkasProfilRs
+      summary: Unggah atau ganti logo, motif, atau foto gedung
+      description: |
+        Izin: pengaturan.profil_rs.perbaiki. Wajib If-Match (`versi` profil). multipart/form-data, satu berkas `berkas`.
+        Tipe diperiksa dari isi berkas, bukan nama atau Content-Type kiriman (422 `tipe_berkas_tidak_diizinkan`):
+        logo dan motif: SVG atau PNG; foto: WebP, JPEG, atau PNG. Batas ukuran per jenis di konfigurasi
+        (bawaan logo 200 KB, motif 500 KB, foto 2 MB; 422 `berkas_terlalu_besar`). SVG berisi skrip, handler
+        `on*`, `foreignObject`, atau rujukan eksternal ditolak (422 `berkas_tidak_aman`). Berkas lama tetap
+        tersimpan (tidak dihapus); profil menunjuk berkas baru.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [berkas]
+              properties:
+                berkas: { type: string, format: binary }
+      responses:
+        '200':
+          description: Profil sesudah berkas diganti (dengan `rinci`)
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/ProfilRs' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /unit-organisasi:
+    get:
+      operationId: daftarUnitOrganisasi
+      summary: Daftar unit organisasi (paginasi kursor), per induk untuk pohon yang dimuat bertahap
+      description: |
+        Izin: master_data.organisasi.lihat, kecuali `milik_saya=true`.
+        - `induk_id` kosong + `akar=true` → unit tingkat teratas; `induk_id=<id>` → anak langsung unit itu.
+          Tiap baris membawa `jumlah_anak` agar pohon tahu node mana yang bisa dibuka.
+        - `milik_saya=true` → unit dari penugasan akun yang sedang masuk ber-cakupan `unit` yang berlaku
+          (pemilih unit kerja di header); boleh untuk semua akun yang masuk, filter lain diabaikan.
+        Urut: kode.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: induk_id, schema: { type: string, format: uuid } }
+        - { in: query, name: akar, schema: { type: boolean } }
+        - { in: query, name: cari, schema: { type: string, maxLength: 100 }, description: "Cocok sebagian pada kode atau nama (seluruh pohon)" }
+        - { in: query, name: jenis, schema: { $ref: '#/components/schemas/JenisUnit' } }
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
+        - { in: query, name: milik_saya, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Satu halaman unit
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/UnitOrganisasi' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatUnitOrganisasi
+      summary: Tambah unit organisasi
+      description: |
+        Izin: master_data.organisasi.input. 409 `kode_sudah_dipakai` (kode unik di seluruh RS);
+        422 `induk_tidak_aktif` bila induk nonaktif.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianUnitOrganisasi' }
+      responses:
+        '201':
+          description: Unit dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/UnitOrganisasi' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /unit-organisasi/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciUnitOrganisasi
+      summary: Rincian unit beserta jalur induknya
+      description: "Izin: master_data.organisasi.lihat. ETag = `versi`."
+      responses:
+        '200':
+          description: Rincian unit
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/UnitOrganisasi' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: ubahUnitOrganisasi
+      summary: Ubah, pindah induk, atau nonaktifkan unit
+      description: |
+        Izin: master_data.organisasi.perbaiki. Wajib If-Match. Kirim minimal satu isian selain `dasar_perubahan`.
+        - 422 `siklus`: induk baru adalah unit itu sendiri atau turunannya.
+        - 409 `unit_masih_dipakai`: menonaktifkan unit yang masih punya anak aktif atau penugasan ber-cakupan unit itu
+          yang berlaku; `rincian` = `{jumlah_anak_aktif, jumlah_penugasan}`.
+        - 409 `kode_sudah_dipakai`.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              properties:
+                induk_id: { type: [string, 'null'], format: uuid }
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 2, maxLength: 150 }
+                jenis: { $ref: '#/components/schemas/JenisUnit' }
+                status: { type: string, enum: [aktif, nonaktif] }
+                berlaku_dari: { type: string, format: date }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Unit sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/UnitOrganisasi' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /ksm:
+    get:
+      operationId: daftarKsm
+      summary: Daftar Kelompok Staf Medis (paginasi kursor)
+      description: "Izin: master_data.organisasi.lihat. Urut: kode."
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: cari, schema: { type: string, maxLength: 100 }, description: "Cocok sebagian pada kode atau nama" }
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
+      responses:
+        '200':
+          description: Satu halaman KSM
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Ksm' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatKsm
+      summary: Tambah KSM
+      description: "Izin: master_data.organisasi.input. 409 `kode_sudah_dipakai`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kode, nama, dasar_perubahan]
+              properties:
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 2, maxLength: 150 }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '201':
+          description: KSM dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Ksm' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /ksm/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciKsm
+      summary: Rincian KSM
+      description: "Izin: master_data.organisasi.lihat. ETag = `versi`."
+      responses:
+        '200':
+          description: Rincian KSM
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Ksm' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: ubahKsm
+      summary: Ubah atau nonaktifkan KSM
+      description: |
+        Izin: master_data.organisasi.perbaiki. Wajib If-Match. Kirim minimal satu isian selain `dasar_perubahan`.
+        409 `kode_sudah_dipakai`; 409 `ksm_masih_dipakai` bila dinonaktifkan selagi ada penugasan ber-cakupan KSM itu yang berlaku.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              properties:
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 2, maxLength: 150 }
+                status: { type: string, enum: [aktif, nonaktif] }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: KSM sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Ksm' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -637,6 +977,131 @@ components:
         masuk_sebelumnya_dari_jaringan_rs:
           type: [boolean, 'null']
           description: "Apakah masuk sebelumnya dari jaringan RS (AUTENTIKASI_MFA_JARINGAN_RS). null = tidak diketahui: masuk pertama, atau masuk sebelumnya terjadi sebelum fitur ini ada."
+    WarnaHex:
+      type: string
+      pattern: '^#[0-9A-Fa-f]{6}$'
+      examples: ['#006937']
+    KodeData:
+      type: string
+      pattern: '^[A-Z0-9][A-Z0-9._-]{0,29}$'
+      description: "Kode singkat huruf besar/angka, mis. IRNA, IGD-01"
+    ProfilRs:
+      type: object
+      required: [versi, nama, singkatan, paket_identitas, kontak_admin, instalasi_demo]
+      properties:
+        versi: { type: string, description: "Sama dengan ETag; berubah setiap profil atau berkas diganti" }
+        nama: { type: [string, 'null'], description: "Nama resmi RS; null = belum disiapkan (kartu RS tidak tampil)" }
+        singkatan: { type: [string, 'null'], examples: ['RS USU'] }
+        paket_identitas:
+          type: object
+          required: [warna, logo_url, motif_url, foto_url]
+          properties:
+            warna:
+              type: object
+              required: [brand, accent]
+              description: "Dasar token --brand-600 dan --accent (PRD 5.3); turunan warna dihitung frontend. Bawaan = paket produk."
+              properties:
+                brand: { $ref: '#/components/schemas/WarnaHex' }
+                accent: { $ref: '#/components/schemas/WarnaHex' }
+            logo_url: { type: [string, 'null'], description: "Path relatif ke GET /profil-rs/berkas/logo dengan versi berkas; null = belum ada" }
+            motif_url: { type: [string, 'null'], description: "Hanya untuk halaman masuk, layar tunggu, dan cetak (PRD 5.3.2 aturan 4)" }
+            foto_url: { type: [string, 'null'] }
+        kontak_admin:
+          type: object
+          required: [unit, kontak]
+          description: "Untuk teks halaman masuk dan Beranda (lupa sandi, akun terkunci, 'Bukan Anda?')"
+          properties:
+            unit: { type: string, description: "Bawaan \"admin SIMRS\"" }
+            kontak: { type: [string, 'null'], examples: ['ext. 1234'] }
+        instalasi_demo:
+          type: boolean
+          description: "Instalasi demo/pelatihan berisi data sintetis (FR-54-10): pita \"DEMO — data fiktif\" di setiap layar, termasuk halaman masuk. Ditetapkan saat pemasangan di server, tidak bisa diubah dari layar."
+        rinci:
+          type: object
+          description: "Hanya untuk pemegang izin pengaturan.profil_rs.lihat; tidak dikirim tanpa sesi atau tanpa izin."
+          required: [kode_kemenkes, kelas, status_blu, kode_ppk_bpjs, alamat, status_penyiapan, diubah_pada]
+          properties:
+            kode_kemenkes: { type: [string, 'null'], maxLength: 20 }
+            kelas: { type: [string, 'null'], enum: [A, B, C, D, null] }
+            status_blu: { type: [boolean, 'null'] }
+            kode_ppk_bpjs: { type: [string, 'null'], maxLength: 20 }
+            alamat: { type: [string, 'null'], maxLength: 500 }
+            status_penyiapan: { type: string, enum: [belum, sebagian, selesai], description: "Langkah 2 wizard (FR-54-08); rinci per langkah di tiket 1.8f" }
+            diubah_pada: { type: [string, 'null'], format: date-time }
+    IsianProfilRs:
+      type: object
+      required: [nama, singkatan, kode_kemenkes, kelas, status_blu, kode_ppk_bpjs, alamat, warna, kontak_admin, dasar_perubahan]
+      properties:
+        nama: { type: string, minLength: 3, maxLength: 200 }
+        singkatan: { type: [string, 'null'], maxLength: 30 }
+        kode_kemenkes: { type: [string, 'null'], maxLength: 20 }
+        kelas: { type: [string, 'null'], enum: [A, B, C, D, null] }
+        status_blu: { type: [boolean, 'null'] }
+        kode_ppk_bpjs: { type: [string, 'null'], maxLength: 20 }
+        alamat: { type: [string, 'null'], maxLength: 500 }
+        warna:
+          type: object
+          required: [brand, accent]
+          properties:
+            brand: { $ref: '#/components/schemas/WarnaHex' }
+            accent: { $ref: '#/components/schemas/WarnaHex' }
+        kontak_admin:
+          type: object
+          required: [unit, kontak]
+          properties:
+            unit: { type: string, minLength: 2, maxLength: 100 }
+            kontak: { type: [string, 'null'], maxLength: 100 }
+        dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+    JenisUnit:
+      type: string
+      enum: [instalasi, bidang, bagian, ruang, poli, depo]
+      description: "PRD 11.2 inti.unit_organisasi.jenis"
+    UnitOrganisasi:
+      type: object
+      required: [id, induk_id, kode, nama, jenis, status, berlaku_dari, kepala, jumlah_anak, jalur, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        induk_id: { type: [string, 'null'], format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+        jenis: { $ref: '#/components/schemas/JenisUnit' }
+        status: { type: string, enum: [aktif, nonaktif] }
+        berlaku_dari: { type: string, format: date }
+        kepala: { $ref: '#/components/schemas/Pelaku', description: "Kepala unit dari data pegawai; null sampai tiket 1.8d" }
+        jumlah_anak: { type: integer, minimum: 0, description: "Anak langsung (aktif dan nonaktif)" }
+        jalur:
+          type: array
+          description: "Induk dari akar sampai induk langsung, untuk breadcrumb"
+          items:
+            type: object
+            required: [id, kode, nama]
+            properties:
+              id: { type: string, format: uuid }
+              kode: { type: string }
+              nama: { type: string }
+        versi: { type: string, description: "Sama dengan ETag" }
+        diubah_pada: { type: string, format: date-time }
+    IsianUnitOrganisasi:
+      type: object
+      required: [induk_id, kode, nama, jenis, dasar_perubahan]
+      properties:
+        induk_id: { type: [string, 'null'], format: uuid, description: "null = unit tingkat teratas" }
+        kode: { $ref: '#/components/schemas/KodeData' }
+        nama: { type: string, minLength: 2, maxLength: 150 }
+        jenis: { $ref: '#/components/schemas/JenisUnit' }
+        berlaku_dari: { type: [string, 'null'], format: date, description: "Kosong = hari ini (zona waktu RS)" }
+        dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+    Ksm:
+      type: object
+      required: [id, kode, nama, status, ketua, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+        status: { type: string, enum: [aktif, nonaktif] }
+        ketua: { $ref: '#/components/schemas/Pelaku', description: "Ketua KSM dari data pegawai; null sampai tiket 1.8d" }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
     StatusMenu:
       type: string
       enum: [aktif, segera]
@@ -702,7 +1167,7 @@ components:
     CakupanJenis:
       type: string
       enum: [rs, unit, ruang, poli, ksm, depo, pasien_dirawat]
-      description: "Tiket 1.2c hanya menerima `rs`; lainnya 422 cakupan_belum_didukung"
+      description: "Diterima: `rs` (cakupan_id kosong) dan `unit` (cakupan_id = unit aktif, tiket 1.8a; unit induk mencakup turunannya). Lainnya 422 cakupan_belum_didukung"
     JenisAksi:
       type: string
       enum: [lihat, input, perbaiki, sahkan, verifikasi, setujui, batal, ekspor, cetak, lihat_rupiah]
