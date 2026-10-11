@@ -31,16 +31,17 @@ final class KelolaAksesAkun
     public function __construct(
         private readonly CatatAktivitas $audit,
         private readonly PenjagaPenyunting $penjaga,
+        private readonly DataUnit $dataUnit,
     ) {}
 
-    /** @param  array{peran_id: string, cakupan_jenis: string, berlaku_dari?: string|null, berlaku_sampai?: string|null, dasar_pemberian: string, alasan?: string|null}  $isi */
+    /** @param  array{peran_id: string, cakupan_jenis: string, cakupan_id?: string|null, berlaku_dari?: string|null, berlaku_sampai?: string|null, dasar_pemberian: string, alasan?: string|null}  $isi */
     public function tugaskan(Pengguna $penyunting, Pengguna $akun, array $isi): PenggunaPeran
     {
         $this->penjaga->pastikanBolehMengubahAkun($penyunting, $akun);
-        $this->pastikanCakupanRs($isi['cakupan_jenis']);
+        $cakupanId = $this->pastikanCakupan($isi['cakupan_jenis'], $isi['cakupan_id'] ?? null);
         [$dari, $sampai] = $this->masaBerlaku($isi);
 
-        return DB::transaction(function () use ($penyunting, $akun, $isi, $dari, $sampai) {
+        return DB::transaction(function () use ($penyunting, $akun, $isi, $dari, $sampai, $cakupanId) {
             // Penugasan bersamaan ke akun yang sama tidak boleh sama-sama lolos cek ganda di bawah.
             Pengguna::query()->whereKey($akun->id)->lockForUpdate()->first();
             // Dikunci: penonaktifan peran yang bersamaan tidak bisa lolos dari cek status di bawah.
@@ -56,13 +57,14 @@ final class KelolaAksesAkun
                 throw new ApiError(409, 'butuh_persetujuan', 'Peran ini memuat izin sensitif; penugasannya butuh persetujuan pemilik data.');
             }
             $ganda = PenggunaPeran::query()->where('pengguna_id', $akun->id)->where('peran_id', $peran->id)
-                ->where('cakupan_jenis', $isi['cakupan_jenis'])->whereNull('cakupan_id');
+                ->where('cakupan_jenis', $isi['cakupan_jenis'])
+                ->when($cakupanId, fn ($q, $id) => $q->where('cakupan_id', $id), fn ($q) => $q->whereNull('cakupan_id'));
             if ($ganda->masihAktif()->exists()) {
                 throw new ApiError(409, 'penugasan_ganda', 'Akun ini sudah punya penugasan aktif untuk peran dan cakupan yang sama.');
             }
 
             $penugasan = new PenggunaPeran([
-                'pengguna_id' => $akun->id, 'peran_id' => $peran->id, 'cakupan_jenis' => $isi['cakupan_jenis'],
+                'pengguna_id' => $akun->id, 'peran_id' => $peran->id, 'cakupan_jenis' => $isi['cakupan_jenis'], 'cakupan_id' => $cakupanId,
                 'berlaku_dari' => $dari, 'berlaku_sampai' => $sampai,
                 'dasar_pemberian' => $isi['dasar_pemberian'], 'alasan' => $isi['alasan'] ?? null, 'diberikan_oleh' => $penyunting->id,
             ]);
@@ -214,13 +216,21 @@ final class KelolaAksesAkun
         });
     }
 
-    private function pastikanCakupanRs(string $jenis): void
+    /** Cakupan yang didukung: seluruh RS, atau unit aktif (tiket 1.8a). @return string|null cakupan_id */
+    private function pastikanCakupan(string $jenis, ?string $id): ?string
     {
-        if ($jenis !== 'rs') {
-            throw new ApiError(422, 'cakupan_belum_didukung', 'Untuk saat ini hanya cakupan seluruh RS. Cakupan lain menunggu data unit.', [
-                ['kolom' => 'cakupan_jenis', 'pesan' => 'Hanya cakupan seluruh RS yang didukung.'],
+        if (! in_array($jenis, ['rs', 'unit'], true)) {
+            throw new ApiError(422, 'cakupan_belum_didukung', 'Cakupan ini belum didukung. Pilih seluruh RS atau sebuah unit.', [
+                ['kolom' => 'cakupan_jenis', 'pesan' => 'Hanya cakupan seluruh RS atau unit yang didukung.'],
             ]);
         }
+        if (($jenis === 'rs') !== ($id === null) || ($jenis === 'unit' && ! $this->dataUnit->aktif((string) $id))) {
+            throw new ApiError(422, 'cakupan_tidak_valid', 'Cakupan tidak valid.', [
+                ['kolom' => 'cakupan_id', 'pesan' => $jenis === 'rs' ? 'Seluruh RS tidak memakai unit.' : 'Pilih unit yang ada dan aktif.'],
+            ]);
+        }
+
+        return $id;
     }
 
     /**

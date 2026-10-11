@@ -2,12 +2,15 @@
 
 namespace App\Modules\Akses;
 
+use App\Core\Http\PenggunaSesi;
 use App\Modules\Akses\Application\AccessEvaluator;
 use App\Modules\Akses\Application\PendaftaranPerangkat;
 use App\Modules\Akses\Application\SandiTidakBocor;
 use App\Modules\Akses\Console\BuatSuperadminPertama;
 use App\Modules\Akses\Domain\Cakupan;
+use App\Modules\Akses\Http\Middleware\SesiPengguna;
 use App\Modules\Akses\Infrastructure\DaftarSandiBocor;
+use App\Modules\Akses\Infrastructure\PenggunaSesiAkses;
 use App\Modules\Akses\Infrastructure\PerangkatBelumTerdaftar;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\TokenAksesPribadi;
@@ -24,11 +27,14 @@ class ModuleServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(PendaftaranPerangkat::class, PerangkatBelumTerdaftar::class);
+        $this->app->bind(PenggunaSesi::class, PenggunaSesiAkses::class);
         $this->app->singleton(DaftarSandiBocor::class, fn () => new DaftarSandiBocor(config('autentikasi.sandi.daftar_bocor')));
     }
 
     public function boot(): void
     {
+        // Dipakai rute bersesi di luar modul ini (mis. Core/ProfilRs) tanpa bergantung pada kelasnya.
+        $this->app['router']->aliasMiddleware('sesi.pengguna', SesiPengguna::class);
         $this->loadRoutesFrom(__DIR__.'/routes.php');
         $this->loadMigrationsFrom(__DIR__.'/Database/migrations');
 

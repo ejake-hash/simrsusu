@@ -3,6 +3,7 @@
 namespace App\Modules\Akses\Application;
 
 use App\Core\Http\ApiError;
+use App\Core\Http\IfMatch;
 use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaPeran;
@@ -53,12 +54,6 @@ final class PenjagaPenyunting
     /** Nilai If-Match tanpa tanda kutip dan awalan W/; tidak ada → 428 if_match_wajib. */
     public static function versiDiminta(Request $request): string
     {
-        $nilai = trim((string) $request->header('If-Match'));
-        $nilai = trim((string) preg_replace('#^W/#', '', $nilai), '"');
-        if ($nilai === '') {
-            throw new ApiError(428, 'if_match_wajib', 'Versi data tidak dikirim. Muat ulang halaman lalu coba lagi.');
-        }
-
-        return $nilai;
+        return IfMatch::versi($request);
     }
 }

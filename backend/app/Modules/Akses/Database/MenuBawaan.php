@@ -18,13 +18,13 @@ final class MenuBawaan
     public const PERAN_SUPERADMIN = 'superadmin';
 
     /** Halaman yang sudah dibangun; menu lain tampil sebagai Segera hadir atau disembunyikan. */
-    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun'];
+    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.profil_rs', 'master_data.organisasi'];
 
     /** Aksi dasar Permenkes 24/2022 Ps. 30 ayat 3 untuk setiap sub-menu (FR-09-03). */
     public const AKSI_DASAR = ['lihat', 'input', 'perbaiki'];
 
-    /** Superadmin mengelola peran dan akun; tidak membuka rekam medis atau rupiah (PRD 9.2.4). */
-    public const SUB_MENU_SUPERADMIN = ['pengaturan.peran', 'pengaturan.akun'];
+    /** Superadmin mengelola peran, akun, dan profil RS (wizard langkah 2); tidak membuka rekam medis, rupiah, atau data induk milik unit (PRD 9.2.4, FR-54-01). */
+    public const SUB_MENU_SUPERADMIN = ['pengaturan.peran', 'pengaturan.akun', 'pengaturan.profil_rs'];
 
     /**
      * Izin yang setara kuasa superadmin (membuat/mengubah peran, memberi akses): sensitif, jadi tidak bisa
@@ -179,6 +179,7 @@ final class MenuBawaan
                 'unit' => ['Dasbor unit', 52],
             ]],
             'master_data' => ['Master Data', 1, 54, [
+                'organisasi' => ['Organisasi, unit & KSM', 54],
                 'katalog' => ['Data induk', 54],
                 'usulan' => ['Usulan perubahan', 54],
             ]],

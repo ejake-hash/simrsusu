@@ -565,7 +565,8 @@ paths:
   # Tidak ada DELETE: unit dan KSM dinonaktifkan lewat status. Perubahan: audit catat() dengan sebelum/sesudah.
   # Lapis 3 (PRD 9.2.2): izin ber-cakupan `unit` hanya berlaku di subpohon unit itu (unit induk mencakup turunannya):
   # daftar dan rincian unit terbatas pada subpohonnya, ubah/tambah hanya di dalam subpohonnya (pindah induk tetap di
-  # dalamnya; unit akar, KSM, dan profil RS butuh cakupan `rs`). Di luar cakupan → 404 untuk rincian, 403 untuk ubah.
+  # dalamnya; membuat unit tingkat teratas, KSM, dan profil RS butuh cakupan `rs`). Unit puncak subpohon cakupan sendiri boleh
+  # diubah, tetapi tidak dipindah ke luar subpohon. Di luar cakupan → 404 untuk rincian, 403 untuk ubah.
   # ---------------------------------------------------------------------------
   /profil-rs:
     get:
@@ -777,7 +778,8 @@ paths:
         Izin: master_data.organisasi.perbaiki. Wajib If-Match. Kirim minimal satu isian selain `dasar_perubahan`.
         - 422 `siklus`: induk baru adalah unit itu sendiri atau turunannya.
         - 409 `unit_masih_dipakai`: menonaktifkan unit yang masih punya anak aktif, penugasan ber-cakupan unit itu yang
-          berlaku, atau modul aktif per unit itu (inti.modul_aktif); `rincian` = `{jumlah_anak_aktif, jumlah_penugasan, jumlah_modul_aktif}`.
+          masih aktif (sedang atau akan berlaku), atau modul aktif per unit itu (inti.modul_aktif); `rincian` = daftar berisi
+          satu objek `{jumlah_anak_aktif, jumlah_penugasan, jumlah_modul_aktif}`.
         - 409 `kode_sudah_dipakai`.
       parameters:
         - $ref: '#/components/parameters/IfMatch'
@@ -883,7 +885,8 @@ paths:
       summary: Ubah atau nonaktifkan KSM
       description: |
         Izin: master_data.organisasi.perbaiki. Wajib If-Match. Kirim minimal satu isian selain `dasar_perubahan`.
-        409 `kode_sudah_dipakai`; 409 `ksm_masih_dipakai` bila dinonaktifkan selagi ada penugasan ber-cakupan KSM itu yang berlaku.
+        409 `kode_sudah_dipakai`; 409 `ksm_masih_dipakai` bila dinonaktifkan selagi ada penugasan ber-cakupan KSM itu yang
+        masih aktif; `rincian` = daftar berisi satu objek `{jumlah_penugasan}`.
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:

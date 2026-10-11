@@ -17,7 +17,7 @@ use Illuminate\Support\Collection;
 /**
  * Satu-satunya penentu hak akses (PRD 9.2.5, D.4): dipakai Gate (lihat ModuleServiceProvider),
  * menu sidebar, dan pembentuk respons. Tiket 1.2a mengerjakan lapis 1 (menu/bagian), 2 (aksi),
- * dan 3 (cakupan data); lapis 4–5 menyusul di tiket 1.5.
+ * dan 3 (cakupan data; cakupan `unit` memuat semua unit turunannya sejak tiket 1.8a); lapis 4–5 menyusul di tiket 1.5.
  *
  *   akun aktif dan tidak terkunci
  *   dan tidak ada pencabutan per akun atas sub-menu, bagian, atau aksi itu   ← cabut menang
@@ -29,7 +29,10 @@ final class AccessEvaluator
     /** Batas atas lama cache bila tidak ada masa berlaku yang lebih dekat. */
     private const MAKS_CACHE_DETIK = 900;
 
-    public function __construct(private readonly CacheHakAkses $cache) {}
+    public function __construct(
+        private readonly CacheHakAkses $cache,
+        private readonly DataUnit $dataUnit,
+    ) {}
 
     public function hak(Pengguna $pengguna): HakAkses
     {
@@ -50,10 +53,36 @@ final class AccessEvaluator
     public function boleh(Pengguna $pengguna, string $izin, ?Cakupan $data = null): bool
     {
         $cakupan = $this->hak($pengguna)->cakupan($izin);
+        if ($data === null) {
+            return $cakupan !== [];
+        }
 
-        return $data === null
-            ? $cakupan !== []
-            : array_any($cakupan, fn (Cakupan $c) => $c->memuat($data));
+        // Data milik sebuah unit: cakupan unit mana pun di jalur leluhurnya memuatnya.
+        $leluhur = $data->jenis === 'unit' && $data->id !== null ? $this->dataUnit->leluhur($data->id) : [];
+
+        return array_any($cakupan, fn (Cakupan $c) => $c->memuat($data)
+            || ($c->jenis === 'unit' && in_array($c->id, $leluhur, true)));
+    }
+
+    /**
+     * Unit akar cakupan sebuah izin untuk menyaring query daftar: null = seluruh RS (cakupan `rs`), list kosong
+     * = tidak ada, selain itu id unit yang subpohonnya boleh (perluas dengan pohon unit).
+     *
+     * @return list<string>|null
+     */
+    public function unitTerjangkau(Pengguna $pengguna, string $izin): ?array
+    {
+        $unit = [];
+        foreach ($this->cakupan($pengguna, $izin) as $c) {
+            if ($c->jenis === 'rs') {
+                return null;
+            }
+            if ($c->jenis === 'unit' && $c->id !== null) {
+                $unit[] = $c->id;
+            }
+        }
+
+        return array_values(array_unique($unit));
     }
 
     /**
