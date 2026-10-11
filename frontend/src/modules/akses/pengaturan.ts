@@ -14,6 +14,8 @@ export const KUNCI = {
   daftarPeran: ['pengaturan', 'daftar-peran'] as const,
   peran: (id: string) => ['pengaturan', 'peran', id] as const,
   daftarAkun: ['pengaturan', 'daftar-akun'] as const,
+  /** Awalan semua rincian akun (termasuk menu Lihat sebagai). */
+  semuaAkun: ['pengaturan', 'akun'] as const,
   akun: (id: string) => ['pengaturan', 'akun', id] as const,
   menuAkun: (id: string) => ['pengaturan', 'akun', id, 'menu'] as const,
 }
