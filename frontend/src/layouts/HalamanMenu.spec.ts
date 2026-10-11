@@ -44,8 +44,23 @@ describe('HalamanMenu (rute dinamis dari menu)', () => {
   })
 
   it('menu aktif yang halamannya belum ada di frontend juga ke SegeraHadirPage', async () => {
-    const { w } = await buka('/master-data/peran')
-    expect(w.get('h1').text()).toBe('Master Data · Peran & menu')
+    // Router uji hanya memuat HalamanMenu, jadi /pengaturan/peran (aktif) belum punya halaman di sini.
+    const { w } = await buka('/pengaturan/peran')
+    expect(w.get('h1').text()).toBe('Pengaturan Sistem · Peran & izin')
+  })
+
+  it('menu aktif yang punya sub-menu → halaman induk dengan kartu sub-menu (sidebar 64 px tanpa sub-menu)', async () => {
+    const { w } = await buka('/pengaturan')
+    expect(w.get('h1').text()).toBe('Pengaturan Sistem')
+    const nav = w.get('nav[aria-label="Sub-menu Pengaturan Sistem"]')
+    expect(nav.findAll('a').map((a) => a.text())).toEqual(['Peran & izin', 'Akun & akses', 'Jejak auditSegera hadir'])
+    expect(nav.findAll('a').map((a) => a.attributes('href'))).toEqual(['/pengaturan/peran', '/pengaturan/akun', '/pengaturan/audit'])
+  })
+
+  it('menu berstatus segera dengan sub-menu tetap Segera hadir, bukan halaman induk', async () => {
+    const { w } = await buka('/igd')
+    expect(w.get('h1').text()).toBe('IGD')
+    expect(w.text()).toContain('Segera hadir')
   })
 
   it('jalur yang tidak ada di menu akun → tidak ditemukan, tanpa membedakan "tidak diizinkan"', async () => {

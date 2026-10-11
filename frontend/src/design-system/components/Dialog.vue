@@ -27,6 +27,7 @@ function tahanSaatSibuk(e: Event) {
         :class="`dialog-${lebar}`"
         :role="peringatan ? 'alertdialog' : 'dialog'"
         :aria-busy="sibuk || undefined"
+        v-bind="uraian ? {} : { 'aria-describedby': undefined }"
         @escape-key-down="tahanSaatSibuk"
         @interact-outside="tahanSaatSibuk"
       >

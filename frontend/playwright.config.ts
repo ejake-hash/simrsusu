@@ -30,7 +30,7 @@ export default defineConfig({
     command: `npm run dev -- --port ${port} --strictPort`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
-    // e2e selalu memanggil GET /saya/menu sungguhan (atau page.route), bukan tiruan bawaan dev.
-    env: { VITE_MENU_TIRUAN: 'false' },
+    // e2e selalu memanggil backend sungguhan (atau page.route), bukan server tiruan bawaan dev.
+    env: { VITE_API_TIRUAN: 'false' },
   },
 })

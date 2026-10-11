@@ -1,0 +1,214 @@
+/**
+ * Bentuk respons Pengaturan → Peran & izin, Akun & akses (docs/api/openapi.yaml v0.2.2, tiket 1.2c).
+ * Tanpa impor nilai agar data tiruan bisa dipakai e2e (tsconfig.node) tanpa menarik klien API.
+ */
+export type JenisAksi = 'lihat' | 'input' | 'perbaiki' | 'sahkan' | 'verifikasi' | 'setujui' | 'batal' | 'ekspor' | 'cetak' | 'lihat_rupiah'
+
+export type TingkatNode = 'menu' | 'sub_menu' | 'bagian'
+
+export interface IzinNode {
+  kode: string
+  jenis_aksi: JenisAksi
+  sensitif: boolean
+}
+
+export interface NodeMenu {
+  id: string
+  kode: string
+  label: string
+  tingkat: TingkatNode
+  ikon?: string | null
+  fase?: number | null
+  /** Halaman sudah dibangun di versi ini. */
+  tersedia: boolean
+  /** Modul dinyalakan di instalasi ini. */
+  modul_aktif: boolean
+  ikut_induk: boolean
+  izin: IzinNode[]
+  anak: NodeMenu[]
+}
+
+export interface GrupPohon {
+  kode: string
+  label: string | null
+  menu: NodeMenu[]
+}
+
+export interface PohonMenu {
+  grup: GrupPohon[]
+}
+
+export interface MetaKursor {
+  kursor_berikutnya: string | null
+}
+
+export interface Halaman<T> {
+  data: T[]
+  meta: MetaKursor
+}
+
+export interface PeranRingkas {
+  id: string
+  kode: string
+  nama: string
+  uraian: string | null
+  bawaan_sistem: boolean
+  wajib_mfa: boolean
+  status: 'aktif' | 'nonaktif'
+  jumlah_akun: number
+  memuat_izin_sensitif: boolean
+}
+
+export type AlasanTerkunci = 'peran_bawaan_terkunci' | 'peran_sendiri'
+
+export interface PeranRinci extends PeranRingkas {
+  versi: string
+  izin: string[]
+  wajib_mfa_terkunci: boolean
+  dapat_disunting: boolean
+  alasan_terkunci: AlasanTerkunci | null
+  diubah_pada: string
+}
+
+export interface PerubahanIzin {
+  ditambah: string[]
+  dicabut: string[]
+  akun_terdampak: number
+}
+
+export interface Pelaku {
+  id: string
+  nama: string
+}
+
+export type CakupanJenis = 'rs' | 'unit' | 'ruang' | 'poli' | 'ksm' | 'depo' | 'pasien_dirawat'
+
+export interface Penugasan {
+  id: string
+  peran: { id: string; kode: string; nama: string }
+  cakupan_jenis: CakupanJenis
+  cakupan_id: string | null
+  berlaku_dari: string
+  berlaku_sampai: string | null
+  dasar_pemberian: string
+  alasan: string | null
+  diberikan_oleh: Pelaku | null
+  status: 'aktif' | 'batal'
+  berlaku_sekarang: boolean
+  alasan_batal: string | null
+  dibatalkan_oleh: Pelaku | null
+  dibatalkan_pada: string | null
+  dibuat_pada: string
+}
+
+export interface IzinKhusus {
+  id: string
+  efek: 'tambah' | 'cabut'
+  sasaran_jenis: 'menu' | 'izin'
+  sasaran_kode: string
+  /** Jalur label, mis. Kasir → Tagihan pasien → Batal. */
+  sasaran_label: string
+  sensitif: boolean
+  berlaku_dari: string
+  berlaku_sampai: string | null
+  dasar_pemberian: string
+  alasan: string
+  diberikan_oleh: Pelaku | null
+  status: 'aktif' | 'batal'
+  berlaku_sekarang: boolean
+  alasan_batal: string | null
+  dibatalkan_oleh: Pelaku | null
+  dibatalkan_pada: string | null
+  dibuat_pada: string
+}
+
+export interface SumberWajibMfa {
+  jenis: 'akun' | 'peran' | 'superadmin' | 'izin_sensitif'
+  label: string
+  dapat_dimatikan: boolean
+}
+
+export interface StatusMfaAkun {
+  aktif: boolean
+  aktif_pada: string | null
+  wajib_akun: boolean
+  sumber_wajib: SumberWajibMfa[]
+  dapat_direset: boolean
+}
+
+export interface AkunRingkas {
+  id: string
+  nama_pengguna: string
+  nama: string
+  status: 'aktif' | 'nonaktif'
+  terkunci_sampai: string | null
+  login_terakhir_pada: string | null
+  peran: { id: string; nama: string; berlaku_sampai: string | null }[]
+  pengecualian: { tambah: number; cabut: number }
+  mfa_aktif: boolean
+}
+
+export interface AkunRinci {
+  id: string
+  nama_pengguna: string
+  nama: string
+  status: 'aktif' | 'nonaktif'
+  terkunci_sampai: string | null
+  login_terakhir_pada: string | null
+  diri_sendiri: boolean
+  /** false = semua perubahan /akun/{id}/* oleh penyunting ini ditolak 403; tombol ubah tidak dirender. */
+  dapat_diubah: boolean
+  /** Kode 403 yang akan diterima bila tetap mengubah. */
+  alasan_terkunci: 'diri_sendiri' | 'akun_superadmin' | null
+  mfa: StatusMfaAkun
+  penugasan: Penugasan[]
+  izin_khusus: IzinKhusus[]
+}
+
+export interface FilterAkun {
+  cari?: string
+  status?: 'aktif' | 'nonaktif' | 'terkunci'
+  peran_id?: string
+  mfa?: 'aktif' | 'belum'
+}
+
+export interface FilterPeran {
+  cari?: string
+  status?: 'aktif' | 'nonaktif'
+}
+
+export interface IsianBuatPeran {
+  kode: string
+  nama: string
+  uraian: string | null
+  wajib_mfa: boolean
+  salin_dari_id: string | null
+  dasar_perubahan: string
+}
+
+export interface IsianUbahPeran {
+  nama?: string
+  uraian?: string | null
+  wajib_mfa?: boolean
+  status?: 'aktif' | 'nonaktif'
+  dasar_perubahan: string
+}
+
+export interface IsianPenugasan {
+  peran_id: string
+  cakupan_jenis: CakupanJenis
+  cakupan_id: string | null
+  berlaku_dari: string | null
+  berlaku_sampai: string | null
+  dasar_pemberian: string
+  alasan: string | null
+}
+
+export interface IsianIzinKhusus {
+  efek: 'tambah' | 'cabut'
+  sasaran_jenis: 'menu' | 'izin'
+  sasaran_kode: string
+  berlaku_sampai: string | null
+  dasar_pemberian: string
+  alasan: string
+}

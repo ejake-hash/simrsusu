@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import { cariPosisi } from '@/app/menu'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import type { GrupMenu } from '@/modules/akses/api'
@@ -10,12 +10,18 @@ import type { KelasLayar } from '@/shared/composables/useKelasLayar'
  * Menu sidebar dari GET /saya/menu (PRD 5.2, 5.4). Yang tidak diizinkan tidak dikirim server,
  * jadi semua yang diterima dirender. Sub-menu tampil di bawah menu yang sedang aktif (prototipe
  * masterdata.html). Di tablet mendatar sidebar menjadi ikon 64 px + tooltip; di ponsel hanya Beranda.
+ * `pratinjau` = Lihat sebagai (FR-09-08): menu akun lain tanpa tautan, semua sub-menu terbuka.
  */
-const props = defineProps<{ grup: GrupMenu[]; kelas: KelasLayar }>()
+const props = withDefaults(defineProps<{ grup: GrupMenu[]; kelas: KelasLayar; pratinjau?: boolean; label?: string }>(), {
+  pratinjau: false,
+  label: 'Menu utama',
+})
 const emit = defineEmits<{ pilih: [] }>()
 
 const route = useRoute()
-const posisi = computed(() => cariPosisi(props.grup, route.path))
+const posisi = computed(() => (props.pratinjau ? null : cariPosisi(props.grup, route.path)))
+const tautan = computed(() => (props.pratinjau ? 'span' : RouterLink))
+const ke = (rute: string) => (props.pratinjau ? {} : { to: rute })
 const ringkas = computed(() => props.kelas === 'tablet-mendatar')
 
 const grupTampil = computed(() =>
@@ -39,16 +45,17 @@ function sembunyikanTip() {
 </script>
 
 <template>
-  <nav class="nav" :class="{ ringkas }" aria-label="Menu utama" @keydown.esc="sembunyikanTip" @scroll="sembunyikanTip">
+  <nav class="nav" :class="{ ringkas, pratinjau }" :aria-label="label" @keydown.esc="sembunyikanTip" @scroll="sembunyikanTip">
     <template v-for="g in grupTampil" :key="g.kode">
       <p v-if="g.label" :id="`grup-${g.kode}`" class="nav-grup">{{ g.label }}</p>
       <ul class="daftar" :aria-labelledby="g.label ? `grup-${g.kode}` : undefined">
         <li v-for="m in g.menu" :key="m.kode">
-          <RouterLink
-            :to="m.rute"
+          <component
+            :is="tautan"
+            v-bind="ke(m.rute)"
             class="nav-item"
             :class="{ aktif: posisi?.menu.kode === m.kode }"
-            :aria-current="route.path === m.rute ? 'page' : undefined"
+            :aria-current="!pratinjau && route.path === m.rute ? 'page' : undefined"
             @click="emit('pilih')"
             @mouseenter="tampilkanTip(m.label, $event)"
             @mouseleave="sembunyikanTip"
@@ -61,18 +68,19 @@ function sembunyikanTip() {
             <span v-else-if="m.jumlah_tugas != null" class="jumlah-tugas">
               {{ m.jumlah_tugas }}<span class="sr-only"> tugas terbuka</span>
             </span>
-          </RouterLink>
-          <ul v-if="!ringkas && posisi?.menu.kode === m.kode && m.sub_menu.length" class="nav-sub">
+          </component>
+          <ul v-if="!ringkas && (pratinjau || posisi?.menu.kode === m.kode) && m.sub_menu.length" class="nav-sub">
             <li v-for="s in m.sub_menu" :key="s.kode">
-              <RouterLink
-                :to="s.rute"
+              <component
+                :is="tautan"
+                v-bind="ke(s.rute)"
                 class="sub-item"
                 :class="{ aktif: posisi?.sub?.kode === s.kode }"
                 :aria-current="posisi?.sub?.kode === s.kode ? 'page' : undefined"
                 @click="emit('pilih')"
               >
                 {{ s.label }}
-              </RouterLink>
+              </component>
             </li>
           </ul>
         </li>
@@ -189,6 +197,15 @@ function sembunyikanTip() {
 .sub-item:hover {
   background: var(--bg);
   color: var(--text);
+}
+/* Pratinjau (Lihat sebagai): bukan tautan, jadi tanpa efek arah. */
+.pratinjau .nav-item:hover,
+.pratinjau .sub-item:hover {
+  background: none;
+  color: var(--muted);
+}
+.pratinjau {
+  overflow: visible;
 }
 .sub-item.aktif {
   background: var(--brand-25);

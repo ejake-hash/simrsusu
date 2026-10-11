@@ -30,6 +30,9 @@ export const router = createRouter({
       component: () => import('@/layouts/AppShell.vue'),
       children: [
         { path: '', name: 'beranda', component: () => import('@/modules/beranda/pages/BerandaPage.vue'), meta: { judul: 'Beranda' } },
+        // Gerbang izin di HalamanModul (tanpa pengaturan.<sub>.lihat → Halaman tidak ditemukan).
+        { path: 'pengaturan/peran', name: 'pengaturan-peran', component: () => import('@/modules/akses/pages/PeranPage.vue'), meta: { judul: 'Peran & izin' } },
+        { path: 'pengaturan/akun', name: 'pengaturan-akun', component: () => import('@/modules/akses/pages/AkunPage.vue'), meta: { judul: 'Akun & akses' } },
         // Halaman modul didaftarkan di atas baris ini. Jalur lain: Segera hadir bila ada di menu, selain itu tidak ditemukan.
         { path: ':jalur(.*)*', name: 'menu', component: () => import('@/layouts/HalamanMenu.vue') },
       ],
