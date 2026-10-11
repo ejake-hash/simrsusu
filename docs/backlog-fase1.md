@@ -35,7 +35,7 @@
 | 1.8d-be / 1.8d-fe | Pegawai, izin praktik (STR/SIP/SPK), RKK minimal, akun dibuat dari pegawai | be: Selesai (kontrak #48, backend #50). Catatan: NIK utuh hanya `?tampilkan_nik=true` + izin bagian `sdm.pegawai.identitas.lihat` (sensitif, pemilik data ditetapkan RS); pegawai keluar → akun nonaktif lewat kejadian `PegawaiKeluar`; tugas harian `sdm:proses-pegawai-keluar`; 403 `wajib_ganti_sandi`; fe: siap (kontrak #48 + penyesuaian di #50) | #48, #50 |
 | 1.8e-be | Pemuat paket referensi (`inti.paket_referensi`) | Siap setelah 1.8a | — |
 | 1.8f-be / 1.8f-fe | Wizard penyiapan instalasi kosong (FR-54-08) | Siap setelah 1.8a–e | — |
-| 1.7-be / 1.7-fe | Notifikasi, kotak kerja, jenis tugas, eskalasi 3 tingkat | be: **Dikerjakan sesi 1** (kontrak dulu, branch `docs/kontrak-1.7`); fe: siap setelah kontrak | — |
+| 1.7-be / 1.7-fe | Notifikasi, kotak kerja, jenis tugas, eskalasi 3 tingkat | be: **Dikerjakan sesi 1** (kontrak #51; backend branch `feat/notifikasi-be`); fe: siap (kontrak #51) | #51 |
 | 1.6-be / 1.6-fe | TTE T1: aktivasi PIN, kunci Ed25519, TtdModal, verifikasi, tanda tangan massal; adapter PSrE + simulator | Siap setelah 1.7 | — |
 | 1.5-be / 1.5-fe | Lapis 4 (label sensitivitas) dan 5 (izin praktik, RKK, MFA ulang) | Siap setelah 1.8d, 1.2d, 1.6 | — |
 | 1.9-be / 1.9-fe | Gateway integrasi: outbox, adapter BPJS/SATUSEHAT/Aplicares, simulator, layar Konfigurasi & status | Siap setelah 1.8b, 1.8f | — |
@@ -851,8 +851,10 @@ Aturan rinci (kontrak v0.7.0):
     di atas), `notifikasi.notifikasi` (partisi bulanan) dan `notifikasi.preferensi`.
   - Layar Jenis tugas = sub-menu PRD 9.1 "Jenis Tugas, Tenggat & Eskalasi" (`master_data.jenis_tugas`), cakupan `rs`.
     Tidak ada POST: jenis dipasang migrasi modul pembuatnya; RS mengubah tenggat, waktu eskalasi, kritis, aktif.
-  - Kotak kerja dan notifikasi (`/saya/*`) tanpa izin khusus. Tab unit = unit yang dikepalai akun (kepala_pegawai_id,
-    termasuk turunannya); eskalasi tingkat 2 ke kepala unit pelaksana, tingkat 3 ke kepala unit induknya.
+  - Kotak kerja dan notifikasi (`/saya/*`) tanpa izin khusus. Tab saling lepas (saya / dieskalasi / unit / selesai).
+    Eskalasi tingkat 2 ke kepala unit tugas (izin praktik: unit pegawai) atau `unit_teguran` jenisnya; tingkat 3 ke kepala
+    `unit_eskalasi` jenisnya atau unit induk dari unit tingkat 2. Jenis berpelaksana peran (persetujuan, permintaan akses)
+    tanpa penerima teguran sampai RS mengisi `unit_teguran` — perlu disebut di wizard 1.8f dan keterangan layar Jenis tugas.
   - Jenis bawaan fase 1 (angka awal = data, diubah di layar; perlu verifikasi kebijakan RS):
     PERSETUJUAN_AKSES_MENUNGGU (pelaksana peran penyetuju; tenggat 2 hari; selesai saat diputuskan/kedaluwarsa/dibatalkan),
     PERMINTAAN_AKSES (pelaksana peran pemegang pengaturan.akun.perbaiki; tenggat 2 hari; selesai saat ditindaklanjuti/ditolak),

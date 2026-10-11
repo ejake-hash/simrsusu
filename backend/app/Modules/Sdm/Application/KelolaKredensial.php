@@ -5,6 +5,8 @@ namespace App\Modules\Sdm\Application;
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Sdm\Events\IzinPraktikDibatalkan;
+use App\Modules\Sdm\Events\IzinPraktikDicatat;
 use App\Modules\Sdm\Models\IzinPraktik;
 use App\Modules\Sdm\Models\KewenanganKlinis;
 use App\Modules\Sdm\Models\Pegawai;
@@ -49,6 +51,7 @@ final class KelolaKredensial
                 if ($jalur !== null && ! Storage::disk((string) config('sdm.dokumen_disk'))->put($jalur, (string) $isiBerkas)) {
                     throw new \RuntimeException('Dokumen izin praktik gagal disimpan.');
                 }
+                IzinPraktikDicatat::dispatch($izin->id, $pegawai->id, $izin->jenis);
                 $this->audit->catat('sdm.izin_praktik_dicatat', $penyunting->id, 'sdm.izin_praktik', $izin->id, [
                     'pegawai_id' => $pegawai->id, 'jenis' => $izin->jenis, 'nomor' => $izin->nomor,
                     'berlaku_sampai' => $sampai, 'dokumen' => $jalur !== null,
@@ -101,6 +104,9 @@ final class KelolaKredensial
             }
             $baris->forceFill(['status' => 'batal', 'alasan_batal' => $alasan, 'dibatalkan_oleh' => $penyunting->id,
                 'dibatalkan_pada' => now(), 'diubah_oleh' => $penyunting->id])->save();
+            if ($baris instanceof IzinPraktik) {
+                IzinPraktikDibatalkan::dispatch($baris->id);
+            }
             $this->audit->catat($baris instanceof IzinPraktik ? 'sdm.izin_praktik_dibatalkan' : 'sdm.kewenangan_klinis_dibatalkan',
                 $penyunting->id, $baris->getTable(), $baris->id, ['pegawai_id' => $baris->pegawai_id, 'alasan' => $alasan]);
 

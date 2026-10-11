@@ -4,6 +4,7 @@ use App\Modules\Akses\ModuleServiceProvider as ModulAkses;
 use App\Modules\Antrean\ModuleServiceProvider as ModulAntrean;
 use App\Modules\Igd\ModuleServiceProvider as ModulIgd;
 use App\Modules\MasterData\ModuleServiceProvider as ModulMasterData;
+use App\Modules\Notifikasi\ModuleServiceProvider as ModulNotifikasi;
 use App\Modules\Pendaftaran\ModuleServiceProvider as ModulPendaftaran;
 use App\Modules\Sdm\ModuleServiceProvider as ModulSdm;
 use App\Providers\AppServiceProvider;
@@ -14,6 +15,7 @@ return [
     ModulSdm::class,
     ModulAkses::class,
     ModulMasterData::class,
+    ModulNotifikasi::class,
     ModulPendaftaran::class,
     ModulAntrean::class,
     ModulIgd::class,

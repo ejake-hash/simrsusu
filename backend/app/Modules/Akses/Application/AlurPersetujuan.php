@@ -4,6 +4,8 @@ namespace App\Modules\Akses\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
+use App\Modules\Akses\Events\PersetujuanDiajukan;
+use App\Modules\Akses\Events\PersetujuanDitutup;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaPeran;
@@ -72,6 +74,7 @@ final class AlurPersetujuan
             ]);
             $p->save();
             $baris[] = $p;
+            PersetujuanDiajukan::dispatch($p->id, $p->nomor, $peranId);
         }
         $this->audit->catat('akses.persetujuan_diajukan', $pengaju->id, 'akses.persetujuan_akses', $baris[0]->id, [
             'grup_id' => $grup, 'nomor' => array_map(fn (PersetujuanAkses $p) => $p->nomor, $baris), 'jenis' => $jenis,
@@ -149,6 +152,7 @@ final class AlurPersetujuan
 
                 $p->forceFill(['status' => 'disetujui', 'diputuskan_oleh' => $penyetuju->id, 'diputuskan_pada' => now(),
                     'catatan_keputusan' => $catatan, 'diubah_oleh' => $penyetuju->id])->save();
+                PersetujuanDitutup::dispatch([$p->id], 'disetujui');
                 if ($grup->every(fn (PersetujuanAkses $b) => $b->status === 'disetujui')) {
                     $this->penerap->terapkan($p, $penyetuju);
                     PersetujuanAkses::query()->where('grup_id', $p->grup_id)->update(['diterapkan_pada' => now()]);
@@ -216,8 +220,12 @@ final class AlurPersetujuan
         return DB::transaction(function () {
             $grup = PersetujuanAkses::query()->where('status', 'menunggu')
                 ->where('kedaluwarsa_pada', '<=', now()->format('Y-m-d H:i:s.uP'))->distinct()->pluck('grup_id');
-            $jumlah = $grup->isEmpty() ? 0 : PersetujuanAkses::query()->whereIn('grup_id', $grup)->where('status', 'menunggu')
+            $id = $grup->isEmpty() ? [] : PersetujuanAkses::query()->whereIn('grup_id', $grup)->where('status', 'menunggu')->pluck('id')->all();
+            $jumlah = $id === [] ? 0 : PersetujuanAkses::query()->whereIn('id', $id)->where('status', 'menunggu')
                 ->update(['status' => 'kedaluwarsa', 'diputuskan_pada' => now(), 'catatan_keputusan' => 'Kedaluwarsa tanpa keputusan ('.self::MASA_HARI.' hari)']);
+            if ($id !== []) {
+                PersetujuanDitutup::dispatch($id, 'kedaluwarsa');
+            }
             if ($jumlah > 0) {
                 $this->audit->catat('akses.persetujuan_kedaluwarsa', null, 'akses.persetujuan_akses', null, ['grup_id' => $grup->all(), 'jumlah' => $jumlah]);
             }
@@ -255,7 +263,11 @@ final class AlurPersetujuan
 
     private function tutupGrup(PersetujuanAkses $p, string $status, ?string $oleh, string $catatan): void
     {
-        PersetujuanAkses::query()->where('grup_id', $p->grup_id)->where('status', 'menunggu')->update([
+        $id = PersetujuanAkses::query()->where('grup_id', $p->grup_id)->where('status', 'menunggu')->pluck('id')->all();
+        if ($id !== []) {
+            PersetujuanDitutup::dispatch($id, $status);
+        }
+        PersetujuanAkses::query()->whereIn('id', $id)->update([
             'status' => $status, 'diputuskan_oleh' => $oleh, 'diputuskan_pada' => now(), 'catatan_keputusan' => $catatan, 'diubah_oleh' => $oleh,
         ]);
     }

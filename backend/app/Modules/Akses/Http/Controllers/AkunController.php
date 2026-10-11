@@ -61,7 +61,7 @@ final class AkunController
     /** Lihat sebagai: menu efektif akun lain dari AccessEvaluator yang sama; tidak membuat sesi atas namanya. */
     public function menu(Request $request, Pengguna $akun, MenuSaya $menu, CatatAktivitas $audit): JsonResponse
     {
-        $data = $menu->untuk($akun);
+        $data = $menu->untuk($akun, denganJumlahTugas: false);
         $audit->catat('akses.lihat_sebagai', $request->user()->id, 'akses.pengguna', $akun->id, ['versi' => $data['versi']]);
 
         return new JsonResponse(['data' => $data]);

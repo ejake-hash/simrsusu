@@ -38,7 +38,7 @@ describe('SidebarMenu', () => {
     expect(w.findAll('.nav-item')[0]?.find('.segera').exists()).toBe(false)
   })
 
-  it('jumlah tugas hanya bila nilainya bukan null', async () => {
+  it('jumlah tugas hanya bila ada tugas terbuka (null dan 0 tanpa lencana)', async () => {
     const grup: GrupMenu[] = [
       {
         kode: 'utama',
@@ -51,7 +51,7 @@ describe('SidebarMenu', () => {
       },
     ]
     const w = await pasang('/', grup)
-    expect(w.findAll('.jumlah-tugas').map((l) => l.text())).toEqual(['3 tugas terbuka', '0 tugas terbuka'])
+    expect(w.findAll('.jumlah-tugas').map((l) => l.text())).toEqual(['3 tugas terbuka'])
   })
 
   it('ponsel: hanya Beranda', async () => {

@@ -15,12 +15,18 @@ use Illuminate\Support\Facades\DB;
  */
 final class MenuSaya
 {
-    public function __construct(private readonly AccessEvaluator $evaluator) {}
+    public function __construct(
+        private readonly AccessEvaluator $evaluator,
+        private readonly ?JumlahTugasSaya $jumlahTugas = null,
+    ) {}
 
     /**
+     * `versi` hanya dari menu + izin (stabil selama hak akses sama); lencana tugas Beranda di luar versi.
+     *
+     * @param  bool  $denganJumlahTugas  false untuk "Lihat sebagai": jumlah tugas akun lain tidak dikirim
      * @return array{versi: string, grup: list<array<string, mixed>>, izin: list<string>}
      */
-    public function untuk(Pengguna $pengguna): array
+    public function untuk(Pengguna $pengguna, bool $denganJumlahTugas = true): array
     {
         $hak = $this->evaluator->hak($pengguna);
         $modulAktif = DB::table('inti.modul_aktif')->whereNull('unit_organisasi_id')->pluck('modul_no')->map(fn ($n) => (int) $n)->all();
@@ -54,7 +60,8 @@ final class MenuSaya
                 if ($statusMenu !== null) {
                     $daftarMenu[] = [
                         'kode' => $m->kode, 'label' => $m->label, 'ikon' => $m->ikon, 'rute' => $m->rute,
-                        'status' => $statusMenu, 'fase' => $m->fase, 'jumlah_tugas' => null, 'sub_menu' => $subMenu,
+                        'status' => $statusMenu, 'fase' => $m->fase, 'jumlah_tugas' => null,
+                        'sub_menu' => $subMenu,
                     ];
                 }
             }
@@ -65,11 +72,19 @@ final class MenuSaya
         }
 
         $izin = array_keys($hak->izin);
+        $versi = substr(hash('sha256', (string) json_encode([$grup, $izin])), 0, 16);
+        if ($denganJumlahTugas && $this->jumlahTugas !== null) {
+            foreach ($grup as &$g) {
+                foreach ($g['menu'] as &$m) {
+                    if ($m['kode'] === 'beranda') {
+                        $m['jumlah_tugas'] = $this->jumlahTugas->untuk($pengguna);
+                    }
+                }
+                unset($m);
+            }
+            unset($g);
+        }
 
-        return [
-            'versi' => substr(hash('sha256', (string) json_encode([$grup, $izin])), 0, 16),
-            'grup' => $grup,
-            'izin' => $izin,
-        ];
+        return ['versi' => $versi, 'grup' => $grup, 'izin' => $izin];
     }
 }

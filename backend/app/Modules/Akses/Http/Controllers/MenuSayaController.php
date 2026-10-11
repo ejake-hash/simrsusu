@@ -6,7 +6,7 @@ use App\Modules\Akses\Application\MenuSaya;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-/** GET /api/v1/saya/menu: menu efektif + izin, dengan ETag dari `versi` (304 bila tidak berubah). */
+/** GET /api/v1/saya/menu: menu efektif + izin, ETag dari `versi` + lencana tugas (304 bila keduanya tidak berubah). */
 final class MenuSayaController
 {
     public function __invoke(Request $request, MenuSaya $menu): JsonResponse
@@ -14,7 +14,8 @@ final class MenuSayaController
         $data = $menu->untuk($request->user());
 
         $respons = new JsonResponse(['data' => $data]);
-        $respons->setEtag($data['versi'])->setPrivate();
+        $jumlahTugas = array_sum(array_column(array_merge(...array_column($data['grup'], 'menu')), 'jumlah_tugas'));
+        $respons->setEtag($data['versi'].'-'.$jumlahTugas)->setPrivate();
         $respons->headers->addCacheControlDirective('no-cache');
         $respons->isNotModified($request);
 

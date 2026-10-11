@@ -19,7 +19,7 @@ final class MenuBawaan
     public const PERAN_SUPERADMIN = 'superadmin';
 
     /** Halaman yang sudah dibangun; menu lain tampil sebagai Segera hadir atau disembunyikan. */
-    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'master_data.organisasi', 'sdm.pegawai'];
+    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'master_data.organisasi', 'master_data.jenis_tugas', 'sdm.pegawai'];
 
     /** Aksi dasar Permenkes 24/2022 Ps. 30 ayat 3 untuk setiap sub-menu (FR-09-03). */
     public const AKSI_DASAR = ['lihat', 'input', 'perbaiki'];
@@ -196,6 +196,7 @@ final class MenuBawaan
             ]],
             'master_data' => ['Master Data', 1, 54, [
                 'organisasi' => ['Organisasi, Unit, Ruang & Tempat Tidur', 54],
+                'jenis_tugas' => ['Jenis Tugas, Tenggat & Eskalasi', 53, 1],
                 'katalog' => ['Data induk', 54],
                 'usulan' => ['Usulan perubahan', 54],
             ]],

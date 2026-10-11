@@ -66,7 +66,11 @@ final class SesiPengguna
             null => null,
         };
 
-        $request->session()->put(self::TERAKHIR_AKTIF, now()->getTimestamp());
+        // Polling otomatis (X-Permintaan-Latar: 1, tiket 1.7) tidak dihitung aktivitas: sesi di komputer bersama tetap
+        // berakhir sesudah batas diam (PRD 14.2, ADR 0002).
+        if ($request->header('X-Permintaan-Latar') !== '1') {
+            $request->session()->put(self::TERAKHIR_AKTIF, now()->getTimestamp());
+        }
 
         if ($pengguna->getAttribute('wajib_ganti_sandi') === true && ! self::bolehSaatWajibGanti($request)) {
             throw new ApiError(403, 'wajib_ganti_sandi', 'Ganti sandi awal Anda lebih dulu.');
