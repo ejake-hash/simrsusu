@@ -2,7 +2,12 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Cache\RedisStore;
 use Illuminate\Database\QueryException;
+use Illuminate\Queue\RedisQueue;
+use Illuminate\Redis\Connections\Connection;
+use Illuminate\Session\CacheBasedSessionHandler;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Tests\TestCase;
@@ -114,9 +119,50 @@ class InfrastrukturTest extends TestCase
         $this->assertSame(['simrs_analitik' => false, 'simrs_baca' => false], $role);
     }
 
-    public function test_redis_tersedia(): void
+    public function test_valkey_tersedia(): void
     {
         $this->assertSame('PONG', (string) Redis::connection()->ping());
+        $this->assertSame('PONG', (string) Redis::connection('cache')->ping());
+        // Bentuk balasan INFO berbeda antara predis dan phpredis; cukup pastikan servernya Valkey.
+        $this->assertStringContainsString('valkey_version', (string) json_encode(Redis::connection()->command('info', ['server'])));
+    }
+
+    /** PRD 14.1.1 butir 6: sesi dan antrean di instans yang tidak pernah membuang data. */
+    public function test_sesi_antrean_dan_kunci_cache_di_instans_noeviction(): void
+    {
+        $sesi = app('session')->driver('redis')->getHandler();
+        $this->assertInstanceOf(CacheBasedSessionHandler::class, $sesi);
+        $storeSesi = $sesi->getCache()->getStore();
+        $this->assertInstanceOf(RedisStore::class, $storeSesi);
+        $this->assertSame('noeviction', $this->kebijakanMemori($storeSesi->connection()));
+
+        $antrean = app('queue')->connection('redis');
+        $this->assertInstanceOf(RedisQueue::class, $antrean);
+        $this->assertSame('noeviction', $this->kebijakanMemori($antrean->getConnection()));
+
+        // Kunci (lock) cache tidak boleh hilang di tengah jalan, jadi ikut instans noeviction.
+        $this->assertSame('noeviction', $this->kebijakanMemori($this->storeCacheRedis()->lockConnection()));
+    }
+
+    public function test_cache_di_instans_allkeys_lru(): void
+    {
+        $this->assertSame('allkeys-lru', $this->kebijakanMemori($this->storeCacheRedis()->connection()));
+    }
+
+    private function storeCacheRedis(): RedisStore
+    {
+        $store = Cache::store('redis')->getStore();
+        $this->assertInstanceOf(RedisStore::class, $store);
+
+        return $store;
+    }
+
+    private function kebijakanMemori(Connection $koneksi): string
+    {
+        $hasil = $koneksi->command('config', ['GET', 'maxmemory-policy']);
+
+        // predis dan phpredis sama-sama mengembalikan ['maxmemory-policy' => '...'].
+        return $hasil['maxmemory-policy'];
     }
 
     /** Mengembalikan SQLSTATE bila ditolak, null bila berhasil. Migrator anggota simrs_analitik. */

@@ -19,13 +19,6 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s --health-timeout 5s --health-retries 10
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       PGHOST: 127.0.0.1
       PGPORT: 5433
@@ -36,6 +29,12 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v5
+
+      # Valkey dari docker-compose.yml (sesi/antrean noeviction :6379, cache allkeys-lru :6380), sama dengan lokal.
+      # Bukan `services:` karena kontainer layanan Actions tidak bisa diberi argumen valkey-server.
+      - name: Jalankan Valkey
+        working-directory: .
+        run: docker compose up -d --wait valkey valkey-cache
 
       # Tes berjalan sebagai simrs_app (tanpa DDL) dan memakai DatabaseTransactions.
       - name: Larang RefreshDatabase
@@ -107,13 +106,6 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s --health-timeout 5s --health-retries 10
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       PGHOST: 127.0.0.1
       PGPORT: 5433
@@ -127,6 +119,12 @@ jobs:
       E2E_MFA_RAHASIA: KRSXG5CTMVRXEZLUKRSXG5CTMVRXEZLU
     steps:
       - uses: actions/checkout@v5
+
+      # Valkey dari docker-compose.yml (sesi/antrean noeviction :6379, cache allkeys-lru :6380), sama dengan lokal.
+      # Bukan `services:` karena kontainer layanan Actions tidak bisa diberi argumen valkey-server.
+      - name: Jalankan Valkey
+        working-directory: .
+        run: docker compose up -d --wait valkey valkey-cache
 
       - uses: shivammathur/setup-php@v2
         with:

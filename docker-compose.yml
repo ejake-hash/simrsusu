@@ -19,19 +19,33 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+  # Valkey (BSD-3, PRD 10.1) dua instans, PRD 14.1.1 butir 6. Tag dipatok lengkap, bukan tag mengambang.
+  # Sesi dan antrean: noeviction, menolak tulis saat memori penuh alih-alih membuang sesi atau pekerjaan.
+  valkey:
+    image: valkey/valkey:9.1.2-alpine
+    command: ["valkey-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     ports:
-      - "6379:6379"
+      - "${VALKEY_PORT:-6379}:6379"
     volumes:
-      - redis-data:/data
+      - valkey-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Cache: allkeys-lru, membuang kunci lama saat maxmemory tercapai. Tanpa persistensi; isinya bisa dibangun ulang.
+  valkey-cache:
+    image: valkey/valkey:9.1.2-alpine
+    command: ["valkey-server", "--save", "", "--appendonly", "no", "--maxmemory", "${VALKEY_CACHE_MAXMEMORY:-256mb}", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "${VALKEY_CACHE_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10
 
 volumes:
   postgres-data:
-  redis-data:
+  valkey-data:
