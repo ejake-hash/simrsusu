@@ -37,7 +37,7 @@ class AppServiceProvider extends ServiceProvider
             ]))]);
         }
 
-        $this->loadMigrationsFrom(app_path('Core/Audit/Database/migrations'));
+        $this->loadMigrationsFrom([app_path('Core/Audit/Database/migrations'), app_path('Core/Modul/Database/migrations')]);
         $this->loadRoutesFrom(app_path('Core/Http/routes.php'));
 
         // throttle:api dipasang ke grup `api` di bootstrap/app.php; nilai di config/batas_laju.php.

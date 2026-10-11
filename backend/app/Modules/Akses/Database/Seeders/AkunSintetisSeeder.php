@@ -3,7 +3,13 @@
 namespace App\Modules\Akses\Database\Seeders;
 
 use App\Modules\Akses\Domain\Totp;
+use App\Modules\Akses\Models\Izin;
+use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Akses\Models\PenggunaPeran;
+use App\Modules\Akses\Models\Peran;
+use App\Modules\Akses\Models\PeranIzin;
+use App\Modules\Akses\Models\PeranMenu;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +32,16 @@ final class AkunSintetisSeeder extends Seeder
         'contoh.mfa' => 'Contoh Akun MFA',
         // MFA wajib tetapi belum terdaftar: masuk → perlu_daftar_mfa. Seeding ulang mengosongkannya lagi.
         'contoh.mfa.baru' => 'Contoh Akun MFA Baru',
+    ];
+
+    /**
+     * Peran contoh (tiket 1.2a) agar menu tiap akun sintetis berbeda: kode peran => [nama, akun, menu].
+     * Seluruh sub-menu menu itu diberikan beserta aksi dasarnya, cakupan seluruh RS.
+     */
+    private const PERAN_CONTOH = [
+        'contoh_admisi' => ['Contoh Petugas Admisi', 'contoh.admisi', ['pendaftaran']],
+        'contoh_perawat' => ['Contoh Perawat', 'contoh.perawat', ['igd', 'rawat_inap']],
+        'contoh_dokter' => ['Contoh Dokter', 'contoh.dokter', ['igd', 'rawat_jalan', 'rekam_medis']],
     ];
 
     public function run(): void
@@ -75,6 +91,8 @@ final class AkunSintetisSeeder extends Seeder
             ->whereNull('dibatalkan_pada')
             ->update(['dibatalkan_pada' => now()]);
 
+        $this->pasangPeranContoh();
+
         $this->command?->info('Akun sintetis: '.implode(', ', array_keys(self::AKUN)).'.');
         $sekaliTampil = array_filter([
             $dibuatAcak ? "Sandi acak (hanya ditampilkan sekali): {$sandi}" : null,
@@ -82,6 +100,28 @@ final class AkunSintetisSeeder extends Seeder
         ]);
         foreach ($sekaliTampil as $pesan) {
             $this->command?->warn($pesan);
+        }
+    }
+
+    private function pasangPeranContoh(): void
+    {
+        foreach (self::PERAN_CONTOH as $kode => [$nama, $namaPengguna, $daftarMenu]) {
+            $peran = Peran::query()->updateOrCreate(['kode' => $kode], ['nama' => $nama, 'uraian' => 'Peran sintetis untuk lokal/staging.']);
+
+            $subMenu = Menu::query()->where('tingkat', 'sub_menu')
+                ->whereIn('induk_id', Menu::query()->whereIn('kode', $daftarMenu)->select('id'))->pluck('id');
+            foreach ($subMenu as $menuId) {
+                PeranMenu::query()->firstOrCreate(['peran_id' => $peran->id, 'menu_id' => $menuId]);
+            }
+            foreach (Izin::query()->whereIn('menu_id', $subMenu)->pluck('id') as $izinId) {
+                PeranIzin::query()->firstOrCreate(['peran_id' => $peran->id, 'izin_id' => $izinId]);
+            }
+
+            $pengguna = Pengguna::query()->where('nama_pengguna', $namaPengguna)->firstOrFail();
+            PenggunaPeran::query()->firstOrCreate(
+                ['pengguna_id' => $pengguna->id, 'peran_id' => $peran->id, 'status' => 'aktif'],
+                ['dasar_pemberian' => 'Data sintetis (AkunSintetisSeeder)'],
+            );
         }
     }
 }

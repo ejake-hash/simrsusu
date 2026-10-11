@@ -2,9 +2,12 @@
 
 namespace Tests\Feature\Akses;
 
+use App\Modules\Akses\Application\KebijakanMfa;
 use App\Modules\Akses\Application\SuperadminPertama;
+use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Domain\Totp;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Akses\Models\PenggunaPeran;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Testing\PendingCommand;
@@ -46,7 +49,11 @@ class SuperadminPertamaTest extends TestCase
 
         $pengguna = Pengguna::query()->where('nama_pengguna', 'admin.satu')->firstOrFail();
         $this->assertTrue($pengguna->aktif());
-        $this->assertTrue($pengguna->wajib_mfa);
+        // Wajib MFA karena peran superadmin (tiket 1.2a), bukan karena kolom akun.
+        $this->assertFalse($pengguna->wajib_mfa);
+        $this->assertSame([MenuBawaan::PERAN_SUPERADMIN], PenggunaPeran::query()->berlaku()->where('pengguna_id', $pengguna->id)
+            ->with('peran')->get()->pluck('peran.kode')->all());
+        $this->assertTrue(app(KebijakanMfa::class)->wajib($pengguna, '127.0.0.1'));
         $this->assertTrue($pengguna->mfaAktif());
         $this->assertSame('Contoh Admin Satu', DB::table('sdm.pegawai')->where('id', $pengguna->pegawai_id)->value('nama'));
         $this->assertSame(10, DB::table('akses.kode_cadangan_mfa')->where('pengguna_id', $pengguna->id)->whereNull('dibatalkan_pada')->count());

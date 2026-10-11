@@ -61,6 +61,7 @@ Beberapa sesi (orang atau agen) bisa bekerja bersamaan di mesin yang sama. Atura
 **Otorisasi (PRD 9.2)**
 - Tolak kecuali diberikan. Policy/Gate Laravel lewat **`AccessEvaluator`** (lima lapis, rumus 9.2.5) adalah satu-satunya jalur; jangan cek peran langsung di controller atau komponen.
 - Data bagian halaman yang tidak diizinkan **tidak dikirim server** (bentuk `JsonResource` sesuai izin).
+- Kode izin `<menu>.<sub_menu>.<aksi>` (mis. `data_induk.peran.lihat`) diperiksa dengan `->middleware('can:<kode>')` atau `Gate::allows($kode, $cakupan)`; Gate meneruskannya ke `AccessEvaluator`. Menu/sub-menu/bagian baru dan halaman yang selesai dibangun (`TERSEDIA`) didaftarkan di `MenuBawaan`, lalu migrasi baru memanggil `MenuBawaan::pasang()`.
 - Row Level Security PostgreSQL: **tidak dipakai** saat ini. Bila nanti dipakai, identitas diset per transaksi dengan `select set_config('app.user_id', ?, true)`, bukan `SET` biasa. `auth.uid()` adalah fungsi Supabase dan tidak ada di proyek ini.
 
 **Keamanan (PRD 14.2)**
