@@ -8,6 +8,8 @@ export interface ProfilRs {
   logo: string | null
   /** Motif grafis di panel merek halaman masuk (PRD 5.3.2 aturan 4); bukan untuk layar kerja. */
   motif: string | null
+  /** Foto gedung RS di panel merek halaman masuk; tanpa foto, bagian itu tidak tampil. */
+  foto: string | null
   /** Unit yang mengelola akun, dipakai di teks halaman masuk; bawaan "admin SIMRS". */
   unitAdmin: string
   /** Kontak unit itu untuk lupa sandi/akun terkunci, mis. "ext. 1234". */
@@ -22,6 +24,7 @@ export function profilRsDariEnv(env: Record<string, string | undefined> = import
     nama: isi(env.VITE_RS_NAMA),
     logo: isi(env.VITE_RS_LOGO),
     motif: isi(env.VITE_RS_MOTIF),
+    foto: isi(env.VITE_RS_FOTO),
     unitAdmin: isi(env.VITE_RS_UNIT_ADMIN) ?? UNIT_ADMIN_BAWAAN,
     kontakAdmin: isi(env.VITE_RS_KONTAK_ADMIN),
   }
