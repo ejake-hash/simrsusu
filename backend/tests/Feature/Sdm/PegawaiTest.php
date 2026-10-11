@@ -33,7 +33,7 @@ class PegawaiTest extends TestCase
         $this->masukSebagai($sdm);
         $this->minta('POST', '/api/v1/pegawai', ['nama' => 'Siti Aminah', 'nik' => self::NIK, 'dasar_perubahan' => self::DASAR])
             ->assertForbidden();
-        $dibuat = $this->minta('POST', '/api/v1/pegawai', ['nama' => 'Siti Aminah', 'nip' => '1990001', 'profesi' => 'perawat', 'dasar_perubahan' => self::DASAR])
+        $dibuat = $this->minta('POST', '/api/v1/pegawai', ['nama' => 'Siti Aminah', 'nip' => '1990001', 'nik' => null, 'profesi' => 'perawat', 'dasar_perubahan' => self::DASAR])
             ->assertCreated()->assertJsonPath('data.nik_samaran', null)->assertJsonPath('data.status', 'aktif')->assertJsonMissingPath('data.nik');
         $this->assertSesuaiKontrak($dibuat, 'POST', '/pegawai');
         $id = $dibuat->json('data.id');
@@ -92,7 +92,7 @@ class PegawaiTest extends TestCase
         $ganti('salah-sandi-lama-99', 'Kuda-Biru-Lompat-77')->assertStatus(422)->assertJsonPath('error.kode', 'sandi_lama_salah');
         $ganti($sandiAwal, 'Budi.Santoso-Lompat-77')->assertStatus(422)->assertJsonPath('error.kode', 'validasi_gagal');
         $ganti($sandiAwal, 'Karsitara-Lompat-77')->assertStatus(422);
-        $ganti($sandiAwal, 'pendek')->assertStatus(422);
+        $ganti($sandiAwal, 'pendek')->assertStatus(422)->assertJsonPath('error.rincian.0.pesan', 'Sandi baru minimal 12 karakter.');
         $berhasil = $ganti($sandiAwal, 'Kuda-Biru-Lompat-77')->assertOk()->assertJsonPath('data.wajib_ganti_sandi', false);
         $this->assertSesuaiKontrak($berhasil, 'POST', '/saya/sandi');
         $this->minta('GET', '/api/v1/saya')->assertOk();
@@ -214,13 +214,15 @@ class PegawaiTest extends TestCase
             ->assertCreated()->assertJsonPath('data.status', 'akan_habis')->assertJsonPath('data.dokumen.jenis_mime', 'application/pdf');
         $this->assertSesuaiKontrak($sip, 'POST', '/pegawai/{id}/izin-praktik');
         $catat(['jenis' => 'str', 'nomor' => 'STR/9/2020', 'terbit' => '2020-01-01'])->assertCreated()->assertJsonPath('data.status', 'berlaku');
+        // SIP lama yang habis tidak lagi dihitung sesudah SIP pengganti dicatat.
+        $catat(['jenis' => 'sip', 'nomor' => 'SIP/LAMA/2020', 'terbit' => '2020-01-01', 'berlaku_sampai' => '2021-01-01'])->assertCreated()->assertJsonPath('data.status', 'habis');
         $catat(['jenis' => 'sip', 'nomor' => 'SIP/001/2026', 'terbit' => '2026-01-01', 'berlaku_sampai' => '2027-01-01'])
             ->assertStatus(409)->assertJsonPath('error.kode', 'izin_ganda');
 
         $dokumen = $this->minta('GET', "/api/v1/pegawai/{$pegawai->id}/izin-praktik/".$sip->json('data.id').'/dokumen')->assertOk()
             ->assertHeader('X-Content-Type-Options', 'nosniff');
         $this->assertStringContainsString('attachment', (string) $dokumen->headers->get('Content-Disposition'));
-        $this->assertSesuaiKontrak($this->minta('GET', "/api/v1/pegawai/{$pegawai->id}/izin-praktik")->assertOk()->assertJsonCount(2, 'data'),
+        $this->assertSesuaiKontrak($this->minta('GET', "/api/v1/pegawai/{$pegawai->id}/izin-praktik")->assertOk()->assertJsonCount(3, 'data'),
             'GET', '/pegawai/{id}/izin-praktik');
         $this->minta('GET', "/api/v1/pegawai/{$pegawai->id}")->assertJsonPath('data.izin_praktik_status', 'akan_habis');
         $batal = $this->minta('POST', "/api/v1/pegawai/{$pegawai->id}/izin-praktik/".$sip->json('data.id').'/batal', ['alasan_batal' => 'Salah nomor'])

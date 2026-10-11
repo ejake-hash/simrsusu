@@ -100,11 +100,14 @@ final class KelolaPegawai
         if ($pegawai->status !== 'aktif' || $pegawai->statusKepegawaian() !== 'keluar') {
             return false;
         }
-        // Akun pemegang superadmin tidak pernah dinonaktifkan lewat jalur SDM (K4): ditunda dan dicatat sampai penugasan
-        // superadminnya diakhiri lewat persetujuan superadmin lain. Dicek di bawah kunci akun.
+        // Akun pemegang superadmin tidak pernah dinonaktifkan lewat jalur SDM (K4): ditunda sampai penugasan superadminnya
+        // diakhiri lewat persetujuan superadmin lain. Dicek di bawah kunci akun; dicatat audit oleh tugas harian saja
+        // (sekali per hari, bukan setiap PATCH).
         if ($this->akun->memegangSuperadmin($pegawai->id, kunci: true)) {
-            $this->audit->catat('sdm.keluar_tertunda_superadmin', $olehId, 'sdm.pegawai', $pegawai->id,
-                ['tanggal_keluar' => $pegawai->tanggal_keluar?->toDateString()]);
+            if ($olehId === null) {
+                $this->audit->catat('sdm.keluar_tertunda_superadmin', null, 'sdm.pegawai', $pegawai->id,
+                    ['tanggal_keluar' => $pegawai->tanggal_keluar?->toDateString()]);
+            }
 
             return false;
         }
@@ -117,7 +120,8 @@ final class KelolaPegawai
     /** @param  array<string, mixed>  $isi */
     private function isi(Pegawai $pegawai, array $isi, bool $bolehNik): void
     {
-        if (array_key_exists('nik', $isi)) {
+        // nik null untuk pegawai tanpa NIK = tidak ada perubahan (bukan menyentuh data identitas).
+        if (array_key_exists('nik', $isi) && ($isi['nik'] !== null || $pegawai->nik_sidik !== null)) {
             if (! $bolehNik) {
                 throw new ApiError(403, 'akses_ditolak', 'Mengisi NIK butuh izin melihat identitas pribadi pegawai.');
             }

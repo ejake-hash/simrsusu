@@ -37,9 +37,16 @@ final class GantiSandi
             RateLimiter::hit($kunci, self::JENDELA_DETIK);
             throw new ApiError(422, 'sandi_lama_salah', 'Sandi lama tidak cocok.', [['kolom' => 'sandi_lama', 'pesan' => 'Sandi lama tidak cocok.']]);
         }
-        $validasi = Validator::make(['sandi_baru' => $sandiBaru], ['sandi_baru' => ['required', 'string', 'max:200', Password::defaults(),
-            new SandiKontekstual($pengguna->nama_pengguna), 'different:sandi_lama_teks']], [], ['sandi_baru' => 'sandi baru']);
-        $validasi->setData(['sandi_baru' => $sandiBaru, 'sandi_lama_teks' => $sandiLama]);
+        // Aturan PRD 14.2 ditulis eksplisit agar semua pesan berbahasa Indonesia (pesan bawaan Laravel berbahasa Inggris).
+        $minimal = max(12, (int) config('autentikasi.sandi.panjang_minimal'));
+        $aturan = ['required', 'string', 'max:200', 'min:'.$minimal, app(SandiTidakBocor::class), new SandiKontekstual($pengguna->nama_pengguna),
+            'different:sandi_lama_teks', ...(config('autentikasi.sandi.cek_hibp') ? [Password::min($minimal)->uncompromised()] : [])];
+        $validasi = Validator::make(['sandi_baru' => $sandiBaru, 'sandi_lama_teks' => $sandiLama], ['sandi_baru' => $aturan], [
+            'sandi_baru.min' => "Sandi baru minimal {$minimal} karakter.",
+            'sandi_baru.max' => 'Sandi baru paling panjang 200 karakter.',
+            'sandi_baru.different' => 'Sandi baru harus berbeda dari sandi lama.',
+            'sandi_baru.required' => 'Isi sandi baru.',
+        ]);
         if ($validasi->fails()) {
             throw new ApiError(422, 'validasi_gagal', 'Sandi baru belum memenuhi aturan.',
                 array_map(fn (string $pesan) => ['kolom' => 'sandi_baru', 'pesan' => $pesan], $validasi->errors()->get('sandi_baru')));

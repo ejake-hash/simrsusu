@@ -46,7 +46,11 @@ final class PegawaiResource
         return $baris->map(function (Pegawai $p) use ($unit, $akun, $lihatAkun, $izin, $urutanBuruk) {
             $u = $p->unit_organisasi_id === null ? null : $unit->get($p->unit_organisasi_id);
             $a = $akun->get($p->id);
-            $status = ($izin[$p->id] ?? collect())->map(fn (IzinPraktik $i) => KelolaKredensial::statusIzin($i))
+            // Per jenis dipakai izin terbaru (berlaku paling lama; seumur hidup menang), lalu keadaan terburuk antarjenis:
+            // SIP lama yang habis tidak lagi dihitung sesudah SIP pengganti dicatat.
+            $status = ($izin[$p->id] ?? collect())->groupBy('jenis')
+                ->map(fn ($perJenis) => KelolaKredensial::statusIzin($perJenis->sortByDesc(
+                    fn (IzinPraktik $i) => $i->berlaku_sampai?->getTimestamp() ?? PHP_INT_MAX)->first()))
                 ->sortByDesc(fn (string $s) => $urutanBuruk[$s] ?? 0)->first();
 
             return [

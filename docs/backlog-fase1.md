@@ -155,6 +155,10 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   modul SDM membaca `akses.pengguna`/`inti.unit_organisasi` langsung untuk daftar pegawai (belum lewat antarmuka modul);
   APP_KEY dirotasi = sidik NIK dihitung ulang (perintah belum ada). Usulan sesi 2: path terpisah `GET /pegawai/{id}/nik`
   (di luar API tiket; kini `?tampilkan_nik=true`).
+- Utang tes 1.8d (kode sudah ditinjau benar, tesnya belum): 429 sesudah `sandi_lama_salah` berulang, IDOR dokumen izin
+  praktik antarpegawai, `berkas_terlalu_besar`, NIK tidak muncul di log aplikasi. Runbook: `upload_max_filesize` dan
+  `post_max_size` PHP ≥ 6 MB agar batas dokumen 5 MB (dan impor 2 MB) tercapai sebelum batas PHP. Indeks
+  `sdm.pegawai (dibuat_pada, id)` bila daftar pegawai membesar.
 - **[Perlu pemilik] Usulan (1.8d):** reset sandi oleh admin (sandi awal baru sekali tampil, wajib ganti) dan masa berlaku
   sandi awal; di luar API tiket 1.8d. Sampai itu sandi awal yang hilang tidak bisa dipulihkan.
 - **[Perlu pemilik] Usulan (1.8b):** daftar periksa baku atribut kamar (FR-08-19) sebagai data induk dengan endpoint

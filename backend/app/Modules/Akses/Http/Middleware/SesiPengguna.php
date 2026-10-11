@@ -61,7 +61,7 @@ final class SesiPengguna
 
         match (self::alasanBerakhir($request, $pengguna)) {
             'nonaktif' => $this->akhiri($request, $pengguna, 'sesi_dicabut', 'Akun Anda sudah tidak aktif. Hubungi admin.'),
-            'dicabut' => $this->akhiri($request, $pengguna, 'sesi_dicabut', 'Sesi Anda diakhiri oleh admin. Silakan masuk lagi.'),
+            'dicabut' => $this->akhiri($request, $pengguna, 'sesi_dicabut', 'Sesi Anda sudah diakhiri (mis. sandi diganti atau akses akun diubah). Silakan masuk lagi.'),
             'diam' => $this->akhiri($request, $pengguna, 'sesi_kedaluwarsa', 'Sesi berakhir karena tidak ada aktivitas. Silakan masuk lagi.'),
             null => null,
         };
