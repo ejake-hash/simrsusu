@@ -939,6 +939,8 @@ Aturan rinci (kontrak v0.8.0):
     ETag/versi per objek bertanda tangan menyusul fase 2; frontend 1.2d menampilkan jenis `reset_ttd`; usulan
     `PersetujuanAkses.ditandatangani` (badge di daftar) dan status TTE akun di `Pegawai.akun` (tombol Ajukan reset);
     endpoint "akhiri sesi tanda tangan" untuk komputer bersama.
+  - Utang (tinjauan #57): unique `ttd.tanda_tangan (objek_jenis, objek_id, pengguna_id)` perlu memuat `tingkat` saat T2
+    hadir (orang yang sama menandatangani T1 lalu T2, PRD 7.57.3); verifikasi memuat kunci publik per baris (≤ 100).
   - `ttd.aturan_tingkat` (jenis dokumen → tingkat T1/T2/S/P) berisi data awal `persetujuan_akses → T1`, tanpa API di
     fase 1. `ttd.permintaan` dipakai SimulatorTte (T2) di uji; tanpa endpoint publik (K10).
 Di luar lingkup tiket: PSrE nyata, segel elektronik RS, halaman verifikasi publik ber-QR, tanda tangan pasien di

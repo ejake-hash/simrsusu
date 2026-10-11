@@ -58,7 +58,7 @@ final class TtdController
             'objek' => ['required', 'array', 'min:1', 'max:50'],
             'objek.*' => ['required', 'array:jenis,id'],
             'objek.*.jenis' => ['required', 'string', 'in:persetujuan_akses'],
-            'objek.*.id' => ['required', 'uuid', 'distinct'],
+            'objek.*.id' => ['required', 'uuid', 'distinct:ignore_case'],
             'pin' => ['nullable', 'string', 'max:20'],
             'pernyataan_disetujui' => ['required', 'boolean', 'accepted'],
         ]);
@@ -66,7 +66,7 @@ final class TtdController
         [$hasil, $sesiSampai] = $this->penandatangan->tandatangani($request, $request->user(), $objek, $isi['pin'] ?? null);
 
         return $this->tanpaSimpan(new JsonResponse([
-            'data' => TandaTanganResource::daftar(collect($hasil)->map(fn (array $h) => [...$h, 'status' => 'sah'])),
+            'data' => TandaTanganResource::daftar($hasil),
             'meta' => ['sesi_berlaku_sampai' => $sesiSampai->toIso8601String()],
         ]));
     }

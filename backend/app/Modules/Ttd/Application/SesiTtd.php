@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\Cookie;
  * Sesi tanda tangan (PRD 7.57.2): sesudah PIN benar, penandatanganan berikutnya di sesi login yang sama tanpa PIN
  * selama ttd.sesi_menit. Kunci privat disimpan terbungkus kunci acak: bungkusan di sesi server, kunci acaknya di cookie
  * HttpOnly. Akses ke penyimpanan sesi saja, atau cookie saja, tidak cukup untuk menandatangani. Sesi berakhir saat
- * keluar, ganti sandi (waktu masuk sesi berganti), atau kredensial berganti.
+ * keluar, ganti sandi (waktu masuk sesi berganti), atau revisi kredensial berganti (ganti PIN, terkunci, dicabut) —
+ * juga di sesi login lain akun itu.
  */
 final class SesiTtd
 {
@@ -29,6 +30,7 @@ final class SesiTtd
             'sampai' => now()->addMinutes($menit)->getTimestamp(),
             'masuk_pada' => $request->session()->get(SesiPengguna::MASUK_PADA),
             'kredensial_id' => $k->id,
+            'revisi' => $k->revisi,
             'terbungkus' => base64_encode($nonce.sodium_crypto_secretbox($rahasia, $nonce, $kunci)),
         ]);
         Cookie::queue(Cookie::make(self::KUE, base64_encode($kunci), $menit, '/api/v1', null, null, true, false, 'strict'));
@@ -63,11 +65,12 @@ final class SesiTtd
         Cookie::queue(Cookie::forget(self::KUE, '/api/v1'));
     }
 
-    /** @return array{sampai: int, masuk_pada: mixed, kredensial_id: string, terbungkus: string}|null */
+    /** @return array{sampai: int, masuk_pada: mixed, kredensial_id: string, revisi: int, terbungkus: string}|null */
     private function sesi(Request $request, ?Kredensial $k): ?array
     {
         $sesi = $request->hasSession() ? $request->session()->get(self::KUNCI) : null;
         $sah = is_array($sesi) && $k !== null && ! $k->terkunci() && ($sesi['kredensial_id'] ?? null) === $k->id
+            && ($sesi['revisi'] ?? null) === $k->revisi
             && ($sesi['masuk_pada'] ?? null) === $request->session()->get(SesiPengguna::MASUK_PADA)
             && (int) ($sesi['sampai'] ?? 0) > now()->getTimestamp();
 

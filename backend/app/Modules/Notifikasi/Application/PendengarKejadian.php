@@ -82,6 +82,12 @@ final class PendengarKejadian
     /** TTE terkunci karena PIN salah berulang (1.6): kritis ke pemilik dan atasan langsung. */
     public function ttdTerkunci(TtdTerkunci $e): void
     {
+        // Paling banyak satu per jam per akun (seperti AKUN_TERKUNCI): penguncian sengaja tidak membanjiri atasan.
+        $baruSaja = DB::table('notifikasi.notifikasi')->where('pengguna_id', $e->penggunaId)->where('jenis', self::TTD_TERKUNCI)
+            ->where('dibuat_pada', '>', now()->subHour()->format('Y-m-d H:i:s.uP'))->exists();
+        if ($baruSaja) {
+            return;
+        }
         $sampai = Carbon::parse($e->terkunciSampai)->setTimezone((string) config('instalasi.zona_waktu'))->format('H:i');
         $this->pemberitahu->kirim([$e->penggunaId], self::TTD_TERKUNCI, 'Tanda tangan elektronik Anda terkunci',
             "Tanda tangan elektronik Anda terkunci sampai pukul {$sampai} karena PIN salah beberapa kali. Bila itu bukan Anda, segera hubungi atasan dan SDM.",

@@ -20,7 +20,10 @@ final class KunciTtd
         $publik = sodium_crypto_sign_publickey($pasangan);
         sodium_memzero($pasangan);
 
-        return ['publik' => base64_encode($publik), ...self::bungkus($rahasia, $pin, $lada, $penggunaId, base64_encode($publik))];
+        $hasil = ['publik' => base64_encode($publik), ...self::bungkus($rahasia, $pin, $lada, $penggunaId, base64_encode($publik))];
+        sodium_memzero($rahasia);
+
+        return $hasil;
     }
 
     /**
@@ -31,7 +34,8 @@ final class KunciTtd
     public static function bungkus(string $rahasia, string $pin, string $lada, string $penggunaId, string $publik): array
     {
         $garam = random_bytes(SODIUM_CRYPTO_PWHASH_SALTBYTES);
-        $minimum = config('ttd.kdf') === 'minimum';
+        // KDF minimum hanya berlaku di lingkungan tes.
+        $minimum = config('ttd.kdf') === 'minimum' && app()->environment('testing');
         $parameter = ['opslimit' => $minimum ? 1 : SODIUM_CRYPTO_PWHASH_OPSLIMIT_INTERACTIVE,
             'memlimit' => $minimum ? 8192 : SODIUM_CRYPTO_PWHASH_MEMLIMIT_INTERACTIVE,
             'alg' => SODIUM_CRYPTO_PWHASH_ALG_ARGON2ID13];
@@ -45,18 +49,24 @@ final class KunciTtd
     }
 
     /**
-     * Buka kunci privat; null bila PIN salah atau bungkusan/AD tidak cocok. Pemanggil wajib sodium_memzero hasilnya.
+     * Buka kunci privat; null bila PIN salah, bungkusan/AD tidak cocok, atau parameter KDF tersimpan di luar rentang wajar.
+     * Pemanggil wajib sodium_memzero hasilnya.
      *
-     * @param  array{opslimit: int, memlimit: int, alg: int}  $parameter
+     * @param  array<string, mixed>  $parameter  parameter_kdf tersimpan
      */
     public static function buka(string $terbungkus, string $garam, array $parameter, string $pin, string $lada, string $penggunaId, string $publik): ?string
     {
         $isi = base64_decode($terbungkus, true);
         $garamMentah = base64_decode($garam, true);
-        if ($isi === false || $garamMentah === false || strlen($isi) <= SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES) {
+        $kdf = ['opslimit' => (int) ($parameter['opslimit'] ?? 0), 'memlimit' => (int) ($parameter['memlimit'] ?? 0), 'alg' => (int) ($parameter['alg'] ?? 0)];
+        // Parameter dari DB dibatasi: nilai di luar rentang wajar (mis. diubah agar KDF murah/berat) tidak dipakai.
+        $wajar = $kdf['alg'] === SODIUM_CRYPTO_PWHASH_ALG_ARGON2ID13 && $kdf['opslimit'] >= 1 && $kdf['opslimit'] <= 10
+            && $kdf['memlimit'] >= 8192 && $kdf['memlimit'] <= 1073741824
+            && (app()->environment('testing') || $kdf['memlimit'] >= SODIUM_CRYPTO_PWHASH_MEMLIMIT_INTERACTIVE);
+        if (! $wajar || $isi === false || $garamMentah === false || strlen($isi) <= SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES) {
             return null;
         }
-        $kek = self::kek(self::berlada($pin, $lada), $garamMentah, $parameter);
+        $kek = self::kek(self::berlada($pin, $lada), $garamMentah, $kdf);
         $nonce = substr($isi, 0, SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
         $rahasia = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt(substr($isi, SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES),
             self::ad($penggunaId, $publik), $nonce, $kek);

@@ -141,10 +141,14 @@ final class AlurPersetujuan
             ->whereNot(fn ($q) => $q->whereIn('objek_jenis', self::OBJEK_PERAN)->whereIn('peran_id', $dipegang['masih_aktif']));
     }
 
-    /** Rincian dan verifikasi tanda tangannya hanya untuk pengaju, penerima, dan penyetuju (peran atau orang); selain itu 404. */
+    /**
+     * Rincian dan verifikasi tanda tangannya hanya untuk pengaju, penerima, penyetuju (peran atau orang), dan pemutusnya
+     * (walau perannya sudah dicabut); selain itu 404.
+     */
     public function terlihat(Pengguna $pengguna, PersetujuanAkses $p): bool
     {
         return $p->diajukan_oleh === $pengguna->id || $p->sasaran_pengguna_id === $pengguna->id || $p->penyetuju_pengguna_id === $pengguna->id
+            || $p->diputuskan_oleh === $pengguna->id
             || ($p->penyetuju_peran_id !== null && in_array($p->penyetuju_peran_id, $this->peranDipegang($pengguna)['berlaku'], true));
     }
 

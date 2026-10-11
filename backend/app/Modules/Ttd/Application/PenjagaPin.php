@@ -66,7 +66,8 @@ final class PenjagaPin
 
                 return ['salah', $k, null];
             }
-            $k->forceFill(['percobaan_gagal' => 0, 'terkunci_sampai' => now()->addMinutes((int) config('ttd.kunci_menit'))])->save();
+            // Revisi naik: sesi tanda tangan yang ada (semua sesi login akun ini) berakhir dan tidak hidup lagi sesudah kunci lepas.
+            $k->forceFill(['percobaan_gagal' => 0, 'terkunci_sampai' => now()->addMinutes((int) config('ttd.kunci_menit')), 'revisi' => $k->revisi + 1])->save();
             TtdTerkunci::dispatch($pengguna->id, $this->atasan->untuk($pengguna)?->id, $k->terkunci_sampai->toIso8601String());
             $this->audit->catat('ttd.terkunci', $pengguna->id, 'ttd.kredensial', $k->id, ['terkunci_sampai' => $k->terkunci_sampai->toIso8601String()]);
 

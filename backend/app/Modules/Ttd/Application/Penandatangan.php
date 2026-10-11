@@ -30,7 +30,7 @@ final class Penandatangan
 
     /**
      * @param  list<array{jenis: string, id: string}>  $objek
-     * @return array{0: list<array{tanda_tangan: TandaTangan, baru: bool}>, 1: Carbon} hasil seurut permintaan dan akhir sesi
+     * @return array{0: list<array{tanda_tangan: TandaTangan, baru: bool, status: string}>, 1: Carbon} hasil seurut permintaan dan akhir sesi
      */
     public function tandatangani(Request $request, Pengguna $pengguna, array $objek, ?string $pin): array
     {
@@ -62,7 +62,8 @@ final class Penandatangan
                 foreach ($objek as $o) {
                     $lama = TandaTangan::query()->where('objek_jenis', $o['jenis'])->where('objek_id', $o['id'])->where('pengguna_id', $pengguna->id)->first();
                     if ($lama !== null) {
-                        $hasil[] = ['tanda_tangan' => $lama, 'baru' => false];
+                        // Tanda tangan lama diverifikasi ulang (isi objek bisa sudah berubah sejak ditandatangani).
+                        $hasil[] = ['tanda_tangan' => $lama, 'baru' => false, 'status' => $this->status($lama, $this->hashSekarang($o['jenis'], $o['id']))];
 
                         continue;
                     }
@@ -75,7 +76,7 @@ final class Penandatangan
                         'cap_waktu' => $cap, 'bukti' => ['buka_kunci' => $pin === null ? 'sesi' : 'pin'], 'ditandatangani_pada' => $cap,
                     ]);
                     $t->save();
-                    $hasil[] = ['tanda_tangan' => $t, 'baru' => true];
+                    $hasil[] = ['tanda_tangan' => $t, 'baru' => true, 'status' => 'sah'];
                     $baru[] = $t;
                 }
                 // Audit di akhir transaksi (kunci rantai dipegang sampai commit).
@@ -105,18 +106,30 @@ final class Penandatangan
         if ($penyedia === null || ! $penyedia->terlihat($pengguna, $id)) {
             throw new ApiError(404, 'tidak_ditemukan', 'Data tidak ditemukan.');
         }
-        $isi = $penyedia->isi($id);
-        $hashSekarang = $isi === null ? null : IsiKanonik::hash($isi);
+        $hashSekarang = $this->hashSekarang($jenis, $id);
         // Fase 1 hanya T1 yang diverifikasi di sini; T2 (PSrE) diverifikasi lewat sertifikat penyedia saat PSrE dipilih.
         $daftar = TandaTangan::query()->where('objek_jenis', $jenis)->where('objek_id', $id)->where('tingkat', 'T1')->orderBy('ditandatangani_pada')->orderBy('id')->limit(100)->get();
-        $kunci = Kredensial::query()->whereIn('id', $daftar->pluck('kredensial_id')->filter()->unique()->values())->pluck('kunci_publik', 'id');
 
-        // Keaslian dulu (baris palsu → tanda_tangan_tidak_sah), lalu isi (kontrak v0.8.0).
-        return $daftar->toBase()->map(fn (TandaTangan $t) => ['tanda_tangan' => $t, 'status' => match (true) {
-            ! KunciTtd::cocok((string) $kunci->get((string) $t->kredensial_id), IsiKanonik::pesan($t->objek_jenis, $t->objek_id, $t->hash_isi, $t->cap_waktu, (string) $t->pengguna_id), $t->nilai_tanda_tangan) => 'tanda_tangan_tidak_sah',
+        return $daftar->toBase()->map(fn (TandaTangan $t) => ['tanda_tangan' => $t, 'status' => $this->status($t, $hashSekarang)])->values();
+    }
+
+    /** Keaslian dulu (baris palsu → tanda_tangan_tidak_sah), lalu isi (kontrak v0.8.0). */
+    private function status(TandaTangan $t, ?string $hashSekarang): string
+    {
+        $publik = (string) Kredensial::query()->whereKey($t->kredensial_id)->value('kunci_publik');
+
+        return match (true) {
+            ! KunciTtd::cocok($publik, IsiKanonik::pesan($t->objek_jenis, $t->objek_id, $t->hash_isi, $t->cap_waktu, (string) $t->pengguna_id), $t->nilai_tanda_tangan) => 'tanda_tangan_tidak_sah',
             $hashSekarang === null || ! hash_equals($t->hash_isi, $hashSekarang) => 'isi_berubah',
             default => 'sah',
-        }])->values();
+        };
+    }
+
+    private function hashSekarang(string $jenis, string $id): ?string
+    {
+        $isi = $this->penyedia->untuk($jenis)?->isi($id);
+
+        return $isi === null ? null : IsiKanonik::hash($isi);
     }
 
     /** @param  list<array{jenis: string, id: string}>  $objek */

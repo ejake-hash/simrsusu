@@ -248,6 +248,51 @@ class TtdTest extends TestCase
         $this->minta('GET', '/api/v1/saya')->assertJsonPath('data.ttd.sesi_berlaku_sampai', null);
     }
 
+    public function test_sesi_tanda_tangan_berakhir_di_semua_sesi_saat_ganti_pin_atau_terkunci(): void
+    {
+        config(['ttd.kunci_menit' => 1]);
+        [, $atasan, $sdm] = $this->organisasi();
+        $this->aktifkan($sdm);
+        $id = fn () => [['jenis' => 'persetujuan_akses', 'id' => $this->persetujuanDiputuskan($sdm, $atasan)]];
+        $tanpaPin = fn () => $this->minta('POST', '/api/v1/ttd/tandatangani', ['objek' => $id(), 'pernyataan_disetujui' => true]);
+
+        // Peramban A membuka sesi tanda tangan; peramban B (akun sama) mengganti PIN → sesi A berakhir.
+        $this->masukSebagai($sdm);
+        $this->minta('POST', '/api/v1/ttd/tandatangani', ['objek' => $id(), 'pin' => self::PIN, 'pernyataan_disetujui' => true])->assertOk();
+        $tanpaPin()->assertOk();
+        $a = $this->peramban();
+        $this->masukSebagai($sdm);
+        $this->minta('PUT', '/api/v1/saya/ttd/pin', ['pin_lama' => self::PIN, 'pin_baru' => '246801', 'pin_ulang' => '246801'])->assertOk();
+        $this->pakaiPeramban($a);
+        $tanpaPin()->assertStatus(422)->assertJsonPath('error.kode', 'pin_wajib');
+
+        // Terkunci → sesi berakhir dan tidak hidup lagi sesudah kunci lepas.
+        $this->minta('POST', '/api/v1/ttd/tandatangani', ['objek' => $id(), 'pin' => '246801', 'pernyataan_disetujui' => true])->assertOk();
+        foreach (range(1, 5) as $_) {
+            $this->minta('POST', '/api/v1/ttd/tandatangani', ['objek' => $id(), 'pin' => '135790', 'pernyataan_disetujui' => true]);
+        }
+        $this->travel(2)->minutes();
+        $this->pakaiPeramban($a);
+        $tanpaPin()->assertStatus(422)->assertJsonPath('error.kode', 'pin_wajib');
+    }
+
+    public function test_kirim_ulang_memverifikasi_ulang_tanda_tangan_lama(): void
+    {
+        [, $atasan, $sdm] = $this->organisasi();
+        $this->aktifkan($sdm);
+        $id = $this->persetujuanDiputuskan($sdm, $atasan);
+        $objek = [['jenis' => 'persetujuan_akses', 'id' => $id]];
+        $this->masukSebagai($sdm);
+        $this->minta('POST', '/api/v1/ttd/tandatangani', ['objek' => $objek, 'pin' => self::PIN, 'pernyataan_disetujui' => true])->assertOk();
+        PersetujuanAkses::query()->whereKey($id)->update(['catatan_keputusan' => 'Diubah sesudah ditandatangani']);
+        $this->minta('POST', '/api/v1/ttd/tandatangani', ['objek' => $objek, 'pernyataan_disetujui' => true])
+            ->assertOk()->assertJsonPath('data.0.baru', false)->assertJsonPath('data.0.verifikasi.status', 'isi_berubah');
+        // Huruf besar id ganda tetap dianggap ganda.
+        $this->minta('POST', '/api/v1/ttd/tandatangani', ['pernyataan_disetujui' => true, 'objek' => [
+            ['jenis' => 'persetujuan_akses', 'id' => $id], ['jenis' => 'persetujuan_akses', 'id' => strtoupper($id)],
+        ]])->assertStatus(422)->assertJsonPath('error.kode', 'validasi_gagal');
+    }
+
     public function test_atasan_naik_ke_unit_induk_dan_puncak_tanpa_atasan(): void
     {
         [$kepalaInduk, $akunInduk] = $this->pegawaiBerakun('dr. Direktur');
