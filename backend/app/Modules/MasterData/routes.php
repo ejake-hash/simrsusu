@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\MasterData\Http\Controllers\BangsalController;
+use App\Modules\MasterData\Http\Controllers\ImporLokasiController;
 use App\Modules\MasterData\Http\Controllers\KamarController;
 use App\Modules\MasterData\Http\Controllers\KapasitasTempatTidurController;
 use App\Modules\MasterData\Http\Controllers\KelasRawatController;
@@ -27,6 +28,7 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     // Lokasi fisik, ruang, dan TT (tiket 1.8b): izin master_data.organisasi.* cakupan rs, diperiksa di controller.
     Route::get('lokasi', [LokasiController::class, 'index']);
     Route::post('lokasi', [LokasiController::class, 'store']);
+    Route::post('lokasi/impor', ImporLokasiController::class);
     Route::get('lokasi/{lokasi}', [LokasiController::class, 'show']);
     Route::patch('lokasi/{lokasi}', [LokasiController::class, 'update']);
     Route::get('bangsal', [BangsalController::class, 'index']);

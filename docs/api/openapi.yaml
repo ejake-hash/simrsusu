@@ -1436,7 +1436,7 @@ paths:
         Kode salah per baris: `kolom_wajib`, `jenis_tidak_dikenal`, `kode_tidak_valid`, `kode_ganda` (sama di berkas),
         `kode_sudah_dipakai`, `induk_tidak_ditemukan`, `siklus`, `jenis_induk_tidak_sesuai`, `induk_tidak_aktif`,
         `fungsi_wajib`, `fungsi_hanya_ruang`, `unit_tidak_valid`, `bangsal_tidak_valid`, `kelas_rawat_tidak_valid`, `bukan_kamar`,
-        `nilai_tidak_valid`, `terlalu_banyak_baris`.
+        `nilai_tidak_valid`. Berkas di atas batas baris → 422 `berkas_tidak_valid` (bukan kesalahan per baris).
       requestBody:
         required: true
         content:
