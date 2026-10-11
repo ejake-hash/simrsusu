@@ -6,6 +6,7 @@ use App\Modules\Igd\ModuleServiceProvider as ModulIgd;
 use App\Modules\Pendaftaran\ModuleServiceProvider as ModulPendaftaran;
 use App\Modules\Sdm\ModuleServiceProvider as ModulSdm;
 use App\Providers\AppServiceProvider;
+use App\Providers\HorizonServiceProvider;
 
 return [
     AppServiceProvider::class,
@@ -14,4 +15,5 @@ return [
     ModulPendaftaran::class,
     ModulAntrean::class,
     ModulIgd::class,
+    HorizonServiceProvider::class,
 ];

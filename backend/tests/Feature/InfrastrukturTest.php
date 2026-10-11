@@ -119,6 +119,36 @@ class InfrastrukturTest extends TestCase
         $this->assertSame(['simrs_analitik' => false, 'simrs_baca' => false], $role);
     }
 
+    /** PRD 14.1.1 butir 2: query lambat gagal sendiri, bukan menggantung. Tes ini sengaja menunggu 5 detik. */
+    public function test_query_lambat_simrs_app_dibatalkan_batas_waktu(): void
+    {
+        $this->assertSame('5s', DB::scalar('SHOW statement_timeout'));
+
+        try {
+            // Savepoint, agar pembatalan tidak menggagalkan transaksi tes.
+            DB::transaction(fn () => DB::select('SELECT pg_sleep(6)'));
+        } catch (QueryException $e) {
+            $this->assertSame('57014', $e->getCode(), 'Seharusnya dibatalkan statement_timeout.');
+
+            return;
+        }
+
+        $this->fail('pg_sleep(6) seharusnya dibatalkan setelah 5 detik.');
+    }
+
+    public function test_batas_waktu_simrs_analitik_lima_menit(): void
+    {
+        // Role NOLOGIN, jadi yang diperiksa setelannya (klaster atau database ini).
+        $setelan = DB::table('pg_db_role_setting as s')
+            ->join('pg_roles as r', 'r.oid', '=', 's.setrole')
+            ->where('r.rolname', 'simrs_analitik')
+            ->whereRaw('s.setdatabase IN (0, (SELECT oid FROM pg_database WHERE datname = current_database()))')
+            ->pluck('s.setconfig')
+            ->implode(',');
+
+        $this->assertStringContainsString('statement_timeout=5min', $setelan);
+    }
+
     public function test_valkey_tersedia(): void
     {
         $this->assertSame('PONG', (string) Redis::connection()->ping());
