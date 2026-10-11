@@ -49,6 +49,14 @@ const id = `sakelar-${useId()}`
   border-color: var(--brand-600);
   background: var(--brand-600);
 }
+/* Kelas tablet: area sentuh 44 px tanpa memperbesar gambar sakelar (PRD 5.5 aturan 1). */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  .sakelar-akar::after {
+    content: '';
+    position: absolute;
+    inset: -10px -4px;
+  }
+}
 .sakelar-akar:disabled {
   cursor: not-allowed;
   opacity: 0.6;

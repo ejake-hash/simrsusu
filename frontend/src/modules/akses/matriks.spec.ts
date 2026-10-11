@@ -12,6 +12,7 @@ import {
   pilihanTingkat,
   terkunciInduk,
   tingkatDari,
+  tingkatTampil,
 } from './matriks'
 import { buatPohon } from './tiruan/dataPengaturan'
 
@@ -39,6 +40,13 @@ describe('matriks izin peran', () => {
     // bagian tanpa input: lihat → perbaiki
     expect(pilihanTingkat(node('kasir.tagihan.panel_diskon'))).toEqual(['tidak', 'lihat', 'perbaiki'])
     expect(tingkatDari(node('kasir.tagihan.panel_diskon'), new Set(['kasir.tagihan.panel_diskon.lihat', 'kasir.tagihan.panel_diskon.perbaiki']))).toBe('perbaiki')
+  })
+
+  it('tingkat tampil "campuran" bila ada aksi dasar di atas tingkat utuh', () => {
+    const tagihan = node('kasir.tagihan')
+    expect(tingkatTampil(tagihan, new Set(['kasir.tagihan.lihat', 'kasir.tagihan.perbaiki']))).toBe('campuran')
+    expect(tingkatTampil(tagihan, new Set(['kasir.tagihan.lihat', 'kasir.tagihan.input']))).toBe('input')
+    expect(tingkatTampil(tagihan, new Set(['kasir.tagihan.cetak']))).toBe('tidak')
   })
 
   it('menyalakan aksi ikut menyalakan lihat; mencabut lihat mencabut node dan semua bagiannya', () => {

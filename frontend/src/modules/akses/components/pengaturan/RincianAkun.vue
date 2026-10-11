@@ -43,7 +43,7 @@ const superadmin = computed(() => akun.value?.mfa.sumber_wajib.some((s) => s.jen
 function berubah(teks: string) {
   pesan.value = teks
   void qc.invalidateQueries({ queryKey: KUNCI.akun(props.akunId) })
-  void qc.invalidateQueries({ queryKey: KUNCI.daftarAkun, exact: false, refetchType: 'active' })
+  void qc.invalidateQueries({ queryKey: KUNCI.daftarAkun })
   void qc.invalidateQueries({ queryKey: KUNCI.daftarPeran })
 }
 </script>

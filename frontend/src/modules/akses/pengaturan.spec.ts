@@ -1,4 +1,4 @@
-import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
+import { focusManager, QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,7 +6,7 @@ import { defineComponent, h } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { useSesiStore } from '@/app/sesi'
 import HalamanModul from '@/layouts/HalamanModul.vue'
-import { klien } from '@/shared/api/klien'
+import { ApiError, klien } from '@/shared/api/klien'
 import { aturIzin, vCan } from '@/shared/composables/usePermission'
 import EditorPeran from './components/pengaturan/EditorPeran.vue'
 import MatriksIzin from './components/pengaturan/MatriksIzin.vue'
@@ -144,6 +144,75 @@ describe('Editor peran (MD-2, 412, 409, 422)', () => {
     await flushPromises()
     expect(kotak('Cetak').checked).toBe(false)
     expect(document.body.textContent).toContain('0 ditambah, 1 dicabut')
+  })
+
+  it('muat ulang latar (tab kembali fokus) tidak membuang suntingan: versi baru tampil sebagai bentrok', async () => {
+    await pasang(EditorPeran, { peranId: KASIR, indeks: indeks() })
+    await centang('Cetak', false)
+    expect(tombol('Ubah info')!.disabled).toBe(true)
+
+    const lain = server.tangani({ metode: 'GET', jalur: `/peran/${KASIR}`, kueri: new URLSearchParams(), header: {}, isi: null })!
+    server.tangani({
+      metode: 'PUT',
+      jalur: `/peran/${KASIR}/izin`,
+      kueri: new URLSearchParams(),
+      header: { 'if-match': lain.header!.ETag! },
+      isi: { izin: [...izinServer(), 'kasir.tutup.lihat'].filter((v, i, a) => a.indexOf(v) === i), dasar_perubahan: 'Memo lain' },
+    })
+    focusManager.setFocused(false)
+    focusManager.setFocused(true)
+    await tenang()
+    focusManager.setFocused(undefined)
+
+    expect(document.body.textContent).toContain('diubah orang lain sejak Anda membukanya')
+    expect(kotak('Cetak').checked).toBe(false)
+  })
+
+  it('muat ulang latar tanpa suntingan: matriks langsung ikut versi terbaru', async () => {
+    await pasang(EditorPeran, { peranId: KASIR, indeks: indeks() })
+    const lain = server.tangani({ metode: 'GET', jalur: `/peran/${KASIR}`, kueri: new URLSearchParams(), header: {}, isi: null })!
+    server.tangani({
+      metode: 'PUT',
+      jalur: `/peran/${KASIR}/izin`,
+      kueri: new URLSearchParams(),
+      header: { 'if-match': lain.header!.ETag! },
+      isi: { izin: izinServer().filter((k) => k !== 'kasir.tagihan.cetak'), dasar_perubahan: 'Memo lain' },
+    })
+    focusManager.setFocused(false)
+    focusManager.setFocused(true)
+    await tenang()
+    focusManager.setFocused(undefined)
+
+    expect(document.body.textContent).not.toContain('diubah orang lain')
+    expect(kotak('Cetak').checked).toBe(false)
+    expect(document.body.textContent).toContain('Tidak ada perubahan')
+  })
+
+  it('422 dari server: dialog ditutup, pesan ditampilkan, baris yang disebut rincian disorot', async () => {
+    await pasang(EditorPeran, { peranId: KASIR, indeks: indeks() })
+    await centang('Cetak', false)
+    const put = vi.spyOn(klien, 'put').mockRejectedValueOnce(
+      new ApiError(422, 'induk_belum_diberikan', 'Bagian mensyaratkan sub-menu induknya diberi lihat.', [
+        { kolom: 'izin', kode: 'kasir.tagihan.panel_diskon.lihat', pesan: 'Sub-menu induk belum diberi lihat.' },
+      ]),
+    )
+    await klik(tombol('Simpan perubahan'))
+    await isi('Dasar perubahan', 'SK 1/2026')
+    await klik([...document.querySelectorAll('[role="alertdialog"] button')].find((b) => b.textContent?.includes('Simpan perubahan')) as HTMLElement)
+
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull()
+    expect(document.querySelector('[role="alert"]')!.textContent).toContain('Baris yang ditolak disorot')
+    expect(document.querySelector('tr.salah')?.textContent).toContain('Panel diskon')
+    put.mockRestore()
+  })
+
+  it('izin sensitif pada aksi dasar bergembok di sel dan pilihan tingkat', async () => {
+    await pasang(EditorPeran, { peranId: KASIR, indeks: indeks() })
+    await klik(tombol('Buka semua'))
+    const baris = [...document.querySelectorAll('tr')].find((r) => r.querySelector('th')?.textContent?.includes('Peran & izin'))!
+    expect(baris.querySelectorAll('.gembok')).toHaveLength(2)
+    expect(baris.textContent).toContain('Input Pengaturan Sistem → Peran & izin (sensitif)')
+    expect([...baris.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['Tidak ada', 'Lihat', 'Input (sensitif)', 'Perbaiki (sensitif)'])
   })
 
   it('peran terkunci (superadmin) = mode baca dengan keterangan, tanpa tombol simpan', async () => {

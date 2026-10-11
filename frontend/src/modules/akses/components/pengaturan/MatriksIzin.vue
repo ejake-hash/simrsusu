@@ -11,7 +11,7 @@ import {
   menuTampil,
   pilihanTingkat,
   terkunciInduk,
-  tingkatDari,
+  tingkatTampil,
   type BarisMatriks,
   type IndeksMatriks,
   type Tingkat,
@@ -106,6 +106,9 @@ function ubahAksi(node: NodeMenu, kode: string, nyala: boolean) {
   emit('update:izin', aturAksi(props.indeks, node, kode, nyala, props.izin))
 }
 
+const pekaAksi = (node: NodeMenu, aksi: (typeof DASAR)[number]) => node.izin.some((i) => i.jenis_aksi === aksi && i.sensitif)
+/** Memilih tingkat ini menambah izin sensitif (semua aksi dasar sampai tingkat itu). */
+const tingkatPeka = (node: NodeMenu, t: Tingkat) => t !== 'tidak' && DASAR.slice(0, DASAR.indexOf(t) + 1).some((a) => pekaAksi(node, a))
 const berubah = (b: BarisMatriks) => b.node.izin.some((i) => props.izin.has(i.kode) !== asal.value.has(i.kode))
 const disorot = (b: BarisMatriks) => props.sorot.has(b.node.kode) || b.node.izin.some((i) => props.sorot.has(i.kode))
 const idKunci = (b: BarisMatriks) => `kunci-${b.node.id}`
@@ -177,13 +180,14 @@ const JENIS: Record<NodeMenu['tingkat'], string> = { menu: 'menu', sub_menu: 'su
                   <select
                     v-if="pilihanTingkat(r.b.node).length"
                     class="isian pilih-tingkat"
-                    :value="tingkatDari(r.b.node, izin)"
+                    :value="tingkatTampil(r.b.node, izin)"
                     :disabled="bacaSaja || terkunciInduk(r.b, izin)"
                     :aria-label="`Tingkat ${r.b.jalur}`"
                     :aria-describedby="terkunciInduk(r.b, izin) ? idKunci(r.b) : undefined"
                     @change="ubahTingkat(r.b.node, ($event.target as HTMLSelectElement).value as Tingkat)"
                   >
-                    <option v-for="t in pilihanTingkat(r.b.node)" :key="t" :value="t">{{ LABEL_TINGKAT[t] }}</option>
+                    <option v-for="t in pilihanTingkat(r.b.node)" :key="t" :value="t">{{ LABEL_TINGKAT[t] }}{{ tingkatPeka(r.b.node, t) ? ' (sensitif)' : '' }}</option>
+                    <option v-if="tingkatTampil(r.b.node, izin) === 'campuran'" value="campuran" disabled>Campuran</option>
                   </select>
                 </td>
                 <td v-for="a in DASAR" :key="a" class="kol-aksi">
@@ -195,7 +199,8 @@ const JENIS: Record<NodeMenu['tingkat'], string> = { menu: 'menu', sub_menu: 'su
                       :aria-describedby="terkunciInduk(r.b, izin) ? idKunci(r.b) : undefined"
                       @change="ubahAksi(r.b.node, kodeAksi(r.b.node, a)!, ($event.target as HTMLInputElement).checked)"
                     />
-                    <span class="sr-only">{{ LABEL_AKSI[a] }} {{ r.b.jalur }}</span>
+                    <Ikon v-if="pekaAksi(r.b.node, a)" nama="gembok" :ukuran="12" class="gembok" />
+                    <span class="sr-only">{{ LABEL_AKSI[a] }} {{ r.b.jalur }}{{ pekaAksi(r.b.node, a) ? ' (sensitif)' : '' }}</span>
                   </label>
                 </td>
                 <td>
@@ -208,7 +213,7 @@ const JENIS: Record<NodeMenu['tingkat'], string> = { menu: 'menu', sub_menu: 'su
                         @change="ubahAksi(r.b.node, i.kode, ($event.target as HTMLInputElement).checked)"
                       />
                       <Ikon v-if="i.sensitif" nama="gembok" :ukuran="12" />
-                      {{ LABEL_AKSI[i.jenis_aksi] }}<span v-if="i.sensitif" class="sr-only"> (sensitif)</span>
+                      {{ LABEL_AKSI[i.jenis_aksi] }}<span class="sr-only"> {{ r.b.jalur }}{{ i.sensitif ? ' (sensitif)' : '' }}</span>
                     </label>
                   </div>
                 </td>
@@ -378,6 +383,15 @@ tr.dikunci td {
 .sel input:disabled,
 .cip input:disabled {
   cursor: not-allowed;
+}
+.sel {
+  position: relative;
+}
+.gembok {
+  position: absolute;
+  right: 0;
+  top: 0;
+  color: var(--warn);
 }
 .sel.berubah,
 .cip.berubah {

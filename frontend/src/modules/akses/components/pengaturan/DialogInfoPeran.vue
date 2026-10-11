@@ -18,10 +18,12 @@ import type { PeranRinci } from '../../tipePengaturan'
  */
 const props = defineProps<{ mode: 'buat' | 'salin' | 'ubah'; peran: PeranRinci | null; etag: string | null }>()
 const buka = defineModel<boolean>('open', { required: true })
-const emit = defineEmits<{ selesai: [hasil: PeranBerversi] }>()
+const emit = defineEmits<{ selesai: [hasil: PeranBerversi]; muatUlang: [] }>()
 
 const sibuk = ref(false)
 const error = ref<string | null>(null)
+/** 412: peran diubah orang lain sejak dibuka; tombol muat ulang ditampilkan di dialog. */
+const versiBerubah = ref(false)
 
 // Satu skema untuk tiga mode: kode hanya diisi saat membuat, status hanya saat mengubah.
 const skema = z
@@ -49,6 +51,7 @@ const [dasarF] = defineField('dasar_perubahan')
 watch(buka, (b) => {
   if (!b) return
   error.value = null
+  versiBerubah.value = false
   const p = props.peran
   if (props.mode === 'ubah' && p) {
     resetForm({ values: { nama: p.nama, uraian: p.uraian ?? '', wajib_mfa: p.wajib_mfa, status: p.status, dasar_perubahan: '' } })
@@ -62,6 +65,11 @@ watch(buka, (b) => {
 const judul = computed(() => ({ buat: 'Buat peran', salin: `Salin peran ${props.peran?.nama ?? ''}`, ubah: `Ubah info peran ${props.peran?.nama ?? ''}` })[props.mode])
 const mfaTerkunci = computed(() => props.mode === 'ubah' && (props.peran?.wajib_mfa_terkunci ?? false))
 const statusTerkunci = computed(() => props.mode === 'ubah' && (props.peran?.bawaan_sistem ?? false))
+
+function muatUlang() {
+  buka.value = false
+  emit('muatUlang')
+}
 
 const kirim = handleSubmit(async (v) => {
   sibuk.value = true
@@ -91,7 +99,10 @@ const kirim = handleSubmit(async (v) => {
     const kolom = errorKolom(e, ['kode', 'nama', 'uraian', 'status', 'dasar_perubahan'])
     if (e instanceof ApiError && e.kode === 'kode_sudah_dipakai') kolom.kode = e.message
     if (Object.keys(kolom).length) setErrors(kolom)
-    else error.value = e instanceof ApiError && e.status === 412 ? 'Peran ini diubah orang lain sejak dibuka. Tutup dialog dan muat ulang peran.' : pesanError(e)
+    else if (e instanceof ApiError && e.status === 412) {
+      versiBerubah.value = true
+      error.value = 'Peran ini diubah orang lain sejak dibuka. Muat ulang peran, lalu ulangi perubahan.'
+    } else error.value = pesanError(e)
   } finally {
     sibuk.value = false
   }
@@ -135,6 +146,7 @@ const kirim = handleSubmit(async (v) => {
         <Ikon nama="peringatan" :ukuran="16" />
         <span>{{ error }}</span>
       </p>
+      <button v-if="versiBerubah" type="button" class="tombol muat-ulang" @click="muatUlang">Muat ulang peran</button>
     </form>
     <template #aksi>
       <button type="button" class="tombol" :disabled="sibuk" @click="buka = false">Batal</button>
@@ -148,6 +160,9 @@ const kirim = handleSubmit(async (v) => {
 <style scoped>
 .kode {
   font-family: var(--font-mono);
+}
+.muat-ulang {
+  margin-top: var(--space-2);
 }
 .kolom-sakelar {
   margin-bottom: var(--space-4);

@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
-import { KUNCI_MENU } from '@/app/menu'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
 import { formatTanggalWaktu } from '@/shared/utils/waktu'
 import { ambilPeran, gantiIzinPeran, type PeranBerversi } from '../../apiPengaturan'
-import { bandingkan, kodeDariRincian, labelIzin, type IndeksMatriks } from '../../matriks'
-import { KUNCI, pesanError } from '../../pengaturan'
+import { bandingkan, kodeDariRincian, labelIzin, periksa, type IndeksMatriks } from '../../matriks'
+import { errorKolom, KUNCI, pesanError } from '../../pengaturan'
 import DialogInfoPeran from './DialogInfoPeran.vue'
 import DialogSimpanIzin from './DialogSimpanIzin.vue'
 import MatriksIzin from './MatriksIzin.vue'
@@ -22,28 +21,37 @@ const emit = defineEmits<{ dibuat: [id: string] }>()
 
 const qc = useQueryClient()
 const kueri = useQuery({ queryKey: computed(() => KUNCI.peran(props.peranId)), queryFn: () => ambilPeran(props.peranId) })
-const data = computed(() => kueri.data.value)
-const peran = computed(() => data.value?.peran)
+/** Versi yang sedang disunting (dasar selisih dan If-Match). Bisa tertinggal dari cache bila ada suntingan. */
+const dasar = ref<PeranBerversi | null>(null)
+const peran = computed(() => dasar.value?.peran)
 
 const izin = ref<Set<string>>(new Set())
 const sorot = ref<Set<string>>(new Set())
 const pesan = ref<string | null>(null)
 const errorEditor = ref<string | null>(null)
-/** Versi terbaru dari server setelah 412, dibandingkan dengan suntingan sendiri sebelum diputuskan. */
+/** Versi server yang lebih baru dari dasar sementara ada suntingan (412, atau muat ulang latar). */
 const bentrok = ref<PeranBerversi | null>(null)
-/** Suntingan yang dipasang di atas versi berikutnya dari server (pilihan "terapkan di atas versi terbaru"). */
-let suntinganTertunda: Set<string> | null = null
 
-// Versi dari server berganti (muat pertama, ganti peran, sesudah simpan) → suntingan mulai dari isi server.
+const selisih = computed(() => (peran.value ? bandingkan(props.indeks, peran.value.izin, izin.value) : { ditambah: [], dicabut: [] }))
+const adaPerubahan = computed(() => selisih.value.ditambah.length + selisih.value.dicabut.length > 0)
+
+function terapkanDasar(b: PeranBerversi, izinBaru: Set<string>) {
+  dasar.value = b
+  izin.value = izinBaru
+  sorot.value = new Set()
+  errorEditor.value = null
+  bentrok.value = null
+}
+
+// Versi baru dari server (muat pertama, muat ulang saat tab kembali fokus, sesudah simpan). Tanpa suntingan:
+// matriks ikut versi baru. Dengan suntingan: suntingan TIDAK diganti; perbedaan ditampilkan sebagai bentrok.
 watch(
-  () => data.value?.peran.versi + (data.value?.peran.id ?? ''),
-  () => {
-    if (!data.value) return
-    izin.value = suntinganTertunda ?? new Set(data.value.peran.izin)
-    suntinganTertunda = null
-    sorot.value = new Set()
-    errorEditor.value = null
-    bentrok.value = null
+  () => kueri.data.value,
+  (baru) => {
+    if (!baru) return
+    const lama = dasar.value
+    if (!lama || lama.peran.id !== baru.peran.id || !adaPerubahan.value) terapkanDasar(baru, new Set(baru.peran.izin))
+    else if (baru.peran.versi !== lama.peran.versi) bentrok.value = baru
   },
   { immediate: true },
 )
@@ -56,8 +64,6 @@ watch(
 
 const bolehUbah = computed(() => boleh('pengaturan.peran.perbaiki'))
 const bacaSaja = computed(() => !peran.value?.dapat_disunting || !bolehUbah.value || bentrok.value !== null)
-const selisih = computed(() => (peran.value ? bandingkan(props.indeks, peran.value.izin, izin.value) : { ditambah: [], dicabut: [] }))
-const adaPerubahan = computed(() => selisih.value.ditambah.length + selisih.value.dicabut.length > 0)
 defineExpose({ adaPerubahan })
 
 const KETERANGAN_KUNCI = {
@@ -88,15 +94,17 @@ function bukaSimpan() {
 }
 
 async function simpan(isian: { dasar_perubahan: string; alasan: string | null }) {
-  if (!data.value) return
+  if (!dasar.value) return
   sibuk.value = true
   errorDialog.value = null
   try {
-    const hasil = await gantiIzinPeran(props.peranId, data.value.etag, { izin: [...izin.value].sort(), ...isian })
+    const hasil = await gantiIzinPeran(props.peranId, dasar.value.etag, { izin: [...izin.value].sort(), ...isian })
+    terapkanDasar({ peran: hasil.peran, etag: hasil.etag }, new Set(hasil.peran.izin))
     qc.setQueryData(KUNCI.peran(props.peranId), { peran: hasil.peran, etag: hasil.etag })
     void qc.invalidateQueries({ queryKey: KUNCI.daftarPeran })
     void qc.invalidateQueries({ queryKey: KUNCI.daftarAkun })
-    void qc.invalidateQueries({ queryKey: KUNCI_MENU })
+    // Menu "Lihat sebagai" akun pemegang peran ini ikut berubah.
+    void qc.invalidateQueries({ queryKey: ['pengaturan', 'akun'] })
     const p = hasil.perubahan
     pesan.value = `Izin ${hasil.peran.nama} tersimpan: ${p.ditambah.length} ditambah, ${p.dicabut.length} dicabut, ${p.akun_terdampak} akun terdampak.`
     dialogSimpan.value = false
@@ -113,8 +121,9 @@ function tanganiGagal(e: unknown) {
     return
   }
   if (e.kode === 'validasi_gagal') {
-    const kolom = Object.fromEntries(e.rincian.filter((r) => typeof r.kolom === 'string').map((r) => [r.kolom as string, String(r.pesan ?? '')]))
-    formSimpan.value?.setErrors(kolom)
+    const kolom = errorKolom(e, ['dasar_perubahan', 'alasan'])
+    if (Object.keys(kolom).length) formSimpan.value?.setErrors(kolom)
+    else errorDialog.value = e.message
     return
   }
   if (e.status === 412) {
@@ -155,23 +164,24 @@ async function muatBentrok() {
 
 const selisihOrangLain = computed(() => (bentrok.value && peran.value ? bandingkan(props.indeks, peran.value.izin, new Set(bentrok.value.peran.izin)) : null))
 
-/** Suntingan sendiri diterapkan di atas versi terbaru; pengguna meninjau lalu menyimpan lagi. */
+/**
+ * Suntingan sendiri diterapkan di atas versi terbaru; pengguna meninjau lalu menyimpan lagi. Izin yang tidak lagi
+ * utuh (lihat atau sub-menu induknya dicabut di versi terbaru) dilepas dan disebutkan, agar tidak ditolak 422.
+ */
 function terapkanDiAtasTerbaru() {
   const b = bentrok.value
   if (!b) return
   const baru = new Set(b.peran.izin)
   selisih.value.ditambah.forEach((k) => baru.add(k))
   selisih.value.dicabut.forEach((k) => baru.delete(k))
-  suntinganTertunda = baru
-  qc.setQueryData(KUNCI.peran(props.peranId), b)
-  bentrok.value = null
-  errorEditor.value = null
+  const dilepas = periksa(props.indeks, baru).map((m) => m.kode)
+  dilepas.forEach((k) => baru.delete(k))
+  terapkanDasar(b, baru)
+  if (dilepas.length) pesan.value = `Dilepas karena lihat atau induknya dicabut di versi terbaru: ${dilepas.map((k) => labelIzin(props.indeks, k)).join('; ')}.`
 }
 function pakaiTerbaru() {
   const b = bentrok.value
-  if (!b) return
-  qc.setQueryData(KUNCI.peran(props.peranId), b)
-  bentrok.value = null
+  if (b) terapkanDasar(b, new Set(b.peran.izin))
 }
 
 // ── Info peran ──
@@ -219,7 +229,19 @@ function infoSelesai(hasil: PeranBerversi) {
             {{ adaPerubahan ? `${selisih.ditambah.length} ditambah, ${selisih.dicabut.length} dicabut` : 'Tidak ada perubahan' }}
           </span>
           <button v-can="'pengaturan.peran.input'" type="button" class="tombol" @click="bukaInfo('salin')"><Ikon nama="salin" :ukuran="16" />Salin peran</button>
-          <button v-if="peran.dapat_disunting && bolehUbah" type="button" class="tombol" @click="bukaInfo('ubah')">Ubah info</button>
+          <!-- PATCH menaikkan versi peran; selama matriks belum disimpan, ubah info ditahan agar tidak bentrok dengan diri sendiri. -->
+          <button
+            v-if="peran.dapat_disunting && bolehUbah"
+            type="button"
+            class="tombol"
+            :disabled="adaPerubahan"
+            :title="adaPerubahan ? 'Simpan atau batalkan perubahan matriks dulu' : undefined"
+            aria-describedby="ket-ubah-info"
+            @click="bukaInfo('ubah')"
+          >
+            Ubah info
+          </button>
+          <span id="ket-ubah-info" class="sr-only">{{ adaPerubahan ? 'Simpan atau batalkan perubahan matriks dulu.' : '' }}</span>
           <template v-if="!bacaSaja">
             <button type="button" class="tombol" :disabled="!adaPerubahan" @click="batalkan">Batalkan</button>
             <button type="button" class="tombol tombol-utama" :disabled="!adaPerubahan" @click="bukaSimpan">Simpan perubahan</button>
@@ -287,7 +309,7 @@ function infoSelesai(hasil: PeranBerversi) {
         :error="errorDialog"
         @simpan="simpan"
       />
-      <DialogInfoPeran v-model:open="dialogInfo" :mode="modeInfo" :peran="peran" :etag="data?.etag ?? null" @selesai="infoSelesai" />
+      <DialogInfoPeran v-model:open="dialogInfo" :mode="modeInfo" :peran="peran" :etag="dasar?.etag ?? null" @selesai="infoSelesai" @muat-ulang="kueri.refetch()" />
     </template>
   </section>
 </template>

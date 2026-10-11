@@ -109,6 +109,17 @@ export function tingkatDari(node: NodeMenu, izin: ReadonlySet<string>): Tingkat 
   return hasil
 }
 
+/**
+ * Tingkat untuk ditampilkan: 'campuran' bila ada aksi dasar di atas tingkat utuh (mis. lihat + perbaiki tanpa
+ * input), agar pilihan "Lihat" tidak menyembunyikan perbaiki yang tetap diberikan.
+ */
+export function tingkatTampil(node: NodeMenu, izin: ReadonlySet<string>): Tingkat | 'campuran' {
+  const tingkat = tingkatDari(node, izin)
+  const batas = tingkat === 'tidak' ? -1 : AKSI_DASAR.indexOf(tingkat)
+  const lebih = AKSI_DASAR.some((aksi, i) => i > batas && izin.has(kodeAksi(node, aksi) ?? ''))
+  return lebih ? 'campuran' : tingkat
+}
+
 /** Bagian dinonaktifkan selama sub-menu induknya belum diberi lihat (MD-3). */
 export function terkunciInduk(b: BarisMatriks, izin: ReadonlySet<string>): boolean {
   if (!b.subInduk) return false

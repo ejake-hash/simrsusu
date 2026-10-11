@@ -64,7 +64,7 @@ async function akhiri(alasan: string) {
           <b>{{ k.sasaran_label }}</b>
           <span v-if="k.sensitif" class="pil pil-peringatan"><Ikon nama="gembok" :ukuran="12" />sensitif</span>
           <p>{{ k.alasan }}</p>
-          <p>Berlaku s.d. {{ formatTanggal(k.berlaku_sampai) ?? 'diakhiri' }} · dasar: {{ k.dasar_pemberian }}</p>
+          <p>{{ k.berlaku_sampai ? `Berlaku s.d. ${formatTanggal(k.berlaku_sampai)}` : 'Berlaku sampai diakhiri' }} · dasar: {{ k.dasar_pemberian }}</p>
           <p v-if="k.diberikan_oleh" class="pelaku">Oleh {{ k.diberikan_oleh.nama }}, {{ formatTanggalWaktu(k.dibuat_pada) }}</p>
         </div>
         <button v-if="bolehAkhiri" type="button" class="tombol" @click="diakhiri = k">Akhiri</button>

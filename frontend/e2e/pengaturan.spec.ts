@@ -9,8 +9,8 @@ import { kodeTotp } from './totp'
 const SANDI = process.env.E2E_SANDI ?? ''
 const RAHASIA_SUPERADMIN = process.env.E2E_SUPERADMIN_MFA_RAHASIA ?? ''
 // Kode peran unik per run agar run lokal tanpa seeding ulang tidak bentrok kode_sudah_dipakai.
-const KODE_PERAN = `e2e_farmasi_${Date.now().toString(36)}`
-const NAMA_PERAN = `E2E Petugas Stok ${Date.now().toString(36)}`
+const KODE_DASAR = `e2e_farmasi_${Date.now().toString(36)}`
+const NAMA_DASAR = `E2E Petugas Stok ${Date.now().toString(36)}`
 
 let sesiSuperadmin: Awaited<ReturnType<BrowserContext['storageState']>> | undefined
 const test = dasar.extend({ storageState: async ({}, pakai) => pakai(sesiSuperadmin) })
@@ -40,9 +40,19 @@ async function masukLewatApi(permintaan: APIRequestContext, asal: string, nama: 
  * sebagai akun lain di atas cookie itu me-regenerasi lalu menghapus sesi superadmin. */
 const TANPA_SESI = { cookies: [], origins: [] }
 
+// Sesi akun lain dipakai ulang antar-uji: rate limit masuk per nama pengguna (10/menit) cepat habis bila tiap uji masuk.
+const sesiAkun = new Map<string, Awaited<ReturnType<BrowserContext['storageState']>>>()
+
 async function halamanAkun(browser: Browser, asal: string, nama: string): Promise<{ page: Page; tutup: () => Promise<void> }> {
-  const konteks = await browser.newContext({ baseURL: asal, storageState: TANPA_SESI })
-  await masukLewatApi(konteks.request, asal, nama)
+  let sesi = sesiAkun.get(nama)
+  if (!sesi) {
+    const masuk = await browser.newContext({ baseURL: asal, storageState: TANPA_SESI })
+    await masukLewatApi(masuk.request, asal, nama)
+    sesi = await masuk.storageState()
+    sesiAkun.set(nama, sesi)
+    await masuk.close()
+  }
+  const konteks = await browser.newContext({ baseURL: asal, storageState: sesi })
   const page = await konteks.newPage()
   return { page, tutup: () => konteks.close() }
 }
@@ -54,8 +64,11 @@ async function tanpaGulirSamping(page: Page) {
   expect(lebarIsi).toBeLessThanOrEqual(lebarLayar)
 }
 
+/** Ke Akun & akses lewat navigasi sub-menu bila sudah di Pengaturan (tanpa muat ulang: hemat rate limit API). */
 async function pilihAkun(page: Page, namaPengguna: string, nama: string) {
-  await page.goto('/pengaturan/akun')
+  const subMenu = page.getByRole('navigation', { name: 'Sub-menu Pengaturan Sistem' }).getByRole('link', { name: 'Akun & akses' })
+  if (await subMenu.isVisible()) await subMenu.click()
+  else await page.goto('/pengaturan/akun')
   await page.getByRole('searchbox', { name: 'Cari akun' }).fill(namaPengguna)
   await page.getByRole('button', { name: `${nama} ${namaPengguna}`, exact: true }).click()
   await expect(page.getByRole('heading', { level: 2, name: nama })).toBeVisible()
@@ -64,6 +77,24 @@ async function pilihAkun(page: Page, namaPengguna: string, nama: string) {
 async function bukaTab(page: Page, nama: string) {
   await page.getByRole('tab', { name: nama }).click()
 }
+
+// Rate limit API 120/menit per akun (config/rate_limit.php) tetap berlaku di e2e; uji jauh lebih cepat dari manusia,
+// jadi permintaan superadmin dihitung dan uji berikutnya menunggu bila satu menit terakhir sudah mendekati batas.
+const BATAS_PER_MENIT = 80
+const waktuPermintaan: number[] = []
+
+test.beforeEach(async ({ page }) => {
+  const sekarang = Date.now()
+  while (waktuPermintaan.length && sekarang - waktuPermintaan[0]! > 61_000) waktuPermintaan.shift()
+  if (waktuPermintaan.length > BATAS_PER_MENIT) {
+    const jeda = 61_000 - (sekarang - waktuPermintaan[0]!)
+    test.info().setTimeout(test.info().timeout + jeda)
+    await page.waitForTimeout(jeda)
+  }
+  page.on('request', (r) => {
+    if (r.url().includes('/api/v1/')) waktuPermintaan.push(Date.now())
+  })
+})
 
 test.beforeAll(async ({ playwright }, info) => {
   if (!SANDI || !RAHASIA_SUPERADMIN) throw new Error('Set E2E_SANDI dan E2E_SUPERADMIN_MFA_RAHASIA sesuai AkunSintetisSeeder.')
@@ -90,80 +121,89 @@ test('1440 px: halaman induk Pengaturan berisi kartu sub-menu; contoh.dokter tid
   await dokter.tutup()
 })
 
-test('buat peran, beri sub-menu lewat matriks dengan dasar, tugaskan ke contoh.admisi → admisi melihat menu baru', async ({ page, browser }, info) => {
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto('/pengaturan/peran')
+// Alur utama di tiga kelas layar (uji penerimaan 1.2c-fe); tiap lebar membuat perannya sendiri.
+for (const [lebar, tinggi] of [
+  [1440, 900],
+  [1024, 768],
+  [768, 1024],
+] as const) {
+  test(`${lebar} px: buat peran, beri sub-menu dengan dasar, tugaskan → contoh.admisi melihat menu baru`, async ({ page, browser }, info) => {
+    const KODE_PERAN = `${KODE_DASAR}_${lebar}`
+    const NAMA_PERAN = `${NAMA_DASAR} ${lebar}`
+    await page.setViewportSize({ width: lebar, height: tinggi })
+    await page.goto('/pengaturan/peran')
 
-  await page.getByRole('button', { name: 'Buat peran' }).click()
-  const buat = page.getByRole('dialog', { name: 'Buat peran' })
-  await buat.getByLabel('Kode peran').fill(KODE_PERAN)
-  await buat.getByLabel('Nama peran').fill(NAMA_PERAN)
-  await buat.getByLabel('Dasar perubahan').fill('SK Direktur E2E/1')
-  await buat.getByRole('button', { name: 'Buat peran' }).click()
-  await expect(page.getByRole('heading', { level: 2, name: NAMA_PERAN })).toBeVisible()
+    await page.getByRole('button', { name: 'Buat peran' }).click()
+    const buat = page.getByRole('dialog', { name: 'Buat peran' })
+    await buat.getByLabel('Kode peran').fill(KODE_PERAN)
+    await buat.getByLabel('Nama peran').fill(NAMA_PERAN)
+    await buat.getByLabel('Dasar perubahan').fill('SK Direktur E2E/1')
+    await buat.getByRole('button', { name: 'Buat peran' }).click()
+    await expect(page.getByRole('heading', { level: 2, name: NAMA_PERAN })).toBeVisible()
 
-  await page.getByRole('searchbox', { name: 'Cari menu di matriks' }).fill('Stok depo')
-  await page.getByRole('combobox', { name: 'Tingkat Farmasi → Stok depo' }).selectOption('lihat')
-  await expect(page.getByText('1 ditambah, 0 dicabut')).toBeVisible()
+    await page.getByRole('searchbox', { name: 'Cari menu di matriks' }).fill('Stok depo')
+    await page.getByRole('combobox', { name: 'Tingkat Farmasi → Stok depo' }).selectOption('lihat')
+    await expect(page.getByText('1 ditambah, 0 dicabut')).toBeVisible()
 
-  await page.getByRole('button', { name: 'Simpan perubahan' }).click()
-  const simpan = page.getByRole('alertdialog', { name: `Simpan perubahan izin ${NAMA_PERAN}?` })
-  await expect(simpan).toContainText('Farmasi → Stok depo → Lihat')
-  // Tanpa dasar tidak tersimpan (MD-2).
-  await simpan.getByRole('button', { name: 'Simpan perubahan' }).click()
-  await expect(simpan.getByText('Isi dasar perubahan')).toBeVisible()
-  await simpan.getByLabel('Dasar perubahan').fill('SK Direktur E2E/2')
-  await simpan.getByRole('button', { name: 'Simpan perubahan' }).click()
-  await expect(page.getByRole('status').filter({ hasText: `Izin ${NAMA_PERAN} tersimpan: 1 ditambah, 0 dicabut` })).toBeVisible()
+    await page.getByRole('button', { name: 'Simpan perubahan' }).click()
+    const simpan = page.getByRole('alertdialog', { name: `Simpan perubahan izin ${NAMA_PERAN}?` })
+    await expect(simpan).toContainText('Farmasi → Stok depo → Lihat')
+    // Tanpa dasar tidak tersimpan (MD-2).
+    await simpan.getByRole('button', { name: 'Simpan perubahan' }).click()
+    await expect(simpan.getByText('Isi dasar perubahan')).toBeVisible()
+    await simpan.getByLabel('Dasar perubahan').fill('SK Direktur E2E/2')
+    await simpan.getByRole('button', { name: 'Simpan perubahan' }).click()
+    await expect(page.getByRole('status').filter({ hasText: `Izin ${NAMA_PERAN} tersimpan: 1 ditambah, 0 dicabut` })).toBeVisible()
 
-  await pilihAkun(page, 'contoh.admisi', 'Contoh Petugas Admisi')
-  await page.getByRole('button', { name: 'Tugaskan peran' }).click()
-  const tugas = page.getByRole('dialog', { name: 'Tugaskan peran ke Contoh Petugas Admisi' })
-  await tugas.getByLabel('Peran').selectOption({ label: NAMA_PERAN })
-  await tugas.getByLabel('Dasar pemberian').fill('Surat tugas E2E/3')
-  await tugas.getByRole('button', { name: 'Tugaskan' }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'Peran ditugaskan.' })).toBeVisible()
-  await expect(page.getByRole('listitem').filter({ hasText: NAMA_PERAN })).toBeVisible()
+    await pilihAkun(page, 'contoh.admisi', 'Contoh Petugas Admisi')
+    await page.getByRole('button', { name: 'Tugaskan peran' }).click()
+    const tugas = page.getByRole('dialog', { name: 'Tugaskan peran ke Contoh Petugas Admisi' })
+    await tugas.getByLabel('Peran').selectOption({ label: NAMA_PERAN })
+    await tugas.getByLabel('Dasar pemberian').fill('Surat tugas E2E/3')
+    await tugas.getByRole('button', { name: 'Tugaskan' }).click()
+    await expect(page.getByRole('status').filter({ hasText: 'Peran ditugaskan.' })).toBeVisible()
+    await expect(page.getByRole('listitem').filter({ hasText: NAMA_PERAN })).toBeVisible()
 
-  const admisi = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'contoh.admisi')
-  await admisi.page.goto('/')
-  await expect(menuUtama(admisi.page).getByRole('link', { name: /^Farmasi/ })).toBeVisible()
-  await admisi.tutup()
-})
+    const admisi = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'contoh.admisi')
+    await admisi.page.goto('/')
+    await expect(menuUtama(admisi.page).getByRole('link', { name: /^Farmasi/ })).toBeVisible()
+    await admisi.tutup()
+  })
 
-test('cabut per akun menghilangkan menu (cabut menang); Akhiri butuh alasan dan mengembalikan akses (MD-1)', async ({ page, browser }, info) => {
-  const asal = new URL(info.project.use.baseURL ?? '').origin
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await pilihAkun(page, 'contoh.admisi', 'Contoh Petugas Admisi')
-  await bukaTab(page, 'Per akun')
+  test(`${lebar} px: cabut per akun (cabut menang), Akhiri dengan alasan mengembalikan akses (MD-1)`, async ({ page, browser }, info) => {
+    const asal = new URL(info.project.use.baseURL ?? '').origin
+    await page.setViewportSize({ width: lebar, height: tinggi })
+    await pilihAkun(page, 'contoh.admisi', 'Contoh Petugas Admisi')
+    await bukaTab(page, 'Per akun')
 
-  await page.getByRole('button', { name: 'Tambah pengecualian' }).click()
-  const tambah = page.getByRole('dialog', { name: 'Pengecualian untuk Contoh Petugas Admisi' })
-  await tambah.getByRole('searchbox', { name: 'Cari sasaran' }).fill('Stok depo')
-  await tambah.getByRole('radio', { name: 'Farmasi → Stok depo (seluruh halaman)' }).check()
-  await tambah.getByRole('textbox', { name: 'Dasar', exact: true }).fill('Memo Kepala Instalasi E2E/4')
-  await tambah.getByRole('textbox', { name: 'Alasan', exact: true }).fill('Uji pencabutan per akun')
-  await tambah.getByRole('button', { name: 'Simpan pengecualian' }).click()
-  await expect(page.getByRole('listitem').filter({ hasText: 'Dicabut' }).filter({ hasText: 'Farmasi → Stok depo' })).toBeVisible()
+    await page.getByRole('button', { name: 'Tambah pengecualian' }).click()
+    const tambah = page.getByRole('dialog', { name: 'Pengecualian untuk Contoh Petugas Admisi' })
+    await tambah.getByRole('searchbox', { name: 'Cari sasaran' }).fill('Stok depo')
+    await tambah.getByRole('radio', { name: 'Farmasi → Stok depo (seluruh halaman)' }).check()
+    await tambah.getByRole('textbox', { name: 'Dasar', exact: true }).fill('Memo Kepala Instalasi E2E/4')
+    await tambah.getByRole('textbox', { name: 'Alasan', exact: true }).fill('Uji pencabutan per akun')
+    await tambah.getByRole('button', { name: 'Simpan pengecualian' }).click()
+    await expect(page.getByRole('listitem').filter({ hasText: 'Dicabut' }).filter({ hasText: 'Farmasi → Stok depo' })).toBeVisible()
 
-  const admisi = await halamanAkun(browser, asal, 'contoh.admisi')
-  await admisi.page.goto('/')
-  await expect(menuUtama(admisi.page).getByRole('link', { name: 'Beranda' })).toBeVisible()
-  await expect(menuUtama(admisi.page).getByRole('link', { name: /^Farmasi/ })).toHaveCount(0)
+    const admisi = await halamanAkun(browser, asal, 'contoh.admisi')
+    await admisi.page.goto('/')
+    await expect(menuUtama(admisi.page).getByRole('link', { name: 'Beranda' })).toBeVisible()
+    await expect(menuUtama(admisi.page).getByRole('link', { name: /^Farmasi/ })).toHaveCount(0)
 
-  await page.getByRole('listitem').filter({ hasText: 'Farmasi → Stok depo' }).getByRole('button', { name: 'Akhiri' }).click()
-  const akhiri = page.getByRole('alertdialog', { name: /Akhiri pengecualian/ })
-  await expect(akhiri).toContainText('kembali sesuai perannya')
-  await akhiri.getByRole('button', { name: 'Akhiri' }).click()
-  await expect(akhiri.getByText('Tulis alasan')).toBeVisible()
-  await akhiri.getByLabel('Alasan mengakhiri').fill('Uji selesai, akses kembali')
-  await akhiri.getByRole('button', { name: 'Akhiri' }).click()
-  await expect(page.getByText(/Riwayat pengecualian \(\d+\)/)).toBeVisible()
+    await page.getByRole('listitem').filter({ hasText: 'Farmasi → Stok depo' }).getByRole('button', { name: 'Akhiri' }).click()
+    const akhiri = page.getByRole('alertdialog', { name: /Akhiri pengecualian/ })
+    await expect(akhiri).toContainText('kembali sesuai perannya')
+    await akhiri.getByRole('button', { name: 'Akhiri' }).click()
+    await expect(akhiri.getByText('Tulis alasan')).toBeVisible()
+    await akhiri.getByLabel('Alasan mengakhiri').fill('Uji selesai, akses kembali')
+    await akhiri.getByRole('button', { name: 'Akhiri' }).click()
+    await expect(page.getByText(/Riwayat pengecualian \(\d+\)/)).toBeVisible()
 
-  await admisi.page.reload()
-  await expect(menuUtama(admisi.page).getByRole('link', { name: /^Farmasi/ })).toBeVisible()
-  await admisi.tutup()
-})
+    await admisi.page.reload()
+    await expect(menuUtama(admisi.page).getByRole('link', { name: /^Farmasi/ })).toBeVisible()
+    await admisi.tutup()
+  })
+}
 
 test('Lihat sebagai menampilkan menu akun lain tanpa tautan; akun sendiri tanpa tombol ubah', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })

@@ -5,12 +5,15 @@ import { ambilDaftarPeran, ambilPohonMenu } from './apiPengaturan'
 import { indeksPohon } from './matriks'
 import type { AkunRinci } from './tipePengaturan'
 
-/** Kunci cache TanStack Query layar Pengaturan → Peran & izin, Akun & akses. */
+/**
+ * Kunci cache TanStack Query layar Pengaturan. Daftar dan rincian sengaja tidak berbagi awalan: invalidasi
+ * daftar sesudah perubahan tidak ikut memuat ulang setiap rincian yang pernah dibuka (hemat rate limit 120/menit).
+ */
 export const KUNCI = {
   pohon: ['pengaturan', 'menu'] as const,
-  daftarPeran: ['pengaturan', 'peran'] as const,
+  daftarPeran: ['pengaturan', 'daftar-peran'] as const,
   peran: (id: string) => ['pengaturan', 'peran', id] as const,
-  daftarAkun: ['pengaturan', 'akun'] as const,
+  daftarAkun: ['pengaturan', 'daftar-akun'] as const,
   akun: (id: string) => ['pengaturan', 'akun', id] as const,
   menuAkun: (id: string) => ['pengaturan', 'akun', id, 'menu'] as const,
 }

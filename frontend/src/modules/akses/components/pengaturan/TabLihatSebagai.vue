@@ -13,7 +13,13 @@ import type { AkunRinci } from '../../tipePengaturan'
  */
 const props = defineProps<{ akun: AkunRinci; indeks: IndeksMatriks | null }>()
 
-const kueri = useQuery({ queryKey: computed(() => KUNCI.menuAkun(props.akun.id)), queryFn: () => ambilMenuAkun(props.akun.id) })
+// Setiap permintaan tercatat audit akses.lihat_sebagai: dimuat sekali per buka tab, tidak diulang saat tab kembali fokus.
+const kueri = useQuery({
+  queryKey: computed(() => KUNCI.menuAkun(props.akun.id)),
+  queryFn: () => ambilMenuAkun(props.akun.id),
+  staleTime: 5 * 60_000,
+  refetchOnWindowFocus: false,
+})
 // Urut sesuai pohon menu (seperti matriks), bukan abjad kode.
 const izin = computed(() => {
   const daftar = kueri.data.value?.izin ?? []
