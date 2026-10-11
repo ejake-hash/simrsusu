@@ -42,6 +42,31 @@ describe('Tombol', () => {
   })
 })
 
+describe('Tombol sibuk tanpa disabled', () => {
+  it('menahan klik dan kirim formulir, tetap bisa difokus (aria-disabled)', async () => {
+    const klik = vi.fn()
+    const kirim = vi.fn((e: Event) => e.preventDefault())
+    const w = pasang(
+      defineComponent({
+        setup: () => () => h('form', { onSubmit: kirim }, [h(Tombol, { type: 'submit', varian: 'utama', sibuk: true, onClick: klik }, () => 'Simpan')]),
+      }),
+    )
+    const b = w.get('button')
+    expect(b.attributes('disabled')).toBeUndefined()
+    expect(b.attributes('aria-disabled')).toBe('true')
+    ;(b.element as HTMLButtonElement).focus()
+    await b.trigger('click')
+    expect(klik).not.toHaveBeenCalled()
+    expect(kirim).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(b.element)
+  })
+  it('tidak sibuk: klik diteruskan ke pemakai', async () => {
+    const klik = vi.fn()
+    await pasang(Tombol, { attrs: { onClick: klik }, slots: { default: 'Ok' } }).get('button').trigger('click')
+    expect(klik).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('Pesan dan Lencana', () => {
   it('Pesan: jenis jadi kelas, ikon dekoratif, teks dari slot', () => {
     const w = pasang(Pesan, { props: { jenis: 'error' }, slots: { default: 'Sandi salah.' } })
@@ -72,6 +97,9 @@ describe('KeadaanKosong dan KpiCard', () => {
     expect(kosong.get('.kpi-nilai').text()).toBe('—')
     expect(kosong.text()).toContain('Data belum tersedia')
     expect(pasang(KpiCard, { props: { label: 'Akun', nilai: null, memuat: true } }).find('[role="status"]').exists()).toBe(true)
+    const kritis = pasang(KpiCard, { props: { label: 'Antrean', nilai: 9, status: 'bahaya' } })
+    expect(kritis.get('.kpi-label').text()).toContain('(kritis)')
+    expect(pasang(KpiCard, { props: { label: 'Antrean', nilai: 3, status: 'peringatan' } }).get('.kpi-label').text()).toContain('(perlu perhatian)')
   })
 })
 
@@ -90,8 +118,10 @@ describe('NotifikasiToast', () => {
     expect(w.get('[role="alert"]').text()).toContain('Gagal menyimpan.')
     await w.get('[role="alert"] button').trigger('click')
     expect(w.get('[role="alert"]').text()).toBe('')
+    tampilkanToast('Error penting.', 'error')
     ;['a', 'b', 'c', 'd'].forEach((p) => tampilkanToast(p, 'info'))
-    expect(daftarToast.value.map((t) => t.pesan)).toEqual(['b', 'c', 'd'])
+    // Batas 3 hanya untuk non-error; error tetap sampai ditutup.
+    expect(daftarToast.value.map((t) => t.pesan)).toEqual(['Error penting.', 'b', 'c', 'd'])
   })
 })
 
@@ -222,6 +252,23 @@ describe('DataTable', () => {
     await w.findAll('tbody tr')[1]!.trigger('keydown', { key: 'Enter' })
     await w.findAll('tbody tr')[2]!.trigger('click')
     expect(w.emitted('pilih')!.map((e) => (e[0] as { id: string }).id)).toEqual(['r1', 'r2'])
+  })
+
+  it('baris: satu tab stop, panah memindah fokus, Enter dari tombol di dalam sel tidak memilih', async () => {
+    const w = pasang(DataTable, {
+      props: { kolom, baris: baris(3), kunciBaris: (b: { id: string }) => b.id, label: 'Contoh', dapatDipilih: true },
+      slots: { 'sel-kode': '<button class="dalam">Aksi</button>' },
+    })
+    const tr = () => w.findAll('tbody tr')
+    expect(tr().map((t) => t.attributes('tabindex'))).toEqual(['0', '-1', '-1'])
+    tekan(tr()[0]!.element, 'ArrowDown')
+    await flushPromises()
+    expect(document.activeElement).toBe(tr()[1]!.element)
+    expect(tr().map((t) => t.attributes('tabindex'))).toEqual(['-1', '0', '-1'])
+    tekan(w.findAll('button.dalam')[1]!.element, 'Enter')
+    expect(w.emitted('pilih')).toBeUndefined()
+    tekan(tr()[1]!.element, 'Enter')
+    expect(w.emitted('pilih')).toHaveLength(1)
   })
 
   it('kosong, error (dengan Coba lagi), memuat memakai KeadaanKosong', async () => {

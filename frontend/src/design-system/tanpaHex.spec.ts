@@ -16,6 +16,8 @@ const HEX = /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b/g
 function berkas(dir: string): string[] {
   return readdirSync(dir).flatMap((n) => {
     const p = join(dir, n)
+    // Folder tiruan berisi data contoh (mis. warna paket identitas dari kontrak), bukan gaya.
+    if (n === 'tiruan') return []
     if (statSync(p).isDirectory()) return berkas(p)
     return /\.(vue|css|ts)$/.test(n) && !/\.spec\.ts$/.test(n) ? [p] : []
   })

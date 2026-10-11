@@ -100,6 +100,13 @@ function mintaLagi() {
   jumlahSebelum = props.baris.length
   emit('muatLagi')
 }
+// Muat gagal (jumlah baris tetap): penanda dilepas agar perubahan baris berikutnya tidak memindah fokus diam-diam.
+watch(
+  () => props.memuatLagi,
+  (sibuk, sebelumnya) => {
+    if (sebelumnya && !sibuk && props.baris.length === jumlahSebelum) fokusDiMuatLagi = false
+  },
+)
 watch(
   () => [props.baris.length, props.adaLagi] as const,
   async () => {
