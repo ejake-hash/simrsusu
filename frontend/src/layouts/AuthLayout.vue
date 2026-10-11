@@ -2,15 +2,6 @@
 import { profilRsDariEnv } from '@/app/profilRs'
 
 const profilRs = profilRsDariEnv()
-
-type StatusTempatTidur = 'terisi' | 'rencana-pulang' | 'dibersihkan' | 'kosong'
-
-// Ilustrasi panel merek, bukan data nyata. Pola tetap (37 dan 100 saling prima, jadi 72 nilai
-// berbeda tersebar rata) agar tampilan dan tangkapan layar tidak berubah tiap dimuat.
-const ILUSTRASI_TEMPAT_TIDUR: StatusTempatTidur[] = Array.from({ length: 72 }, (_, i) => {
-  const r = ((i * 37 + 11) % 100) / 100
-  return r < 0.68 ? 'terisi' : r < 0.76 ? 'rencana-pulang' : r < 0.84 ? 'dibersihkan' : 'kosong'
-})
 </script>
 
 <template>
@@ -53,18 +44,10 @@ const ILUSTRASI_TEMPAT_TIDUR: StatusTempatTidur[] = Array.from({ length: 72 }, (
           Dari pendaftaran sampai klaim, setiap pencatatan langsung menjadi rekam medis, tagihan, dan laporan, tanpa entri ulang.
         </p>
       </div>
-      <div class="ilustrasi">
-        <div class="ilustrasi-kepala"><span>Peta tempat tidur</span><span>Ilustrasi</span></div>
-        <div class="petak">
-          <span v-for="(status, i) in ILUSTRASI_TEMPAT_TIDUR" :key="i" class="tt" :class="`tt-${status}`"></span>
-        </div>
-        <div class="legenda">
-          <span><i class="tt-terisi"></i>Terisi</span>
-          <span><i class="tt-dibersihkan"></i>Dibersihkan</span>
-          <span><i class="tt-kosong"></i>Kosong</span>
-          <span><i class="tt-rencana-pulang"></i>Rencana pulang</span>
-        </div>
-      </div>
+      <figure v-if="profilRs.foto" class="foto">
+        <img :src="profilRs.foto" alt="" width="1600" height="1000" decoding="async" />
+        <figcaption v-if="profilRs.nama"><span class="titik"></span>{{ profilRs.nama }}</figcaption>
+      </figure>
       <ul class="poin">
         <li><b>Paperless</b>Pengesahan elektronik dengan PIN, catatan terkunci, perubahan jadi adendum.</li>
         <li><b>Terhubung</b>BPJS dan SATUSEHAT berjalan dari layar yang sama.</li>
@@ -226,59 +209,47 @@ const ILUSTRASI_TEMPAT_TIDUR: StatusTempatTidur[] = Array.from({ length: 72 }, (
   margin: 0;
   color: var(--brand-100);
 }
-.ilustrasi {
-  max-width: 440px;
-  padding: 18px;
-  border: 1px solid color-mix(in srgb, var(--surface) 12%, transparent);
+.foto {
+  flex: 1 1 auto;
+  min-height: 200px;
+  max-height: 480px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--surface) 14%, transparent);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--surface) 6%, transparent);
+  background: var(--brand-900);
+  box-shadow: 0 24px 48px -24px var(--brand-900);
 }
-.ilustrasi-kepala {
+.foto img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 40%;
+}
+/* Gelap di bawah agar keterangan terbaca dan foto menyatu dengan panel hijau. */
+.foto::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, color-mix(in srgb, var(--brand-900) 85%, transparent), transparent 45%);
+}
+.foto figcaption {
+  position: absolute;
+  z-index: 1;
+  left: 18px;
+  right: 18px;
+  bottom: 14px;
   display: flex;
-  justify-content: space-between;
-  margin-bottom: var(--space-3);
-  color: var(--brand-100);
-  font-size: 12px;
-}
-.petak {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: 5px;
-}
-.tt {
-  aspect-ratio: 1;
-  border-radius: 4px;
-}
-.legenda {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-top: var(--space-3);
-  color: var(--brand-100);
-  font-size: 11px;
-}
-.legenda span {
-  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
+  color: var(--surface);
+  font-size: 12px;
+  font-weight: var(--font-weight-medium);
 }
-.legenda i {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-}
-.tt-terisi {
-  background: color-mix(in srgb, var(--brand-500) 80%, var(--accent));
-}
-.tt-rencana-pulang {
-  background: var(--accent);
-}
-.tt-dibersihkan {
-  background: color-mix(in srgb, var(--surface) 32%, transparent);
-}
-.tt-kosong {
-  background: color-mix(in srgb, var(--surface) 14%, transparent);
+.foto .titik {
+  flex: none;
 }
 
 .poin {

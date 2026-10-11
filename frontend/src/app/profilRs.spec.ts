@@ -8,6 +8,7 @@ describe('profilRsDariEnv', () => {
         VITE_RS_NAMA: ' RS Contoh ',
         VITE_RS_LOGO: '/logo/rs.png',
         VITE_RS_MOTIF: '/motif/rs.svg',
+        VITE_RS_FOTO: '/foto/rs.webp',
         VITE_RS_UNIT_ADMIN: 'Instalasi SIMRS',
         VITE_RS_KONTAK_ADMIN: 'ext. 1234',
       }),
@@ -15,6 +16,7 @@ describe('profilRsDariEnv', () => {
       nama: 'RS Contoh',
       logo: '/logo/rs.png',
       motif: '/motif/rs.svg',
+      foto: '/foto/rs.webp',
       unitAdmin: 'Instalasi SIMRS',
       kontakAdmin: 'ext. 1234',
     })
@@ -25,6 +27,7 @@ describe('profilRsDariEnv', () => {
       nama: null,
       logo: null,
       motif: null,
+      foto: null,
       unitAdmin: 'admin SIMRS',
       kontakAdmin: null,
     })
