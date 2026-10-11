@@ -30,6 +30,7 @@ final class PenyelesaiMasuk
         Auth::guard('web')->login($pengguna);
         $request->session()->regenerate();
         SesiPengguna::mulai($request, $this->perangkat->terdaftar($request));
+        $request->session()->put(PenggunaResource::LOGIN_SESI_INI, $pengguna->login_terakhir_pada?->toIso8601String());
 
         return ['status' => 'masuk', 'pengguna' => (new PenggunaResource($pengguna))->resolve($request)];
     }

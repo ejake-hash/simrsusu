@@ -51,6 +51,9 @@ class SayaTest extends TestCase
         $this->tugaskan($akun, $zebra);
         $this->tugaskan($akun, $zebra);
         $this->tugaskan($akun, $alfa);
+        $nonaktif = $this->buatPeran(['igd.cppt'], ['nama' => 'Beta Nonaktif']);
+        $this->tugaskan($akun, $nonaktif);
+        $nonaktif->forceFill(['status' => 'nonaktif'])->save();
         $kedaluwarsa = $this->buatPeran(['kasir.tagihan'], ['nama' => 'Kasir Lama']);
         PenggunaPeran::query()->create([
             'pengguna_id' => $akun->id, 'peran_id' => $kedaluwarsa->id, 'dasar_pemberian' => 'SK lama',
@@ -78,6 +81,57 @@ class SayaTest extends TestCase
             $this->assertStringNotContainsString('rahasia@contoh.invalid', $isi);
             $this->assertStringNotContainsString('instalasi_demo', $isi);
         }
+    }
+
+    public function test_masuk_di_tempat_lain_sesudah_sesi_ini_ditampilkan(): void
+    {
+        $akun = $this->buatPengguna();
+        $this->masukSebagai($akun);
+        $perambanA = $this->peramban();
+        $loginA = $this->minta('GET', '/api/v1/saya')->json('data.login_terakhir_pada');
+
+        $this->travel(5)->minutes();
+        $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1']);
+        $this->masukSebagai($akun);
+        $loginB = $this->minta('GET', '/api/v1/saya')->assertJsonPath('data.masuk_sebelumnya_pada', $loginA)->json('data.login_terakhir_pada');
+
+        $this->pakaiPeramban($perambanA);
+        $this->minta('GET', '/api/v1/saya')->assertOk()
+            ->assertJsonPath('data.login_terakhir_pada', $loginA)
+            ->assertJsonPath('data.masuk_sebelumnya_pada', $loginB)
+            ->assertJsonPath('data.masuk_sebelumnya_dari_jaringan_rs', true);
+    }
+
+    public function test_akun_yang_sudah_pernah_masuk_sebelum_fitur_ini(): void
+    {
+        $akun = $this->buatPengguna();
+        $lama = now()->subDay()->startOfSecond();
+        $akun->forceFill(['login_terakhir_pada' => $lama])->save();
+
+        $this->masukSebagai($akun);
+
+        // Waktu masuk lama tetap tampil; jaringannya tidak diketahui.
+        $this->minta('GET', '/api/v1/saya')->assertJsonPath('data.masuk_sebelumnya_pada', $lama->toIso8601String())
+            ->assertJsonPath('data.masuk_sebelumnya_dari_jaringan_rs', null);
+    }
+
+    public function test_jalur_daftar_mfa_juga_mencatat_masuk_sebelumnya(): void
+    {
+        $akun = $this->buatPengguna(['wajib_mfa' => true]);
+        $lama = now()->subDay()->startOfSecond();
+        $akun->forceFill(['login_terakhir_pada' => $lama, 'login_terakhir_dari_jaringan_rs' => true])->save();
+        $this->mulaiSesiSpa();
+        $challenge = $this->minta('POST', '/api/v1/autentikasi/masuk', ['nama_pengguna' => $akun->nama_pengguna, 'sandi' => self::SANDI_UJI])
+            ->assertJsonPath('status', 'perlu_daftar_mfa')->json('challenge_id');
+        $daftar = $this->minta('POST', '/api/v1/autentikasi/mfa/daftar', ['challenge_id' => $challenge])->assertOk();
+        parse_str((string) parse_url($daftar->json('uri_otpauth'), PHP_URL_QUERY), $query);
+
+        $konfirmasi = $this->minta('POST', '/api/v1/autentikasi/mfa/daftar/konfirmasi', [
+            'challenge_id' => $challenge, 'kode' => Totp::kode($query['secret'], Totp::langkah(now()->getTimestamp())),
+        ])->assertOk();
+
+        $konfirmasi->assertJsonPath('pengguna.masuk_sebelumnya_pada', $lama->toIso8601String())
+            ->assertJsonPath('pengguna.masuk_sebelumnya_dari_jaringan_rs', true);
     }
 
     public function test_tanpa_sesi_401_sesuai_kontrak(): void
