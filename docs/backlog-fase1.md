@@ -140,6 +140,10 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   - Penggantian penyetuju yang masih menunggu belum tampil di `NodeMenu` (catatan sesi 2; layar memakai tab "Yang saya ajukan").
   - Superadmin ikut mendapat `pengaturan.persetujuan.input/perbaiki` dari `AKSI_DASAR` walau layar itu hanya memakai `lihat`.
   - Dari tinjauan #43 (non-penghalang): `catat()` audit dipanggil di tengah transaksi pada `ajukan`/`tindaklanjuti`/penerapan (bukan di akhir, ADR 0003) sehingga kunci rantai dipegang lebih lama; pemegang peran penyetuju bercakupan unit tetap bisa memutuskan pemberian bercakupan RS (cakupan penyetuju belum dibandingkan, bersama admin delegasi); pemeriksaan `penerima_sendiri` tanpa kunci baris peran (balapan sempit, tetap butuh kolusi dua orang); `lihat_wajib` tidak diperiksa ulang saat izin peran diterapkan.
+- Utang 1.8b (dari tinjauan #44): arti `bangsal.kelas_layanan` di PRD 11.2 (kelas bawaan bangsal? kelas layanan VIP?) perlu
+  dijelaskan pemilik; TT terisi saat akan ditutup ditolak 409, padahal FR-08-17 meminta "akan ditutup setelah kosong" →
+  bersama penempatan pasien (fase 2); impor lokasi lewat antrean `dokumen` untuk berkas > 5.000 baris butuh endpoint
+  status impor (di luar daftar API tiket) → usulan bila dibutuhkan RS besar.
 - **[Perlu pemilik] Usulan (1.8b):** daftar periksa baku atribut kamar (FR-08-19) sebagai data induk dengan endpoint
   sendiri (mis. `/atribut-kamar`: kode, label, jenis nilai, berlaku untuk KRIS/kelas lama). Endpoint ini tidak tercantum
   di API tiket 1.8b, jadi menunggu pemilik; sampai itu `Kamar.atribut_standar` berupa pasangan kunci-nilai bebas
@@ -657,8 +661,11 @@ Uji penerimaan:
   - Tablet 1024 px: pohon dan panel rinci berdampingan tanpa gulir horizontal halaman.
 Aturan rinci (kontrak v0.5.0; isi FR-54-11…14 dan FR-08-16…20 menunggu PRD v0.10.11 di #39, jadi aturan yang dipakai
 kode ditulis di sini):
-  - Izin: sub-menu baru `master_data.lokasi` ("Lokasi, ruang & tempat tidur") untuk lokasi, bangsal, kamar, TT, kelas
-    rawat, kapasitas; poliklinik memakai `master_data.organisasi.*`. Semua dengan cakupan `rs`.
+  - Izin: sub-menu yang sudah ada `master_data.organisasi` (PRD 9.1 "Organisasi, Unit, Ruang & Tempat Tidur", satu
+    halaman; labelnya disamakan dengan PRD) untuk lokasi, bangsal, kamar, TT, kelas rawat, poliklinik, kapasitas. Semua
+    dengan cakupan `rs`. Pemisahan pemilik data ruang & TT (FR-54-01) nanti lewat izin tingkat bagian, bukan sub-menu baru.
+  - Bangsal tanpa `kelas_layanan` (PRD 11.2): kelas ditetapkan per TT. Arti kolom itu ditanyakan ke pemilik (utang).
+  - Impor CSV sinkron, paling banyak 5.000 baris / 2 MB per berkas.
   - Jenis anak: akar → situs|gedung; situs → gedung; gedung → sayap|lantai; sayap → lantai; lantai → ruang;
     ruang → tempat_tidur. Kode segmen `^[A-Z0-9]{1,10}$`, `kode_lengkap` = gabungan dengan "-", unik di seluruh RS.
   - Kamar = ruang (lokasi jenis ruang) yang dimasukkan ke bangsal; satu ruang paling banyak satu kamar.
@@ -666,7 +673,8 @@ kode ditulis di sini):
     walau ruangnya dipindah, unik selamanya. `berlaku_sampai` = hari terakhir dihitung; tutup = permanen (tutup
     sementara/buka kembali lewat 1.8c). Status operasional diturunkan dari tanggal.
   - Status lokasi berlaku segera (tanggal ≤ hari ini); penjadwalan ke depan lewat 1.8c.
-  - Kapasitas: tanggal lampau dibaca dari rekaman harian (00.05 zona RS), hari ini/mendatang dihitung dari masa berlaku TT.
+  - Kapasitas: rekaman hari T dibuat 00.05 zona RS dan diperbarui setiap perubahan TT sepanjang hari T, lalu beku;
+    tanggal lampau dibaca dari rekaman, hari ini/mendatang dihitung dari masa berlaku TT.
   - Kelas rawat, kode Aplicares, dan kode poli BPJS diisi RS; tidak ada data bawaan.
   - `satusehat_lokasi_id` hanya baca (diisi integrasi 1.9).
 Di luar lingkup tiket: peta TT dan penempatan pasien (fase 2), denah gambar (FR-54-13, S → fase 2), sinkron Aplicares (1.9).
