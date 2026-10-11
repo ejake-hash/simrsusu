@@ -4,6 +4,7 @@ namespace App\Modules\Akses;
 
 use App\Modules\Akses\Application\PendaftaranPerangkat;
 use App\Modules\Akses\Application\SandiTidakBocor;
+use App\Modules\Akses\Console\BuatSuperadminPertama;
 use App\Modules\Akses\Infrastructure\DaftarSandiBocor;
 use App\Modules\Akses\Infrastructure\PerangkatBelumTerdaftar;
 use App\Modules\Akses\Models\TokenAksesPribadi;
@@ -26,6 +27,10 @@ class ModuleServiceProvider extends ServiceProvider
     {
         $this->loadRoutesFrom(__DIR__.'/routes.php');
         $this->loadMigrationsFrom(__DIR__.'/Database/migrations');
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([BuatSuperadminPertama::class]);
+        }
 
         Sanctum::usePersonalAccessTokenModel(TokenAksesPribadi::class);
 

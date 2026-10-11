@@ -161,6 +161,31 @@ describe('LangkahSandi', () => {
     expect(kirimSandi).toHaveBeenCalledTimes(2)
   })
 
+  it('MFA belum terdaftar dari luar jaringan RS: arahkan ke jaringan RS atau admin, tombol tetap aktif', async () => {
+    vi.stubEnv('VITE_RS_UNIT_ADMIN', 'Instalasi SIMRS')
+    vi.mocked(kirimSandi).mockRejectedValue(new GalatApi(403, 'mfa_belum_terdaftar', 'Verifikasi dua langkah belum aktif.'))
+    const w = pasang()
+
+    await isiDanKirim(w)
+    await flushPromises()
+    expect(w.get('[role="alert"]').text()).toBe(
+      'Verifikasi dua langkah akun ini belum aktif, dan hanya bisa diaktifkan dari jaringan rumah sakit. ' +
+        'Masuk sekali dari komputer di rumah sakit, atau minta Instalasi SIMRS mereset verifikasi Anda.',
+    )
+    expect(w.find('#baris-tunggu').exists()).toBe(false)
+    expect(w.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('konfigurasi belum lengkap (503): instalasi belum siap, hubungi admin', async () => {
+    vi.stubEnv('VITE_RS_UNIT_ADMIN', '')
+    vi.mocked(kirimSandi).mockRejectedValue(new GalatApi(503, 'konfigurasi_belum_lengkap', 'SIMRS belum selesai disiapkan.'))
+    const w = pasang()
+
+    await isiDanKirim(w)
+    await flushPromises()
+    expect(w.get('[role="alert"]').text()).toBe('SIMRS belum selesai disiapkan sehingga belum bisa dipakai untuk masuk. Hubungi admin SIMRS.')
+  })
+
   it('galat validasi server dipasang ke field-nya', async () => {
     vi.mocked(kirimSandi).mockRejectedValue(
       new GalatApi(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom: 'nama_pengguna', pesan: 'Isian terlalu panjang.' }]),

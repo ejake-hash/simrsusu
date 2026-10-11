@@ -38,8 +38,9 @@ return [
 
     // MFA TOTP (PRD 10.3.2, tiket 1.1b).
     'mfa' => [
-        // CIDR jaringan RS, dipisah koma. Akses dari luar daftar ini wajib MFA walau wajib_mfa=false.
-        // Kosong = tidak ada alamat yang dianggap jaringan RS (semua wajib MFA), bukan sebaliknya.
+        // CIDR jaringan RS, dipisah koma. Akses dari luar daftar ini wajib MFA walau wajib_mfa=false,
+        // dan akun yang belum punya MFA tidak bisa mendaftar dari luar (tiket 1.1c).
+        // Kosong = instalasi belum disiapkan: login web ditolak 503 konfigurasi_belum_lengkap.
         'jaringan_rs' => array_values(array_filter(array_map('trim', explode(',', (string) env('AUTENTIKASI_MFA_JARINGAN_RS', ''))))),
         'tantangan_menit' => (int) env('AUTENTIKASI_MFA_TANTANGAN_MENIT', 5),
         // RFC 6238: kode periode sebelum/sesudah ikut diterima untuk selisih jam ponsel.
