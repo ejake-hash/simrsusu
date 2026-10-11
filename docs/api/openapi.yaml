@@ -32,7 +32,6 @@ info:
     v0.7.0: Notifikasi, kotak kerja, eskalasi (tiket 1.7): /saya/notifikasi (ETag/304), /saya/tugas, /tugas/{id},
     /jenis-tugas (tanpa POST), /saya/preferensi-notifikasi; header X-Permintaan-Latar untuk polling (tidak memperbarui
     waktu aktif sesi).
-    v0.8.0: Tanda tangan elektronik T1 (tiket 1.6): /saya/ttd/aktivasi, /saya/ttd/pin, /ttd/{id}/reset (persetujuan akses
     v0.8.0: Tanda tangan elektronik T1 (tiket 1.6): /saya/ttd/aktivasi, /saya/ttd/pin, /ttd/{pengguna}/reset (persetujuan akses
     `reset_ttd` dengan penyetuju orang: atasan langsung), /ttd/tandatangani, /ttd/verifikasi/{objek_jenis}/{objek_id};
     Saya.ttd; PersetujuanAkses.penyetuju_pengguna. Penyelarasan 1.7-be (#53): ETag /saya/menu = `versi` + jumlah tugas
