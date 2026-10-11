@@ -899,6 +899,25 @@ Uji penerimaan:
   - Admin dengan akses DB tidak bisa membuat tanda tangan valid tanpa PIN (uji: kunci terbungkus tidak bisa dibuka).
   - 5 PIN salah → terkunci, atasan menerima notifikasi.
   - Tanda tangan massal 12 objek = 12 baris ttd.tanda_tangan dengan hash masing-masing.
+Aturan rinci (kontrak v0.8.0):
+  - Reset TTE (PRD 7.57.2 huruf b, "oleh atasan + SDM"): petugas SDM (`sdm.kredensial.perbaiki`) mengajukan sesudah
+    memverifikasi identitas pemilik (dicatat di `dasar`), atasan langsung menyetujui lewat alur 1.2d. Atasan = akun aktif
+    kepala unit pegawai itu (`inti.unit_organisasi.kepala_pegawai_id`); bila pemilik sendiri kepala unitnya → kepala unit
+    induk. Dua orang berbeda: pengaju ≠ atasan ≠ pemilik. Tanpa atasan berakun → 422 `atasan_belum_ditetapkan` (RS
+    melengkapi kepala unit dulu). Ekstensi 1.2d: `persetujuan_akses.penyetuju_pengguna_id` (penyetuju orang tertentu,
+    `penyetuju_peran_id` boleh kosong), jenis/objek `reset_ttd`, kedaluwarsa 7 hari seperti persetujuan lain.
+  - Disetujui → kredensial lama berstatus `dicabut` (kunci publiknya tetap untuk verifikasi tanda tangan lama), pemilik
+    mengaktifkan ulang sendiri (pasangan kunci + PIN baru). Tidak ada yang menetapkan PIN untuk orang lain.
+  - Isi kanonik per jenis objek dihitung penyedia isi di modul pemilik objek (antarmuka `PenyediaIsiTtd`); fase 1:
+    `persetujuan_akses` (nomor, jenis, ringkasan, objek, status, pemutus, waktu putus, catatan), ditandatangani oleh akun
+    pemutusnya sesudah diputuskan. Menyetujui tidak mensyaratkan tanda tangan di fase 1 (layar memanggil tandatangani
+    sesudah setujui/tolak); kewajiban per jenis dokumen mengikuti `ttd.aturan_tingkat` (FR-57-05) saat dokumen klinis
+    hadir di fase 2.
+  - 5 PIN salah → terkunci 15 menit (konfigurasi `ttd.*`) dan notifikasi kritis ke atasan (penerima sama dengan reset)
+    serta pemilik; penghitung dipulihkan saat PIN benar. PIN salah di ganti PIN ikut dihitung.
+  - Sesi tanda tangan 15 menit terikat sesi login (ID sesi); keluar/ganti sandi mengakhirinya.
+  - `ttd.aturan_tingkat` (jenis dokumen → tingkat T1/T2/S/P) berisi data awal `persetujuan_akses → T1`, tanpa API di
+    fase 1. `ttd.permintaan` dipakai SimulatorTte (T2) di uji; tanpa endpoint publik (K10).
 Di luar lingkup tiket: PSrE nyata, segel elektronik RS, halaman verifikasi publik ber-QR, tanda tangan pasien di
 tablet (fase 2 bersama dokumen dan persetujuan tindakan).
 ```
