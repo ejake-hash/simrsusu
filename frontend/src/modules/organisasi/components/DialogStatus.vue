@@ -7,15 +7,22 @@ import Ikon from '@/design-system/ikon/Ikon.vue'
 import { pesanError } from '@/modules/akses/pengaturan'
 import { ApiError } from '@/shared/api/klien'
 import { ubahKsm, ubahUnit, type Berversi } from '../api'
+import { ubahBangsal, ubahKelasRawat, ubahPoliklinik } from '../apiLokasi'
 import type { Ksm, UnitOrganisasi } from '../tipe'
+import type { Bangsal, KelasRawat, Poliklinik } from '../tipeLokasi'
+
+type JenisData = 'unit' | 'ksm' | 'bangsal' | 'kelas' | 'poli'
+type DataStatus = UnitOrganisasi | Ksm | Bangsal | KelasRawat | Poliklinik
+const LABEL: Record<JenisData, string> = { unit: 'unit', ksm: 'KSM', bangsal: 'bangsal', kelas: 'kelas rawat', poli: 'poliklinik' }
 
 /**
- * Nonaktifkan atau aktifkan kembali unit/KSM (tanpa hapus, PRD 11.1). 409 *_masih_dipakai ditampilkan sebagai daftar
- * yang harus dibereskan lebih dulu (anak aktif, penugasan, modul aktif) dari `rincian` server.
+ * Nonaktifkan atau aktifkan kembali unit, KSM, bangsal, kelas rawat, atau poliklinik (tanpa hapus, PRD 11.1). 409
+ * *_masih_dipakai ditampilkan sebagai daftar yang harus dibereskan lebih dulu (anak aktif, penugasan, modul aktif, TT
+ * yang belum ditutup) dari `rincian` server.
  */
-const props = defineProps<{ jenis: 'unit' | 'ksm'; target: Berversi<UnitOrganisasi | Ksm> | null }>()
+const props = defineProps<{ jenis: JenisData; target: Berversi<DataStatus> | null }>()
 const buka = defineModel<boolean>('open', { required: true })
-const emit = defineEmits<{ selesai: [hasil: Berversi<UnitOrganisasi | Ksm>]; muatUlang: [] }>()
+const emit = defineEmits<{ selesai: [hasil: Berversi<DataStatus>]; muatUlang: [] }>()
 
 const dasar = ref('')
 const errorDasar = ref<string | undefined>()
@@ -26,10 +33,10 @@ const sibuk = ref(false)
 
 const statusBaru = computed(() => (props.target?.data.status === 'aktif' ? 'nonaktif' : 'aktif'))
 const nama = computed(() => (props.target ? `${props.target.data.kode} · ${props.target.data.nama}` : ''))
-const judul = computed(() => `${statusBaru.value === 'nonaktif' ? 'Nonaktifkan' : 'Aktifkan kembali'} ${props.jenis === 'unit' ? 'unit' : 'KSM'}?`)
+const judul = computed(() => `${statusBaru.value === 'nonaktif' ? 'Nonaktifkan' : 'Aktifkan kembali'} ${LABEL[props.jenis]}?`)
 const uraian = computed(() =>
   statusBaru.value === 'nonaktif'
-    ? `${nama.value} tidak bisa dipilih untuk data baru. Data lama tetap tersimpan dan tetap menampilkan ${props.jenis === 'unit' ? 'unit' : 'KSM'} ini.`
+    ? `${nama.value} tidak bisa dipilih untuk data baru. Data lama tetap tersimpan dan tetap menampilkan ${LABEL[props.jenis]} ini.`
     : `${nama.value} bisa dipilih lagi untuk data baru.`,
 )
 
@@ -49,6 +56,7 @@ function daftarPemakaian(r: Record<string, unknown> | undefined): string[] {
     n('jumlah_anak_aktif') && `${n('jumlah_anak_aktif')} unit anak masih aktif: nonaktifkan atau pindahkan lebih dulu.`,
     n('jumlah_penugasan') && `${n('jumlah_penugasan')} akun masih punya penugasan dengan cakupan ini: akhiri di Pengaturan → Akun & akses.`,
     n('jumlah_modul_aktif') && `${n('jumlah_modul_aktif')} modul masih aktif untuk unit ini.`,
+    n('jumlah_tempat_tidur') && `${n('jumlah_tempat_tidur')} tempat tidur belum ditutup: tutup lebih dulu di tab Lokasi & tempat tidur.`,
   ].filter((x): x is string => !!x)
 }
 
@@ -66,7 +74,14 @@ async function kirim() {
   try {
     const t = props.target
     const isian = { status: statusBaru.value, dasar_perubahan: d } as const
-    const hasil = props.jenis === 'unit' ? await ubahUnit(t.data.id, t.etag, isian) : await ubahKsm(t.data.id, t.etag, isian)
+    const ubah: Record<JenisData, (id: string, etag: string, i: typeof isian) => Promise<Berversi<DataStatus>>> = {
+      unit: ubahUnit,
+      ksm: ubahKsm,
+      bangsal: ubahBangsal,
+      kelas: ubahKelasRawat,
+      poli: ubahPoliklinik,
+    }
+    const hasil = await ubah[props.jenis](t.data.id, t.etag, isian)
     buka.value = false
     emit('selesai', hasil)
   } catch (e) {
