@@ -10,16 +10,19 @@ import Ikon from '@/design-system/ikon/Ikon.vue'
 import { tanggalKeIso } from '@/shared/utils/waktu'
 import { buatIzinKhusus } from '../../apiPengaturan'
 import type { IndeksMatriks } from '../../matriks'
+import { teksMenunggu } from '../../persetujuan'
 import { errorKolom, pesanError } from '../../pengaturan'
+import type { PermintaanAkses } from '../../tipePersetujuan'
 
 /**
  * Pengecualian per akun (FR-09-13): tambah atau cabut satu sub-menu/bagian (seluruh halaman) atau satu aksi.
- * Cabut selalu menang atas peran. Menambah izin sensitif wajib berbatas waktu (PRD 9.2.3) dan butuh persetujuan
- * pemilik data (tiket 1.2d; sampai itu server menolak). Sensitif hanya dinilai pada sasaran aksi, sama dengan server.
+ * Cabut selalu menang atas peran. Menambah izin sensitif wajib berbatas waktu (PRD 9.2.3) dan menjadi persetujuan
+ * menunggu pemilik datanya (202, tiket 1.2d). Sensitif hanya dinilai pada sasaran aksi, sama dengan server.
+ * `permintaan`: menindaklanjuti permintaan akses (sasaran dan dasar = nomor permintaan diisi lebih dulu).
  */
-const props = defineProps<{ akunId: string; namaAkun: string; indeks: IndeksMatriks }>()
+const props = withDefaults(defineProps<{ akunId: string; namaAkun: string; indeks: IndeksMatriks; permintaan?: PermintaanAkses | null }>(), { permintaan: null })
 const buka = defineModel<boolean>('open', { required: true })
-const emit = defineEmits<{ selesai: [] }>()
+const emit = defineEmits<{ selesai: [pesan: string] }>()
 
 interface Sasaran {
   jenis: 'menu' | 'izin'
@@ -71,7 +74,12 @@ watch(buka, (b) => {
   if (!b) return
   error.value = null
   cari.value = ''
-  resetForm({ values: { efek: 'cabut', sasaran: '', berlaku_sampai: '', dasar_pemberian: '', alasan: '' } })
+  const pm = props.permintaan
+  resetForm({
+    values: pm
+      ? { efek: 'tambah', sasaran: `${pm.sasaran_jenis}:${pm.sasaran_kode}`, berlaku_sampai: '', dasar_pemberian: pm.nomor, alasan: pm.alasan.length >= 5 ? pm.alasan : '' }
+      : { efek: 'cabut', sasaran: '', berlaku_sampai: '', dasar_pemberian: '', alasan: '' },
+  })
 })
 
 const kirim = handleSubmit(async (v) => {
@@ -84,16 +92,17 @@ const kirim = handleSubmit(async (v) => {
   sibuk.value = true
   error.value = null
   try {
-    await buatIzinKhusus(props.akunId, {
+    const hasil = await buatIzinKhusus(props.akunId, {
       efek: v.efek,
       sasaran_jenis: s.jenis,
       sasaran_kode: s.kode,
       berlaku_sampai: v.berlaku_sampai ? tanggalKeIso(v.berlaku_sampai, true) : null,
       dasar_pemberian: v.dasar_pemberian,
       alasan: v.alasan,
+      permintaan_akses_id: props.permintaan?.id ?? null,
     })
     buka.value = false
-    emit('selesai')
+    emit('selesai', hasil.menunggu ? `Pengecualian ${s.label} ${teksMenunggu(hasil.persetujuan)}.` : 'Pengecualian disimpan.')
   } catch (e) {
     const kolom = errorKolom(e, ['sasaran', 'berlaku_sampai', 'dasar_pemberian', 'alasan'], { sasaran_kode: 'sasaran' })
     if (Object.keys(kolom).length) setErrors(kolom)

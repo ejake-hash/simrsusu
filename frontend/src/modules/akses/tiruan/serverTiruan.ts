@@ -1,10 +1,12 @@
 import type { GrupMenu, Menu, MenuSaya } from '../tipeMenu'
 import type { AkunRinci, CakupanJenis, IzinKhusus, IzinNode, NodeMenu, Penugasan, PeranRinci, PohonMenu, StatusMfaAkun } from '../tipePengaturan'
+import type { JenisPersetujuan, PermintaanAkses, PersetujuanAkses } from '../tipePersetujuan'
 import { buatPohon, izinMenu, uid } from './dataPengaturan'
 
 /**
- * Server tiruan kontrak docs/api/openapi.yaml v0.2.3 (tiket 1.2c) sampai 1.2c-be merge: menyimpan keadaan di
- * memori dan meniru aturan yang tertulis di kontrak, termasuk error 403/409/412/422/428. Dipakai unit test,
+ * Server tiruan kontrak docs/api/openapi.yaml v0.2.3 (tiket 1.2c) dan v0.4.0 (tiket 1.2d: persetujuan dan permintaan
+ * akses, 202 untuk pemberian berisiko): menyimpan keadaan di memori dan meniru aturan yang tertulis di kontrak,
+ * termasuk error 403/409/412/422/428. Akun yang masuk bisa diganti (`sebagai`) agar alur dua orang teruji. Dipakai unit test,
  * e2e (page.route), dan `vite` dev dengan VITE_API_TIRUAN=true; tidak masuk build produksi.
  * Bukan sumber aturan: bila berbeda dengan kontrak atau backend, kontrak yang berlaku.
  */
@@ -35,6 +37,30 @@ interface PeranTiruan {
   izin: Set<string>
   versi: number
   diubah_pada: string
+}
+
+interface PersetujuanTiruan {
+  id: string
+  nomor: string
+  jenis: JenisPersetujuan
+  objek: PersetujuanAkses['objek']
+  peranId: string | null
+  izinKode: string | null
+  sasaranAkunId: string | null
+  penyetujuPeranId: string
+  status: 'menunggu' | 'disetujui' | 'ditolak' | 'kedaluwarsa' | 'dibatalkan'
+  diterapkan: boolean
+  diajukanOleh: string
+  diajukanPada: string
+  alasan: string | null
+  dasar: string
+  kedaluwarsaPada: string
+  diputuskanOleh: string | null
+  diputuskanPada: string | null
+  catatan: string | null
+  grupId: string
+  /** Menerapkan perubahan saat seluruh grup disetujui; melempar string = tidak bisa diterapkan. */
+  terapkan: () => void
 }
 
 interface AkunTiruan {
@@ -79,6 +105,9 @@ export interface OpsiServerTiruan {
 }
 
 export const ID_SUPERADMIN = uid(1)
+/** Superadmin kedua (penyetuju K4/K13) dan pemilik data kasir, tiket 1.2d. */
+export const ID_SUPERADMIN_DUA = uid(9)
+export const ID_KABID = uid(10)
 
 export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   const sekarang = opsi.sekarang ?? (() => new Date())
@@ -109,7 +138,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
 
   const SA = uid(101)
   // Superadmin juga memegang Profil RS (1.8a-be: MenuBawaan::SUB_MENU_SUPERADMIN).
-  tambahPeran(SA, 'superadmin', 'Superadmin', izinMenu(pohon, []).concat(['pengaturan.peran', 'pengaturan.akun'].flatMap((k) => ['lihat', 'input', 'perbaiki'].map((a) => `${k}.${a}`)), ['pengaturan.profil_rs.lihat', 'pengaturan.profil_rs.perbaiki']), {
+  tambahPeran(SA, 'superadmin', 'Superadmin', izinMenu(pohon, []).concat(['pengaturan.peran', 'pengaturan.akun'].flatMap((k) => ['lihat', 'input', 'perbaiki'].map((a) => `${k}.${a}`)), ['pengaturan.profil_rs.lihat', 'pengaturan.profil_rs.perbaiki'], ['lihat', 'input', 'perbaiki'].map((a) => `pengaturan.persetujuan.${a}`)), {
     bawaan_sistem: true,
     wajib_mfa: true,
     uraian: 'Mengelola menu, peran, dan akun. Tidak membuka rekam medis atau angka rupiah (PRD 9.2.4).',
@@ -121,6 +150,21 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   tambahPeran(uid(106), 'contoh_lama', 'Contoh Peran Lama', [], { status: 'nonaktif' })
   // Pemilik data induk organisasi (1.8a-be: akun contoh.data.induk); superadmin tidak memegangnya.
   tambahPeran(uid(107), 'contoh_data_induk', 'Contoh Admin Data Induk', ['lihat', 'input', 'perbaiki'].map((a) => `master_data.organisasi.${a}`))
+  // Pemilik data contoh (1.2d): penyetuju izin sensitif kasir; membuka antrean persetujuan lewat peran (kontrak v0.4.0).
+  const KABID = uid(108)
+  tambahPeran(KABID, 'contoh_kabid_keuangan', 'Contoh Kabid Keuangan', ['pengaturan.persetujuan.lihat'])
+
+  // Penyetuju izin sensitif (K3): data awal K13 = superadmin untuk pengelola akses; kasir = Kabid Keuangan; pelepasan RM
+  // sengaja belum ditetapkan (422 penyetuju_belum_ditetapkan). Disimpan di node pohon agar GET /menu ikut berubah.
+  const ringkas = (id: string) => {
+    const x = peran.get(id)!
+    return { id: x.id, kode: x.kode, nama: x.nama }
+  }
+  for (const [kode, info] of perKode) {
+    if (!info.izin.sensitif) continue
+    info.izin.penyetuju_peran = kode.startsWith('pengaturan.') ? ringkas(SA) : kode.startsWith('kasir.') ? ringkas(KABID) : null
+  }
+  const penyetujuIzin = (kode: string) => perKode.get(kode)?.izin.penyetuju_peran?.id ?? null
 
   const akun = new Map<string, AkunTiruan>()
   const penugasan = (peranId: string, isi: Partial<Penugasan> = {}): Penugasan => {
@@ -167,6 +211,9 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   tambahAkun(uid(6), 'contoh.mfa', 'Contoh Akun MFA', [uid(104)], { wajib_mfa: true, mfa_aktif_pada: '2026-10-02T03:00:00.000Z' })
   tambahAkun(uid(7), 'contoh.mfa.baru', 'Contoh Akun MFA Baru', [], { wajib_mfa: true, login_terakhir_pada: null })
   tambahAkun(uid(8), 'contoh.kasir', 'Contoh Kasir', [uid(105)], { mfa_aktif_pada: '2026-10-03T03:00:00.000Z' })
+  // 1.2d: superadmin kedua (penyetuju K4/K13) dan pemilik data kasir.
+  tambahAkun(ID_SUPERADMIN_DUA, 'contoh.superadmin.dua', 'Contoh Superadmin Kedua', [SA], { mfa_aktif_pada: '2026-10-01T02:00:00.000Z' })
+  tambahAkun(ID_KABID, 'contoh.kabid', 'Contoh Kabid Keuangan', [KABID], { mfa_aktif_pada: '2026-10-01T02:00:00.000Z' })
   // Contoh pengecualian aktif dan riwayat batal (MD-1).
   akun.get(uid(8))!.izin_khusus.push(
     {
@@ -186,7 +233,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
     tambahAkun(uid(200 + i), `contoh.massal${String(i).padStart(2, '0')}`, `Contoh Akun Massal ${i}`, [uid(102 + (i % 3))])
   }
 
-  const penggunaId = opsi.penggunaId ?? ID_SUPERADMIN
+  let penggunaId = opsi.penggunaId ?? ID_SUPERADMIN
 
   // ── Turunan ──
   const berlaku = (x: { status: string; berlaku_dari: string; berlaku_sampai: string | null }) =>
@@ -265,6 +312,10 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
       jumlah_akun: jumlahAkun(p.id), memuat_izin_sensitif: memuatSensitif(p), versi: String(p.versi), izin: [...p.izin].sort(),
       wajib_mfa_terkunci: bawaan || memuatSensitif(p), dapat_disunting: !bawaan && !sendiri,
       alasan_terkunci: bawaan ? 'peran_bawaan_terkunci' : sendiri ? 'peran_sendiri' : null, diubah_pada: p.diubah_pada,
+      izin_menunggu: persetujuan
+        .filter((x) => x.objek.jenis === 'izin_peran' && x.peranId === p.id && masihMenunggu(x))
+        .map((x) => ({ kode: x.izinKode!, persetujuan_id: x.id, penyetuju_peran: ringkas(x.penyetujuPeranId), kedaluwarsa_pada: x.kedaluwarsaPada }))
+        .sort((x, y) => x.kode.localeCompare(y.kode)),
     }
   }
   const ringkasPeran = (p: PeranTiruan) => {
@@ -282,6 +333,11 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
       dapat_diubah: a.id !== penggunaId && !terkunciSuperadmin(a),
       alasan_terkunci: a.id === penggunaId ? 'diri_sendiri' : terkunciSuperadmin(a) ? 'akun_superadmin' : null,
       mfa: statusMfa(a), penugasan: urut(a.penugasan), izin_khusus: urut(a.izin_khusus),
+      // Satu baris per pengajuan (grup), meski butuh beberapa penyetuju.
+      menunggu_persetujuan: persetujuan
+        .filter((x) => x.sasaranAkunId === a.id && ['penugasan', 'pengakhiran_penugasan', 'izin_khusus'].includes(x.objek.jenis) && masihMenunggu(x))
+        .filter((x, i, xs) => xs.findIndex((y) => y.grupId === x.grupId) === i)
+        .map(bentukPersetujuan),
     }
   }
 
@@ -301,6 +357,105 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
       return error(412, 'versi_berubah', 'Peran ini diubah orang lain sejak dibuka. Muat ulang untuk melihat perubahan terbaru.')
     }
     return null
+  }
+
+  // ── Persetujuan dan permintaan akses (kontrak v0.4.0, tiket 1.2d) ──
+  const persetujuan: PersetujuanTiruan[] = []
+  const permintaan: (PermintaanAkses & { penggunaId: string })[] = []
+  let nomorPsa = 0
+  let nomorPma = 0
+  const namaAkun = (id: string | null) => (id ? { id, nama: akun.get(id)?.nama ?? id } : null)
+  const MASA_MS = 7 * 24 * 3600 * 1000
+  const statusSekarang = (x: PersetujuanTiruan) => (x.status === 'menunggu' && x.kedaluwarsaPada <= iso() ? 'kedaluwarsa' : x.status)
+  const masihMenunggu = (x: PersetujuanTiruan) => statusSekarang(x) === 'menunggu'
+  const peranDipegang = (a: AkunTiruan) => new Set(peranBerlaku(a).map((p) => p.id))
+  const labelIzin = (kode: string) => {
+    const info = perKode.get(kode)
+    if (!info) return kode
+    const aksi = info.izin.jenis_aksi === 'lihat_rupiah' ? 'Lihat rupiah' : info.izin.jenis_aksi[0]!.toUpperCase() + info.izin.jenis_aksi.slice(1)
+    return `${info.jalur} → ${aksi}`
+  }
+  const objekPeran = (x: PersetujuanTiruan) => x.objek.jenis === 'izin_peran' || x.objek.jenis === 'penyetuju_izin'
+
+  /** Kode 403 bila akun yang masuk tidak boleh memutuskan; null = boleh. */
+  function alasanTidakBoleh(x: PersetujuanTiruan): string | null {
+    const saya = akun.get(penggunaId)!
+    if (!peranDipegang(saya).has(x.penyetujuPeranId)) return 'bukan_penyetuju'
+    if (x.diajukanOleh === penggunaId) return 'pengaju_sendiri'
+    if (x.sasaranAkunId === penggunaId) return 'penerima_sendiri'
+    if (objekPeran(x) && x.peranId && saya.penugasan.some((p) => p.peran.id === x.peranId && p.status === 'aktif')) return 'penerima_sendiri'
+    return null
+  }
+  const terlihat = (x: PersetujuanTiruan) =>
+    x.diajukanOleh === penggunaId || x.sasaranAkunId === penggunaId || peranDipegang(akun.get(penggunaId)!).has(x.penyetujuPeranId)
+
+  function bentukPersetujuan(x: PersetujuanTiruan): PersetujuanAkses {
+    const grup = persetujuan.filter((y) => y.grupId === x.grupId)
+    const status = statusSekarang(x)
+    return {
+      id: x.id, nomor: x.nomor, jenis: x.jenis, ringkasan: ringkasanPersetujuan(x), objek: x.objek,
+      penyetuju_peran: ringkas(x.penyetujuPeranId), status, diterapkan: x.diterapkan,
+      diajukan_oleh: namaAkun(x.diajukanOleh), diajukan_pada: x.diajukanPada, alasan: x.alasan, dasar: x.dasar,
+      kedaluwarsa_pada: x.kedaluwarsaPada, diputuskan_oleh: namaAkun(x.diputuskanOleh), diputuskan_pada: x.diputuskanPada,
+      catatan_keputusan: x.catatan,
+      grup: { id: x.grupId, jumlah: grup.length, disetujui: grup.filter((y) => y.status === 'disetujui').length },
+      akun_terdampak: objekPeran(x) && x.peranId ? jumlahAkun(x.peranId) : 1,
+      dapat_diputuskan: status === 'menunggu' && alasanTidakBoleh(x) === null,
+    }
+  }
+  function ringkasanPersetujuan(x: PersetujuanTiruan): string {
+    const o = x.objek
+    const peranNama = o.peran?.nama ?? '-'
+    const akunNama = o.akun?.nama ?? '-'
+    const izin = o.izin?.label ?? '-'
+    switch (o.jenis) {
+      case 'izin_peran': return `Tambah izin ${izin} ke peran ${peranNama}`
+      case 'penugasan': return `Tugaskan peran ${peranNama} ke ${akunNama}${o.cakupan_label ? ` (${o.cakupan_label})` : ''}`
+      case 'pengakhiran_penugasan': return `Akhiri penugasan peran ${peranNama} untuk ${akunNama}`
+      case 'izin_khusus': return `Tambah pengecualian ${izin} untuk ${akunNama}`
+      case 'penyetuju_izin': return `Tetapkan peran ${peranNama} sebagai penyetuju izin ${izin}`
+    }
+  }
+
+  /** Catat pengajuan (satu baris per peran penyetuju, satu grup); 202 berisi baris pertama. */
+  function ajukan(
+    jenis: JenisPersetujuan,
+    objek: PersetujuanAkses['objek'],
+    penyetuju: string[],
+    terapkan: () => void,
+    isi: { peranId?: string | null; izinKode?: string | null; sasaranAkunId?: string | null; dasar: string; alasan: string | null },
+  ): ResponsTiruan {
+    const grupId = idBaru()
+    const baris = [...new Set(penyetuju)].map((penyetujuPeranId) => {
+      const x: PersetujuanTiruan = {
+        id: idBaru(), nomor: `PSA-2026-${String(++nomorPsa).padStart(6, '0')}`, jenis, objek, penyetujuPeranId,
+        peranId: isi.peranId ?? null, izinKode: isi.izinKode ?? null, sasaranAkunId: isi.sasaranAkunId ?? null,
+        status: 'menunggu', diterapkan: false, diajukanOleh: penggunaId, diajukanPada: iso(), alasan: isi.alasan, dasar: isi.dasar,
+        kedaluwarsaPada: new Date(sekarang().getTime() + MASA_MS).toISOString(), diputuskanOleh: null, diputuskanPada: null, catatan: null,
+        grupId, terapkan,
+      }
+      persetujuan.push(x)
+      return x
+    })
+    return ok({ data: bentukPersetujuan(baris[0]!) }, 202)
+  }
+  function tutupGrup(x: PersetujuanTiruan, status: PersetujuanTiruan['status'], oleh: string | null, catatan: string | null) {
+    for (const y of persetujuan.filter((z) => z.grupId === x.grupId && z.status === 'menunggu')) {
+      Object.assign(y, { status, diputuskanOleh: oleh, diputuskanPada: iso(), catatan })
+    }
+  }
+  const tidakAdaPenyetuju = (kode: string[]) =>
+    error(422, 'penyetuju_belum_ditetapkan', 'Izin sensitif ini belum punya penyetuju (pemilik data). Tetapkan dulu di pengaturan izin.',
+      kode.map((k) => ({ kolom: 'izin', kode: k, pesan: `${labelIzin(k)} belum punya penyetuju.` })))
+  /** Peran yang menjadi penyetuju izin sensitif mana pun (penugasannya butuh persetujuan superadmin lain). */
+  const peranPenyetuju = (peranId: string) => [...perKode.values()].some((i) => i.izin.sensitif && i.izin.penyetuju_peran?.id === peranId)
+  const permintaanValid = (a: AkunTiruan, id: unknown) => {
+    if (id === undefined || id === null) return null
+    const pm = permintaan.find((x) => x.id === id)
+    return pm && pm.status === 'menunggu' && pm.penggunaId === a.id ? pm : false
+  }
+  const tindakLanjuti = (pm: (typeof permintaan)[number] | null) => {
+    if (pm) Object.assign(pm, { status: 'ditindaklanjuti', diputuskan_oleh: namaAkun(penggunaId), diputuskan_pada: iso() })
   }
 
   // ── Rute ──
@@ -329,6 +484,137 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
     if (m === 'GET' && r.jalur === '/saya/menu') return ok({ data: menuEfektif(akun.get(penggunaId)!) })
     if (m === 'POST' && r.jalur === '/autentikasi/keluar') return ok(null, 204)
     if (m === 'GET' && r.jalur === '/menu') return ok({ data: pohon })
+
+    // ── 1.2d: persetujuan akses (tanpa izin khusus; hanya yang relevan bagi akun ini) ──
+    if (a0 === 'persetujuan-akses') {
+      if (m === 'GET' && !a1) {
+        const tab = r.kueri.get('tab')
+        if (tab !== 'perlu_saya_putuskan' && tab !== 'saya_ajukan') return error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom: 'tab', pesan: 'Pilih tab.' }])
+        const status = r.kueri.get('status')
+        const daftar = persetujuan
+          .filter((x) => (tab === 'perlu_saya_putuskan' ? masihMenunggu(x) && alasanTidakBoleh(x) === null : x.diajukanOleh === penggunaId))
+          .filter((x) => !status || statusSekarang(x) === status)
+          .sort((x, y) => y.diajukanPada.localeCompare(x.diajukanPada) || y.id.localeCompare(x.id))
+          .map(bentukPersetujuan)
+        return halaman(daftar, r.kueri)
+      }
+      const x = persetujuan.find((y) => y.id === a1)
+      if (!x || !terlihat(x)) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
+      if (m === 'GET' && !a2) return ok({ data: bentukPersetujuan(x) })
+      if (m === 'POST' && (a2 === 'setujui' || a2 === 'tolak')) {
+        const alasanTolak = a2 === 'tolak' ? teks(isi, 'alasan', 5, 500) : null
+        if (salah(alasanTolak)) return alasanTolak
+        const tidakBoleh = alasanTidakBoleh(x)
+        if (tidakBoleh) {
+          const pesan: Record<string, string> = {
+            bukan_penyetuju: 'Anda bukan penyetuju yang ditunjuk untuk pengajuan ini.',
+            pengaju_sendiri: 'Pengaju tidak bisa memutuskan pengajuannya sendiri.',
+            penerima_sendiri: 'Penerima akses tidak bisa memutuskan pengajuan untuk dirinya.',
+          }
+          return error(403, tidakBoleh, pesan[tidakBoleh]!)
+        }
+        if (statusSekarang(x) !== 'menunggu') {
+          if (statusSekarang(x) === 'kedaluwarsa' && x.status === 'menunggu') tutupGrup(x, 'kedaluwarsa', null, 'Kedaluwarsa tanpa keputusan (7 hari)')
+          return error(409, 'sudah_diputuskan', 'Pengajuan ini sudah diputuskan, kedaluwarsa, atau dibatalkan.')
+        }
+        if (a2 === 'tolak') {
+          Object.assign(x, { status: 'ditolak', diputuskanOleh: penggunaId, diputuskanPada: iso(), catatan: alasanTolak })
+          tutupGrup(x, 'ditolak', penggunaId, alasanTolak)
+          return ok({ data: bentukPersetujuan(x) })
+        }
+        Object.assign(x, { status: 'disetujui', diputuskanOleh: penggunaId, diputuskanPada: iso(), catatan: typeof isi.catatan === 'string' && isi.catatan ? isi.catatan : null })
+        const grup = persetujuan.filter((y) => y.grupId === x.grupId)
+        if (grup.every((y) => y.status === 'disetujui')) {
+          try {
+            x.terapkan()
+            grup.forEach((y) => (y.diterapkan = true))
+          } catch (e) {
+            for (const y of grup) Object.assign(y, { status: 'ditolak', diputuskanOleh: null, diputuskanPada: iso(), catatan: `Tidak bisa diterapkan: ${String(e)}` })
+            return error(409, 'tidak_bisa_diterapkan', `Pengajuan ini tidak bisa diterapkan lagi: ${String(e)}`)
+          }
+        }
+        return ok({ data: bentukPersetujuan(x) })
+      }
+      if (m === 'POST' && a2 === 'batalkan') {
+        if (x.diajukanOleh !== penggunaId) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
+        const alasan = teks(isi, 'alasan', 5, 500)
+        if (salah(alasan)) return alasan
+        if (statusSekarang(x) !== 'menunggu') return error(409, 'sudah_diputuskan', 'Pengajuan ini sudah diputuskan, kedaluwarsa, atau dibatalkan.')
+        tutupGrup(x, 'dibatalkan', penggunaId, alasan)
+        return ok({ data: bentukPersetujuan(x) })
+      }
+    }
+
+    // ── 1.2d: permintaan akses dari layar Akses ditolak ──
+    if (a0 === 'permintaan-akses') {
+      const saya = akun.get(penggunaId)!
+      if (m === 'GET' && !a1) {
+        const milikSaya = r.kueri.get('milik_saya') === 'true'
+        if (!milikSaya && !izinEfektif(saya).has('pengaturan.akun.lihat')) return error(403, 'akses_ditolak', 'Anda tidak punya izin untuk tindakan ini.')
+        const status = r.kueri.get('status')
+        const daftar = permintaan
+          .filter((x) => (!milikSaya || x.penggunaId === penggunaId) && (!status || x.status === status))
+          .sort((x, y) => y.dibuat_pada.localeCompare(x.dibuat_pada))
+          .map(({ penggunaId: _p, ...x }) => x)
+        return halaman(daftar, r.kueri)
+      }
+      if (m === 'POST' && !a1) {
+        const alasan = teks(isi, 'alasan', 5, 500)
+        if (salah(alasan)) return alasan
+        const jenis = isi.sasaran_jenis === 'izin' ? 'izin' : 'menu'
+        const kode = String(isi.sasaran_kode ?? '')
+        const node = jenis === 'menu' ? nodePerKode.get(kode) : undefined
+        const info = jenis === 'izin' ? perKode.get(kode) : undefined
+        if (!node && !info) return error(422, 'sasaran_tidak_dikenal', 'Sasaran tidak dikenal.', [{ kolom: 'sasaran_kode', kode, pesan: 'Tidak dikenal.' }])
+        const izinSaya = izinEfektif(saya)
+        const sudah = info ? izinSaya.has(kode) : (lihatDari(node!.node) ? izinSaya.has(lihatDari(node!.node)!) : false)
+        if (sudah) return error(409, 'sudah_punya_akses', 'Anda sudah punya akses ini. Muat ulang halaman.')
+        if (permintaan.some((x) => x.penggunaId === penggunaId && x.sasaran_kode === kode && x.status === 'menunggu')) {
+          return error(409, 'permintaan_ganda', 'Permintaan untuk akses yang sama masih menunggu.')
+        }
+        const baru: PermintaanAkses & { penggunaId: string } = {
+          id: idBaru(), nomor: `PMA-2026-${String(++nomorPma).padStart(6, '0')}`, penggunaId,
+          akun: { id: saya.id, nama_pengguna: saya.nama_pengguna, nama: saya.nama }, sasaran_jenis: jenis, sasaran_kode: kode,
+          sasaran_label: info ? labelIzin(kode) : node!.jalur, alasan: alasan!, status: 'menunggu',
+          diputuskan_oleh: null, diputuskan_pada: null, catatan_keputusan: null, dibuat_pada: iso(),
+        }
+        permintaan.push(baru)
+        const { penggunaId: _p, ...bentuk } = baru
+        return ok({ data: bentuk }, 201)
+      }
+      if (m === 'POST' && a2 === 'tolak') {
+        if (!izinEfektif(saya).has('pengaturan.akun.perbaiki')) return error(403, 'akses_ditolak', 'Anda tidak punya izin untuk tindakan ini.')
+        const x = permintaan.find((y) => y.id === a1)
+        if (!x) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
+        const alasan = teks(isi, 'alasan', 5, 500)
+        if (salah(alasan)) return alasan
+        if (x.penggunaId === penggunaId) return error(403, 'diri_sendiri', 'Permintaan Anda sendiri diputuskan admin lain.')
+        if (x.status !== 'menunggu') return error(409, 'sudah_diputuskan', 'Permintaan ini sudah diputuskan.')
+        Object.assign(x, { status: 'ditolak', diputuskan_oleh: namaAkun(penggunaId), diputuskan_pada: iso(), catatan_keputusan: alasan })
+        const { penggunaId: _p, ...bentuk } = x
+        return ok({ data: bentuk })
+      }
+    }
+
+    // ── 1.2d: penyetuju izin sensitif (kontrol ganda: 202 menunggu superadmin lain) ──
+    if (a0 === 'izin' && a2 === 'penyetuju' && m === 'PUT') {
+      const kode = decodeURIComponent(a1 ?? '')
+      const info = perKode.get(kode)
+      if (!info) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
+      if (!izinEfektif(akun.get(penggunaId)!).has('pengaturan.peran.perbaiki')) return error(403, 'akses_ditolak', 'Anda tidak punya izin untuk tindakan ini.')
+      const dasar = teks(isi, 'dasar_perubahan', 3, 200)
+      if (salah(dasar)) return dasar
+      if (!info.izin.sensitif) return error(422, 'izin_tidak_sensitif', 'Penyetuju hanya untuk izin sensitif.')
+      const target = typeof isi.peran_id === 'string' ? peran.get(isi.peran_id) : undefined
+      if (!target || target.status !== 'aktif') return error(422, 'peran_tidak_valid', 'Pilih peran aktif.', [{ kolom: 'peran_id', pesan: 'Pilih peran aktif.' }])
+      if (pegangPeran(target.id)) return error(403, 'peran_sendiri', 'Anda tidak bisa menunjuk peran yang Anda pegang.')
+      if (persetujuan.some((x) => x.objek.jenis === 'penyetuju_izin' && x.izinKode === kode && masihMenunggu(x))) {
+        return error(409, 'persetujuan_ganda', 'Penggantian penyetuju izin ini masih menunggu.')
+      }
+      return ajukan('izin_sensitif', { jenis: 'penyetuju_izin', peran: ringkas(target.id), izin: { kode, label: labelIzin(kode) } }, [SA], () => {
+        info.izin.penyetuju_peran = ringkas(target.id)
+      }, { peranId: target.id, izinKode: kode, dasar: dasar!, alasan: null })
+    }
 
     if (a0 === 'peran') {
       if (m === 'GET' && !a1) {
@@ -399,16 +685,30 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
           return lihat !== undefined && !baru.has(lihat)
         })
         if (tanpaInduk.length) return error(422, 'induk_belum_diberikan', 'Bagian mensyaratkan sub-menu induknya diberi lihat.', tanpaInduk.map((kode) => ({ kolom: 'izin', kode, pesan: 'Sub-menu induk belum diberi lihat.' })))
-        const ditambah = [...baru].filter((k) => !p.izin.has(k))
-        const sensitifBaru = ditambah.filter(sensitif)
-        if (sensitifBaru.length) {
-          return error(409, 'butuh_persetujuan', 'Menambah izin sensitif butuh persetujuan pemilik data. Alur persetujuan tersedia di tiket 1.2d; tidak ada yang disimpan.', sensitifBaru.map((kode) => ({ kode, pesan: 'Izin sensitif' })))
+        // 1.2d: izin sensitif baru menjadi persetujuan menunggu (satu per izin); yang sudah menunggu tidak diajukan ulang.
+        const sensitifBaru = [...baru].filter((k) => !p.izin.has(k) && sensitif(k))
+        const tanpaPenyetuju = sensitifBaru.filter((k) => !penyetujuIzin(k))
+        if (tanpaPenyetuju.length) return tidakAdaPenyetuju(tanpaPenyetuju)
+        const menunggu = sensitifBaru.map((kode) => {
+          const lama = persetujuan.find((x) => x.objek.jenis === 'izin_peran' && x.peranId === p.id && x.izinKode === kode && masihMenunggu(x))
+          if (lama) return bentukPersetujuan(lama)
+          const respons = ajukan('izin_sensitif', { jenis: 'izin_peran', peran: ringkas(p.id), izin: { kode, label: labelIzin(kode) } }, [penyetujuIzin(kode)!], () => {
+            p.izin.add(kode)
+            p.versi++
+            p.diubah_pada = iso()
+          }, { peranId: p.id, izinKode: kode, dasar: dasar!, alasan: typeof isi.alasan === 'string' ? isi.alasan : null })
+          return (respons.isi as { data: PersetujuanAkses }).data
+        })
+        // Izin menunggu yang tidak dikirim lagi = ditarik (persetujuan dibatalkan), sama dengan backend 1.2d.
+        for (const x of persetujuan.filter((y) => y.objek.jenis === 'izin_peran' && y.peranId === p.id && masihMenunggu(y) && !baru.has(y.izinKode!))) {
+          tutupGrup(x, 'dibatalkan', penggunaId, 'Ditarik dari matriks peran')
         }
+        const ditambah = [...baru].filter((k) => !p.izin.has(k) && !sensitif(k))
         const dicabut = [...p.izin].filter((k) => !baru.has(k))
-        p.izin = baru
+        p.izin = new Set([...baru].filter((k) => !sensitifBaru.includes(k)))
         p.versi++
         p.diubah_pada = iso()
-        return denganEtag(p, 200, { perubahan: { ditambah: ditambah.sort(), dicabut: dicabut.sort(), akun_terdampak: jumlahAkun(p.id) } })
+        return denganEtag(p, 200, { perubahan: { ditambah: ditambah.sort(), dicabut: dicabut.sort(), akun_terdampak: jumlahAkun(p.id), menunggu_persetujuan: menunggu } })
       }
     }
 
@@ -434,6 +734,20 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
           }))
         return halaman(daftar, r.kueri)
       }
+      if (m === 'GET' && a1 === 'saran-peran') {
+        const hitung = new Map<string, { efek: 'tambah' | 'cabut'; sasaran_jenis: 'menu' | 'izin'; sasaran_kode: string; sasaran_label: string; akun: Set<string> }>()
+        for (const x of akun.values()) {
+          for (const k of x.izin_khusus.filter(berlaku)) {
+            const kunci = `${k.efek}:${k.sasaran_kode}`
+            const h = hitung.get(kunci) ?? { efek: k.efek, sasaran_jenis: k.sasaran_jenis, sasaran_kode: k.sasaran_kode, sasaran_label: k.sasaran_label, akun: new Set<string>() }
+            h.akun.add(x.id)
+            hitung.set(kunci, h)
+          }
+        }
+        const data = [...hitung.values()].filter((h) => h.akun.size >= 5).sort((x, y) => y.akun.size - x.akun.size).slice(0, 50)
+          .map(({ akun: daftar, ...h }) => ({ ...h, jumlah_akun: daftar.size }))
+        return ok({ data })
+      }
       const a = a1 ? akun.get(a1) : undefined
       if (!a) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
       if (m === 'GET' && !a2) return ok({ data: akunRinci(a) })
@@ -452,12 +766,43 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
         if (jenisCakupan === 'rs' ? cakupanId !== null : !cakupanId || !opsi.unit!.aktif(cakupanId)) {
           return error(422, 'cakupan_tidak_valid', 'Pilih unit aktif untuk cakupan unit.', [{ kolom: 'cakupan_id', pesan: 'Pilih unit aktif.' }])
         }
-        if (p.kode === 'superadmin') return error(409, 'peran_bawaan_terkunci', 'Peran Superadmin hanya bisa ditugaskan lewat konsol sampai alur persetujuan tersedia (tiket 1.2d).')
         if (p.status !== 'aktif') return error(409, 'peran_nonaktif', 'Peran ini nonaktif.')
-        if (memuatSensitif(p)) return error(409, 'butuh_persetujuan', 'Peran ini memuat izin sensitif; penugasannya butuh persetujuan pemilik data.')
         if (a.penugasan.some((x) => x.peran.id === p.id && x.cakupan_id === cakupanId && x.status === 'aktif' && berlaku(x))) {
           return error(409, 'penugasan_ganda', 'Peran dan cakupan yang sama masih berlaku untuk akun ini.')
         }
+        const pm = permintaanValid(a, isi.permintaan_akses_id)
+        if (pm === false) return error(422, 'permintaan_tidak_valid', 'Permintaan akses itu bukan permintaan menunggu milik akun ini.')
+        const buatBaru = () => penugasan(p.id, {
+          cakupan_jenis: jenisCakupan,
+          cakupan_id: cakupanId,
+          cakupan_label: cakupanId ? opsi.unit!.label(cakupanId) : null,
+          berlaku_dari: typeof isi.berlaku_dari === 'string' ? isi.berlaku_dari : iso(),
+          berlaku_sampai: typeof isi.berlaku_sampai === 'string' ? isi.berlaku_sampai : null,
+          dasar_pemberian: dasar!,
+          alasan: typeof isi.alasan === 'string' ? isi.alasan : null,
+          diberikan_oleh: { id: penggunaId, nama: akun.get(penggunaId)!.nama },
+          dibuat_pada: iso(),
+        })
+        // 1.2d: superadmin → superadmin lain (K4); peran berizin sensitif → penyetuju tiap izin; peran penyetuju → superadmin lain.
+        const sensitifPeran = [...p.izin].filter(sensitif)
+        const penyetuju = [
+          ...(p.kode === 'superadmin' || peranPenyetuju(p.id) ? [SA] : []),
+          ...sensitifPeran.map(penyetujuIzin).filter((x): x is string => !!x),
+        ]
+        if (sensitifPeran.some((k) => !penyetujuIzin(k))) return tidakAdaPenyetuju(sensitifPeran.filter((k) => !penyetujuIzin(k)))
+        if (penyetuju.length) {
+          if (persetujuan.some((x) => x.objek.jenis === 'penugasan' && x.sasaranAkunId === a.id && x.peranId === p.id && x.objek.cakupan_label === (cakupanId ? opsi.unit!.label(cakupanId) : 'Seluruh RS') && masihMenunggu(x))) {
+            return error(409, 'persetujuan_ganda', 'Penugasan yang sama masih menunggu persetujuan.')
+          }
+          tindakLanjuti(pm)
+          return ajukan(p.kode === 'superadmin' ? 'peran_superadmin' : 'izin_sensitif',
+            { jenis: 'penugasan', peran: ringkas(p.id), akun: { id: a.id, nama_pengguna: a.nama_pengguna, nama: a.nama }, cakupan_label: cakupanId ? opsi.unit!.label(cakupanId) : 'Seluruh RS', berlaku_sampai: typeof isi.berlaku_sampai === 'string' ? isi.berlaku_sampai : null },
+            penyetuju, () => {
+              if (p.status !== 'aktif') throw 'peran nonaktif'
+              a.penugasan.push(buatBaru())
+            }, { peranId: p.id, sasaranAkunId: a.id, dasar: dasar!, alasan: typeof isi.alasan === 'string' ? isi.alasan : null })
+        }
+        tindakLanjuti(pm)
         const baru = penugasan(p.id, {
           cakupan_jenis: jenisCakupan,
           cakupan_id: cakupanId,
@@ -480,7 +825,14 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
         if (!x) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
         if (x.status === 'batal') return error(409, 'sudah_batal', 'Sudah diakhiri sebelumnya.')
         if (a2 === 'penugasan' && (x as Penugasan).peran.kode === 'superadmin') {
-          return error(409, 'peran_bawaan_terkunci', 'Penugasan superadmin diakhiri dengan persetujuan superadmin lain (tiket 1.2d).')
+          const aktifSa = [...akun.values()].filter((y) => y.status === 'aktif' && superadmin(y)).length
+          if (aktifSa <= 2) return error(409, 'superadmin_minimal', 'Minimal dua superadmin aktif harus tetap ada (PRD 9.2.4).')
+          if (persetujuan.some((y) => y.objek.jenis === 'pengakhiran_penugasan' && y.objek.penugasan_id === x.id && masihMenunggu(y))) {
+            return error(409, 'persetujuan_ganda', 'Pengakhiran ini masih menunggu persetujuan.')
+          }
+          return ajukan('peran_superadmin', { jenis: 'pengakhiran_penugasan', penugasan_id: x.id, peran: ringkas(SA), akun: { id: a.id, nama_pengguna: a.nama_pengguna, nama: a.nama } }, [SA], () => {
+            Object.assign(x, { status: 'batal', alasan_batal: alasan, dibatalkan_oleh: { id: penggunaId, nama: akun.get(penggunaId)!.nama }, dibatalkan_pada: iso() })
+          }, { peranId: SA, sasaranAkunId: a.id, dasar: alasan!, alasan })
         }
         Object.assign(x, { status: 'batal', alasan_batal: alasan, dibatalkan_oleh: { id: penggunaId, nama: akun.get(penggunaId)!.nama }, dibatalkan_pada: iso() })
         return ok({ data: segarkan(x) })
@@ -498,9 +850,26 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
         if (!info && !node) return error(422, 'sasaran_tidak_dikenal', 'Sasaran tidak dikenal.', [{ kolom: 'sasaran_kode', kode, pesan: 'Tidak dikenal.' }])
         const peka = info?.izin.sensitif ?? false
         if (efek === 'tambah' && peka && !isi.berlaku_sampai) return error(422, 'berlaku_sampai_wajib', 'Pemberian izin sensitif wajib berbatas waktu.', [{ kolom: 'berlaku_sampai', pesan: 'Isi tanggal berakhir untuk izin sensitif.' }])
-        if (efek === 'tambah' && peka) return error(409, 'butuh_persetujuan', 'Izin sensitif hanya bisa diberikan dengan persetujuan pemilik data.', [{ kode, pesan: 'Izin sensitif' }])
         if (a.izin_khusus.some((k) => k.sasaran_kode === kode && k.efek === efek && berlaku(k))) return error(409, 'pengecualian_ganda', 'Pengecualian yang sama masih berlaku.')
-        const label = info ? `${info.jalur} → ${info.izin.jenis_aksi === 'lihat_rupiah' ? 'Lihat rupiah' : info.izin.jenis_aksi[0]!.toUpperCase() + info.izin.jenis_aksi.slice(1)}` : node!.jalur
+        const pm = permintaanValid(a, isi.permintaan_akses_id)
+        if (pm === false) return error(422, 'permintaan_tidak_valid', 'Permintaan akses itu bukan permintaan menunggu milik akun ini.')
+        const label = info ? labelIzin(kode) : node!.jalur
+        const buatKhusus = (): IzinKhusus => ({
+          id: idBaru(), efek, sasaran_jenis: jenis, sasaran_kode: kode, sasaran_label: label, sensitif: peka, berlaku_dari: iso(),
+          berlaku_sampai: typeof isi.berlaku_sampai === 'string' ? isi.berlaku_sampai : null, dasar_pemberian: dasar!, alasan: alasan!,
+          diberikan_oleh: { id: penggunaId, nama: akun.get(penggunaId)!.nama }, status: 'aktif', berlaku_sekarang: true,
+          alasan_batal: null, dibatalkan_oleh: null, dibatalkan_pada: null, dibuat_pada: iso(),
+        })
+        if (efek === 'tambah' && peka) {
+          if (!penyetujuIzin(kode)) return tidakAdaPenyetuju([kode])
+          if (persetujuan.some((x) => x.objek.jenis === 'izin_khusus' && x.sasaranAkunId === a.id && x.izinKode === kode && masihMenunggu(x))) {
+            return error(409, 'persetujuan_ganda', 'Pengecualian yang sama masih menunggu persetujuan.')
+          }
+          tindakLanjuti(pm)
+          return ajukan('pengecualian', { jenis: 'izin_khusus', akun: { id: a.id, nama_pengguna: a.nama_pengguna, nama: a.nama }, izin: { kode, label }, berlaku_sampai: (isi.berlaku_sampai as string) ?? null },
+            [penyetujuIzin(kode)!], () => void a.izin_khusus.push(buatKhusus()), { izinKode: kode, sasaranAkunId: a.id, dasar: dasar!, alasan: alasan! })
+        }
+        tindakLanjuti(pm)
         const baru: IzinKhusus = {
           id: idBaru(), efek, sasaran_jenis: jenis, sasaran_kode: kode, sasaran_label: label, sensitif: peka, berlaku_dari: iso(),
           berlaku_sampai: typeof isi.berlaku_sampai === 'string' ? isi.berlaku_sampai : null, dasar_pemberian: dasar!, alasan: alasan!,
@@ -538,7 +907,11 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   const unitMilikSaya = () =>
     akun.get(penggunaId)!.penugasan.filter((x) => berlaku(x) && x.cakupan_jenis === 'unit' && x.cakupan_id).map((x) => x.cakupan_id!)
 
-  return { tangani, pohon, tambahPenugasanDev, unitMilikSaya }
+  /** Uji: ganti akun yang sedang masuk (alur dua orang: pengaju dan penyetuju). */
+  function sebagai(id: string) {
+    penggunaId = id
+  }
+  return { tangani, pohon, tambahPenugasanDev, unitMilikSaya, sebagai }
 }
 
 export type ServerTiruan = ReturnType<typeof buatServerTiruan>

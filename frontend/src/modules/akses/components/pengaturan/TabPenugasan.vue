@@ -4,12 +4,17 @@ import Ikon from '@/design-system/ikon/Ikon.vue'
 import { boleh } from '@/shared/composables/usePermission'
 import { formatTanggal, formatTanggalWaktu } from '@/shared/utils/waktu'
 import { batalkanPenugasan } from '../../apiPengaturan'
+import { teksMenunggu } from '../../persetujuan'
 import { bolehUbahAkun } from '../../pengaturan'
 import type { AkunRinci, Penugasan } from '../../tipePengaturan'
+import DaftarMenunggu from './DaftarMenunggu.vue'
 import DialogAkhiri from './DialogAkhiri.vue'
 import DialogPenugasan from './DialogPenugasan.vue'
 
-/** Penugasan peran akun: yang berlaku di atas, riwayat (batal/kedaluwarsa/belum mulai) dilipat di bawah. */
+/**
+ * Penugasan peran akun: yang menunggu persetujuan (1.2d) paling atas, lalu yang berlaku, riwayat (batal/kedaluwarsa/belum
+ * mulai) dilipat di bawah. Mengakhiri penugasan superadmin bisa 202 (menunggu superadmin lain).
+ */
 const props = defineProps<{ akun: AkunRinci }>()
 const emit = defineEmits<{ berubah: [pesan: string] }>()
 
@@ -46,8 +51,8 @@ const dialogAkhiri = computed({
 })
 async function akhiri(alasan: string) {
   const p = diakhiri.value!
-  await batalkanPenugasan(props.akun.id, p.id, alasan)
-  emit('berubah', `Penugasan ${p.peran.nama} diakhiri.`)
+  const hasil = await batalkanPenugasan(props.akun.id, p.id, alasan)
+  emit('berubah', hasil.menunggu ? `Pengakhiran ${p.peran.nama} ${teksMenunggu(hasil.persetujuan)}.` : `Penugasan ${p.peran.nama} diakhiri.`)
 }
 </script>
 
@@ -57,6 +62,7 @@ async function akhiri(alasan: string) {
       <h3>Penugasan peran</h3>
       <button v-if="bolehTambah" type="button" class="tombol" @click="dialogTambah = true"><Ikon nama="tambah" :ukuran="16" />Tugaskan peran</button>
     </div>
+    <DaftarMenunggu :daftar="akun.menunggu_persetujuan ?? []" :jenis="['penugasan', 'pengakhiran_penugasan']" @berubah="emit('berubah', $event)" />
     <ul v-if="berlaku.length" class="daftar-baris">
       <li v-for="p in berlaku" :key="p.id" class="baris">
         <div>
@@ -84,7 +90,7 @@ async function akhiri(alasan: string) {
       </ul>
     </details>
 
-    <DialogPenugasan v-model:open="dialogTambah" :akun-id="akun.id" :nama-akun="akun.nama" @selesai="emit('berubah', 'Peran ditugaskan.')" />
+    <DialogPenugasan v-model:open="dialogTambah" :akun-id="akun.id" :nama-akun="akun.nama" @selesai="emit('berubah', $event)" />
     <DialogAkhiri
       v-model:open="dialogAkhiri"
       :judul="`Akhiri penugasan ${diakhiri?.peran.nama ?? ''}?`"

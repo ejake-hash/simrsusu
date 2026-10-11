@@ -10,16 +10,20 @@ import Ikon from '@/design-system/ikon/Ikon.vue'
 import { tanggalKeIso } from '@/shared/utils/waktu'
 import { tugaskanPeran } from '../../apiPengaturan'
 import PemilihUnit from '@/modules/organisasi/components/PemilihUnit.vue'
+import { teksMenunggu } from '../../persetujuan'
 import { errorKolom, pesanError, usePeranAktif } from '../../pengaturan'
+import type { PermintaanAkses } from '../../tipePersetujuan'
 
 /**
  * Tugaskan peran ke akun (FR-09-04): peran aktif, cakupan, masa berlaku, dasar pemberian wajib. Cakupan Seluruh RS
  * atau Unit kerja (tiket 1.8a: unit induk mencakup turunannya, jadi ruang/poli/depo dipilih sebagai unit). Cakupan
- * lain tampil nonaktif sampai didukung kontrak.
+ * lain tampil nonaktif sampai didukung kontrak. Sejak 1.2d peran superadmin, peran berizin sensitif, dan peran penyetuju
+ * boleh dipilih: server mencatatnya sebagai persetujuan menunggu (202) dan baru berlaku saat disetujui.
+ * `permintaan`: menindaklanjuti permintaan akses akun ini (dasar = nomor permintaan, `permintaan_akses_id` dikirim).
  */
-const props = defineProps<{ akunId: string; namaAkun: string }>()
+const props = withDefaults(defineProps<{ akunId: string; namaAkun: string; permintaan?: PermintaanAkses | null }>(), { permintaan: null })
 const buka = defineModel<boolean>('open', { required: true })
-const emit = defineEmits<{ selesai: [] }>()
+const emit = defineEmits<{ selesai: [pesan: string] }>()
 
 const peranAktif = usePeranAktif()
 const sibuk = ref(false)
@@ -57,14 +61,18 @@ const [alasan] = defineField('alasan')
 watch(buka, (b) => {
   if (!b) return
   error.value = null
-  resetForm({ values: { peran_id: '', cakupan_jenis: 'rs', cakupan_id: null, berlaku_dari: '', berlaku_sampai: '', dasar_pemberian: '', alasan: '' } })
+  // Tindak lanjut permintaan akses: dasar pemberian = nomor permintaan (kontrak v0.4.0).
+  const pm = props.permintaan
+  resetForm({
+    values: { peran_id: '', cakupan_jenis: 'rs', cakupan_id: null, berlaku_dari: '', berlaku_sampai: '', dasar_pemberian: pm?.nomor ?? '', alasan: pm ? pm.alasan.slice(0, 500) : '' },
+  })
 })
 
 const kirim = handleSubmit(async (v) => {
   sibuk.value = true
   error.value = null
   try {
-    await tugaskanPeran(props.akunId, {
+    const hasil = await tugaskanPeran(props.akunId, {
       peran_id: v.peran_id,
       cakupan_jenis: v.cakupan_jenis,
       cakupan_id: v.cakupan_jenis === 'unit' ? v.cakupan_id : null,
@@ -72,9 +80,11 @@ const kirim = handleSubmit(async (v) => {
       berlaku_sampai: v.berlaku_sampai ? tanggalKeIso(v.berlaku_sampai, true) : null,
       dasar_pemberian: v.dasar_pemberian,
       alasan: v.alasan ? v.alasan : null,
+      permintaan_akses_id: props.permintaan?.id ?? null,
     })
     buka.value = false
-    emit('selesai')
+    const nama = peranAktif.data.value?.find((p) => p.id === v.peran_id)?.nama ?? 'Peran'
+    emit('selesai', hasil.menunggu ? `Penugasan ${nama} ${teksMenunggu(hasil.persetujuan)}; belum berlaku sampai disetujui.` : 'Peran ditugaskan.')
   } catch (e) {
     const kolom = errorKolom(e, ['peran_id', 'cakupan_id', 'berlaku_dari', 'berlaku_sampai', 'dasar_pemberian', 'alasan'])
     if (Object.keys(kolom).length) setErrors(kolom)
@@ -88,12 +98,16 @@ const kirim = handleSubmit(async (v) => {
 <template>
   <Dialog v-model:open="buka" :judul="`Tugaskan peran ke ${namaAkun}`" :sibuk="sibuk">
     <form id="form-penugasan" novalidate @submit.prevent="kirim">
+      <p v-if="permintaan" class="catatan catatan-info tindak-lanjut">
+        <Ikon nama="info" :ukuran="16" />
+        <span>Menindaklanjuti permintaan {{ permintaan.nomor }}: <b>{{ permintaan.sasaran_label }}</b>. Alasan pemohon: {{ permintaan.alasan }}</span>
+      </p>
       <KolomIsian v-slot="a" label="Peran" :error="errors.peran_id" wajib>
         <select v-bind="a" v-model="peranId" class="isian" :disabled="peranAktif.isPending.value">
           <option value="" disabled>{{ peranAktif.isPending.value ? 'Memuat peran…' : 'Pilih peran aktif' }}</option>
-          <!-- Peran berizin sensitif butuh persetujuan pemilik data (409 butuh_persetujuan sampai tiket 1.2d). -->
-          <option v-for="p in peranAktif.data.value ?? []" :key="p.id" :value="p.id" :disabled="p.memuat_izin_sensitif">
-            {{ p.nama }}{{ p.wajib_mfa ? ' · wajib MFA' : '' }}{{ p.memuat_izin_sensitif ? ' · butuh persetujuan pemilik data' : '' }}
+          <!-- Superadmin dan peran berizin sensitif: penugasannya menunggu persetujuan (202, tiket 1.2d). -->
+          <option v-for="p in peranAktif.data.value ?? []" :key="p.id" :value="p.id">
+            {{ p.nama }}{{ p.wajib_mfa ? ' · wajib MFA' : '' }}{{ p.kode === 'superadmin' ? ' · butuh persetujuan superadmin lain' : p.memuat_izin_sensitif ? ' · butuh persetujuan pemilik data' : '' }}
           </option>
         </select>
       </KolomIsian>
@@ -138,6 +152,9 @@ const kirim = handleSubmit(async (v) => {
 </template>
 
 <style scoped>
+.tindak-lanjut {
+  margin: 0 0 var(--space-4);
+}
 .cakupan {
   margin: 0 0 var(--space-4);
   padding: 0;

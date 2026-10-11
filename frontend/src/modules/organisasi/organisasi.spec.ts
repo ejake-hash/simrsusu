@@ -237,7 +237,8 @@ describe('Penugasan cakupan unit', () => {
     await w.setProps({ open: true })
     await tenang()
     const peran = isian('Peran') as unknown as HTMLSelectElement
-    peran.value = [...peran.options].find((o) => o.value && !o.disabled)!.value
+    // Peran tanpa izin sensitif: langsung berlaku (201), bukan menunggu persetujuan.
+    peran.value = [...peran.options].find((o) => o.textContent?.includes('Contoh Petugas Admisi'))!.value
     peran.dispatchEvent(new Event('change'))
     const unitRadio = [...document.querySelectorAll<HTMLInputElement>('input[name="cakupan"]')].find((r) => r.value === 'unit')!
     unitRadio.click()

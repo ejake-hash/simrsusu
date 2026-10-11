@@ -39,6 +39,7 @@ export const router = createRouter({
         // Gerbang izin di HalamanModul (tanpa pengaturan.<sub>.lihat → Halaman tidak ditemukan).
         { path: 'pengaturan/peran', name: 'pengaturan-peran', component: () => import('@/modules/akses/pages/PeranPage.vue'), meta: { judul: 'Peran & izin' } },
         { path: 'pengaturan/akun', name: 'pengaturan-akun', component: () => import('@/modules/akses/pages/AkunPage.vue'), meta: { judul: 'Akun & akses' } },
+        { path: 'pengaturan/persetujuan', name: 'pengaturan-persetujuan', component: () => import('@/modules/akses/pages/PersetujuanPage.vue'), meta: { judul: 'Persetujuan akses' } },
         { path: 'pengaturan/profil-rs', name: 'pengaturan-profil-rs', component: () => import('@/modules/organisasi/pages/ProfilRsPage.vue'), meta: { judul: 'Profil rumah sakit' } },
         { path: 'master-data/organisasi', name: 'master-data-organisasi', component: () => import('@/modules/organisasi/pages/OrganisasiPage.vue'), meta: { judul: 'Organisasi, unit & KSM' } },
         // Halaman modul didaftarkan di atas baris ini. Jalur lain: Segera hadir bila ada di menu, selain itu tidak ditemukan.

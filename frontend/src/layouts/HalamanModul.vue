@@ -5,13 +5,14 @@ import { cariPosisi, useMenuSaya } from '@/app/menu'
 import NavigasiSubMenu from '@/design-system/components/NavigasiSubMenu.vue'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import { useKelasLayar } from '@/shared/composables/useKelasLayar'
-import TidakDitemukanPage from '@/shared/pages/TidakDitemukanPage.vue'
+import AksesDitolak from './AksesDitolak.vue'
 
 /**
  * Kerangka halaman sub-menu modul: gerbang izin, judul, dan navigasi sub-menu saudara (wajib, karena sidebar
- * 64 px tidak menampilkan sub-menu). Tanpa izin `izin` → Halaman tidak ditemukan (tidak dibedakan dari tidak
- * ada, sama dengan HalamanMenu). Isi slot baru dipasang setelah izin pasti, jadi permintaan datanya tidak
- * pernah dikirim untuk akun yang tidak berhak.
+ * 64 px tidak menampilkan sub-menu). Tanpa izin `izin` → layar "Akses ditolak" dengan tombol "Minta akses" (tiket
+ * 1.2d; hanya halaman yang benar-benar dibangun memakai komponen ini, jalur lain tetap Halaman tidak ditemukan lewat
+ * HalamanMenu). Isi slot baru dipasang setelah izin pasti, jadi permintaan datanya tidak pernah dikirim untuk akun
+ * yang tidak berhak.
  * `kelasTerbatas` = layar kerja yang tidak didukung di ponsel (PRD 5.5 kelas terbatas): tampil pesan saja.
  */
 const props = withDefaults(defineProps<{ izin: string; judul: string; uraian?: string; kelasTerbatas?: boolean }>(), {
@@ -30,14 +31,17 @@ const saudara = computed(() => {
 })
 const induk = computed(() => (menu.data.value ? (cariPosisi(menu.data.value.grup, route.path)?.menu.label ?? null) : null))
 
+/** Kode sub-menu dari kode izin gerbang, mis. pengaturan.peran.lihat → pengaturan.peran (sasaran permintaan akses). */
+const kodeSubMenu = computed(() => props.izin.split('.').slice(0, -1).join('.'))
+
 watchEffect(() => {
-  if (menu.data.value) document.title = `${diizinkan.value ? props.judul : 'Halaman tidak ditemukan'} · Karsitara`
+  if (menu.data.value) document.title = `${diizinkan.value ? props.judul : 'Akses ditolak'} · Karsitara`
 })
 </script>
 
 <template>
   <template v-if="menu.data.value">
-    <TidakDitemukanPage v-if="!diizinkan" />
+    <AksesDitolak v-if="!diizinkan" :judul="judul" :kode-sub-menu="kodeSubMenu" />
     <section v-else-if="kelasTerbatas && kelas === 'ponsel'" class="terbatas" aria-labelledby="judul-terbatas">
       <Ikon nama="info" :ukuran="24" />
       <h1 id="judul-terbatas">{{ judul }}</h1>

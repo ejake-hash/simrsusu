@@ -17,13 +17,15 @@ import {
   type Tingkat,
 } from '../../matriks'
 import type { NodeMenu } from '../../tipePengaturan'
+import type { IzinMenunggu } from '../../tipePersetujuan'
 
 /**
  * Matriks satu peran (PRD 9.3): baris = pohon menu yang bisa dilipat, kolom = tingkat (jalan pintas) + aksi dasar
  * + aksi khusus yang terdaftar di node. Bagian nonaktif selama sub-menu induknya belum diberi lihat (MD-3).
- * Gembok = izin sensitif (menambahnya butuh persetujuan pemilik data, tiket 1.2d).
+ * Gembok = izin sensitif: menambahnya menjadi persetujuan menunggu peran penyetujunya (tiket 1.2d). Izin yang sedang
+ * menunggu tampil tercentang dan terkunci; izin sensitif yang belum punya penyetuju tidak bisa dipilih.
  */
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   indeks: IndeksMatriks
   /** Himpunan izin yang sedang disunting. */
   izin: ReadonlySet<string>
@@ -32,7 +34,9 @@ const props = defineProps<{
   bacaSaja: boolean
   /** Kode izin/menu yang ditolak server (422/409), disorot. */
   sorot: ReadonlySet<string>
-}>()
+  /** Izin sensitif yang menunggu persetujuan (PeranRinci.izin_menunggu). */
+  menunggu?: ReadonlyMap<string, IzinMenunggu>
+}>(), { menunggu: () => new Map() })
 const emit = defineEmits<{ 'update:izin': [izin: Set<string>] }>()
 
 const DASAR = ['lihat', 'input', 'perbaiki'] as const
@@ -107,6 +111,28 @@ function ubahAksi(node: NodeMenu, kode: string, nyala: boolean) {
 }
 
 const pekaAksi = (node: NodeMenu, aksi: (typeof DASAR)[number]) => node.izin.some((i) => i.jenis_aksi === aksi && i.sensitif)
+/** Alasan sebuah izin tidak bisa diubah dari matriks (null = bisa): menunggu persetujuan, atau sensitif tanpa penyetuju. */
+function kunciIzin(kode: string): string | null {
+  const tunggu = props.menunggu.get(kode)
+  if (tunggu) return `Menunggu persetujuan ${tunggu.penyetuju_peran?.nama ?? 'pemilik data'}`
+  const info = props.indeks.perKode.get(kode)?.izin
+  if (info?.sensitif && !asal.value.has(kode) && !info.penyetuju_peran) return 'Belum ada penyetuju; tetapkan di Persetujuan akses'
+  return null
+}
+/** Node dengan izin menunggu: tingkat dan lihat dikunci agar izin menunggu tidak terlepas (lihat wajib). */
+const nodeMenunggu = (node: NodeMenu) => node.izin.some((i) => props.menunggu.has(i.kode))
+const keteranganMenunggu = (node: NodeMenu) => {
+  const nama = [...new Set(node.izin.filter((i) => props.menunggu.has(i.kode)).map((i) => props.menunggu.get(i.kode)!.penyetuju_peran?.nama ?? 'pemilik data'))]
+  return `Menunggu persetujuan ${nama.join(', ')}`
+}
+/** Tingkat ini butuh izin sensitif yang belum punya penyetuju (opsi dinonaktifkan). */
+const tingkatTanpaPenyetuju = (node: NodeMenu, t: Tingkat) =>
+  t !== 'tidak' && DASAR.slice(0, DASAR.indexOf(t) + 1).some((a) => {
+    const kode = kodeAksi(node, a)
+    return !!kode && kunciIzin(kode) !== null && !props.menunggu.has(kode)
+  })
+const idMenunggu = (b: BarisMatriks) => `menunggu-${b.node.id}`
+const ketAksi = (b: BarisMatriks, kode: string) => [terkunciInduk(b, props.izin) ? idKunci(b) : '', kunciIzin(kode) ? `kunci-izin-${kode}` : ''].filter(Boolean).join(' ') || undefined
 /** Memilih tingkat ini menambah izin sensitif (semua aksi dasar sampai tingkat itu). */
 const tingkatPeka = (node: NodeMenu, t: Tingkat) => t !== 'tidak' && DASAR.slice(0, DASAR.indexOf(t) + 1).some((a) => pekaAksi(node, a))
 const berubah = (b: BarisMatriks) => b.node.izin.some((i) => props.izin.has(i.kode) !== asal.value.has(i.kode))
@@ -161,6 +187,7 @@ const JENIS: Record<NodeMenu['tingkat'], string> = { menu: 'menu', sub_menu: 'su
                   <span v-if="!r.b.node.modul_aktif && r.b.kedalaman === 0" class="pil pil-peringatan">Modul nonaktif</span>
                   <span v-else-if="!r.b.node.tersedia && r.b.kedalaman === 0" class="pil pil-netral">Belum dibangun</span>
                   <span v-if="berubah(r.b)" class="pil pil-info">Diubah</span>
+                  <span v-if="nodeMenunggu(r.b.node)" :id="idMenunggu(r.b)" class="pil pil-peringatan"><Ikon nama="jam" :ukuran="12" />{{ keteranganMenunggu(r.b.node) }}</span>
                   <span v-if="disorot(r.b)" class="pil pil-bahaya">
                     <Ikon nama="peringatan" :ukuran="12" />
                     Ditolak
@@ -181,12 +208,14 @@ const JENIS: Record<NodeMenu['tingkat'], string> = { menu: 'menu', sub_menu: 'su
                     v-if="pilihanTingkat(r.b.node).length"
                     class="isian pilih-tingkat"
                     :value="tingkatTampil(r.b.node, izin)"
-                    :disabled="bacaSaja || terkunciInduk(r.b, izin)"
+                    :disabled="bacaSaja || terkunciInduk(r.b, izin) || nodeMenunggu(r.b.node)"
                     :aria-label="`Tingkat ${r.b.jalur}`"
-                    :aria-describedby="terkunciInduk(r.b, izin) ? idKunci(r.b) : undefined"
+                    :aria-describedby="terkunciInduk(r.b, izin) ? idKunci(r.b) : nodeMenunggu(r.b.node) ? idMenunggu(r.b) : undefined"
                     @change="ubahTingkat(r.b.node, ($event.target as HTMLSelectElement).value as Tingkat)"
                   >
-                    <option v-for="t in pilihanTingkat(r.b.node)" :key="t" :value="t">{{ LABEL_TINGKAT[t] }}{{ tingkatPeka(r.b.node, t) ? ' (sensitif)' : '' }}</option>
+                    <option v-for="t in pilihanTingkat(r.b.node)" :key="t" :value="t" :disabled="tingkatTanpaPenyetuju(r.b.node, t)">
+                      {{ LABEL_TINGKAT[t] }}{{ tingkatTanpaPenyetuju(r.b.node, t) ? ' (sensitif, belum ada penyetuju)' : tingkatPeka(r.b.node, t) ? ' (sensitif)' : '' }}
+                    </option>
                     <option v-if="tingkatTampil(r.b.node, izin) === 'campuran'" value="campuran" disabled>Campuran</option>
                   </select>
                 </td>
@@ -195,12 +224,13 @@ const JENIS: Record<NodeMenu['tingkat'], string> = { menu: 'menu', sub_menu: 'su
                     <input
                       type="checkbox"
                       :checked="izin.has(kodeAksi(r.b.node, a)!)"
-                      :disabled="bacaSaja || terkunciInduk(r.b, izin)"
-                      :aria-describedby="terkunciInduk(r.b, izin) ? idKunci(r.b) : undefined"
+                      :disabled="bacaSaja || terkunciInduk(r.b, izin) || kunciIzin(kodeAksi(r.b.node, a)!) !== null || (a === 'lihat' && nodeMenunggu(r.b.node))"
+                      :aria-describedby="ketAksi(r.b, kodeAksi(r.b.node, a)!) ?? (a === 'lihat' && nodeMenunggu(r.b.node) ? idMenunggu(r.b) : undefined)"
                       @change="ubahAksi(r.b.node, kodeAksi(r.b.node, a)!, ($event.target as HTMLInputElement).checked)"
                     />
                     <Ikon v-if="pekaAksi(r.b.node, a)" nama="gembok" :ukuran="12" class="gembok" />
                     <span class="sr-only">{{ LABEL_AKSI[a] }} {{ r.b.jalur }}{{ pekaAksi(r.b.node, a) ? ' (sensitif)' : '' }}</span>
+                    <span v-if="kunciIzin(kodeAksi(r.b.node, a)!)" :id="`kunci-izin-${kodeAksi(r.b.node, a)}`" class="sr-only">{{ kunciIzin(kodeAksi(r.b.node, a)!) }}</span>
                   </label>
                 </td>
                 <td>
@@ -209,11 +239,13 @@ const JENIS: Record<NodeMenu['tingkat'], string> = { menu: 'menu', sub_menu: 'su
                       <input
                         type="checkbox"
                         :checked="izin.has(i.kode)"
-                        :disabled="bacaSaja || terkunciInduk(r.b, izin)"
+                        :disabled="bacaSaja || terkunciInduk(r.b, izin) || kunciIzin(i.kode) !== null"
+                        :aria-describedby="ketAksi(r.b, i.kode)"
                         @change="ubahAksi(r.b.node, i.kode, ($event.target as HTMLInputElement).checked)"
                       />
                       <Ikon v-if="i.sensitif" nama="gembok" :ukuran="12" />
                       {{ LABEL_AKSI[i.jenis_aksi] }}<span class="sr-only"> {{ r.b.jalur }}{{ i.sensitif ? ' (sensitif)' : '' }}</span>
+                      <span v-if="kunciIzin(i.kode)" :id="`kunci-izin-${i.kode}`" class="ket-cip">{{ props.menunggu.has(i.kode) ? 'menunggu' : 'belum ada penyetuju' }}</span>
                     </label>
                   </div>
                 </td>
@@ -386,6 +418,10 @@ tr.dikunci td {
 }
 .sel {
   position: relative;
+}
+.ket-cip {
+  color: var(--muted);
+  font-size: 11px;
 }
 .gembok {
   position: absolute;
