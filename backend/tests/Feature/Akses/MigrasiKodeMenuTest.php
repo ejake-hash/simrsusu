@@ -40,8 +40,11 @@ class MigrasiKodeMenuTest extends TestCase
 
     private function ganti(string $lama, string $baru, string $ruteLama, string $ruteBaru): void
     {
-        /** @var Migration $migrasi */
         $migrasi = require base_path('app/Modules/Akses/Database/migrations/2026_10_11_130100_ganti_kode_menu_master_data.php');
-        \Closure::bind(fn () => $this->ganti($lama, $baru, $ruteLama, $ruteBaru), $migrasi, $migrasi::class)();
+        if (! $migrasi instanceof Migration) {
+            $this->fail('Berkas migrasi tidak mengembalikan objek Migration.');
+        }
+        // ganti() milik migrasi bersifat private; dipanggil lewat refleksi, bukan dibuat publik demi tes.
+        (new \ReflectionMethod($migrasi, 'ganti'))->invoke($migrasi, $lama, $baru, $ruteLama, $ruteBaru);
     }
 }
