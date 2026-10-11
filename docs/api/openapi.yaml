@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.2.1
+  version: 0.2.2
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -14,6 +14,8 @@ info:
     v0.2.0: Pengaturan Sistem → Peran & Izin, Akun & Akses (tiket 1.2c); kode menu data_induk.peran/akun → pengaturan.peran/akun.
     v0.2.1: istilah umum (tiket 1.0g, PRD 10.3.3): skema dan kunci respons `error`, field menu `jumlah_tugas`,
     kode menu `master_data`.
+    v0.2.2: penyelarasan 1.2c-be: 409 `butuh_persetujuan` pada penugasan peran berizin sensitif, 409 `peran_bawaan_terkunci`
+    saat mengakhiri penugasan superadmin, bentuk `rincian` error matriks, arti `versi` peran.
 servers:
   - url: /api/v1
 security:
@@ -220,13 +222,13 @@ paths:
       summary: Ganti seluruh himpunan izin peran (simpan matriks)
       description: |
         Izin: pengaturan.peran.perbaiki. Wajib If-Match. Server menurunkan `peran_menu` dari izin `lihat`.
-        Validasi (422, `rincian` menyebut kode yang salah):
+        Validasi (422, `rincian` = daftar `{kolom: "izin", kode, pesan}` untuk setiap kode yang salah):
         - `izin_tidak_dikenal`: kode tidak ada di akses.izin.
         - `lihat_wajib`: aksi apa pun pada node tanpa izin `<node>.lihat`.
         - `induk_belum_diberikan`: izin pada bagian tanpa `lihat` pada sub-menu induknya (MD-3).
         Penolakan lain:
         - 409 `butuh_persetujuan`: menambah izin sensitif. Alur persetujuan pemilik data di tiket 1.2d; sampai itu
-          ditolak utuh (tidak ada yang disimpan sebagian).
+          ditolak utuh (tidak ada yang disimpan sebagian). `rincian` = `{kode, pesan}` per izin sensitif baru.
         - 409 `peran_bawaan_terkunci`: isi peran superadmin tidak bisa diubah dari layar.
         - 403 `peran_sendiri`.
         Respons memuat ringkasan perubahan untuk audit dan toast.
@@ -339,6 +341,7 @@ paths:
         - 403 `diri_sendiri`: tidak bisa menugaskan peran ke akun sendiri (PRD 9.2.4).
         - 409 `peran_bawaan_terkunci`: peran superadmin hanya lewat konsol sampai tiket 1.2d (persetujuan superadmin lain).
         - 409 `peran_nonaktif`, 409 `penugasan_ganda` (peran dan cakupan yang sama masih aktif).
+        - 409 `butuh_persetujuan`: peran memuat izin sensitif (PRD 9.2.4; alur persetujuan di tiket 1.2d).
         - 422 `cakupan_belum_didukung`: selain `rs` menunggu inti.unit_organisasi dan relasi perawatan.
       requestBody:
         required: true
@@ -373,7 +376,9 @@ paths:
     post:
       operationId: batalkanPenugasan
       summary: Akhiri penugasan (status batal; baris tidak dihapus)
-      description: "Izin: pengaturan.akun.perbaiki. 403 `diri_sendiri`; 409 `sudah_batal`."
+      description: |
+        Izin: pengaturan.akun.perbaiki. 403 `diri_sendiri`; 409 `sudah_batal`; 409 `peran_bawaan_terkunci`
+        (penugasan superadmin diakhiri dengan persetujuan superadmin lain, tiket 1.2d); 404 bila penugasan bukan milik akun ini.
       requestBody:
         required: true
         content:
@@ -707,7 +712,7 @@ components:
         - type: object
           required: [versi, izin, wajib_mfa_terkunci, dapat_disunting, alasan_terkunci, diubah_pada]
           properties:
-            versi: { type: string, description: "Sama dengan ETag" }
+            versi: { type: string, description: "Sama dengan ETag; naik setiap perubahan peran dari layar (PATCH atau PUT izin)" }
             izin: { type: array, items: { type: string }, description: "Kode izin aksi yang diberikan" }
             wajib_mfa_terkunci: { type: boolean, description: "true = superadmin atau memuat izin sensitif; sakelar MFA dinonaktifkan di layar" }
             dapat_disunting: { type: boolean, description: "false bila peran bawaan terkunci atau dipegang penyunting" }

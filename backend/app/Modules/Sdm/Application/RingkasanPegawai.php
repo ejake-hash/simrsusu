@@ -3,6 +3,7 @@
 namespace App\Modules\Sdm\Application;
 
 use App\Modules\Sdm\Models\Pegawai;
+use Illuminate\Database\Eloquent\Builder;
 
 /** Pintu baca data pegawai untuk modul lain (PRD 10.3: tidak query tabel modul lain langsung). */
 final class RingkasanPegawai
@@ -13,5 +14,34 @@ final class RingkasanPegawai
         $pegawai = Pegawai::query()->find($pegawaiId, ['id', 'nama']);
 
         return $pegawai === null ? null : ['id' => $pegawai->id, 'nama' => $pegawai->nama];
+    }
+
+    /**
+     * Nama banyak pegawai sekaligus (daftar berhalaman, tanpa N+1).
+     *
+     * @param  iterable<string>  $pegawaiId
+     * @return array<string, string> id pegawai => nama
+     */
+    public function nama(iterable $pegawaiId): array
+    {
+        $id = array_values(array_unique([...$pegawaiId]));
+
+        return $id === [] ? [] : Pegawai::query()->whereIn('id', $id)->pluck('nama', 'id')->all();
+    }
+
+    /**
+     * Subquery id pegawai yang namanya memuat $cari (tanpa membedakan huruf besar), untuk whereIn.
+     *
+     * @return Builder<Pegawai>
+     */
+    public function idCocokNama(string $cari): Builder
+    {
+        return Pegawai::query()->select('id')->whereRaw('nama ILIKE ?', ['%'.self::escapeLike($cari).'%']);
+    }
+
+    /** Wildcard LIKE di masukan pengguna dibaca sebagai huruf biasa. */
+    public static function escapeLike(string $teks): string
+    {
+        return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $teks);
     }
 }

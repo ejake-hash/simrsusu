@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Carbon;
 
 /**
  * @property string $id
@@ -16,6 +17,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property bool $bawaan_sistem
  * @property bool $wajib_mfa
  * @property string $status aktif | nonaktif
+ * @property int $revisi naik setiap perubahan dari layar; dipakai sebagai versi/ETag
+ * @property Carbon $diubah_pada
  */
 final class Peran extends Model
 {
@@ -31,7 +34,7 @@ final class Peran extends Model
 
     protected function casts(): array
     {
-        return ['bawaan_sistem' => 'boolean', 'wajib_mfa' => 'boolean'];
+        return ['bawaan_sistem' => 'boolean', 'wajib_mfa' => 'boolean', 'revisi' => 'integer'];
     }
 
     protected static function booted(): void
@@ -42,7 +45,7 @@ final class Peran extends Model
     /** @return BelongsToMany<Izin, $this> */
     public function izin(): BelongsToMany
     {
-        return $this->belongsToMany(Izin::class, 'akses.peran_izin');
+        return $this->belongsToMany(Izin::class, 'akses.peran_izin')->wherePivot('status', 'aktif');
     }
 
     /**
@@ -55,5 +58,30 @@ final class Peran extends Model
     {
         $query->where('status', 'aktif')
             ->where(fn (Builder $q) => $q->where('wajib_mfa', true)->orWhereHas('izin', fn (Builder $i) => $i->where('sensitif', true)));
+    }
+
+    /**
+     * Tambah kolom jumlah_akun (akun dengan penugasan berlaku) dan memuat_izin_sensitif, sebagai
+     * subquery agar daftar berhalaman tidak N+1.
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeDenganRingkasan(Builder $query): void
+    {
+        $query->select('akses.peran.*')
+            ->selectSub(PenggunaPeran::query()->berlaku()->whereColumn('peran_id', 'akses.peran.id')
+                ->selectRaw('count(distinct pengguna_id)'), 'jumlah_akun')
+            ->withExists(['izin as memuat_izin_sensitif' => fn (Builder $izin) => $izin->where('sensitif', true)]);
+    }
+
+    /** Akun dengan penugasan peran ini yang berlaku sekarang. */
+    public function jumlahAkunBerlaku(): int
+    {
+        return PenggunaPeran::query()->berlaku()->where('peran_id', $this->id)->distinct()->count('pengguna_id');
+    }
+
+    public function memuatIzinSensitif(): bool
+    {
+        return $this->izin()->where('sensitif', true)->exists();
     }
 }

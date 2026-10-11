@@ -26,6 +26,23 @@ trait KlienSpa
         $this->minta('GET', '/sanctum/csrf-cookie')->assertNoContent();
     }
 
+    /**
+     * Cookie peramban saat ini, untuk berpindah antar-"peramban" dalam satu tes (mis. admin dan akun
+     * yang aksesnya diubah). Pasangkan dengan pakaiPeramban().
+     *
+     * @return array<string, string>
+     */
+    protected function peramban(): array
+    {
+        return $this->kue;
+    }
+
+    /** @param  array<string, string>  $kue  hasil peramban() */
+    protected function pakaiPeramban(array $kue): void
+    {
+        $this->kue = $kue;
+    }
+
     /** @param  array<string, mixed>  $data */
     protected function minta(string $metode, string $uri, array $data = []): TestResponse
     {

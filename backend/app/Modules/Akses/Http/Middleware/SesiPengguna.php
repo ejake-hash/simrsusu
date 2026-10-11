@@ -12,7 +12,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Dipasang sesudah auth:web pada semua rute yang butuh sesi (PRD 14.2, ADR 0002):
- * - sesi dicabut bila akun sudah dinonaktifkan (pengguna dibaca ulang dari DB tiap permintaan);
+ * - sesi dicabut bila akun sudah dinonaktifkan (pengguna dibaca ulang dari DB tiap permintaan), atau
+ *   bila sesi dimulai sebelum akses.pengguna.sesi_dicabut_pada (reset MFA, wajib MFA baru; tiket 1.2c);
  * - sesi berakhir bila diam lebih lama dari batasnya (15 menit, atau 60 di perangkat terdaftar).
  */
 final class SesiPengguna
@@ -20,6 +21,9 @@ final class SesiPengguna
     private const TERAKHIR_AKTIF = 'autentikasi.terakhir_aktif';
 
     private const BATAS_DIAM = 'autentikasi.batas_diam_menit';
+
+    /** Waktu sesi dimulai, mikrodetik sejak epoch (dibandingkan dengan sesi_dicabut_pada). */
+    private const MASUK_PADA = 'autentikasi.masuk_pada';
 
     public function __construct(private readonly CatatAktivitas $audit) {}
 
@@ -30,6 +34,7 @@ final class SesiPengguna
                 ? 'autentikasi.sesi.batas_diam_perangkat_terdaftar_menit'
                 : 'autentikasi.sesi.batas_diam_menit'),
             self::TERAKHIR_AKTIF => now()->getTimestamp(),
+            self::MASUK_PADA => (int) now()->getPreciseTimestamp(6),
         ]);
     }
 
@@ -41,6 +46,12 @@ final class SesiPengguna
 
         if (! $pengguna->aktif()) {
             $this->akhiri($request, $pengguna, 'sesi_dicabut', 'Akun Anda sudah tidak aktif. Hubungi admin.');
+        }
+
+        $masukPada = $sesi->get(self::MASUK_PADA);
+        if ($pengguna->sesi_dicabut_pada !== null
+            && (! is_int($masukPada) || $masukPada < (int) $pengguna->sesi_dicabut_pada->getPreciseTimestamp(6))) {
+            $this->akhiri($request, $pengguna, 'sesi_dicabut', 'Sesi Anda diakhiri oleh admin. Silakan masuk lagi.');
         }
 
         $terakhir = $sesi->get(self::TERAKHIR_AKTIF);

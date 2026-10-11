@@ -3,9 +3,11 @@
 namespace Tests\Feature\Akses;
 
 use App\Modules\Akses\Application\AccessEvaluator;
+use App\Modules\Akses\Application\CacheHakAkses;
 use App\Modules\Akses\Database\Seeders\AkunSintetisSeeder;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaPeran;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Tests\TestCase;
@@ -30,7 +32,7 @@ class AkunSintetisSeederTest extends TestCase
 
         $akun = Pengguna::query()->where('nama_pengguna', 'like', 'contoh.%')->get();
         $this->assertEqualsCanonicalizing(
-            ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci', 'contoh.mfa', 'contoh.mfa.baru'],
+            ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci', 'contoh.mfa', 'contoh.mfa.baru', 'contoh.superadmin'],
             $akun->pluck('nama_pengguna')->all(),
         );
         foreach ($akun as $pengguna) {
@@ -43,6 +45,33 @@ class AkunSintetisSeederTest extends TestCase
         $this->assertTrue($mfa->wajib_mfa && $mfa->mfaAktif());
         $this->assertTrue($baru->wajib_mfa && ! $baru->mfaAktif());
         $this->assertFalse($akun->firstWhere('nama_pengguna', 'contoh.admisi')->wajib_mfa);
+    }
+
+    public function test_superadmin_sintetis_dengan_mfa_dan_peran_contoh_aktif_lagi_setelah_seeding_ulang(): void
+    {
+        config([
+            'autentikasi.akun_sintetis_sandi' => 'kuda-lumping-biru-29',
+            'autentikasi.akun_sintetis_superadmin_mfa_rahasia' => 'MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U',
+        ]);
+        $this->seed(AkunSintetisSeeder::class);
+        $evaluator = app(AccessEvaluator::class);
+        $akun = fn (string $nama) => Pengguna::query()->where('nama_pengguna', $nama)->firstOrFail();
+
+        $superadmin = $akun('contoh.superadmin');
+        $this->assertTrue($superadmin->mfaAktif());
+        $this->assertSame('MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U', $superadmin->mfa_rahasia_enkripsi);
+        $this->assertTrue($evaluator->boleh($superadmin, 'pengaturan.akun.perbaiki'));
+
+        // Izin yang dicabut dari peran contoh lewat layar (status batal) aktif lagi saat seeding ulang.
+        $peranDokter = PenggunaPeran::query()->where('pengguna_id', $akun('contoh.dokter')->id)->value('peran_id');
+        DB::table('akses.peran_izin')->where('peran_id', $peranDokter)->update(['status' => 'batal']);
+        app(CacheHakAkses::class)->lupakanSemua();
+        $this->assertFalse($evaluator->boleh($akun('contoh.dokter'), 'rawat_jalan.pemeriksaan.input'));
+
+        $this->seed(AkunSintetisSeeder::class);
+
+        $this->assertTrue($evaluator->boleh($akun('contoh.dokter'), 'rawat_jalan.pemeriksaan.input'));
+        $this->assertSame(1, PenggunaPeran::query()->where('pengguna_id', $superadmin->id)->count());
     }
 
     public function test_seeding_ulang_membuka_kunci_akun_sintetis(): void
