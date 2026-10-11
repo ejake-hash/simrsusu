@@ -6,13 +6,13 @@
 
 | Atribut | Nilai |
 |---|---|
-| Versi dokumen | 0.10.5 |
+| Versi dokumen | 0.10.7 |
 | Tanggal | 10 Oktober 2026 |
 | Penyusun | Eza (Karyasistemnusantara) · disusun bersama Claude |
 | Sumber konteks | Lampiran 1 *Visual Layar SIMRS* (15 layar), Lampiran 2 *Visual Dasbor Berjenjang* (7 dasbor + contoh kewenangan), HTML *Dasbor Berjenjang Karsitara*, *Pedoman Identitas USU* (2021) dan folder Logo |
 | Tech stack | Laravel 12 (PHP 8.3+) · Vue 3 + TypeScript · PostgreSQL 16 · Valkey (kompatibel Redis) · Laravel Reverb |
 | Status | **Produk generik** (3.4). Fase 0 mode produk selesai dengan satu gerbang tertunda: uji SUS (16.1). Keputusan yang biasanya diambil RS dicatat sebagai keputusan produk di 17.2 dan dikonfirmasi tiap RS saat implementasi |
-| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · v0.10.1 hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) · v0.10.2 kontrak autentikasi dan MFA (10.3.2) · v0.10.3 header Retry-After (10.3.2) · v0.10.4 nama modul bahasa Indonesia (10.3, 10.4, D.3), menu *Segera hadir* (10.4), alur kerja per halaman (D.5) · **v0.10.5** keputusan basis data dan Valkey (10.1), pendaftaran MFA hanya dari jaringan RS (10.3.2), superadmin pertama lewat konsol (FR-54-08) |
+| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · v0.10.1 hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) · v0.10.2 kontrak autentikasi dan MFA (10.3.2) · v0.10.3 header Retry-After (10.3.2) · v0.10.4 nama modul bahasa Indonesia (10.3, 10.4, D.3), menu *Segera hadir* (10.4), alur kerja per halaman (D.5) · v0.10.5 keputusan basis data dan Valkey (10.1), pendaftaran MFA hanya dari jaringan RS (10.3.2), superadmin pertama lewat konsol (FR-54-08) · v0.10.6 responsif dan perangkat (5.5), DoD uji kelas layar (D.7) · **v0.10.7** ketahanan beban (14.1.1), DoD endpoint daftar (D.7) |
 
 > **Konvensi penandaan sumber**
 > - **[K]** = fitur/aturan tertulis eksplisit di dokumen konteks (Lampiran 1/2/HTML).
@@ -356,6 +356,34 @@ Prototipe HTML sudah memakai token ini. Di kode produksi, token disimpan di satu
 `AppShell`, `SidebarMenu` (dinamis dari API menu), `GlobalPatientSearch`, `PatientHeader` (+ `SafetyChips`), `KpiCard`, `DataTable` (virtual scroll, filter, kolom tersimpan per user), `StatusBadge`, `Timeline` (CPPT), `BedMapGrid`, `TriageBoard`, `GanttSchedule` (OK), `ChecklistStepper` (WHO surgical safety, telaah resep), `TtdModal` (T1 PIN / T2 PSrE), `ApprovalFlow` (usulan berjenjang), `TaskInbox`, `EscalationBadge`, `IcdPicker`, `DrugPicker` (Fornas/KFA, generik vs paten + harga), `ChartPanel` (ECharts), `AuditTrailDrawer`, `EmptyState`, `PermissionGate` (komponen/directive `v-can`).
 
 ---
+
+### 5.5 Responsif, tablet, dan perangkat
+
+Satu kode SPA untuk semua ukuran layar; tata letak menyesuaikan lebar, bukan aplikasi terpisah per perangkat.
+
+| Kelas layar | Lebar | Perangkat umum | Tata letak |
+|---|---|---|---|
+| Desktop | ≥ 1280 px | Komputer loket, kasir, casemix, manajemen | Sidebar 248 px + konten + panel kanan (5.2) |
+| Tablet mendatar | 1024–1279 px | Tablet 10–13" di ruang rawat, IGD, kamar operasi | Sidebar ringkas 64 px (ikon + tooltip); panel kanan menjadi laci (*drawer*) |
+| Tablet tegak | 768–1023 px | Tablet di samping tempat tidur, TTE pasien | Sidebar menjadi menu laci; satu kolom; header pasien tetap terlihat (sticky) |
+| Ponsel | < 768 px | Ponsel pribadi pegawai | **Terbatas**: masuk, MFA, kotak kerja ringkas, notifikasi, konfirmasi instruksi lisan (TBaK), persetujuan. Form klinis panjang tidak dioptimalkan untuk ponsel dan menampilkan saran memakai tablet/komputer |
+
+**Matriks layar ↔ perangkat utama** (layar yang wajib diuji di kelas tersebut):
+
+| Kelas utama | Layar |
+|---|---|
+| Tablet (mendatar dan tegak) | eMAR dan pemberian obat di samping tempat tidur, CPPT bangsal, triase dan papan IGD, ceklis keselamatan operasi, tanda tangan pasien/wali (7.57), asesmen keperawatan |
+| Desktop dan tablet mendatar | Rawat jalan, pendaftaran, rekam medis, farmasi, penunjang, peta tempat tidur, data induk |
+| Desktop | Casemix/koding, kasir, keuangan, SDM, logistik, dasbor |
+| Layar khusus | Anjungan (kios layar sentuh, KioskLayout), display antrean (TV, tanpa interaksi) |
+
+Aturan:
+1. Target sentuh minimal **44 × 44 px** di semua layar kelas tablet dan kios; jarak antar-target ≥ 8 px.
+2. Tidak ada fungsi yang hanya bisa lewat *hover* atau klik kanan; pintasan keyboard (5.1 butir 8) adalah tambahan, bukan satu-satunya jalan.
+3. Tabel lebar di tablet tegak: kolom prioritas tetap, kolom lain lewat gulir horizontal di dalam tabel atau tampilan kartu; halaman sendiri tidak boleh bergulir horizontal.
+4. Input memakai tipe yang tepat (`inputmode="numeric"`, `type="date"`) agar papan ketik layar sesuai.
+5. Orientasi tegak dan mendatar sama-sama didukung; berpindah orientasi tidak menghapus isian.
+6. **Dinamis**: menu, bagian halaman, dan tombol dibentuk dari API sesuai hak akses (9.2) dan modul aktif (3.4); teks unit, identitas RS, dan batas waktu dari data induk/konfigurasi, bukan kode.
 
 ## 6. Katalog Modul
 
@@ -2563,7 +2591,7 @@ flowchart LR
 | **Keamanan** | Lihat 14.2 (autentikasi, sesi, otorisasi, aplikasi web, data, infrastruktur, pemantauan, insiden, pengujian) |
 | **Privasi (UU PDP)** | data minimization, masking, pencatatan dasar pemrosesan, hak subjek data (akses/koreksi), DPIA untuk modul riset & portal, notifikasi insiden data, DPO terlibat [K] |
 | **Audit** | semua akses RM & perubahan data tercatat, tidak dapat diubah (append-only, hash berantai opsional); laporan audit per pasien ("siapa membuka RM saya") |
-| **Usability** | SUS ≥ 75; ≤ 3 klik untuk tugas harian; keyboard shortcut; responsif tablet ≥ 10"; WCAG 2.1 AA |
+| **Usability** | SUS ≥ 75; ≤ 3 klik untuk tugas harian; keyboard shortcut; responsif sesuai 5.5 (desktop, tablet mendatar/tegak, ponsel terbatas); WCAG 2.1 AA |
 | **Kompatibilitas** | Chrome/Edge 2 versi terakhir; tablet Android/iPadOS untuk ruang & TTE pasien |
 | **Interoperabilitas** | FHIR R4 (profil SATUSEHAT), HL7 v2, DICOM, ICD-10/ICD-9-CM, LOINC, KFA |
 | **Pemeliharaan** | cakupan test unit ≥ 70% domain; dokumentasi API (OpenAPI); migrasi DB versi; feature flag |
@@ -2605,6 +2633,32 @@ Target kinerja di tabel atas hanya tercapai bila pola berikut menjadi aturan kod
 
 **Pengukuran:** OpenTelemetry untuk jejak API dan query; *Real User Monitoring* di browser; uji beban sebelum setiap rilis besar dengan skenario jam sibuk poli (07.00–10.00) dan pergantian sif.
 
+#### 14.1.1 Ketahanan beban: server tidak boleh berhenti karena daftar besar atau lonjakan
+
+**Profil beban acuan** [I — perkiraan untuk RS 500 TT; diganti data RS nyata saat implementasi]:
+
+| Ukuran | Nilai acuan |
+|---|---|
+| Pengguna aktif serentak saat puncak | 800 |
+| Kunjungan rawat jalan per hari / per jam puncak (07.00–10.00) | 2.000 / 600 |
+| Baris terbanyak di satu daftar kerja (antrean resep, pasien rawat inap RS, tugas unit) | 1.000–5.000 |
+| Pasien di basis data / kunjungan per tahun | ≥ 2 juta / ≥ 600 ribu |
+
+**Target uji:** 2× beban puncak selama 1 jam dengan galat < 0,1% dan anggaran 14.1 tetap terpenuhi; uji ketahanan (*soak*) 8 jam tanpa kebocoran memori; layanan lokal tetap normal saat BPJS/SATUSEHAT/PSrE mati.
+
+**Aturan wajib (berlaku sejak tiket pertama yang membuat daftar):**
+1. **Tidak ada endpoint daftar tanpa batas.** Paginasi keyset wajib, ukuran halaman bawaan 50, maksimum 200; permintaan di atas batas ditolak `422`. Daftar kerja wajib punya filter cakupan (unit, tanggal, status) yang dipaksa server.
+2. **Batas waktu berlapis:** `statement_timeout` per role database (`simrs_app` 5 detik, `simrs_analitik` 5 menit), batas waktu permintaan HTTP 30 detik, dan batas waktu klien API eksternal 10 detik. Query yang melewati batas gagal sendiri, tidak menahan koneksi.
+3. **Ekspor dan laporan besar selalu di antrean**, dibaca dari replika, hasilnya berkas yang diunduh kemudian. Tidak ada ekspor sinkron.
+4. **Antrean dipisah per jenis** dengan pekerja masing-masing (Horizon): `integrasi` (BPJS, SATUSEHAT, PSrE), `notifikasi`, `dokumen` (PDF), `laporan`, `bawaan`. Gangguan di satu sistem luar tidak menghabiskan pekerja jenis lain. Panggilan ke sistem luar memakai *circuit breaker*, coba ulang dengan jeda bertingkat, dan antrean gagal (*dead letter*) yang dipantau.
+5. **Pembaruan real-time berupa perubahan (delta), bukan daftar penuh**, dan dikelompokkan per kanal unit; klien menggabungkan delta ke cache TanStack Query.
+6. **Dua instans Valkey**: satu untuk cache (`allkeys-lru`, boleh membuang data lama) dan satu untuk sesi + antrean (`noeviction`, tidak boleh membuang). Satu instans untuk keduanya berisiko menghapus sesi atau pekerjaan antrean saat memori penuh.
+7. **Pembatasan laju per pengguna** untuk semua API (bukan hanya masuk), dengan batas lebih longgar untuk layar kerja yang wajar dipakai cepat.
+8. **Aplikasi tanpa status (*stateless*)**: beberapa simpul Octane di belakang penyeimbang beban, pemeriksaan kesehatan (`/up` hidup, `/siap` siap melayani), sehingga satu simpul mati tidak menghentikan layanan. PgBouncer membatasi koneksi agar PostgreSQL tidak kehabisan `max_connections`.
+9. **Frontend**: pencarian dengan jeda ketik (*debounce*) ≥ 300 ms, permintaan lama dibatalkan saat filter berubah, tabel virtual untuk > 100 baris, tidak pernah meminta "semua baris".
+10. **Pemantauan dengan ambang peringatan**: P95 API, panjang antrean per jenis, umur pekerjaan tertua, koneksi PgBouncer, lag replika, memori Valkey, ruang disk partisi; setiap peringatan punya prosedur tindakan.
+
+**Bukti:** skrip uji beban (k6) disimpan di repo dan dijalankan terhadap staging sebelum setiap rilis besar; hasilnya dilampirkan di catatan rilis.
 
 ### 14.2 Keamanan rinci
 
@@ -3085,7 +3139,9 @@ Di luar lingkup tiket: …
 - [ ] Isian klinis menyimpan nama, waktu server, dan TTE sesuai tingkat di data induk (FR-57-05); perbaikan membuat versi/adendum.
 - [ ] Aksi tercatat di `audit.log_aktivitas`.
 - [ ] Anggaran kinerja 14.1 terpenuhi pada data uji; tidak ada N+1 (diperiksa di CI).
+- [ ] Endpoint daftar mematuhi 14.1.1: paginasi keyset, batas ukuran halaman, filter cakupan dipaksa server; pekerjaan berat masuk antrean jenis yang tepat.
 - [ ] Teks antarmuka berbahasa Indonesia baku; nama tabel/kolom baru sesuai 11.1.
+- [ ] Layar diuji di kelas perangkat utamanya (5.5): e2e/tangkapan layar pada 1440, 1024, dan 768 px (ditambah 390 px bila layar termasuk daftar ponsel); target sentuh ≥ 44 px untuk kelas tablet.
 - [ ] Tidak ada nilai [I] atau "perlu verifikasi" yang dikodekan keras.
 
 ### D.8 Yang harus dijawab klien sebelum sprint terkait

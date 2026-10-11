@@ -17,7 +17,8 @@
 | 1.0b | Kebersihan repo: folder modul, Larastan level 5, aturan worktree. Catatan: `composer test` kini membaca `DB_DATABASE_TES` (bawaan `simrs_test`) agar tiap worktree bisa memakai database tes sendiri | Selesai | #12 |
 | 1.1b | MFA TOTP + kode cadangan, backend dan langkah MFA di halaman masuk. Catatan: penghitung gagal baru direset setelah MFA lolos; `AUTENTIKASI_MFA_JARINGAN_RS` kosong = semua dianggap dari luar | Selesai | #15 |
 | **1.1c** | Pendaftaran MFA hanya dari jaringan RS + superadmin pertama lewat konsol | **Siap dikerjakan** | — |
-| **1.0d** | Ganti Redis ke Valkey (compose, CI, dokumentasi) | **Siap dikerjakan** | — |
+| **1.0d** | Ganti Redis ke Valkey: dua instans (cache `allkeys-lru`, sesi+antrean `noeviction`), compose, CI, dokumentasi | **Siap dikerjakan** | — |
+| **1.0e** | Fondasi ketahanan beban (PRD 14.1.1): batas waktu per role, paginasi berbatas, antrean per jenis, batas laju per pengguna, `/siap`, kerangka k6 | **Siap dikerjakan** (setelah 1.0d) | — |
 | 1.0c | Nama modul bahasa Indonesia (backend dan frontend). Catatan: panel Spek dev di `docs/html` masih menyebut nama lama (di luar lingkup) | Selesai | #16 |
 | 1.2 | Menu, peran, izin, `AccessEvaluator` lapis 1–3, `GET /api/v1/saya/menu` | Menunggu 1.1b | — |
 | 1.5 | Lapis 4–5 hak akses (label sensitivitas, SIP/SPK, MFA aksi sensitif) | Menunggu 1.2 | — |
@@ -90,10 +91,44 @@ FR         : PRD 10.1 (baris Antrean pekerjaan)
 Pekerjaan  : docker-compose.yml dan .github/workflows/ci.yml: redis:7-alpine → valkey/valkey dengan versi
              mayor-minor dipatok (bukan tag mengambang). Nama layanan/env tetap (REDIS_HOST dll.) agar konfigurasi
              Laravel tidak berubah. README dan CLAUDE.md: sebut Valkey.
+             Dua instans (PRD 14.1.1 butir 6): `valkey-cache` (maxmemory-policy allkeys-lru) untuk cache, dan
+             `valkey` (noeviction) untuk sesi dan antrean. config/database.php: koneksi `cache` ke instans cache;
+             `default`/sesi/antrean ke instans noeviction.
 Uji penerimaan:
   - composer test, e2e, dan Horizon/queue lokal berjalan dengan Valkey; sesi login tersimpan dan dibaca.
   - Tag image tertulis lengkap (mis. 8.x.y-alpine), dicek ada di registry.
+  - CONFIG GET maxmemory-policy: allkeys-lru di instans cache, noeviction di instans sesi/antrean (tes otomatis).
 Di luar lingkup tiket: Sentinel/HA (tiket infrastruktur produksi).
+```
+
+## [SIMRS] Platform · 1.0e Fondasi ketahanan beban
+
+```
+Tujuan     : Sebelum modul-modul membuat daftar kerja, sediakan pagar bersama agar daftar ribuan baris,
+             lonjakan pengguna, atau sistem luar yang mati tidak menghentikan server.
+FR         : PRD 14.1.1 butir 1–4, 7, 8, 10; D.7
+Pekerjaan  :
+  1. statement_timeout per role di skrip init: simrs_app 5s, simrs_analitik 5min (ALTER ROLE ... SET).
+  2. Paginasi bersama di app/Core: helper/trait paginasi keyset (kursor (waktu, id)), ukuran bawaan 50,
+     maksimum 200, di atas batas → 422 `ukuran_halaman_melebihi_batas`. Didokumentasikan di CLAUDE.md
+     sebagai satu-satunya cara membuat endpoint daftar.
+  3. Antrean per jenis: integrasi, notifikasi, dokumen, laporan, bawaan (config/queue.php + Horizon
+     supervisor per antrean dengan jumlah pekerja dan batas waktu sendiri). Laravel Horizon dipasang bila belum.
+  4. Batas laju per pengguna untuk semua rute api/v1 (bawaan, bisa dilonggarkan per rute), selain batas
+     masuk yang sudah ada.
+  5. Pemeriksaan kesehatan: /up (hidup) dan /api/v1/siap (DB, Valkey sesi, Valkey cache dapat dijangkau)
+     tanpa data sensitif dan tanpa autentikasi, dengan batas laju.
+  6. Kerangka uji beban k6 di repo (tests/beban/): skenario masuk + GET /api/v1/saya dengan profil
+     PRD 14.1.1 diperkecil; dijalankan manual ke lingkungan lokal/staging, BUKAN di CI.
+Uji penerimaan:
+  - Query yang sengaja lambat (pg_sleep 6) sebagai simrs_app gagal karena timeout, bukan menggantung.
+  - Endpoint contoh memakai helper paginasi: ukuran 201 → 422; kursor bekerja dua halaman berturut-turut.
+  - Pekerjaan di antrean integrasi yang macet tidak menunda pekerjaan di antrean notifikasi (tes).
+  - Batas laju per pengguna mengembalikan 429 + Retry-After.
+  - /api/v1/siap menjawab 503 bila Valkey sesi mati.
+  - Skrip k6 berjalan lokal dan menghasilkan ringkasan P95.
+Di luar lingkup tiket: circuit breaker per sistem luar (tiket 1.9), pemantauan dan peringatan produksi,
+Octane dan PgBouncer di produksi (tiket infrastruktur).
 ```
 
 ## [SIMRS] Akses · 1.10 SSO universitas (terhambat)
