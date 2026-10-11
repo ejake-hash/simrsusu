@@ -71,6 +71,8 @@ function teks(isi: Isi, kolom: string, min: number, max: number, wajib = true): 
 const salah = (v: unknown): v is ResponsTiruan => typeof v === 'object' && v !== null && 'status' in v
 
 export interface OpsiServerTiruan {
+  /** Data unit dari server tiruan organisasi (cakupan `unit`, kontrak v0.3.0); tanpa ini hanya cakupan `rs`. */
+  unit?: { label: (id: string) => string | null; aktif: (id: string) => boolean }
   /** Akun yang dianggap sedang masuk (diri_sendiri). Bawaan: contoh.superadmin. */
   penggunaId?: string
   sekarang?: () => Date
@@ -106,7 +108,8 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
     peran.set(id, { id, kode, nama, uraian: 'Peran sintetis untuk lokal/staging.', bawaan_sistem: false, wajib_mfa: false, status: 'aktif', izin: new Set(izin), versi: 1, diubah_pada: '2026-10-01T02:00:00.000Z', ...isi })
 
   const SA = uid(101)
-  tambahPeran(SA, 'superadmin', 'Superadmin', izinMenu(pohon, []).concat(['pengaturan.peran', 'pengaturan.akun'].flatMap((k) => ['lihat', 'input', 'perbaiki'].map((a) => `${k}.${a}`))), {
+  // Superadmin juga memegang Profil RS (1.8a-be: MenuBawaan::SUB_MENU_SUPERADMIN).
+  tambahPeran(SA, 'superadmin', 'Superadmin', izinMenu(pohon, []).concat(['pengaturan.peran', 'pengaturan.akun'].flatMap((k) => ['lihat', 'input', 'perbaiki'].map((a) => `${k}.${a}`)), ['pengaturan.profil_rs.lihat', 'pengaturan.profil_rs.perbaiki']), {
     bawaan_sistem: true,
     wajib_mfa: true,
     uraian: 'Mengelola menu, peran, dan akun. Tidak membuka rekam medis atau angka rupiah (PRD 9.2.4).',
@@ -116,6 +119,8 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   tambahPeran(uid(104), 'contoh_dokter', 'Contoh Dokter', izinMenu(pohon, ['igd', 'rawat_jalan', 'rekam_medis']))
   tambahPeran(uid(105), 'contoh_kasir', 'Contoh Kasir', [...izinMenu(pohon, ['kasir']), 'kasir.tagihan.cetak', 'kasir.tagihan.lihat_rupiah'], { wajib_mfa: true })
   tambahPeran(uid(106), 'contoh_lama', 'Contoh Peran Lama', [], { status: 'nonaktif' })
+  // Pemilik data induk organisasi (1.8a-be: akun contoh.data.induk); superadmin tidak memegangnya.
+  tambahPeran(uid(107), 'contoh_data_induk', 'Contoh Admin Data Induk', ['lihat', 'input', 'perbaiki'].map((a) => `master_data.organisasi.${a}`))
 
   const akun = new Map<string, AkunTiruan>()
   const penugasan = (peranId: string, isi: Partial<Penugasan> = {}): Penugasan => {
@@ -441,12 +446,22 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
         if (salah(dasar)) return dasar
         const p = typeof isi.peran_id === 'string' ? peran.get(isi.peran_id) : undefined
         if (!p) return error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom: 'peran_id', pesan: 'Pilih peran.' }])
-        if ((isi.cakupan_jenis as CakupanJenis) !== 'rs') return error(422, 'cakupan_belum_didukung', 'Cakupan selain Seluruh RS menunggu data unit.')
+        const jenisCakupan = isi.cakupan_jenis as CakupanJenis
+        const cakupanId = typeof isi.cakupan_id === 'string' ? isi.cakupan_id : null
+        if (jenisCakupan !== 'rs' && !(jenisCakupan === 'unit' && opsi.unit)) return error(422, 'cakupan_belum_didukung', 'Cakupan ini belum didukung.')
+        if (jenisCakupan === 'rs' ? cakupanId !== null : !cakupanId || !opsi.unit!.aktif(cakupanId)) {
+          return error(422, 'cakupan_tidak_valid', 'Pilih unit aktif untuk cakupan unit.', [{ kolom: 'cakupan_id', pesan: 'Pilih unit aktif.' }])
+        }
         if (p.kode === 'superadmin') return error(409, 'peran_bawaan_terkunci', 'Peran Superadmin hanya bisa ditugaskan lewat konsol sampai alur persetujuan tersedia (tiket 1.2d).')
         if (p.status !== 'aktif') return error(409, 'peran_nonaktif', 'Peran ini nonaktif.')
         if (memuatSensitif(p)) return error(409, 'butuh_persetujuan', 'Peran ini memuat izin sensitif; penugasannya butuh persetujuan pemilik data.')
-        if (a.penugasan.some((x) => x.peran.id === p.id && x.status === 'aktif' && berlaku(x))) return error(409, 'penugasan_ganda', 'Peran dan cakupan yang sama masih berlaku untuk akun ini.')
+        if (a.penugasan.some((x) => x.peran.id === p.id && x.cakupan_id === cakupanId && x.status === 'aktif' && berlaku(x))) {
+          return error(409, 'penugasan_ganda', 'Peran dan cakupan yang sama masih berlaku untuk akun ini.')
+        }
         const baru = penugasan(p.id, {
+          cakupan_jenis: jenisCakupan,
+          cakupan_id: cakupanId,
+          cakupan_label: cakupanId ? opsi.unit!.label(cakupanId) : null,
           berlaku_dari: typeof isi.berlaku_dari === 'string' ? isi.berlaku_dari : iso(),
           berlaku_sampai: typeof isi.berlaku_sampai === 'string' ? isi.berlaku_sampai : null,
           dasar_pemberian: dasar!,
@@ -514,7 +529,16 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
     return null
   }
 
-  return { tangani, pohon }
+  /** Dev: tambahkan peran contoh ke akun yang masuk (lihat serverGabungan). */
+  function tambahPenugasanDev(kodePeran: string) {
+    const p = [...peran.values()].find((x) => x.kode === kodePeran)
+    if (p) akun.get(penggunaId)!.penugasan.push(penugasan(p.id))
+  }
+  /** Unit dari penugasan ber-cakupan unit yang berlaku milik akun yang masuk (GET /unit-organisasi?milik_saya=true). */
+  const unitMilikSaya = () =>
+    akun.get(penggunaId)!.penugasan.filter((x) => berlaku(x) && x.cakupan_jenis === 'unit' && x.cakupan_id).map((x) => x.cakupan_id!)
+
+  return { tangani, pohon, tambahPenugasanDev, unitMilikSaya }
 }
 
 export type ServerTiruan = ReturnType<typeof buatServerTiruan>
