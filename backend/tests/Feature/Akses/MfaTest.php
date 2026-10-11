@@ -215,22 +215,60 @@ class MfaTest extends TestCase
         ])->assertJsonPath('status', 'masuk');
     }
 
-    public function test_dari_luar_jaringan_rs_wajib_mfa_walau_tidak_ditandai(): void
+    public function test_dari_luar_jaringan_rs_akun_ber_mfa_tetap_bisa_masuk_walau_tidak_ditandai(): void
     {
         $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.10']);
-        $belumDaftar = Pengguna::factory()->denganSandi(self::SANDI)->create();
-        [$sudahDaftar] = $this->penggunaMfa(wajib: false);
+        [$sudahDaftar, $rahasia] = $this->penggunaMfa(wajib: false);
 
-        $this->masuk($belumDaftar)->assertOk()->assertJsonPath('status', 'perlu_daftar_mfa');
-        $this->masuk($sudahDaftar)->assertOk()->assertJsonPath('status', 'perlu_mfa');
+        $tantangan = $this->masuk($sudahDaftar)->assertOk()->assertJsonPath('status', 'perlu_mfa')->json('tantangan_id');
+        $this->kirimKode($tantangan, 'totp', $this->kodeSekarang($rahasia))->assertOk()->assertJsonPath('status', 'masuk');
     }
 
-    public function test_jaringan_rs_kosong_berarti_semua_wajib_mfa(): void
+    public function test_dari_luar_jaringan_rs_akun_tanpa_mfa_ditolak_tanpa_tantangan(): void
+    {
+        $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.10']);
+        $tidakDitandai = Pengguna::factory()->denganSandi(self::SANDI)->create();
+        $wajib = Pengguna::factory()->denganSandi(self::SANDI)->create(['wajib_mfa' => true]);
+
+        foreach ([$tidakDitandai, $wajib] as $pengguna) {
+            $this->masuk($pengguna)->assertForbidden()
+                ->assertJsonPath('galat.kode', 'mfa_belum_terdaftar')
+                ->assertJsonMissingPath('tantangan_id');
+
+            $this->assertDatabaseHas('audit.log_aktivitas', [
+                'aksi' => 'autentikasi.gagal',
+                'pengguna_id' => $pengguna->id,
+                'sesudah->alasan' => 'mfa_belum_terdaftar',
+            ]);
+            // Sandinya benar: bukan percobaan gagal, tetapi juga tidak masuk.
+            $this->assertSame(0, $pengguna->refresh()->percobaan_gagal);
+            $this->assertNull($pengguna->login_terakhir_pada);
+        }
+        $this->minta('GET', '/api/v1/saya')->assertUnauthorized();
+        $this->assertNull($this->app['session']->driver()->get('autentikasi.tantangan_mfa'));
+    }
+
+    public function test_tantangan_daftar_tidak_berlaku_bila_berpindah_ke_luar_jaringan_rs(): void
+    {
+        $pengguna = Pengguna::factory()->denganSandi(self::SANDI)->create(['wajib_mfa' => true]);
+        $tantangan = $this->masuk($pengguna)->assertJsonPath('status', 'perlu_daftar_mfa')->json('tantangan_id');
+
+        $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.10']);
+        $this->minta('POST', '/api/v1/autentikasi/mfa/daftar', ['tantangan_id' => $tantangan])
+            ->assertUnauthorized()->assertJsonPath('galat.kode', 'tantangan_tidak_berlaku');
+        $this->assertFalse($pengguna->refresh()->mfaAktif());
+    }
+
+    public function test_jaringan_rs_kosong_menolak_login_web_sebelum_sandi_diperiksa(): void
     {
         config(['autentikasi.mfa.jaringan_rs' => []]);
-        $pengguna = Pengguna::factory()->denganSandi(self::SANDI)->create();
+        [$pengguna] = $this->penggunaMfa();
 
-        $this->masuk($pengguna)->assertOk()->assertJsonPath('status', 'perlu_daftar_mfa');
+        $this->masuk($pengguna)->assertStatus(503)->assertJsonPath('galat.kode', 'konfigurasi_belum_lengkap');
+        $this->masuk($pengguna, 'sandi-salah-sekali')->assertStatus(503);
+
+        $this->assertSame(0, $pengguna->refresh()->percobaan_gagal);
+        $this->assertDatabaseMissing('audit.log_aktivitas', ['pengguna_id' => $pengguna->id]);
     }
 
     public function test_akun_dinonaktifkan_di_tengah_langkah_kembali_ke_sandi(): void

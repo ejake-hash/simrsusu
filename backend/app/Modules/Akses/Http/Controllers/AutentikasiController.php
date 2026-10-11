@@ -28,9 +28,16 @@ final class AutentikasiController
         TantanganMfa $tantangan,
         VerifikasiMfa $mfa,
         PenyelesaiMasuk $penyelesai,
+        CatatAktivitas $audit,
     ): JsonResponse {
         PenyelesaiMasuk::pastikanDariSpa($request);
         $tantangan->hapus($request->session());
+
+        // Sebelum sandi diperiksa: tanpa daftar jaringan RS tidak ada yang bisa mendaftarkan MFA,
+        // jadi instalasi belum boleh dipakai (FR-54-08). Superadmin pertama lewat konsol.
+        if (! $kebijakan->jaringanRsDiisi()) {
+            throw new GalatApi(503, 'konfigurasi_belum_lengkap', 'SIMRS belum selesai disiapkan: daftar jaringan RS belum diisi. Hubungi admin.');
+        }
 
         try {
             $pengguna = $masuk->jalankan($request->validated('nama_pengguna'), $request->validated('sandi'));
@@ -56,6 +63,14 @@ final class AutentikasiController
                 'metode' => $mfa->punyaKodeCadangan($pengguna) ? ['totp', 'kode_cadangan'] : ['totp'],
                 'kedaluwarsa_pada' => $t['kedaluwarsa_pada']->toIso8601String(),
             ]);
+        }
+
+        // Pendaftaran MFA hanya dari jaringan RS (PRD 10.3.2). Penghitung gagal tidak berubah:
+        // sandinya benar, tetapi sesi juga tidak dimulai.
+        if (! $kebijakan->dariJaringanRs($request->ip())) {
+            $audit->catat('autentikasi.gagal', $pengguna->id, 'akses.pengguna', $pengguna->id, ['alasan' => 'mfa_belum_terdaftar']);
+
+            throw new GalatApi(403, 'mfa_belum_terdaftar', 'Verifikasi dua langkah belum aktif. Aktifkan dari jaringan RS atau minta admin mereset.');
         }
 
         $t = $tantangan->buat($request->session(), $pengguna, 'daftar');

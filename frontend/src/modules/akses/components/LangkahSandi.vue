@@ -34,6 +34,14 @@ const PESAN_TUNGGU: Record<string, string> = {
   terlalu_banyak_permintaan: 'Terlalu banyak percobaan masuk.',
 }
 
+// Galat yang tidak bisa diatasi dengan mengetik ulang: kalimat frontend menyebut langkah berikutnya.
+const PESAN_TINDAK_LANJUT: Record<string, string> = {
+  mfa_belum_terdaftar:
+    'Verifikasi dua langkah akun ini belum aktif, dan hanya bisa diaktifkan dari jaringan rumah sakit. ' +
+    `Masuk sekali dari komputer di rumah sakit, atau minta ${unitAdmin} mereset verifikasi Anda.`,
+  konfigurasi_belum_lengkap: `SIMRS belum selesai disiapkan sehingga belum bisa dipakai untuk masuk. Hubungi ${unitAdmin}.`,
+}
+
 // Hitung mundur dari Retry-After server; tombol Masuk nonaktif sampai habis.
 const sekarang = ref(Date.now())
 let detak: ReturnType<typeof setInterval> | undefined
@@ -96,7 +104,7 @@ function tampilkanGalat(e: unknown): void {
 
   const tunggu = e.kode in PESAN_TUNGGU
   const cobaLagiSampai = tunggu && e.cobaLagiDetik !== null ? Date.now() + e.cobaLagiDetik * 1000 : null
-  galat.value = { pesan: PESAN_TUNGGU[e.kode] ?? e.message, tunggu, cobaLagiSampai }
+  galat.value = { pesan: PESAN_TUNGGU[e.kode] ?? PESAN_TINDAK_LANJUT[e.kode] ?? e.message, tunggu, cobaLagiSampai }
   if (cobaLagiSampai !== null) mulaiHitungMundur(cobaLagiSampai)
 
   if (e.kode === 'kredensial_salah') {

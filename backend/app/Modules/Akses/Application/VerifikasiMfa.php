@@ -61,6 +61,18 @@ final class VerifikasiMfa
             $this->gagal($pengguna, 'totp');
         }
 
+        return $this->pasang($pengguna, $rahasia, $langkah);
+    }
+
+    /**
+     * Simpan rahasia TOTP dan 10 kode cadangan baru (yang lama dibatalkan). Dipakai konfirmasi
+     * pendaftaran web, dan perintah konsol superadmin pertama ($langkah null: belum ada kode dipakai).
+     * Memanggil audit; di dalam transaksi pemanggil, panggil di bagian akhir.
+     *
+     * @return list<string>
+     */
+    public function pasang(Pengguna $pengguna, string $rahasia, ?int $langkah = null): array
+    {
         $kodeCadangan = [];
         for ($i = 0; $i < self::JUMLAH_KODE_CADANGAN; $i++) {
             $kodeCadangan[] = $this->kodeCadanganBaru();

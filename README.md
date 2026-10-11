@@ -51,9 +51,12 @@ Aturan sandi, penguncian, batas laju, dan batas diam sesi ada di `backend/config
 alasannya di [`docs/adr/`](docs/adr/).
 
 **MFA (PRD 10.3.2).** Respons masuk berbentuk `{status: masuk | perlu_mfa | perlu_daftar_mfa, …}`. MFA wajib untuk akun
-`wajib_mfa` dan untuk akses dari luar `AUTENTIKASI_MFA_JARINGAN_RS` (CIDR jaringan RS). **Isi variabel ini di produksi**:
-bila kosong, semua akses dianggap dari luar dan wajib MFA. Langkah MFA: `POST /api/v1/autentikasi/mfa`,
+`wajib_mfa` dan untuk akses dari luar `AUTENTIKASI_MFA_JARINGAN_RS` (CIDR jaringan RS). Akun yang belum punya MFA
+hanya bisa mendaftar dari jaringan RS; dari luar ditolak `403 mfa_belum_terdaftar`. **Isi variabel ini di produksi**:
+bila kosong, login web ditolak `503 konfigurasi_belum_lengkap`. Langkah MFA: `POST /api/v1/autentikasi/mfa`,
 `…/mfa/daftar`, `…/mfa/daftar/konfirmasi` (TOTP RFC 6238 + 10 kode cadangan sekali pakai).
+**Instalasi baru:** dua superadmin bernama dibuat di server dengan `php artisan akses:superadmin-pertama`
+(sandi lewat prompt tersembunyi; URI otpauth dan 10 kode cadangan tampil sekali; ditolak bila sudah ada 2 superadmin aktif).
 Akun sintetis `contoh.mfa` (rahasia dari `AKUN_SINTETIS_MFA_RAHASIA`) dan `contoh.mfa.baru` (belum terdaftar) untuk uji lokal dan e2e.
 
 ## Role database

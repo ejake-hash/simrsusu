@@ -5,6 +5,7 @@ namespace App\Modules\Akses\Http\Controllers;
 use App\Core\Http\GalatApi;
 use App\Modules\Akses\Application\AlasanGagalMfa;
 use App\Modules\Akses\Application\GagalMfa;
+use App\Modules\Akses\Application\KebijakanMfa;
 use App\Modules\Akses\Application\TantanganMfa;
 use App\Modules\Akses\Application\VerifikasiMfa;
 use App\Modules\Akses\Domain\Totp;
@@ -26,6 +27,7 @@ final class MfaController
         private readonly TantanganMfa $tantangan,
         private readonly VerifikasiMfa $mfa,
         private readonly PenyelesaiMasuk $penyelesai,
+        private readonly KebijakanMfa $kebijakan,
     ) {}
 
     /** 2a: kode TOTP atau kode cadangan. */
@@ -84,8 +86,10 @@ final class MfaController
         $tantangan = $this->tantangan->ambil($request->session(), (string) $request->validated('tantangan_id'), $jenis);
         $pengguna = $tantangan === null ? null : Pengguna::query()->find($tantangan['pengguna_id']);
 
-        // Akun yang dinonaktifkan di tengah langkah: kembali ke langkah sandi, yang memberi tahu statusnya.
-        if ($pengguna === null || ! $pengguna->aktif()) {
+        // Akun yang dinonaktifkan di tengah langkah, atau pendaftaran yang pindah ke luar jaringan RS:
+        // kembali ke langkah sandi, yang memberi tahu alasannya.
+        $pindahKeLuar = $jenis === 'daftar' && ! $this->kebijakan->dariJaringanRs($request->ip());
+        if ($pengguna === null || ! $pengguna->aktif() || $pindahKeLuar) {
             throw $this->tidakBerlaku($request);
         }
 
