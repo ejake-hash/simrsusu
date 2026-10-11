@@ -17,6 +17,9 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $terkunci_sampai
  * @property int $percobaan_gagal
  * @property Carbon|null $login_terakhir_pada
+ * @property bool|null $login_terakhir_dari_jaringan_rs
+ * @property Carbon|null $masuk_sebelumnya_pada
+ * @property bool|null $masuk_sebelumnya_dari_jaringan_rs
  * @property string|null $email
  * @property string|null $mfa_rahasia_enkripsi sudah didekripsi oleh cast `encrypted`
  * @property Carbon|null $mfa_aktif_pada
@@ -49,6 +52,9 @@ final class Pengguna extends Authenticatable
     {
         return [
             'login_terakhir_pada' => 'datetime',
+            'login_terakhir_dari_jaringan_rs' => 'boolean',
+            'masuk_sebelumnya_pada' => 'datetime',
+            'masuk_sebelumnya_dari_jaringan_rs' => 'boolean',
             'terkunci_sampai' => 'datetime',
             'percobaan_gagal' => 'integer',
             'mfa_rahasia_enkripsi' => 'encrypted',

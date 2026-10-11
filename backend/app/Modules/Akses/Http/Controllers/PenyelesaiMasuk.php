@@ -3,6 +3,7 @@
 namespace App\Modules\Akses\Http\Controllers;
 
 use App\Core\Http\ApiError;
+use App\Modules\Akses\Application\KebijakanMfa;
 use App\Modules\Akses\Application\MasukPengguna;
 use App\Modules\Akses\Application\PendaftaranPerangkat;
 use App\Modules\Akses\Http\Middleware\SesiPengguna;
@@ -18,12 +19,13 @@ final class PenyelesaiMasuk
     public function __construct(
         private readonly MasukPengguna $masuk,
         private readonly PendaftaranPerangkat $perangkat,
+        private readonly KebijakanMfa $kebijakanMfa,
     ) {}
 
     /** @return array{status: 'masuk', pengguna: array<string, mixed>} */
     public function selesaikan(Request $request, Pengguna $pengguna): array
     {
-        $this->masuk->selesaikan($pengguna);
+        $this->masuk->selesaikan($pengguna, $this->kebijakanMfa->dariJaringanRs($request->ip()));
 
         Auth::guard('web')->login($pengguna);
         $request->session()->regenerate();

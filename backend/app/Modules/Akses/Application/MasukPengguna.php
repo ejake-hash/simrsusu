@@ -76,13 +76,19 @@ final class MasukPengguna
         return $pengguna;
     }
 
-    /** Semua langkah (sandi, lalu MFA bila wajib) sudah lolos. */
-    public function selesaikan(Pengguna $pengguna): void
+    /**
+     * Semua langkah (sandi, lalu MFA bila wajib) sudah lolos. Masuk terakhir yang lama disalin ke
+     * masuk_sebelumnya_* sebelum ditimpa (Beranda: "apakah ini Anda?", tiket 1.2e).
+     */
+    public function selesaikan(Pengguna $pengguna, bool $dariJaringanRs): void
     {
         $pengguna->forceFill([
             'percobaan_gagal' => 0,
             'terkunci_sampai' => null,
+            'masuk_sebelumnya_pada' => $pengguna->login_terakhir_pada,
+            'masuk_sebelumnya_dari_jaringan_rs' => $pengguna->login_terakhir_pada === null ? null : $pengguna->login_terakhir_dari_jaringan_rs,
             'login_terakhir_pada' => now(),
+            'login_terakhir_dari_jaringan_rs' => $dariJaringanRs,
         ])->save();
 
         $this->audit->catat('autentikasi.masuk', $pengguna->id, 'akses.pengguna', $pengguna->id);
