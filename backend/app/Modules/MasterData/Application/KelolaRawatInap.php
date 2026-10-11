@@ -5,6 +5,7 @@ namespace App\Modules\MasterData\Application;
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\MasterData\Events\KapasitasTempatTidurBerubah;
 use App\Modules\MasterData\Models\Bangsal;
 use App\Modules\MasterData\Models\Kamar;
 use App\Modules\MasterData\Models\KelasRawat;
@@ -78,9 +79,8 @@ final class KelolaRawatInap
     /** @param  array{bangsal_id: string, lokasi_id: string, kapasitas_maksimum?: int|null, atribut_standar?: array<string, mixed>|null, dasar_perubahan: string}  $isi */
     public function buatKamar(Pengguna $penyunting, array $isi): Kamar
     {
-        $this->pastikanBangsal($isi['bangsal_id']);
-
         return DB::transaction(function () use ($penyunting, $isi) {
+            $this->pastikanBangsal($isi['bangsal_id']);
             $ruang = Lokasi::query()->whereKey($isi['lokasi_id'])->lockForUpdate()->first();
             if ($ruang === null || $ruang->jenis !== 'ruang' || $ruang->status !== 'aktif') {
                 throw new ApiError(422, 'bukan_ruang', 'Kamar harus berupa ruang yang aktif.', [['kolom' => 'lokasi_id', 'pesan' => 'Pilih ruang yang aktif.']]);
@@ -103,23 +103,26 @@ final class KelolaRawatInap
     /** @param  array<string, mixed>  $isi */
     public function ubahKamar(Pengguna $penyunting, Kamar $kamar, string $versi, array $isi): Kamar
     {
-        if (isset($isi['bangsal_id'])) {
-            $this->pastikanBangsal($isi['bangsal_id']);
-        }
-
-        return $this->simpanUbah($penyunting, $kamar, $versi, $isi, ['bangsal_id', 'kapasitas_maksimum', 'atribut_standar'], 'Kamar', 'master_data.kamar_diubah');
+        return $this->simpanUbah($penyunting, $kamar, $versi, $isi, ['bangsal_id', 'kapasitas_maksimum', 'atribut_standar'], 'Kamar',
+            'master_data.kamar_diubah', function (Kamar $k) use ($isi) {
+                if (isset($isi['bangsal_id']) && $isi['bangsal_id'] !== $k->bangsal_id) {
+                    $this->pastikanBangsal($isi['bangsal_id']);
+                    // TT kamar ini pindah bangsal mulai hari ini: kapasitas kedua bangsal berubah (dikirim sesudah commit).
+                    KapasitasTempatTidurBerubah::dispatch($k->bangsal_id, SuntinganBerversi::hariIni());
+                    KapasitasTempatTidurBerubah::dispatch($isi['bangsal_id'], SuntinganBerversi::hariIni());
+                }
+            });
     }
 
     /** @param  array{kode: string, nama: string, unit_organisasi_id: string, lokasi_id?: string|null, kode_poli_bpjs?: string|null, dasar_perubahan: string}  $isi */
     public function buatPoliklinik(Pengguna $penyunting, array $isi): Poliklinik
     {
         $this->pastikanUnit($isi['unit_organisasi_id']);
-        $this->pastikanRuang($isi['lokasi_id'] ?? null);
 
         return $this->simpanBaru($penyunting, new Poliklinik([
             'kode' => $isi['kode'], 'nama' => $isi['nama'], 'unit_organisasi_id' => $isi['unit_organisasi_id'],
             'lokasi_id' => $isi['lokasi_id'] ?? null, 'kode_poli_bpjs' => $isi['kode_poli_bpjs'] ?? null, 'status' => 'aktif',
-        ]), 'master_data.poliklinik_dibuat', $isi['dasar_perubahan']);
+        ]), 'master_data.poliklinik_dibuat', $isi['dasar_perubahan'], fn () => $this->pastikanRuang($isi['lokasi_id'] ?? null));
     }
 
     /** @param  array<string, mixed>  $isi */
@@ -128,12 +131,13 @@ final class KelolaRawatInap
         if (isset($isi['unit_organisasi_id'])) {
             $this->pastikanUnit($isi['unit_organisasi_id']);
         }
-        if (array_key_exists('lokasi_id', $isi)) {
-            $this->pastikanRuang($isi['lokasi_id']);
-        }
 
         return $this->simpanUbah($penyunting, $poli, $versi, $isi, ['kode', 'nama', 'unit_organisasi_id', 'lokasi_id', 'kode_poli_bpjs', 'status'],
-            'Poliklinik', 'master_data.poliklinik_diubah');
+            'Poliklinik', 'master_data.poliklinik_diubah', function () use ($isi) {
+                if (array_key_exists('lokasi_id', $isi)) {
+                    $this->pastikanRuang($isi['lokasi_id']);
+                }
+            });
     }
 
     /** @return Builder<TempatTidur> */
@@ -146,11 +150,15 @@ final class KelolaRawatInap
      * @template T of Model
      *
      * @param  T  $baris
+     * @param  (callable(): void)|null  $periksa  dipanggil di dalam transaksi sebelum disimpan
      * @return T
      */
-    private function simpanBaru(Pengguna $penyunting, Model $baris, string $aksi, string $dasar): Model
+    private function simpanBaru(Pengguna $penyunting, Model $baris, string $aksi, string $dasar, ?callable $periksa = null): Model
     {
-        return SuntinganBerversi::tangkapKodeGanda(fn () => DB::transaction(function () use ($penyunting, $baris, $aksi, $dasar) {
+        return SuntinganBerversi::tangkapKodeGanda(fn () => DB::transaction(function () use ($penyunting, $baris, $aksi, $dasar, $periksa) {
+            if ($periksa !== null) {
+                $periksa();
+            }
             $baris->forceFill(['dibuat_oleh' => $penyunting->id, 'diubah_oleh' => $penyunting->id])->save();
             $this->audit->catat($aksi, $penyunting->id, $baris->getTable(), (string) $baris->getKey(), [...$this->isiAudit($baris), 'dasar_perubahan' => $dasar]);
 
@@ -194,14 +202,14 @@ final class KelolaRawatInap
 
     private function pastikanBangsal(string $bangsalId): void
     {
-        if (! Bangsal::query()->whereKey($bangsalId)->where('status', 'aktif')->exists()) {
+        if (Bangsal::query()->whereKey($bangsalId)->where('status', 'aktif')->sharedLock()->first() === null) {
             throw new ApiError(422, 'bangsal_tidak_valid', 'Bangsal tidak ada atau nonaktif.', [['kolom' => 'bangsal_id', 'pesan' => 'Pilih bangsal yang aktif.']]);
         }
     }
 
     private function pastikanRuang(?string $lokasiId): void
     {
-        if ($lokasiId !== null && ! Lokasi::query()->whereKey($lokasiId)->where('jenis', 'ruang')->where('status', 'aktif')->exists()) {
+        if ($lokasiId !== null && Lokasi::query()->whereKey($lokasiId)->where('jenis', 'ruang')->where('status', 'aktif')->sharedLock()->first() === null) {
             throw new ApiError(422, 'bukan_ruang', 'Lokasi harus ruang yang aktif.', [['kolom' => 'lokasi_id', 'pesan' => 'Pilih ruang yang aktif.']]);
         }
     }

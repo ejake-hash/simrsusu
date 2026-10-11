@@ -173,6 +173,24 @@ class LokasiRuangTempatTidurTest extends TestCase
         $kapasitas($besok)->assertJsonPath('data.0.kelas', []);
     }
 
+    public function test_kamar_pindah_bangsal_memperbarui_kapasitas_kedua_bangsal(): void
+    {
+        [$ruang, $bangsal, $kelas] = $this->ruangBangsalKelas();
+        $lain = $this->minta('POST', '/api/v1/bangsal', ['kode' => 'MAWAR', 'nama' => 'Bangsal Mawar', 'unit_organisasi_id' => $this->unit->id, 'dasar_perubahan' => self::DASAR])->json('data.id');
+        $kamar = $this->minta('POST', '/api/v1/kamar', ['bangsal_id' => $bangsal, 'lokasi_id' => $ruang, 'dasar_perubahan' => self::DASAR]);
+        $this->minta('POST', '/api/v1/tempat-tidur', ['kamar_id' => $kamar->json('data.id'), 'kode' => '1', 'kelas_rawat_id' => $kelas, 'dasar_perubahan' => self::DASAR])->assertCreated();
+        $this->artisan('master-data:rekam-kapasitas-tt')->assertSuccessful();
+        $rekaman = fn (string $id) => (int) DB::table('inti.kapasitas_tempat_tidur_harian')->where('tanggal', SuntinganBerversi::hariIni())
+            ->where('bangsal_id', $id)->sum('jumlah_tersedia');
+        $this->assertSame([1, 0], [$rekaman($bangsal), $rekaman($lain)]);
+
+        $this->mintaDenganVersi('PATCH', '/api/v1/kamar/'.$kamar->json('data.id'), $kamar->json('data.versi'), ['bangsal_id' => $lain, 'dasar_perubahan' => self::DASAR])
+            ->assertOk()->assertJsonPath('data.bangsal.kode', 'MAWAR');
+        $this->assertSame([0, 1], [$rekaman($bangsal), $rekaman($lain)]);
+        $this->minta('POST', '/api/v1/lokasi', ['induk_id' => null, 'jenis' => 'gedung', 'kode' => 'Z', 'nama' => "Gedung\0Z", 'dasar_perubahan' => self::DASAR])
+            ->assertStatus(422)->assertJsonPath('error.kode', 'validasi_gagal');
+    }
+
     public function test_kelas_rawat_dan_poliklinik(): void
     {
         $kelas = $this->minta('POST', '/api/v1/kelas-rawat', ['kode' => 'KRIS', 'nama' => 'KRIS', 'dasar_perubahan' => self::DASAR])

@@ -65,7 +65,10 @@ final class KelolaTempatTidur
             ]);
             $tt->forceFill(['dibuat_oleh' => $penyunting->id, 'diubah_oleh' => $penyunting->id])->save();
 
-            $peringatan = $kamar->kapasitas_maksimum !== null && self::jumlahDihitung($kamar->id, SuntinganBerversi::hariIni()) > $kamar->kapasitas_maksimum
+            // Termasuk TT yang baru mulai dihitung di tanggal mendatang (belum ditutup).
+            $belumDitutup = TempatTidur::query()->where('kamar_id', $kamar->id)
+                ->where(fn ($q) => $q->whereNull('berlaku_sampai')->orWhere('berlaku_sampai', '>=', SuntinganBerversi::hariIni()))->count();
+            $peringatan = $kamar->kapasitas_maksimum !== null && $belumDitutup > $kamar->kapasitas_maksimum
                 ? ['melebihi_kapasitas'] : [];
             KapasitasTempatTidurBerubah::dispatch($bangsal->id, $berlakuDari);
             $this->audit->catat('master_data.tempat_tidur_dibuat', $penyunting->id, 'inti.tempat_tidur', $tt->id,

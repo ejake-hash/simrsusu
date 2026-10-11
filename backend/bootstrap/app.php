@@ -2,6 +2,7 @@
 
 use App\Core\Http\ErrorHandler;
 use App\Core\Http\SesiSpaStateful;
+use App\Core\Http\TolakKarakterNul;
 use App\Core\Http\TrustedProxies;
 use App\Core\Log\SqlMasker;
 use Illuminate\Database\QueryException;
@@ -22,6 +23,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // Sesi + CSRF untuk permintaan dari SPA (SANCTUM_STATEFUL_DOMAINS) di grup `api`.
         // Pengganti statefulApi(): versi Sanctum memaksa SameSite=Lax.
         $middleware->api(prepend: [SesiSpaStateful::class]);
+        // Karakter NUL di isian → 422, bukan 500 dari PostgreSQL (tinjauan #46).
+        $middleware->api(append: [TolakKarakterNul::class]);
 
         // Rate limit per pengguna untuk semua rute api/v1 (PRD 14.1.1 butir 7); limiter di AppServiceProvider.
         $middleware->throttleApi('api');

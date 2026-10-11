@@ -95,6 +95,19 @@ class ImporLokasiTest extends TestCase
         $this->assertSame(1, DB::table('inti.lokasi')->count());
     }
 
+    public function test_tt_tidak_masuk_ke_kamar_bangsal_nonaktif_atau_ruang_renovasi(): void
+    {
+        $this->impor(self::JUDUL."\ngedung,B,,Gedung B,,,,,,\nlantai,1,B,Lantai 1,,,,,,\nruang,101,B-1,Ruang 101,rawat_inap,,MELATI,,,\nruang,102,B-1,Ruang 102,rawat_inap,,MELATI,,,\n", 'terapkan')->assertOk();
+        DB::table('inti.lokasi')->where('kode_lengkap', 'B-1-102')->update(['status' => 'renovasi']);
+        Bangsal::query()->where('kode', 'MELATI')->update(['status' => 'nonaktif']);
+
+        $hasil = $this->impor(self::JUDUL."\ntempat_tidur,1,B-1-101,,,,,III,,\n", 'pratinjau')->assertOk();
+        $this->assertSame('bukan_kamar', $hasil->json('data.kesalahan.0.kode'));
+        Bangsal::query()->where('kode', 'MELATI')->update(['status' => 'aktif']);
+        $this->impor(self::JUDUL."\ntempat_tidur,1,B-1-102,,,,,III,,\n", 'pratinjau')->assertOk()->assertJsonPath('data.kesalahan.0.kode', 'induk_tidak_aktif');
+        $this->impor(self::JUDUL."\ngedung,C,,Gedung\0C,,,,,,\n", 'pratinjau')->assertStatus(422)->assertJsonPath('error.kode', 'berkas_tidak_valid');
+    }
+
     public function test_berkas_tidak_valid(): void
     {
         $this->impor("jenis,kode\ngedung,B\n", 'pratinjau')->assertStatus(422)->assertJsonPath('error.kode', 'berkas_tidak_valid');

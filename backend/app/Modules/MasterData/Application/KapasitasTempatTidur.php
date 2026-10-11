@@ -59,6 +59,16 @@ final class KapasitasTempatTidur
     /** Simpan rekaman satu tanggal (semua bangsal, atau satu bangsal); kelas yang turun ke nol ikut ditulis nol. */
     public function rekam(string $tanggal, ?string $bangsalId = null): int
     {
+        // Berurutan: dua perubahan TT yang hampir bersamaan tidak saling menimpa rekaman dengan angka basi.
+        return DB::transaction(function () use ($tanggal, $bangsalId) {
+            DB::select("SELECT pg_advisory_xact_lock(hashtext('inti.kapasitas_tempat_tidur_harian'))");
+
+            return $this->tulisRekaman($tanggal, $bangsalId);
+        });
+    }
+
+    private function tulisRekaman(string $tanggal, ?string $bangsalId): int
+    {
         $bangsal = $bangsalId !== null ? [$bangsalId] : DB::table('inti.bangsal')->pluck('id')->all();
         $hitung = $this->hitung($tanggal, $bangsal);
         $lama = DB::table('inti.kapasitas_tempat_tidur_harian')->where('tanggal', $tanggal)->whereIn('bangsal_id', $bangsal)

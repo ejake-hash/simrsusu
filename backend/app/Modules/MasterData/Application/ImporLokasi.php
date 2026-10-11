@@ -35,7 +35,7 @@ final class ImporLokasi
     {
         $baris = $this->baca($isiBerkas);
 
-        return $this->hasil('pratinjau', false, $baris, $this->periksa($baris)['kesalahan']);
+        return $this->hasil('pratinjau', false, $baris, $this->periksa($baris, false)['kesalahan']);
     }
 
     /** @return array<string, mixed> HasilImporLokasi */
@@ -46,7 +46,7 @@ final class ImporLokasi
         return DB::transaction(function () use ($penyunting, $baris, $dasar) {
             DB::statement("SET LOCAL statement_timeout = '60s'");
             $this->pohon->kunci();
-            $periksa = $this->periksa($baris);
+            $periksa = $this->periksa($baris, true);
             if ($periksa['kesalahan'] !== []) {
                 $hasil = $this->hasil('terapkan', false, $baris, $periksa['kesalahan']);
                 throw new ApiError(422, 'impor_tidak_valid', 'Ada baris yang salah; tidak ada yang disimpan. Perbaiki lalu unggah ulang.', $hasil['kesalahan']);
@@ -71,7 +71,7 @@ final class ImporLokasi
     private function baca(string $isi): array
     {
         $isi = preg_replace('/^\xEF\xBB\xBF/', '', $isi) ?? '';
-        if (! mb_check_encoding($isi, 'UTF-8')) {
+        if (! mb_check_encoding($isi, 'UTF-8') || str_contains($isi, "\0")) {
             throw $this->berkasTidakValid('Berkas harus CSV berenkode UTF-8.');
         }
         $aliran = fopen('php://memory', 'r+');
@@ -107,18 +107,21 @@ final class ImporLokasi
     }
 
     /**
+     * $kunci (terapkan): bangsal, kelas, dan kamar yang dirujuk dikunci FOR SHARE sampai commit, agar penonaktifan
+     * bersamaan tidak meloloskan TT ke bangsal/kelas nonaktif.
+     *
      * @param  array<int, array<string, string>>  $baris
      * @return array{kesalahan: list<array{baris: int, kolom: string|null, kode: string, pesan: string}>, siap: array<int, array<string, mixed>>}
      */
-    private function periksa(array $baris): array
+    private function periksa(array $baris, bool $kunci): array
     {
         $kesalahan = [];
         $salah = function (int $n, ?string $kolom, string $kode, string $pesan) use (&$kesalahan) {
             $kesalahan[] = ['baris' => $n, 'kolom' => $kolom, 'kode' => $kode, 'pesan' => $pesan];
         };
         $unit = DB::table('inti.unit_organisasi')->where('status', 'aktif')->pluck('id', 'kode')->all();
-        $bangsal = DB::table('inti.bangsal')->where('status', 'aktif')->pluck('id', 'kode')->all();
-        $kelas = DB::table('inti.kelas_rawat')->where('status', 'aktif')->pluck('id', 'kode')->all();
+        $bangsal = DB::table('inti.bangsal')->where('status', 'aktif')->when($kunci, fn ($q) => $q->sharedLock())->pluck('id', 'kode')->all();
+        $kelas = DB::table('inti.kelas_rawat')->where('status', 'aktif')->when($kunci, fn ($q) => $q->sharedLock())->pluck('id', 'kode')->all();
 
         // Kolom per baris, dan kode_lengkap yang akan terbentuk.
         $siap = [];
@@ -176,7 +179,9 @@ final class ImporLokasi
         $ada = DB::table('inti.lokasi')->whereIn('kode_lengkap', array_unique([...$semuaKode, ...array_filter(array_column($siap, 'induk'))]))
             ->get(['id', 'jenis', 'kode_lengkap', 'status', 'unit_organisasi_id'])->keyBy('kode_lengkap');
         $kodeTt = DB::table('inti.tempat_tidur')->whereIn('kode', $semuaKode)->pluck('kode')->flip();
-        $kamarAda = DB::table('inti.kamar')->whereIn('lokasi_id', $ada->pluck('id'))->pluck('id', 'lokasi_id');
+        // Kamar yang ada hanya dipakai bila bangsalnya aktif (sama dengan POST /tempat-tidur).
+        $kamarAda = DB::table('inti.kamar AS k')->join('inti.bangsal AS b', 'b.id', '=', 'k.bangsal_id')->where('b.status', 'aktif')
+            ->whereIn('k.lokasi_id', $ada->pluck('id'))->when($kunci, fn ($q) => $q->sharedLock())->pluck('k.id', 'k.lokasi_id');
 
         foreach ($siap as $n => &$s) {
             if (count($perKode[$s['kode_lengkap']]) > 1) {
@@ -204,7 +209,8 @@ final class ImporLokasi
                     $induk === false => ['induk_tidak_ditemukan', 'Induk '.$s['induk'].' tidak ada di basis data maupun di baris yang benar dalam berkas.'],
                     ! Lokasi::bolehAnak($induk['jenis'] ?? null, $s['jenis']) => ['jenis_induk_tidak_sesuai', 'Jenis '.$s['jenis'].' tidak bisa di bawah '.($induk['jenis'] ?? 'akar').'.'],
                     ($induk['status'] ?? 'aktif') === 'ditutup' => ['induk_tidak_aktif', 'Induk sudah ditutup.'],
-                    $s['jenis'] === 'tempat_tidur' && ! ($induk['kamar'] ?? false) => ['bukan_kamar', 'Ruang induk TT harus menjadi kamar (isi kolom bangsal pada ruangnya).'],
+                    $s['jenis'] === 'tempat_tidur' && ($induk['status'] ?? 'aktif') !== 'aktif' => ['induk_tidak_aktif', 'Ruang induk TT harus aktif (bukan renovasi).'],
+                    $s['jenis'] === 'tempat_tidur' && ! ($induk['kamar'] ?? false) => ['bukan_kamar', 'Ruang induk TT harus menjadi kamar bangsal yang aktif (isi kolom bangsal pada ruangnya).'],
                     default => null,
                 };
                 if ($kode !== null) {
