@@ -1,13 +1,13 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.2.2
+  version: 0.2.3
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
     backend wajib lulus uji kontrak terhadapnya. Perubahan kontrak lewat PR yang mengubah berkas ini.
     Konvensi: PRD 10.3.1 (prefiks /api/v1, kata benda Indonesia, kunci snake_case, satu format error `{"error": {kode, pesan, rincian}}`).
-    Endpoint autentikasi dan MFA: PRD 10.3.2 (belum dipindah ke berkas ini).
+    Endpoint autentikasi dan MFA: PRD 10.3.2 (belum dipindah ke berkas ini; bentuk `pengguna` di respons masuk = skema Saya).
     Kode error umum: belum_masuk (401), akses_ditolak (403), csrf_tidak_valid (403), tidak_ditemukan (404),
     validasi_gagal (422), ukuran_halaman_melebihi_batas (422), kursor_tidak_valid (422), versi_berubah (412),
     if_match_wajib (428), terlalu_banyak_permintaan (429).
@@ -17,11 +17,42 @@ info:
     v0.2.2: penyelarasan 1.2c-be: 409 `butuh_persetujuan` pada penugasan peran berizin sensitif, 409 `peran_bawaan_terkunci`
     saat mengakhiri penugasan superadmin, 403 `akun_superadmin` pada semua perubahan /akun/{id}/* atas akun superadmin oleh
     bukan superadmin (PRD 9.2.4), AkunRinci.dapat_diubah/alasan_terkunci, bentuk `rincian` error matriks, arti `versi` peran.
+    v0.2.3: GET /saya pindah ke berkas ini (tiket 1.2e, Beranda): peran berlaku, masuk sebelumnya, instalasi_demo; email tidak dikirim.
 servers:
   - url: /api/v1
 security:
   - sesiCookie: []
 paths:
+  /saya:
+    get:
+      operationId: saya
+      summary: Akun yang sedang masuk, untuk header dan Beranda (salam, peran, keamanan akun, pita demo)
+      description: |
+        Bentuk `data` sama dengan `pengguna` di respons masuk (PRD 10.3.2). Tidak mengirim email, NIP, atau
+        data rahasia (tidak dipakai layar). Tanpa sesi → 401 belum_masuk; selama langkah MFA belum lolos juga 401.
+      responses:
+        '200':
+          description: Akun yang sedang masuk
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Saya' }
+              example:
+                data:
+                  id: 01a12988-9987-7242-838c-4302517cfdae
+                  nama_pengguna: contoh.dokter
+                  login_terakhir_pada: "2026-10-11T07:02:11+00:00"
+                  mfa_aktif: false
+                  pegawai: { id: 01a12988-9981-7000-8000-000000000001, nama: Contoh Dokter }
+                  peran: [{ id: 01a12988-996f-723e-8a2c-fdff428f4a96, nama: Contoh Dokter }]
+                  masuk_sebelumnya_pada: "2026-10-10T23:48:02+00:00"
+                  masuk_sebelumnya_dari_jaringan_rs: true
+                  instalasi_demo: false
+        '401': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
   /saya/menu:
     get:
       operationId: menuSaya
@@ -574,6 +605,39 @@ components:
             rincian:
               type: array
               items: { type: object, additionalProperties: true }
+    Saya:
+      type: object
+      required: [id, nama_pengguna, login_terakhir_pada, mfa_aktif, pegawai, peran, masuk_sebelumnya_pada, masuk_sebelumnya_dari_jaringan_rs, instalasi_demo]
+      properties:
+        id: { type: string, format: uuid }
+        nama_pengguna: { type: string }
+        login_terakhir_pada: { type: [string, 'null'], format: date-time, description: "Masuk yang memulai sesi ini" }
+        mfa_aktif: { type: boolean }
+        pegawai:
+          type: [object, 'null']
+          required: [id, nama]
+          properties:
+            id: { type: string, format: uuid }
+            nama: { type: string }
+        peran:
+          type: array
+          description: "Peran dengan penugasan yang berlaku sekarang, tanpa duplikat, urut nama. Kosong = belum ada modul yang diberikan."
+          items:
+            type: object
+            required: [id, nama]
+            properties:
+              id: { type: string, format: uuid }
+              nama: { type: string }
+        masuk_sebelumnya_pada:
+          type: [string, 'null']
+          format: date-time
+          description: "Masuk berhasil sebelum sesi ini (\"apakah ini Anda?\"). null = ini masuk pertama."
+        masuk_sebelumnya_dari_jaringan_rs:
+          type: [boolean, 'null']
+          description: "Apakah masuk sebelumnya dari jaringan RS (AUTENTIKASI_MFA_JARINGAN_RS). null bila masuk_sebelumnya_pada null."
+        instalasi_demo:
+          type: boolean
+          description: "Instalasi demo/pelatihan berisi data sintetis (FR-54-10): frontend memasang pita \"DEMO — data fiktif\" di setiap layar. Dari konfigurasi instalasi (INSTALASI_DEMO, bawaan false), bukan dari APP_ENV."
     StatusMenu:
       type: string
       enum: [aktif, segera]
