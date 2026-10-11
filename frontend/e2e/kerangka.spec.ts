@@ -39,7 +39,7 @@ async function masukLewatApi(permintaan: APIRequestContext, asal: string) {
 async function bukaBeranda(page: Page, lebar: number, tinggi = 900) {
   await page.setViewportSize({ width: lebar, height: tinggi })
   await page.goto('/')
-  await expect(page.getByRole('heading', { level: 1, name: `Selamat datang, ${AKUN.pegawai}` })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: new RegExp(`^Selamat (pagi|siang|sore|malam), ${AKUN.pegawai}$`) })).toBeVisible()
   // Menu sudah dimuat (di mode laci ia tersembunyi dari pohon aksesibilitas sampai laci dibuka).
   await expect(page.locator('#sidebar nav')).toBeAttached()
 }

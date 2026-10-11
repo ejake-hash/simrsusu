@@ -13,6 +13,8 @@ interface ImportMetaEnv {
   readonly VITE_RS_UNIT_ADMIN?: string
   /** Kontak unit pengelola akun di teks bantuan halaman masuk, mis. "ext. 1234". */
   readonly VITE_RS_KONTAK_ADMIN?: string
+  /** "true" = instalasi demo/pelatihan (FR-54-10): pita "DEMO — data fiktif" di setiap layar. Sementara sampai GET /profil-rs (1.8a). */
+  readonly VITE_INSTALASI_DEMO?: string
   /**
    * "true" = `vite` dev menjawab /saya, /saya/menu, /menu, /peran*, /akun* dari server tiruan kontrak
    * (modules/akses/tiruan) tanpa backend. Diabaikan di build produksi.

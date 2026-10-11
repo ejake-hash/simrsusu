@@ -45,6 +45,7 @@ const PETA = {
   panah_kanan: '<path d="m9 6 6 6-6 6"/>',
   panah_bawah: '<path d="m6 9 6 6 6-6"/>',
   pengguna: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  kisi: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',
 } as const
 
 export type NamaIkon = keyof typeof PETA

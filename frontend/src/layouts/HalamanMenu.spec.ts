@@ -7,6 +7,7 @@ import { useSesiStore } from '@/app/sesi'
 import { ambilMenuSaya } from '@/modules/akses/api'
 import { menuSayaTiruan } from '@/modules/akses/tiruan/menuSaya'
 import HalamanMenu from './HalamanMenu.vue'
+import { penggunaTiruan } from '@/modules/akses/tiruan/pengguna'
 
 vi.mock('@/modules/akses/api', () => ({ ambilMenuSaya: vi.fn(), lupakanMenuSaya: vi.fn(), ambilSaya: vi.fn(), keluar: vi.fn() }))
 
@@ -26,7 +27,7 @@ async function buka(jalur: string) {
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  useSesiStore().pengguna = { id: 'p-1', nama_pengguna: 'contoh.dokter', email: null, login_terakhir_pada: null, mfa_aktif: false, pegawai: null }
+  useSesiStore().pengguna = penggunaTiruan()
   vi.mocked(ambilMenuSaya).mockReset().mockResolvedValue(menuSayaTiruan)
 })
 

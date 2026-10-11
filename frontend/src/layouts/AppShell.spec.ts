@@ -1,0 +1,56 @@
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMemoryHistory, createRouter } from 'vue-router'
+import { useSesiStore } from '@/app/sesi'
+import { ambilMenuSaya } from '@/modules/akses/api'
+import { menuSayaTiruan } from '@/modules/akses/tiruan/menuSaya'
+import { penggunaTiruan } from '@/modules/akses/tiruan/pengguna'
+import AppShell from './AppShell.vue'
+import { pencarianTerbuka } from './pencarianMenu'
+
+vi.mock('@/modules/akses/api', () => ({ ambilMenuSaya: vi.fn(), lupakanMenuSaya: vi.fn(), ambilSaya: vi.fn(), keluar: vi.fn() }))
+
+let w: VueWrapper | undefined
+
+async function pasang() {
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] })
+  await router.push('/')
+  w = mount(AppShell, { attachTo: document.body, global: { plugins: [router, [VueQueryPlugin, { queryClient: new QueryClient() }]] } })
+  await flushPromises()
+  return w
+}
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+  vi.mocked(ambilMenuSaya).mockResolvedValue(menuSayaTiruan)
+})
+afterEach(() => {
+  w?.unmount()
+  pencarianTerbuka.value = false
+  document.body.innerHTML = ''
+})
+
+describe('AppShell', () => {
+  it('instalasi demo (VITE_INSTALASI_DEMO): pita "DEMO — data fiktif"; bukan demo: tanpa pita', async () => {
+    useSesiStore().pengguna = penggunaTiruan()
+    vi.stubEnv('VITE_INSTALASI_DEMO', 'true')
+    expect((await pasang()).get('.pita-demo').text()).toBe('DEMO — data fiktif')
+    w!.unmount()
+    vi.stubEnv('VITE_INSTALASI_DEMO', '')
+    expect((await pasang()).find('.pita-demo').exists()).toBe(false)
+    vi.unstubAllEnvs()
+  })
+
+  it('Ctrl+K dan Cmd+K membuka pencarian menu; tombol header punya nama aksesibel', async () => {
+    useSesiStore().pengguna = penggunaTiruan()
+    const shell = await pasang()
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, cancelable: true }))
+    expect(pencarianTerbuka.value).toBe(true)
+    pencarianTerbuka.value = false
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'K', metaKey: true, cancelable: true }))
+    expect(pencarianTerbuka.value).toBe(true)
+    expect(shell.get('.tombol-cari-menu').attributes('aria-label')).toBe('Cari menu')
+  })
+})

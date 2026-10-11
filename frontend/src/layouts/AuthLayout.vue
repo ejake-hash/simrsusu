@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { profilRsDariEnv } from '@/app/profilRs'
+import PitaDemo from './PitaDemo.vue'
 
 const profilRs = profilRsDariEnv()
 </script>
@@ -7,6 +8,7 @@ const profilRs = profilRsDariEnv()
 <template>
   <div class="halaman">
     <main class="panel-form">
+      <PitaDemo v-if="profilRs.demo" class="pita" />
       <div class="atas">
         <img class="logo-produk" src="/logo/karsitara.png" alt="Karsitara" width="160" height="28" />
         <div v-if="profilRs.nama" class="kartu-rs">
@@ -72,6 +74,9 @@ const profilRs = profilRsDariEnv()
   flex-direction: column;
   min-width: 0;
   padding: var(--space-8) 48px;
+}
+.pita {
+  margin: calc(-1 * var(--space-8)) -48px var(--space-4);
 }
 .atas {
   display: flex;

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ambilSaya } from '@/modules/akses/api'
 import { ApiError } from '@/shared/api/klien'
 import { useSesiStore } from './sesi'
+import { penggunaTiruan } from '@/modules/akses/tiruan/pengguna'
 
 vi.mock('@/modules/akses/api', () => ({ ambilSaya: vi.fn(), keluar: vi.fn(), kirimSandi: vi.fn() }))
 
@@ -35,14 +36,7 @@ describe('useSesiStore.pastikan', () => {
   })
 
   it('sesi aktif memuat pengguna', async () => {
-    vi.mocked(ambilSaya).mockResolvedValue({
-      id: 'p-1',
-      nama_pengguna: 'contoh.admisi',
-      email: null,
-      login_terakhir_pada: null,
-      mfa_aktif: false,
-      pegawai: null,
-    })
+    vi.mocked(ambilSaya).mockResolvedValue(penggunaTiruan({ nama_pengguna: 'contoh.admisi' }))
     const sesi = useSesiStore()
 
     await sesi.pastikan()
