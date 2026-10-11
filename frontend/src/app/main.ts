@@ -7,6 +7,7 @@ import { aturPenangan401, ApiError, klien } from '@/shared/api/klien'
 import { vCan } from '@/shared/composables/usePermission'
 import App from './App.vue'
 import { lupakanSesi, sambungIzin } from './menu'
+import { muatProfilRs } from './profilRs'
 import { router } from './router'
 import { useSesiStore } from './sesi'
 
@@ -40,12 +41,14 @@ watch(
   },
 )
 
+// Profil dan identitas RS untuk semua layar, termasuk halaman masuk (tidak menahan tampilan pertama).
 async function mulai() {
   // Server tiruan kontrak 1.2c untuk `vite` dev tanpa backend; cabang ini dibuang dari build produksi.
   if (import.meta.env.DEV && import.meta.env.VITE_API_TIRUAN === 'true') {
     const { pasangTiruan } = await import('@/modules/akses/tiruan/pasangTiruan')
     pasangTiruan(klien)
   }
+  void muatProfilRs()
   app.use(router).mount('#app')
 }
 void mulai()

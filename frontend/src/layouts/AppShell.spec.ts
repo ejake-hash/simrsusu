@@ -7,6 +7,8 @@ import { useSesiStore } from '@/app/sesi'
 import { ambilMenuSaya } from '@/modules/akses/api'
 import { menuSayaTiruan } from '@/modules/akses/tiruan/menuSaya'
 import { penggunaTiruan } from '@/modules/akses/tiruan/pengguna'
+import { terapkanProfilRs } from '@/app/profilRs'
+import { profilRsTiruan } from '@/modules/organisasi/tiruan/profilRs'
 import AppShell from './AppShell.vue'
 import { adalahPintasanCari, pencarianTerbuka } from './pencarianMenu'
 
@@ -33,14 +35,13 @@ afterEach(() => {
 })
 
 describe('AppShell', () => {
-  it('instalasi demo (VITE_INSTALASI_DEMO): pita "DEMO — data fiktif"; bukan demo: tanpa pita', async () => {
+  it('instalasi demo (profil RS instalasi_demo): pita "DEMO — data fiktif"; bukan demo: tanpa pita', async () => {
     useSesiStore().pengguna = penggunaTiruan()
-    vi.stubEnv('VITE_INSTALASI_DEMO', 'true')
+    terapkanProfilRs(profilRsTiruan({ instalasi_demo: true }))
     expect((await pasang()).get('.pita-demo').text()).toBe('DEMO — data fiktif')
     w!.unmount()
-    vi.stubEnv('VITE_INSTALASI_DEMO', '')
+    terapkanProfilRs(profilRsTiruan({ instalasi_demo: false }))
     expect((await pasang()).find('.pita-demo').exists()).toBe(false)
-    vi.unstubAllEnvs()
   })
 
   it('Ctrl+K (bukan Apple) membuka pencarian menu dari layar mana pun; tombol header punya nama aksesibel', async () => {

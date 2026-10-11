@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { cariPosisi, useMenuSaya } from '@/app/menu'
-import { profilRsDariEnv } from '@/app/profilRs'
+import { useProfilRs } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
 import NotifikasiToast from '@/design-system/components/NotifikasiToast.vue'
 import Ikon from '@/design-system/ikon/Ikon.vue'
@@ -15,7 +15,7 @@ import SidebarMenu from './SidebarMenu.vue'
 const sesi = useSesiStore()
 const router = useRouter()
 const route = useRoute()
-const profilRs = profilRsDariEnv()
+const profilRs = useProfilRs()
 const kelas = useKelasLayar()
 const menu = useMenuSaya()
 

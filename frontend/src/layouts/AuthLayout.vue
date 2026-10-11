@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { profilRsDariEnv } from '@/app/profilRs'
+import { useProfilRs } from '@/app/profilRs'
 import PitaDemo from './PitaDemo.vue'
 
-const profilRs = profilRsDariEnv()
+const profilRs = useProfilRs()
 </script>
 
 <template>
