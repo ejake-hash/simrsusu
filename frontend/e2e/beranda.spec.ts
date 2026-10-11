@@ -106,7 +106,10 @@ test('Ctrl/Cmd+K hanya menemukan menu yang diizinkan dan dapat dipakai penuh den
   const page = await halaman(browser, asalDari(info.project.use.baseURL), 'contoh.dokter')
   await bukaBeranda(page, 'Contoh Dokter')
 
-  await page.keyboard.press('ControlOrMeta+k')
+  // Tombol mengumumkan pintasannya sendiri (Meta+K di Apple, Control+K di lainnya, mengikuti user agent).
+  const tombol = page.getByRole('button', { name: 'Cari menu' }).first()
+  const pintasan = (await tombol.getAttribute('aria-keyshortcuts')) === 'Meta+K' ? 'Meta+k' : 'Control+k'
+  await page.keyboard.press(pintasan)
   const dialog = page.getByRole('dialog', { name: /^Cari menu/ })
   const kolom = dialog.getByRole('combobox', { name: 'Nama menu atau sub-menu' })
   await expect(kolom).toBeFocused()
@@ -124,7 +127,6 @@ test('Ctrl/Cmd+K hanya menemukan menu yang diizinkan dan dapat dipakai penuh den
   await expect(dialog).toBeHidden()
 
   // Dari tombol header: Esc menutup dan fokus kembali ke tombol.
-  const tombol = page.getByRole('button', { name: 'Cari menu' }).first()
   await tombol.click()
   await expect(kolom).toBeFocused()
   await page.keyboard.press('Escape')
