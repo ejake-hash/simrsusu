@@ -3,7 +3,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
 
 /**
- * Master Data → Organisasi, unit & KSM (tiket 1.8a) ke backend asli dengan akun sintetis contoh.data.induk (pemegang
+ * Master Data → Organisasi, Unit, Ruang & Tempat Tidur (tiket 1.8a) ke backend asli dengan akun sintetis contoh.data.induk (pemegang
  * master_data, bukan superadmin) dan data OrganisasiSintetisSeeder: IRJ (POLI-PD, POLI-ANAK), IRNA (RUANG-MELATI,
  * RUANG-MAWAR), IGD, FARMASI (DEPO-RJ); KSM-IPD/ANAK/BEDAH. Unit baru memakai kode unik per run.
  */
@@ -42,7 +42,7 @@ async function seriusAtauKritis(page: Page): Promise<string[]> {
 test('pohon unit muat-lambat, rincian, tambah sub-unit, dan nonaktif ditolak selagi punya anak aktif', async ({ browser }, info) => {
   const page = await halaman(browser, asalDari(info.project.use.baseURL))
   await page.goto('/master-data/organisasi')
-  await expect(page.getByRole('heading', { level: 1, name: 'Organisasi, unit & KSM' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Organisasi, Unit, Ruang & Tempat Tidur' })).toBeVisible()
   await expect(simpul(page, 'Instalasi Rawat Inap \\(contoh\\)')).toBeVisible()
   await expect(simpul(page, 'Ruang Melati')).toHaveCount(0)
 

@@ -105,7 +105,7 @@ export const ubahKelasRawat = async (id: string, etag: string, isian: { kode?: s
   berversi<KelasRawat>(await klien.patch(`/kelas-rawat/${id}`, isian, ifMatch(etag)))
 
 // ── Poliklinik ──
-export const daftarPoliklinik = (filter: { cari?: string; status?: 'aktif' | 'nonaktif' }, kursor: string | null = null, batas = 50) =>
+export const daftarPoliklinik = (filter: { cari?: string; status?: 'aktif' | 'nonaktif'; lokasi_id?: string }, kursor: string | null = null, batas = 50) =>
   halaman<Poliklinik>('/poliklinik', filter, kursor, batas)
 export const ambilPoliklinik = async (id: string) => berversi<Poliklinik>(await klien.get(`/poliklinik/${id}`))
 export const buatPoliklinik = async (isian: { kode: string; nama: string; unit_organisasi_id: string; lokasi_id: string | null; kode_poli_bpjs: string | null; dasar_perubahan: string }) =>
