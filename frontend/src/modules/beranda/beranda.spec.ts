@@ -34,12 +34,17 @@ describe('Beranda: logika murni', () => {
 
   it('pencarian hanya dari menu yang dikirim server; semua kata harus cocok; awalan label didahulukan', () => {
     const indeks = indeksPencarian(menuSayaTiruan.grup)
-    expect(cariMenu(indeks, 'akun').map((i) => i.kode)).toEqual(['pengaturan.akun'])
-    expect(cariMenu(indeks, 'pengaturan akun').map((i) => i.kode)).toEqual(['pengaturan.akun'])
+    const kode = (q: string, batas?: number) => cariMenu(indeks, q, batas).hasil.map((i) => i.kode)
+    expect(kode('akun')).toEqual(['pengaturan.akun'])
+    expect(kode('pengaturan akun')).toEqual(['pengaturan.akun'])
     // "kasir" ada sebagai menu; "keuangan" tidak dikirim server untuk akun ini.
-    expect(cariMenu(indeks, 'KASIR')[0]?.kode).toBe('kasir')
-    expect(cariMenu(indeks, 'keuangan')).toEqual([])
-    expect(cariMenu(indeks, '   ')).toEqual([])
-    expect(cariMenu(indeks, 'igd').map((i) => i.kode)).toEqual(['igd', 'igd.papan'])
+    expect(kode('KASIR')[0]).toBe('kasir')
+    expect(cariMenu(indeks, 'keuangan')).toEqual({ hasil: [], total: 0 })
+    expect(cariMenu(indeks, '   ')).toEqual({ hasil: [], total: 0 })
+    expect(kode('igd')).toEqual(['igd', 'igd.papan'])
+    // Batas tampil: total tetap menghitung semua yang cocok.
+    expect(cariMenu(indeks, 'a', 3)).toMatchObject({ total: expect.any(Number) })
+    expect(cariMenu(indeks, 'a', 3).hasil).toHaveLength(3)
+    expect(cariMenu(indeks, 'a', 3).total).toBeGreaterThan(3)
   })
 })

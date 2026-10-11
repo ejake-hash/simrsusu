@@ -6,9 +6,9 @@ const profilRs = profilRsDariEnv()
 </script>
 
 <template>
-  <div class="halaman">
+  <div class="halaman" :class="{ 'dengan-pita': profilRs.demo }">
+    <PitaDemo v-if="profilRs.demo" class="pita" />
     <main class="panel-form">
-      <PitaDemo v-if="profilRs.demo" class="pita" />
       <div class="atas">
         <img class="logo-produk" src="/logo/karsitara.png" alt="Karsitara" width="160" height="28" />
         <div v-if="profilRs.nama" class="kartu-rs">
@@ -75,8 +75,12 @@ const profilRs = profilRsDariEnv()
   min-width: 0;
   padding: var(--space-8) 48px;
 }
+/* Pita demo = baris sendiri selebar halaman, di atas kolom form dan panel merek. */
+.dengan-pita {
+  grid-template-rows: auto 1fr;
+}
 .pita {
-  margin: calc(-1 * var(--space-8)) -48px var(--space-4);
+  grid-column: 1 / -1;
 }
 .atas {
   display: flex;

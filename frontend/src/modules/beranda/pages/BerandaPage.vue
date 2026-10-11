@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useMenuSaya } from '@/app/menu'
 import { profilRsDariEnv } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
@@ -29,6 +29,17 @@ const nama = computed(() => sesi.pengguna?.pegawai?.nama ?? sesi.pengguna?.nama_
 const peran = computed(() => sesi.pengguna?.peran.map((p) => p.nama).join(', ') ?? '')
 const modul = computed(() => (menu.data.value ? modulSaya(menu.data.value.grup) : []))
 const ponsel = computed(() => kelas.value === 'ponsel')
+
+// "Masuk terakhir selain sesi ini" dan peran berlaku dihitung server per permintaan: muat ulang setiap Beranda
+// dibuka dan saat tab kembali terlihat, agar masuk dari perangkat lain tidak menunggu muat ulang halaman.
+function saatTerlihat() {
+  if (document.visibilityState === 'visible') void sesi.segarkan()
+}
+onMounted(() => {
+  void sesi.segarkan()
+  document.addEventListener('visibilitychange', saatTerlihat)
+})
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', saatTerlihat))
 </script>
 
 <template>

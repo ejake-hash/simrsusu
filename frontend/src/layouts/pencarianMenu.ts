@@ -7,11 +7,18 @@ export function bukaPencarianMenu(): void {
   pencarianTerbuka.value = true
 }
 
+const apple = () => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
+
 /** Label pintasan sesuai sistem: ⌘K di Apple, Ctrl K di lainnya. */
 export function labelPintasan(): string {
-  return typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘K' : 'Ctrl K'
+  return apple() ? '⌘K' : 'Ctrl K'
 }
 
-export function adalahPintasanCari(e: KeyboardEvent): boolean {
-  return (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k'
+/**
+ * Cmd+K di Apple (Ctrl+K di sana menghapus sampai akhir baris di isian teks), Ctrl+K di sistem lain. Diabaikan bila
+ * sudah ditangani elemen lain atau sedang menyusun teks dengan IME.
+ */
+export function adalahPintasanCari(e: KeyboardEvent, padaApple = apple()): boolean {
+  if (e.defaultPrevented || e.isComposing || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'k') return false
+  return padaApple ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
 }

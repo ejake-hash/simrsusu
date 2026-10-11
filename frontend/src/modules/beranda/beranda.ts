@@ -37,14 +37,17 @@ export function indeksPencarian(grup: GrupMenu[]): ItemPencarian[] {
   return hasil
 }
 
-/** Cocok bila setiap kata kueri ada di label atau induknya (tanpa beda huruf besar/kecil). Awalan label didahulukan. */
-export function cariMenu(indeks: ItemPencarian[], kueri: string, batas = 8): ItemPencarian[] {
+/**
+ * Cocok bila setiap kata kueri ada di label atau induknya (tanpa beda huruf besar/kecil). Awalan label didahulukan.
+ * `total` = semua yang cocok, `hasil` = paling banyak `batas` teratas.
+ */
+export function cariMenu(indeks: ItemPencarian[], kueri: string, batas = 8): { hasil: ItemPencarian[]; total: number } {
   const kata = kueri.toLowerCase().split(/\s+/).filter(Boolean)
-  if (kata.length === 0) return []
+  if (kata.length === 0) return { hasil: [], total: 0 }
   const cocok = indeks.filter((i) => {
     const teks = `${i.label} ${i.induk ?? ''}`.toLowerCase()
     return kata.every((k) => teks.includes(k))
   })
   const awalan = (i: ItemPencarian) => (i.label.toLowerCase().startsWith(kata[0]!) ? 0 : 1)
-  return cocok.sort((a, b) => awalan(a) - awalan(b)).slice(0, batas)
+  return { hasil: cocok.sort((a, b) => awalan(a) - awalan(b)).slice(0, batas), total: cocok.length }
 }

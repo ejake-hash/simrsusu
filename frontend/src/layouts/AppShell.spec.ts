@@ -8,7 +8,7 @@ import { ambilMenuSaya } from '@/modules/akses/api'
 import { menuSayaTiruan } from '@/modules/akses/tiruan/menuSaya'
 import { penggunaTiruan } from '@/modules/akses/tiruan/pengguna'
 import AppShell from './AppShell.vue'
-import { pencarianTerbuka } from './pencarianMenu'
+import { adalahPintasanCari, pencarianTerbuka } from './pencarianMenu'
 
 vi.mock('@/modules/akses/api', () => ({ ambilMenuSaya: vi.fn(), lupakanMenuSaya: vi.fn(), ambilSaya: vi.fn(), keluar: vi.fn() }))
 
@@ -43,14 +43,33 @@ describe('AppShell', () => {
     vi.unstubAllEnvs()
   })
 
-  it('Ctrl+K dan Cmd+K membuka pencarian menu; tombol header punya nama aksesibel', async () => {
+  it('Ctrl+K (bukan Apple) membuka pencarian menu dari layar mana pun; tombol header punya nama aksesibel', async () => {
     useSesiStore().pengguna = penggunaTiruan()
     const shell = await pasang()
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, cancelable: true }))
     expect(pencarianTerbuka.value).toBe(true)
-    pencarianTerbuka.value = false
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'K', metaKey: true, cancelable: true }))
-    expect(pencarianTerbuka.value).toBe(true)
     expect(shell.get('.tombol-cari-menu').attributes('aria-label')).toBe('Cari menu')
+  })
+
+  it('pintasan: Cmd+K di Apple, Ctrl+K di lainnya; diabaikan saat IME atau sudah ditangani', () => {
+    const e = (isi: KeyboardEventInit) => new KeyboardEvent('keydown', { key: 'k', cancelable: true, ...isi })
+    expect(adalahPintasanCari(e({ metaKey: true }), true)).toBe(true)
+    expect(adalahPintasanCari(e({ ctrlKey: true }), true)).toBe(false)
+    expect(adalahPintasanCari(e({ ctrlKey: true }), false)).toBe(true)
+    expect(adalahPintasanCari(e({ metaKey: true }), false)).toBe(false)
+    expect(adalahPintasanCari(e({ ctrlKey: true, shiftKey: true }), false)).toBe(false)
+    expect(adalahPintasanCari(e({ ctrlKey: true, isComposing: true }), false)).toBe(false)
+    const ditangani = e({ ctrlKey: true })
+    ditangani.preventDefault()
+    expect(adalahPintasanCari(ditangani, false)).toBe(false)
+  })
+
+  it('AppShell dilepas (keluar): pencarian ditutup', async () => {
+    useSesiStore().pengguna = penggunaTiruan()
+    await pasang()
+    pencarianTerbuka.value = true
+    w!.unmount()
+    w = undefined
+    expect(pencarianTerbuka.value).toBe(false)
   })
 })

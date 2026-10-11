@@ -113,5 +113,9 @@ a:focus-visible {
   .sub a {
     min-height: 44px;
   }
+  /* Jarak antar-target sentuh ≥ 8 px. */
+  .sub {
+    gap: var(--space-2);
+  }
 }
 </style>

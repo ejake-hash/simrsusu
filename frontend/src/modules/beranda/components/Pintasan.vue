@@ -24,9 +24,9 @@ const pintasan = labelPintasan()
       </div>
     </div>
     <div class="kartu-isi">
-      <button type="button" class="tombol cari" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K" @click="bukaPencarianMenu">
+      <button type="button" class="tombol cari" :aria-keyshortcuts="pintasan === '⌘K' ? 'Meta+K' : 'Control+K'" @click.stop="bukaPencarianMenu">
         <Ikon nama="kisi" :ukuran="16" />Cari menu
-        <kbd aria-hidden="true">{{ pintasan }}</kbd>
+        <kbd class="kbd" aria-hidden="true">{{ pintasan }}</kbd>
       </button>
       <ul v-if="tersedia.length" class="daftar">
         <li v-for="s in tersedia" :key="s.kode">
@@ -45,15 +45,8 @@ const pintasan = labelPintasan()
   width: 100%;
   justify-content: flex-start;
 }
-.cari kbd {
+.cari .kbd {
   margin-left: auto;
-  padding: 1px 6px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: var(--font-weight-regular);
 }
 .daftar {
   display: grid;

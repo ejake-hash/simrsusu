@@ -8,7 +8,7 @@ import Ikon from '@/design-system/ikon/Ikon.vue'
 import { useKelasLayar } from '@/shared/composables/useKelasLayar'
 import PencarianMenu from './PencarianMenu.vue'
 import PitaDemo from './PitaDemo.vue'
-import { adalahPintasanCari, bukaPencarianMenu, labelPintasan } from './pencarianMenu'
+import { adalahPintasanCari, bukaPencarianMenu, pencarianTerbuka } from './pencarianMenu'
 import SidebarMenu from './SidebarMenu.vue'
 
 const sesi = useSesiStore()
@@ -67,14 +67,17 @@ watch(modeLaci, (laci) => {
 })
 
 // Ctrl/Cmd+K di layar mana pun membuka pencarian menu (PRD 5.1 butir 8; tombol header adalah jalan lain).
-const pintasan = labelPintasan()
 function tekanTombol(e: KeyboardEvent) {
   if (!adalahPintasanCari(e)) return
   e.preventDefault()
   bukaPencarianMenu()
 }
 onMounted(() => window.addEventListener('keydown', tekanTombol))
-onBeforeUnmount(() => window.removeEventListener('keydown', tekanTombol))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', tekanTombol)
+  // Keluar/sesi berakhir: pencarian tidak terbuka lagi saat akun berikutnya masuk.
+  pencarianTerbuka.value = false
+})
 
 async function keluar() {
   await sesi.keluar()
@@ -120,68 +123,58 @@ async function keluar() {
     <div v-if="laciTerbuka" class="tirai" @click="tutupLaci" />
 
     <div class="utama" :inert="laciTerbuka || undefined">
-      <PitaDemo v-if="profilRs.demo" />
-      <header class="kepala">
-        <button
-          ref="tombolMenu"
-          type="button"
-          class="tombol-ikon tombol-menu"
-          aria-label="Buka menu"
-          aria-controls="sidebar"
-          :aria-expanded="laciTerbuka"
-          @click="bukaLaci"
-        >
-          <Ikon nama="menu" :ukuran="20" />
-        </button>
-
-        <div class="remah">
-          <small v-if="remah.atas">{{ remah.atas }}</small>
-          <b>{{ remah.judul }}</b>
-        </div>
-
-        <!-- Pencarian pasien global dibangun di fase 2 (PRD 5.1 butir 1); sekarang penanda tempat. -->
-        <div class="cari" role="search">
-          <Ikon nama="cari" :ukuran="16" />
-          <input
-            type="search"
-            disabled
-            placeholder="Cari pasien: nama, No. RM, NIK, atau nomor kartu BPJS"
-            aria-label="Cari pasien"
-            aria-describedby="cari-segera"
-          />
-          <span id="cari-segera" class="segera">Segera<span class="sr-only"> hadir</span></span>
-        </div>
-
-        <!-- aria-label tetap: di ponsel teksnya disembunyikan dan tombol hanya ikon. -->
-        <button
-          type="button"
-          class="tombol-cari-menu"
-          aria-label="Cari menu"
-          aria-haspopup="dialog"
-          aria-keyshortcuts="Control+K Meta+K"
-          @click="bukaPencarianMenu"
-        >
-          <Ikon nama="kisi" :ukuran="16" />
-          <span class="teks-cari-menu">Cari menu</span>
-          <kbd>{{ pintasan }}</kbd>
-        </button>
-
-        <div class="akun">
-          <span class="avatar" aria-hidden="true">{{ inisial }}</span>
-          <span class="akun-teks">
-            <b>{{ namaTampil }}</b>
-            <small>{{ sesi.pengguna?.nama_pengguna }}</small>
-          </span>
-          <button type="button" class="tombol-ikon" aria-label="Keluar" title="Keluar" @click="keluar">
-            <Ikon nama="keluar" />
+      <!-- Pita demo ikut lekat bersama header agar tetap terlihat saat halaman digulir (FR-54-10). -->
+      <div class="atas-lekat">
+        <PitaDemo v-if="profilRs.demo" />
+        <header class="kepala">
+          <button
+            ref="tombolMenu"
+            type="button"
+            class="tombol-ikon tombol-menu"
+            aria-label="Buka menu"
+            aria-controls="sidebar"
+            :aria-expanded="laciTerbuka"
+            @click="bukaLaci"
+          >
+            <Ikon nama="menu" :ukuran="20" />
           </button>
-        </div>
-      </header>
+
+          <div class="remah">
+            <small v-if="remah.atas">{{ remah.atas }}</small>
+            <b>{{ remah.judul }}</b>
+          </div>
+
+          <!-- Pencarian pasien global dibangun di fase 2 (PRD 5.1 butir 1); sekarang penanda tempat. -->
+          <div class="cari" role="search">
+            <Ikon nama="cari" :ukuran="16" />
+            <input
+              type="search"
+              disabled
+              placeholder="Cari pasien: nama, No. RM, NIK, atau nomor kartu BPJS"
+              aria-label="Cari pasien"
+              aria-describedby="cari-segera"
+            />
+            <span id="cari-segera" class="segera">Segera<span class="sr-only"> hadir</span></span>
+          </div>
+
+          <PencarianMenu />
+
+          <div class="akun">
+            <span class="avatar" aria-hidden="true">{{ inisial }}</span>
+            <span class="akun-teks">
+              <b>{{ namaTampil }}</b>
+              <small>{{ sesi.pengguna?.nama_pengguna }}</small>
+            </span>
+            <button type="button" class="tombol-ikon" aria-label="Keluar" title="Keluar" @click="keluar">
+              <Ikon nama="keluar" />
+            </button>
+          </div>
+        </header>
+      </div>
 
       <main id="konten" class="konten" tabindex="-1">
         <RouterView />
       </main>
-      <PencarianMenu />
     </div>
   </div>
 </template>
@@ -301,10 +294,12 @@ async function keluar() {
   display: flex;
   flex-direction: column;
 }
-.kepala {
+.atas-lekat {
   position: sticky;
   top: 0;
   z-index: 5;
+}
+.kepala {
   height: var(--tinggi-kepala);
   display: flex;
   align-items: center;
@@ -440,39 +435,6 @@ async function keluar() {
   cursor: pointer;
 }
 
-.tombol-cari-menu {
-  box-sizing: border-box;
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: 38px;
-  padding: 0 10px;
-  border: 1px solid var(--border-input);
-  border-radius: 10px;
-  background: var(--surface);
-  color: var(--muted);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-.tombol-cari-menu:hover {
-  background: var(--bg);
-  color: var(--text);
-}
-.tombol-cari-menu:focus-visible {
-  outline: none;
-  border-color: var(--brand-600);
-  box-shadow: var(--ring);
-}
-.tombol-cari-menu kbd {
-  padding: 1px 6px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  font-family: inherit;
-  font-size: 11px;
-}
 
 /* ── Konten ── */
 .konten {
@@ -490,9 +452,6 @@ async function keluar() {
 @media (min-width: 768px) and (max-width: 1279.98px) {
   .tombol-ikon {
     width: 44px;
-    height: 44px;
-  }
-  .tombol-cari-menu {
     height: 44px;
   }
   .tombol {
@@ -580,10 +539,6 @@ async function keluar() {
 @media (max-width: 767.98px) {
   .konten {
     padding: var(--space-4);
-  }
-  .teks-cari-menu,
-  .tombol-cari-menu kbd {
-    display: none;
   }
   .cari input {
     padding-right: 12px;

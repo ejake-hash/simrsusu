@@ -77,21 +77,22 @@ test('masuk dua kali: kali kedua menampilkan waktu masuk sebelumnya, bukan waktu
       masuk_sebelumnya_dari_jaringan_rs: boolean | null
     }
 
+  // Akun yang tidak dipakai spec lain di proyek ini: masuk paralel akun yang sama akan mengubah "masuk terakhir".
   const pertama = await playwright.request.newContext({ baseURL: asal })
-  await masukLewatApi(pertama, asal, 'contoh.perawat')
+  await masukLewatApi(pertama, asal, 'contoh.tanpa.peran')
   const masukPertama = (await saya(pertama)).login_terakhir_pada
   await pertama.dispose()
   // Waktu masuk disimpan per detik; jeda agar masuk kedua pasti berbeda.
   await new Promise((r) => setTimeout(r, 1100))
 
   const kedua = await browser.newContext({ baseURL: asal })
-  await masukLewatApi(kedua.request, asal, 'contoh.perawat')
+  await masukLewatApi(kedua.request, asal, 'contoh.tanpa.peran')
   const isi = await saya(kedua.request)
   expect(isi.masuk_sebelumnya_pada).toBe(masukPertama)
   expect(isi.login_terakhir_pada).not.toBe(masukPertama)
 
   const page = await kedua.newPage()
-  await bukaBeranda(page, 'Contoh Perawat')
+  await bukaBeranda(page, 'Contoh Akun Tanpa Peran')
   const keamanan = page.getByRole('region', { name: 'Keamanan akun' })
   const waktu = new Date(masukPertama)
   const tanggal = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' }).format(waktu)
@@ -106,7 +107,7 @@ test('Ctrl/Cmd+K hanya menemukan menu yang diizinkan dan dapat dipakai penuh den
   await bukaBeranda(page, 'Contoh Dokter')
 
   await page.keyboard.press('ControlOrMeta+k')
-  const dialog = page.getByRole('dialog', { name: 'Cari menu' })
+  const dialog = page.getByRole('dialog', { name: /^Cari menu/ })
   const kolom = dialog.getByRole('combobox', { name: 'Nama menu atau sub-menu' })
   await expect(kolom).toBeFocused()
 
@@ -122,11 +123,13 @@ test('Ctrl/Cmd+K hanya menemukan menu yang diizinkan dan dapat dipakai penuh den
   await expect(page).toHaveURL(/\/igd\/papan$/)
   await expect(dialog).toBeHidden()
 
-  // Esc menutup dan fokus kembali ke halaman.
-  await page.keyboard.press('ControlOrMeta+k')
+  // Dari tombol header: Esc menutup dan fokus kembali ke tombol.
+  const tombol = page.getByRole('button', { name: 'Cari menu' }).first()
+  await tombol.click()
   await expect(kolom).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
+  await expect(tombol).toBeFocused()
 })
 
 for (const [lebar, tinggi] of [

@@ -6,7 +6,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { useSesiStore } from '@/app/sesi'
 import PencarianMenu from '@/layouts/PencarianMenu.vue'
 import { pencarianTerbuka } from '@/layouts/pencarianMenu'
-import { ambilMenuSaya, type MenuSaya } from '@/modules/akses/api'
+import { ambilMenuSaya, ambilSaya, type MenuSaya } from '@/modules/akses/api'
 import { menuSayaTiruan } from '@/modules/akses/tiruan/menuSaya'
 import { penggunaTiruan } from '@/modules/akses/tiruan/pengguna'
 import BerandaPage from './pages/BerandaPage.vue'
@@ -17,6 +17,9 @@ const terpasang: { unmount: () => void }[] = []
 
 async function pasang(komponen: object, menu: MenuSaya = menuSayaTiruan) {
   vi.mocked(ambilMenuSaya).mockResolvedValue(menu)
+  // Beranda menyegarkan /saya saat dibuka; server tiruan mengembalikan akun yang sama.
+  const pengguna = useSesiStore().pengguna
+  vi.mocked(ambilSaya).mockImplementation(async () => pengguna!)
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] })
   await router.push('/')
   const w = mount(komponen, { attachTo: document.body, global: { plugins: [router, [VueQueryPlugin, { queryClient: new QueryClient() }]] } })
@@ -68,6 +71,20 @@ describe('BerandaPage', () => {
     expect(w.text()).toContain('Bukan Anda yang masuk?')
   })
 
+  it('membuka Beranda menyegarkan /saya: masuk dari perangkat lain sesudah sesi dibuka langsung tampil', async () => {
+    const lama = useSesiStore().pengguna!
+    vi.mocked(ambilMenuSaya).mockResolvedValue(menuSayaTiruan)
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] })
+    await router.push('/')
+    vi.mocked(ambilSaya).mockResolvedValue({ ...lama, masuk_sebelumnya_pada: '2026-10-11T03:00:00.000Z', masuk_sebelumnya_dari_jaringan_rs: true })
+    const w = mount(BerandaPage, { attachTo: document.body, global: { plugins: [router, [VueQueryPlugin, { queryClient: new QueryClient() }]] } })
+    terpasang.push(w)
+    await flushPromises()
+    expect(ambilSaya).toHaveBeenCalled()
+    expect(w.text()).toContain('11 Oktober 2026')
+    expect(w.text()).toContain('dari jaringan RS')
+  })
+
   it('masuk pertama dan akun tanpa modul: keterangan yang jelas', async () => {
     useSesiStore().pengguna = penggunaTiruan({ peran: [], masuk_sebelumnya_pada: null })
     const { w } = await pasang(BerandaPage, { versi: 'x', izin: [], grup: [menuSayaTiruan.grup[0]!] })
@@ -84,7 +101,7 @@ describe('BerandaPage', () => {
   })
 })
 
-describe('PencarianMenu (Ctrl/Cmd+K)', () => {
+describe('PencarianMenu (popover, Ctrl/Cmd+K)', () => {
   const tekan = (el: Element, key: string) => el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
 
   it('hanya menu yang diizinkan; panah memilih, Enter membuka rute', async () => {
@@ -108,6 +125,17 @@ describe('PencarianMenu (Ctrl/Cmd+K)', () => {
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/igd/papan')
     expect(pencarianTerbuka.value).toBe(false)
+  })
+
+  it('bukan modal: tanpa tirai dan tanpa aria-modal; tombol pemicu bernama "Cari menu"', async () => {
+    const { w } = await pasang(PencarianMenu)
+    expect(w.get('button').attributes('aria-label')).toBe('Cari menu')
+    await w.get('button').trigger('click')
+    await flushPromises()
+    const panel = document.querySelector('.panel-cari-menu')!
+    expect(panel).not.toBeNull()
+    expect(panel.getAttribute('aria-modal')).toBeNull()
+    expect(document.querySelector('.dialog-tirai')).toBeNull()
   })
 
   it('kueri tanpa hasil: keterangan di wilayah status', async () => {

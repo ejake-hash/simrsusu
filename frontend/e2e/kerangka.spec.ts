@@ -1,11 +1,11 @@
-import { expect, test as dasar, type APIRequestContext, type BrowserContext, type Page } from '@playwright/test'
+import { expect, test as dasar, type BrowserContext, type Page } from '@playwright/test'
+import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
 
 /**
  * Kerangka aplikasi (tiket 1.2b) di empat kelas layar PRD 5.5. Masuk ke backend asli dengan akun
  * sintetis; menu dari GET /saya/menu (tiket 1.2a) sesuai peran contoh_dokter di AkunSintetisSeeder:
  * IGD, Rawat Jalan, Rekam Medis, semuanya Segera hadir di APP_ENV=local.
  */
-const SANDI = process.env.E2E_SANDI ?? ''
 const AKUN = { nama: 'contoh.dokter', pegawai: 'Contoh Dokter' }
 
 // Masuk sekali per berkas, lalu cookie sesinya dipakai semua uji: rate limit masuk per nama
@@ -19,22 +19,10 @@ test.beforeAll(async ({ playwright }, info) => {
   if (!SANDI) throw new Error('Set E2E_SANDI sama dengan AKUN_SINTETIS_SANDI saat seeding.')
   const asal = new URL(info.project.use.baseURL ?? '').origin
   const permintaan = await playwright.request.newContext({ baseURL: asal })
-  await masukLewatApi(permintaan, asal)
+  await masukLewatApi(permintaan, asal, AKUN.nama)
   sesi = await permintaan.storageState()
   await permintaan.dispose()
 })
-
-/** Langkah sandi kontrak 10.3.2 lewat API (bukan form): halaman masuk sudah diuji di masuk.spec.ts. */
-async function masukLewatApi(permintaan: APIRequestContext, asal: string) {
-  await permintaan.get('/sanctum/csrf-cookie')
-  const xsrf = (await permintaan.storageState()).cookies.find((c) => c.name === 'XSRF-TOKEN')?.value ?? ''
-  const respons = await permintaan.post('/api/v1/autentikasi/masuk', {
-    data: { nama_pengguna: AKUN.nama, sandi: SANDI },
-    // Backend hanya menerima langkah masuk dari origin SPA (asal_tidak_diizinkan).
-    headers: { 'X-XSRF-TOKEN': decodeURIComponent(xsrf), Accept: 'application/json', Origin: asal },
-  })
-  expect(respons.ok(), `${respons.status()} ${await respons.text()}`).toBeTruthy()
-}
 
 async function bukaBeranda(page: Page, lebar: number, tinggi = 900) {
   await page.setViewportSize({ width: lebar, height: tinggi })
@@ -42,11 +30,6 @@ async function bukaBeranda(page: Page, lebar: number, tinggi = 900) {
   await expect(page.getByRole('heading', { level: 1, name: new RegExp(`^Selamat (pagi|siang|sore|malam), ${AKUN.pegawai}$`) })).toBeVisible()
   // Menu sudah dimuat (di mode laci ia tersembunyi dari pohon aksesibilitas sampai laci dibuka).
   await expect(page.locator('#sidebar nav')).toBeAttached()
-}
-
-async function tanpaGulirSamping(page: Page) {
-  const [lebarIsi, lebarLayar] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth])
-  expect(lebarIsi).toBeLessThanOrEqual(lebarLayar)
 }
 
 const sidebar = (page: Page) => page.getByRole('complementary', { name: 'Navigasi utama' })
