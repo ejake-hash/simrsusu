@@ -110,6 +110,8 @@ final class NotifikasiSayaController
     {
         $jenis = JenisTugas::query()->where('aktif', true)->orderBy('kode')->get(['kode', 'nama', 'kritis'])
             ->map(fn (JenisTugas $j) => ['kode' => $j->kode, 'nama' => $j->nama, 'kritis' => $j->kritis])
+            ->prepend(['kode' => PendengarKejadian::TTD_DICABUT, 'nama' => 'Tanda tangan elektronik direset', 'kritis' => false])
+            ->prepend(['kode' => PendengarKejadian::TTD_TERKUNCI, 'nama' => 'Tanda tangan elektronik terkunci', 'kritis' => true])
             ->prepend(['kode' => PendengarKejadian::AKUN_TERKUNCI, 'nama' => 'Akun terkunci', 'kritis' => true]);
         $pref = DB::table('notifikasi.preferensi')->where('pengguna_id', $saya->id)->get()->keyBy('jenis');
         $punyaEmail = is_string($saya->email) && $saya->email !== '';

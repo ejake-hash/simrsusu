@@ -26,6 +26,7 @@ final class PenerapPersetujuan
         private readonly CacheHakAkses $cache,
         private readonly KebutuhanPersetujuan $kebutuhan,
         private readonly DataUnit $dataUnit,
+        private readonly ?PencabutTtd $pencabutTtd = null,
     ) {}
 
     public function terapkan(PersetujuanAkses $p, Pengguna $penyetuju): void
@@ -36,8 +37,18 @@ final class PenerapPersetujuan
             'pengakhiran_penugasan' => $this->pengakhiran($p),
             'izin_khusus' => $this->izinKhusus($p, $penyetuju),
             'penyetuju_izin' => $this->penyetujuIzin($p, $penyetuju),
+            'reset_ttd' => $this->resetTtd($p, $penyetuju),
             default => throw new TidakBisaDiterapkan('Jenis pengajuan tidak dikenal.'),
         };
+    }
+
+    /** Reset TTE (tiket 1.6): dicabut oleh modul Ttd; TidakBisaDiterapkan bila TTE sudah tidak aktif. */
+    private function resetTtd(PersetujuanAkses $p, Pengguna $penyetuju): void
+    {
+        if ($this->pencabutTtd === null) {
+            throw new TidakBisaDiterapkan('Modul tanda tangan elektronik tidak aktif.');
+        }
+        $this->pencabutTtd->cabut($p, $penyetuju);
     }
 
     private function izinPeran(PersetujuanAkses $p, Pengguna $penyetuju): void

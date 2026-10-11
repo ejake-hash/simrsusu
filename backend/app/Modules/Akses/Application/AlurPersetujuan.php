@@ -52,29 +52,31 @@ final class AlurPersetujuan
     }
 
     /**
-     * Buat satu pengajuan (grup) dengan satu baris per peran penyetuju. Dipanggil di dalam transaksi pemanggil.
+     * Buat satu pengajuan (grup) dengan satu baris per peran penyetuju, atau satu baris dengan penyetuju orang tertentu
+     * ($penyetujuPenggunaId, mis. atasan langsung untuk reset TTE 1.6). Dipanggil di dalam transaksi pemanggil.
      *
      * @param  array<string, mixed>  $objek  isi yang diterapkan bila disetujui
-     * @param  list<string>  $penyetujuPeranId
+     * @param  list<string>  $penyetujuPeranId  diabaikan bila $penyetujuPenggunaId diisi
      * @param  array{peran_id?: string|null, izin_id?: string|null, sasaran_pengguna_id?: string|null}  $kunci
      * @return list<PersetujuanAkses>
      */
-    public function ajukan(Pengguna $pengaju, string $jenis, string $objekJenis, array $objek, array $penyetujuPeranId, array $kunci, string $dasar, ?string $alasan): array
+    public function ajukan(Pengguna $pengaju, string $jenis, string $objekJenis, array $objek, array $penyetujuPeranId, array $kunci, string $dasar, ?string $alasan,
+        ?string $penyetujuPenggunaId = null): array
     {
         $grup = (string) Str::uuid7();
         $kedaluwarsa = now()->addDays(self::MASA_HARI);
         $baris = [];
-        foreach (array_values(array_unique($penyetujuPeranId)) as $peranId) {
+        foreach ($penyetujuPenggunaId !== null ? [null] : array_values(array_unique($penyetujuPeranId)) as $peranId) {
             $p = new PersetujuanAkses([
                 'nomor' => $this->nomor(), 'grup_id' => $grup, 'jenis' => $jenis, 'objek_jenis' => $objekJenis, 'objek' => $objek,
                 'peran_id' => $kunci['peran_id'] ?? null, 'izin_id' => $kunci['izin_id'] ?? null, 'sasaran_pengguna_id' => $kunci['sasaran_pengguna_id'] ?? null,
-                'penyetuju_peran_id' => $peranId, 'status' => 'menunggu', 'diajukan_oleh' => $pengaju->id,
+                'penyetuju_peran_id' => $peranId, 'penyetuju_pengguna_id' => $penyetujuPenggunaId, 'status' => 'menunggu', 'diajukan_oleh' => $pengaju->id,
                 'alasan' => $alasan, 'dasar' => $dasar, 'kedaluwarsa_pada' => $kedaluwarsa,
                 'dibuat_oleh' => $pengaju->id, 'diubah_oleh' => $pengaju->id,
             ]);
             $p->save();
             $baris[] = $p;
-            PersetujuanDiajukan::dispatch($p->id, $p->nomor, $peranId);
+            PersetujuanDiajukan::dispatch($p->id, $p->nomor, $peranId, $penyetujuPenggunaId);
         }
         $this->audit->catat('akses.persetujuan_diajukan', $pengaju->id, 'akses.persetujuan_akses', $baris[0]->id, [
             'grup_id' => $grup, 'nomor' => array_map(fn (PersetujuanAkses $p) => $p->nomor, $baris), 'jenis' => $jenis,
@@ -115,7 +117,8 @@ final class AlurPersetujuan
         $dipegang ??= $this->peranDipegang($pengguna);
 
         return match (true) {
-            ! in_array($p->penyetuju_peran_id, $dipegang['berlaku'], true) => 'bukan_penyetuju',
+            $p->penyetuju_pengguna_id !== null ? $p->penyetuju_pengguna_id !== $pengguna->id
+                : ! in_array($p->penyetuju_peran_id, $dipegang['berlaku'], true) => 'bukan_penyetuju',
             $p->diajukan_oleh === $pengguna->id => 'pengaju_sendiri',
             $p->sasaran_pengguna_id === $pengguna->id,
             in_array($p->objek_jenis, self::OBJEK_PERAN, true) && in_array($p->peran_id, $dipegang['masih_aktif'], true) => 'penerima_sendiri',
@@ -132,10 +135,17 @@ final class AlurPersetujuan
     public function perluDiputuskan(Pengguna $pengguna, array $dipegang): Builder
     {
         return PersetujuanAkses::query()->menunggu()
-            ->whereIn('penyetuju_peran_id', $dipegang['berlaku'])
+            ->where(fn ($q) => $q->whereIn('penyetuju_peran_id', $dipegang['berlaku'])->orWhere('penyetuju_pengguna_id', $pengguna->id))
             ->where('diajukan_oleh', '!=', $pengguna->id)
             ->where(fn ($q) => $q->whereNull('sasaran_pengguna_id')->orWhere('sasaran_pengguna_id', '!=', $pengguna->id))
             ->whereNot(fn ($q) => $q->whereIn('objek_jenis', self::OBJEK_PERAN)->whereIn('peran_id', $dipegang['masih_aktif']));
+    }
+
+    /** Rincian dan verifikasi tanda tangannya hanya untuk pengaju, penerima, dan penyetuju (peran atau orang); selain itu 404. */
+    public function terlihat(Pengguna $pengguna, PersetujuanAkses $p): bool
+    {
+        return $p->diajukan_oleh === $pengguna->id || $p->sasaran_pengguna_id === $pengguna->id || $p->penyetuju_pengguna_id === $pengguna->id
+            || ($p->penyetuju_peran_id !== null && in_array($p->penyetuju_peran_id, $this->peranDipegang($pengguna)['berlaku'], true));
     }
 
     public function setujui(Pengguna $penyetuju, PersetujuanAkses $p, ?string $catatan): PersetujuanAkses

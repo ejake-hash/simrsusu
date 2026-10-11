@@ -48,6 +48,9 @@ final class AkunSintetisSeeder extends Seeder
         // Admin SDM (tiket 1.8d): data pegawai, kredensial, dan buat akun dari pegawai. pengaturan.akun.input
         // butuh MFA, jadi MFA aktif dengan rahasia sintetis yang diketahui e2e.
         'contoh.sdm' => 'Contoh Admin SDM',
+        // TTE (tiket 1.6): contoh.ttd dengan TTE aktif (PIN sintetis, TtdSintetisSeeder); contoh.ttd.baru tanpa TTE (alur aktivasi).
+        'contoh.ttd' => 'Contoh Akun TTE',
+        'contoh.ttd.baru' => 'Contoh Akun TTE Baru',
     ];
 
     /** Profesi pegawai sintetis (selain ini non_kesehatan). */

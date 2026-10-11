@@ -17,6 +17,8 @@ use App\Modules\Notifikasi\Domain\PengirimPesanSingkat;
 use App\Modules\Notifikasi\Infrastructure\PesanSingkatLog;
 use App\Modules\Sdm\Events\IzinPraktikDibatalkan;
 use App\Modules\Sdm\Events\IzinPraktikDicatat;
+use App\Modules\Ttd\Events\TtdDicabut;
+use App\Modules\Ttd\Events\TtdTerkunci;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -43,6 +45,8 @@ class ModuleServiceProvider extends ServiceProvider
         Event::listen(AkunTerkunci::class, [PendengarKejadian::class, 'akunTerkunci']);
         Event::listen(IzinPraktikDicatat::class, [PendengarKejadian::class, 'izinPraktikDicatat']);
         Event::listen(IzinPraktikDibatalkan::class, [PendengarKejadian::class, 'izinPraktikDibatalkan']);
+        Event::listen(TtdTerkunci::class, [PendengarKejadian::class, 'ttdTerkunci']);
+        Event::listen(TtdDicabut::class, [PendengarKejadian::class, 'ttdDicabut']);
 
         if ($this->app->runningInConsole()) {
             $this->commands([ProsesEskalasi::class, SiapkanPartisi::class, PeriksaIzinPraktik::class]);

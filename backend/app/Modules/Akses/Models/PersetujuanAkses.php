@@ -14,13 +14,14 @@ use Illuminate\Support\Carbon;
  * @property string $id
  * @property string $nomor
  * @property string $grup_id
- * @property string $jenis izin_sensitif | peran_superadmin | pengecualian
- * @property string $objek_jenis izin_peran | penugasan | pengakhiran_penugasan | izin_khusus | penyetuju_izin
+ * @property string $jenis izin_sensitif | peran_superadmin | pengecualian | reset_ttd
+ * @property string $objek_jenis izin_peran | penugasan | pengakhiran_penugasan | izin_khusus | penyetuju_izin | reset_ttd
  * @property array<string, mixed> $objek
  * @property string|null $peran_id
  * @property string|null $izin_id
  * @property string|null $sasaran_pengguna_id
- * @property string $penyetuju_peran_id
+ * @property string|null $penyetuju_peran_id null bila penyetujunya orang tertentu
+ * @property string|null $penyetuju_pengguna_id penyetuju orang tertentu (reset TTE: atasan langsung, 1.6)
  * @property string $status menunggu | disetujui | ditolak | kedaluwarsa | dibatalkan
  * @property string $diajukan_oleh
  * @property string|null $alasan

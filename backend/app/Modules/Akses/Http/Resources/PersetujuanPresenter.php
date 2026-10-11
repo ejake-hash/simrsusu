@@ -15,7 +15,7 @@ use App\Modules\Sdm\Application\RingkasanPegawai;
 use Illuminate\Support\Collection;
 
 /**
- * Bentuk PersetujuanAkses (kontrak v0.4.0). Peran, akun, izin, label, grup, dan dampak dimuat sekaligus per halaman.
+ * Bentuk PersetujuanAkses (kontrak v0.4.0; penyetuju_pengguna dan reset_ttd sejak v0.8.0). Peran, akun, izin, label, grup, dan dampak dimuat sekaligus per halaman.
  * Status menunggu yang lewat batas waktu tampil `kedaluwarsa` walau tugas harian belum jalan. `akun_terdampak`
  * dihitung saat dibaca (pemegang peran sekarang), bukan saat diajukan.
  */
@@ -49,7 +49,7 @@ final class PersetujuanPresenter
         $peran = Peran::query()->whereIn('id', $peranId->filter()->unique()->values())->get(['id', 'kode', 'nama'])->keyBy('id');
         $izin = Izin::query()->whereIn('id', $baris->pluck('izin_id')->filter()->unique()->values())->get(['id', 'kode', 'menu_id', 'jenis_aksi'])->keyBy('id');
         $menu = $izin->isEmpty() ? collect() : Menu::query()->get(['id', 'induk_id', 'tingkat', 'kode', 'label'])->keyBy('id');
-        $akun = Pengguna::query()->whereIn('id', $baris->flatMap(fn (PersetujuanAkses $p) => [$p->sasaran_pengguna_id, $p->diajukan_oleh, $p->diputuskan_oleh])
+        $akun = Pengguna::query()->whereIn('id', $baris->flatMap(fn (PersetujuanAkses $p) => [$p->sasaran_pengguna_id, $p->diajukan_oleh, $p->diputuskan_oleh, $p->penyetuju_pengguna_id])
             ->filter()->unique()->values())->get(['id', 'pegawai_id', 'nama_pengguna'])->keyBy('id');
         $nama = $this->pegawai->nama($akun->pluck('pegawai_id'));
         $unit = $this->dataUnit->label($baris->map(fn (PersetujuanAkses $p) => ($p->objek['cakupan_jenis'] ?? null) === 'unit' ? ($p->objek['cakupan_id'] ?? null) : null)
@@ -92,6 +92,7 @@ final class PersetujuanPresenter
                 'ringkasan' => $this->ringkasan($p, $objek, $peran->get($p->objek['peran_penyetuju_sebelum_id'] ?? '')?->nama),
                 'objek' => $objek,
                 'penyetuju_peran' => $ringkasPeran($p->penyetuju_peran_id),
+                'penyetuju_pengguna' => $pelaku($p->penyetuju_pengguna_id),
                 'status' => $status,
                 'diterapkan' => $p->diterapkan_pada !== null,
                 'diajukan_oleh' => $pelaku($p->diajukan_oleh),
@@ -122,6 +123,7 @@ final class PersetujuanPresenter
             'pengakhiran_penugasan' => "Akhiri penugasan peran {$peran} untuk {$akun}",
             'izin_khusus' => "Tambah pengecualian {$izin} untuk {$akun}",
             'penyetuju_izin' => "Tetapkan peran {$peran} sebagai penyetuju izin {$izin}".($penyetujuSebelum !== null ? " (sebelumnya {$penyetujuSebelum})" : ''),
+            'reset_ttd' => "Reset tanda tangan elektronik {$akun}",
             default => $p->nomor,
         };
     }

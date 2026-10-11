@@ -33,7 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->replace(TrustProxies::class, TrustedProxies::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->dontFlash(['sandi', 'sandi_konfirmasi', 'sandi_lama']);
+        $exceptions->dontFlash(['sandi', 'sandi_konfirmasi', 'sandi_lama', 'sandi_baru', 'pin', 'pin_ulang', 'pin_lama', 'pin_baru']);
 
         // Nilai dibuang dari error basis data sebelum dilaporkan atau dirender (SqlMasker).
         $exceptions->map(function (QueryException $e) {
