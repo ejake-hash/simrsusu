@@ -67,8 +67,10 @@ export const TERSEDIA = new Set(['beranda', 'pengaturan.peran', 'pengaturan.akun
 /** Modul yang dimatikan di instalasi contoh, agar penanda "modul nonaktif" ikut teruji. */
 const MODUL_NONAKTIF = new Set(['kamar_operasi'])
 
+/** Pengelola akses (input/perbaiki peran dan akun) sensitif sejak 1.2c-be: pemberiannya butuh persetujuan (1.2d). */
+const SUB_PENGELOLA_AKSES = new Set(['pengaturan.peran', 'pengaturan.akun'])
 const izinDasar = (kode: string, aksi: JenisAksi[] = ['lihat', 'input', 'perbaiki']): IzinNode[] =>
-  aksi.map((a) => ({ kode: `${kode}.${a}`, jenis_aksi: a, sensitif: false }))
+  aksi.map((a) => ({ kode: `${kode}.${a}`, jenis_aksi: a, sensitif: SUB_PENGELOLA_AKSES.has(kode) && a !== 'lihat' }))
 
 export function buatPohon(): PohonMenu {
   let n = 1000
