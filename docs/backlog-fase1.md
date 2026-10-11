@@ -32,7 +32,7 @@
 | 1.8a-be / 1.8a-fe | Profil RS dan paket identitas, unit organisasi, KSM (ganti `VITE_RS_*`) | be: Selesai (kontrak #37, backend #38). Catatan: profil di `App\Core\ProfilRs`, unit/KSM di modul `MasterData`, lapis 3 cakupan `unit` = subpohon, berkas lewat disk `IDENTITAS_DISK`, akun e2e `contoh.data.induk`; fe: **Dikerjakan sesi 2** (#42). Catatan fe: profil dari `GET /profil-rs` (tanpa `VITE_RS_*`), tema dari dua warna paket identitas (`app/tema.ts`), pohon unit muat-lambat, cakupan penugasan `unit`, pemilih unit kerja di header | — |
 | 1.8b-be / 1.8b-fe | Lokasi fisik bertingkat, bangsal/kamar/TT, kelas rawat, poliklinik, impor CSV | be: **Dikerjakan sesi 1** (kontrak #44; branch `feat/lokasi-be`: lokasi/bangsal/kamar/TT/kelas/poliklinik/kapasitas dan impor CSV). Catatan: tabel di skema `inti`, izin `master_data.organisasi.*` cakupan `rs`, tugas harian `master-data:rekam-kapasitas-tt`; fe: siap (kontrak #44) | #44 |
 | 1.8c-be / 1.8c-fe | Usulan perubahan data induk berjenjang (mesin generik), dipakai pertama oleh TT | Siap setelah 1.7 | — |
-| 1.8d-be / 1.8d-fe | Pegawai, izin praktik (STR/SIP/SPK), RKK minimal, akun dibuat dari pegawai | Siap setelah 1.8a | — |
+| 1.8d-be / 1.8d-fe | Pegawai, izin praktik (STR/SIP/SPK), RKK minimal, akun dibuat dari pegawai | be: **Dikerjakan sesi 1** (kontrak dulu, branch `docs/kontrak-1.8d`); fe: siap setelah kontrak | — |
 | 1.8e-be | Pemuat paket referensi (`inti.paket_referensi`) | Siap setelah 1.8a | — |
 | 1.8f-be / 1.8f-fe | Wizard penyiapan instalasi kosong (FR-54-08) | Siap setelah 1.8a–e | — |
 | 1.7-be / 1.7-fe | Notifikasi, kotak kerja, jenis tugas, eskalasi 3 tingkat | Siap setelah 1.8a, 1.8d, 1.2d | — |
@@ -148,6 +148,8 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   dinamis); PATCH TT tidak mengembalikan `peringatan` (kelas/ekstra tidak mengubah jumlah TT kamar).
   Dari tinjauan subagen #46 (sisa): nama berawalan `=`/`+`/`-`/`@` diterima impor/API → wajib dinetralkan saat ekspor CSV
   pertama dibuat (injeksi formula); nomor baris kesalahan impor = nomor rekaman CSV (berbeda bila sel memuat baris baru).
+- PRD menyusul (1.8d): 10.3.2 belum menyebut 403 `wajib_ganti_sandi` sesudah masuk dengan sandi awal, dan 9.1 belum
+  memuat bagian `sdm.pegawai.identitas`; aturannya ada di badan tiket 1.8d, PRD diperbarui di PR [Perlu pemilik] terpisah.
 - **[Perlu pemilik] Usulan (1.8b):** daftar periksa baku atribut kamar (FR-08-19) sebagai data induk dengan endpoint
   sendiri (mis. `/atribut-kamar`: kode, label, jenis nilai, berlaku untuk KRIS/kelas lama). Endpoint ini tidak tercantum
   di API tiket 1.8b, jadi menunggu pemilik; sampai itu `Kamar.atribut_standar` berupa pasangan kunci-nilai bebas
@@ -734,6 +736,21 @@ Uji penerimaan:
   - Membuat akun dari pegawai → masuk pertama dipaksa ganti sandi; sandi berisi nama pengguna ditolak.
   - Pegawai diubah menjadi keluar → akun nonaktif, sesi berjalan diputus di permintaan berikutnya.
   - NIK tidak pernah muncul utuh di daftar maupun log.
+Aturan rinci (kontrak v0.6.0):
+  - Izin: `sdm.pegawai.*` (data pegawai), `sdm.kredensial.*` (izin praktik, RKK), `pengaturan.akun.*` (buat akun,
+    nonaktif/aktif); cakupan `rs`. NIK utuh hanya dengan izin bagian baru `sdm.pegawai.identitas.lihat` (sensitif,
+    diberikan lewat persetujuan pemilik data K3); tanpa itu hanya `nik_samaran` (4 digit awal dan akhir). NIK terenkripsi,
+    keunikan lewat sidik (HMAC), tidak bisa dicari lewat URL, tidak masuk log/audit; pembacaan NIK utuh diaudit.
+  - Status pegawai diturunkan dari `tanggal_keluar` (aktif | akan_keluar | keluar). Keluar → akun nonaktif + sesi diputus
+    pada tanggalnya (langsung atau tugas harian), audit.
+  - Izin praktik dan RKK tidak diubah setelah dicatat: perbaikan = batalkan lalu catat ulang. Dokumen privat ≤ 5 MB
+    (PDF/JPEG/PNG, jenis dari isi berkas). Ambang "akan habis" dari konfigurasi (angka awal 90 hari, perlu verifikasi).
+    Kode tindakan RKK diisi RS (bentuk saja yang diperiksa; tanpa daftar bawaan).
+  - Akun dari pegawai: sandi awal acak ditampilkan sekali, wajib ganti saat masuk pertama. Selama wajib ganti, endpoint
+    lain 403 `wajib_ganti_sandi` (status masuk di PRD 10.3.2 tidak berubah; `Saya.wajib_ganti_sandi`). Tautan aktivasi
+    lewat email menunggu 1.7.
+  - Nonaktifkan akun pemegang superadmin ditolak 409 `superadmin_aktif` (akhiri penugasan superadmin lewat K4 dulu).
+  - Kepala unit / ketua KSM ditetapkan lewat PATCH /unit-organisasi dan /ksm (`kepala_pegawai_id`, `ketua_pegawai_id`).
 Di luar lingkup tiket: jadwal dinas, kredensial lengkap komite (fase 4), peserta didik (fase 5).
 ```
 
