@@ -563,6 +563,9 @@ paths:
   # Profil RS, unit organisasi, KSM (tiket 1.8a; PRD 3.4, FR-54-08 langkah 2–3, 11.2 inti.profil_rs, unit_organisasi, ksm)
   # Izin: pengaturan.profil_rs.{lihat,perbaiki}; master_data.organisasi.{lihat,input,perbaiki} untuk unit dan KSM.
   # Tidak ada DELETE: unit dan KSM dinonaktifkan lewat status. Perubahan: audit catat() dengan sebelum/sesudah.
+  # Lapis 3 (PRD 9.2.2): izin ber-cakupan `unit` hanya berlaku di subpohon unit itu (unit induk mencakup turunannya):
+  # daftar dan rincian unit terbatas pada subpohonnya, ubah/tambah hanya di dalam subpohonnya (pindah induk tetap di
+  # dalamnya; unit akar, KSM, dan profil RS butuh cakupan `rs`). Di luar cakupan → 404 untuk rincian, 403 untuk ubah.
   # ---------------------------------------------------------------------------
   /profil-rs:
     get:
@@ -570,9 +573,11 @@ paths:
       summary: Profil dan paket identitas RS; publik terbatas untuk halaman masuk, lengkap bagi pemegang izin
       description: |
         Tanpa sesi boleh (halaman masuk, pita DEMO di setiap layar). Bagian `rinci` hanya dikirim bila pemanggil
-        sudah masuk dan punya izin pengaturan.profil_rs.lihat (data yang tidak diizinkan tidak dikirim server).
-        Respons di-cache publik singkat dan memakai ETag dari `versi`; instalasi kosong (belum disiapkan) tetap 200
-        dengan nilai kosong dan `paket_identitas` bawaan produk.
+        punya sesi yang masih sah dan izin pengaturan.profil_rs.lihat dengan cakupan `rs` (data yang tidak diizinkan
+        tidak dikirim server). Cookie sesi yang kedaluwarsa atau dicabut tidak membuat 401: jawabannya bentuk publik.
+        Cache: `Cache-Control: private, no-cache`, `Vary: Cookie`; ETag berbeda untuk bentuk publik dan bentuk
+        ber-`rinci` (sama-sama turunan `versi`). Instalasi kosong (belum disiapkan) tetap 200 dengan nilai kosong dan
+        `paket_identitas` bawaan produk.
       security: [{}, { sesiCookie: [] }]
       parameters:
         - in: header
@@ -598,13 +603,13 @@ paths:
       description: |
         Izin: pengaturan.profil_rs.perbaiki. Wajib If-Match (`versi`). Ganti utuh isian di bawah; berkas gambar lewat
         PUT /profil-rs/berkas/{jenis}.
-        Kontras warna (FR-54-08 langkah 2), 422 `kontras_kurang` dengan `rincian` = `{kolom, rasio, minimal, pesan}`,
-        `kolom` = `warna.brand` atau `warna.accent`, `rasio` dibulatkan 2 desimal:
-        - `warna.brand` dipakai sebagai teks/tautan di latar putih dan latar tombol bertulisan putih: kontras dengan
-          putih ≥ 4,5:1.
-        - `warna.accent` dipakai hanya sebagai isian (garis penanda, badge, aksen; PRD 5.3.2 aturan 2): teks di atas
-          isian itu (hitam `#1D1D1B` atau putih, mana yang lebih kontras) ≥ 3:1. Interpretasi "isian < 3:1"
-          FR-54-08; perlu konfirmasi pemilik produk.
+        Izin dengan cakupan `rs`. Kontras warna (FR-54-08 langkah 2, rumus WCAG 2.1), 422 `kontras_kurang` dengan
+        `rincian` = `{kolom, rasio, minimal, pesan}`, `kolom` = `warna.brand` atau `warna.accent`, `rasio` 2 desimal:
+        - `warna.brand` = teks/tautan di latar putih dan latar tombol bertulisan putih: kontras dengan putih ≥ 4,5:1
+          (sekaligus memenuhi isian ≥ 3:1).
+        - `warna.accent` = isian dekoratif saja (garis, badge, aksen; PRD 5.3.2 aturan 2), tidak diuji terhadap putih;
+          teks di atasnya memakai tinta `--text` (`#1D1D1B`), jadi kontras accent dengan `#1D1D1B` ≥ 4,5:1.
+        Tafsiran FR-54-08 ini perlu konfirmasi pemilik produk.
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -633,6 +638,8 @@ paths:
     get:
       operationId: berkasProfilRs
       summary: Berkas gambar paket identitas (publik, untuk halaman masuk dan kop layar)
+      parameters:
+        - { in: query, name: v, required: false, schema: { type: string }, description: "Potongan sha256 berkas dari URL di ProfilRs; hanya pembeda cache, tidak diperiksa" }
       description: |
         Tanpa sesi boleh. Dikirim dari object storage (MinIO) dengan Content-Type hasil pemeriksaan saat unggah,
         `X-Content-Type-Options: nosniff`, dan untuk SVG `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'`.
@@ -642,10 +649,10 @@ paths:
         '200':
           description: Isi berkas
           content:
-            image/svg+xml: { schema: { type: string, format: binary } }
-            image/png: { schema: { type: string, format: binary } }
-            image/webp: { schema: { type: string, format: binary } }
-            image/jpeg: { schema: { type: string, format: binary } }
+            image/svg+xml: {}
+            image/png: {}
+            image/webp: {}
+            image/jpeg: {}
         '404': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/Error' }
     put:
@@ -655,8 +662,11 @@ paths:
         Izin: pengaturan.profil_rs.perbaiki. Wajib If-Match (`versi` profil). multipart/form-data, satu berkas `berkas`.
         Tipe diperiksa dari isi berkas, bukan nama atau Content-Type kiriman (422 `tipe_berkas_tidak_diizinkan`):
         logo dan motif: SVG atau PNG; foto: WebP, JPEG, atau PNG. Batas ukuran per jenis di konfigurasi
-        (bawaan logo 200 KB, motif 500 KB, foto 2 MB; 422 `berkas_terlalu_besar`). SVG berisi skrip, handler
-        `on*`, `foreignObject`, atau rujukan eksternal ditolak (422 `berkas_tidak_aman`). Berkas lama tetap
+        (bawaan logo 200 KB, motif 500 KB, foto 2 MB; 422 `berkas_terlalu_besar`; di atas batas server web 413)
+        dan dimensi gambar raster maksimum 4096×4096 piksel (422 `dimensi_terlalu_besar`). SVG ditolak
+        (422 `berkas_tidak_aman`) bila memuat DOCTYPE/ENTITY, skrip, handler `on*`, `foreignObject`/objek tertanam,
+        animasi (`animate*`, `set`), `href` selain rujukan internal `#…` (termasuk `javascript:` dan `data:`), atau
+        `url()`/`@import` ke luar di CSS. Izin dengan cakupan `rs`. Berkas lama tetap
         tersimpan (tidak dihapus); profil menunjuk berkas baru. Mengosongkan berkas (kembali tanpa logo/motif/foto)
         tidak tersedia di fase 1; ganti dengan berkas lain.
       parameters:
@@ -669,7 +679,7 @@ paths:
               type: object
               required: [berkas]
               properties:
-                berkas: { type: string, format: binary }
+                berkas: { type: string, contentMediaType: application/octet-stream }
       responses:
         '200':
           description: Profil sesudah berkas diganti (dengan `rinci`)
@@ -680,6 +690,7 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '412': { $ref: '#/components/responses/Error' }
+        '413': { description: "Berkas melebihi batas unggah server web" }
         '422': { $ref: '#/components/responses/Error' }
         '428': { $ref: '#/components/responses/Error' }
   /unit-organisasi:
@@ -691,8 +702,9 @@ paths:
         kecuali `milik_saya=true`.
         - `induk_id` kosong + `akar=true` → unit tingkat teratas; `induk_id=<id>` → anak langsung unit itu.
           Tiap baris membawa `jumlah_anak` agar pohon tahu node mana yang bisa dibuka.
-        - `milik_saya=true` → unit dari penugasan akun yang sedang masuk ber-cakupan `unit` yang berlaku
-          (pemilih unit kerja di header); boleh untuk semua akun yang masuk, filter lain diabaikan. Pemilih unit kerja
+        - `milik_saya=true` → unit dari penugasan akun yang sedang masuk ber-cakupan `unit` yang berlaku (unit itu
+          saja, bukan turunannya; pemilih unit kerja di header); boleh untuk semua akun yang masuk, filter lain diabaikan.
+          Selain nilai true, pemeriksaan izin biasa berlaku. Pemilih unit kerja
           hanya konteks tampilan di klien (mis. filter bawaan daftar); tidak mengubah izin, dan server tetap memaksa
           cakupan dari penugasan pada setiap permintaan.
         Urut: kode.
@@ -764,8 +776,8 @@ paths:
       description: |
         Izin: master_data.organisasi.perbaiki. Wajib If-Match. Kirim minimal satu isian selain `dasar_perubahan`.
         - 422 `siklus`: induk baru adalah unit itu sendiri atau turunannya.
-        - 409 `unit_masih_dipakai`: menonaktifkan unit yang masih punya anak aktif atau penugasan ber-cakupan unit itu
-          yang berlaku; `rincian` = `{jumlah_anak_aktif, jumlah_penugasan}`.
+        - 409 `unit_masih_dipakai`: menonaktifkan unit yang masih punya anak aktif, penugasan ber-cakupan unit itu yang
+          berlaku, atau modul aktif per unit itu (inti.modul_aktif); `rincian` = `{jumlah_anak_aktif, jumlah_penugasan, jumlah_modul_aktif}`.
         - 409 `kode_sudah_dipakai`.
       parameters:
         - $ref: '#/components/parameters/IfMatch'
@@ -803,7 +815,7 @@ paths:
     get:
       operationId: daftarKsm
       summary: Daftar Kelompok Staf Medis (paginasi kursor)
-      description: "Izin: master_data.organisasi.lihat. Urut: kode."
+      description: "Izin: master_data.organisasi.lihat dengan cakupan `rs`. Urut: kode."
       parameters:
         - $ref: '#/components/parameters/Kursor'
         - $ref: '#/components/parameters/Batas'
@@ -992,11 +1004,10 @@ components:
       description: "Kode singkat huruf besar/angka, mis. IRNA, IGD-01"
     ProfilRs:
       type: object
-      required: [versi, nama, singkatan, paket_identitas, kontak_admin, instalasi_demo]
+      required: [versi, nama, paket_identitas, kontak_admin, instalasi_demo]
       properties:
         versi: { type: string, description: "Sama dengan ETag; berubah setiap profil atau berkas diganti" }
         nama: { type: [string, 'null'], description: "Nama resmi RS; null = belum disiapkan (kartu RS tidak tampil)" }
-        singkatan: { type: [string, 'null'], examples: ['RS USU'] }
         paket_identitas:
           type: object
           required: [warna, logo_url, motif_url, foto_url]
@@ -1027,7 +1038,7 @@ components:
           required: [kode_kemenkes, kelas, status_blu, kode_ppk_bpjs, alamat, status_penyiapan, diubah_pada]
           properties:
             kode_kemenkes: { type: [string, 'null'], maxLength: 20 }
-            kelas: { type: [string, 'null'], enum: [A, B, C, D, null] }
+            kelas: { type: [string, 'null'], maxLength: 20, description: "Klasifikasi RS sesuai izin operasional (mis. B); tidak dibatasi daftar tetap (PRD 17.2 T-1)" }
             status_blu: { type: [boolean, 'null'] }
             kode_ppk_bpjs: { type: [string, 'null'], maxLength: 20 }
             alamat: { type: [string, 'null'], maxLength: 500 }
@@ -1035,12 +1046,11 @@ components:
             diubah_pada: { type: [string, 'null'], format: date-time }
     IsianProfilRs:
       type: object
-      required: [nama, singkatan, kode_kemenkes, kelas, status_blu, kode_ppk_bpjs, alamat, warna, kontak_admin, dasar_perubahan]
+      required: [nama, kode_kemenkes, kelas, status_blu, kode_ppk_bpjs, alamat, warna, kontak_admin, dasar_perubahan]
       properties:
         nama: { type: string, minLength: 3, maxLength: 200 }
-        singkatan: { type: [string, 'null'], maxLength: 30 }
         kode_kemenkes: { type: [string, 'null'], maxLength: 20 }
-        kelas: { type: [string, 'null'], enum: [A, B, C, D, null] }
+        kelas: { type: [string, 'null'], maxLength: 20 }
         status_blu: { type: [boolean, 'null'] }
         kode_ppk_bpjs: { type: [string, 'null'], maxLength: 20 }
         alamat: { type: [string, 'null'], maxLength: 500 }
@@ -1057,6 +1067,12 @@ components:
             unit: { type: string, minLength: 2, maxLength: 100 }
             kontak: { type: [string, 'null'], maxLength: 100 }
         dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+    RingkasPegawai:
+      type: [object, 'null']
+      required: [id, nama]
+      properties:
+        id: { type: string, format: uuid, description: "sdm.pegawai.id (bukan akun)" }
+        nama: { type: string }
     JenisUnit:
       type: string
       enum: [instalasi, bidang, bagian, ruang, poli, depo]
@@ -1072,7 +1088,7 @@ components:
         jenis: { $ref: '#/components/schemas/JenisUnit' }
         status: { type: string, enum: [aktif, nonaktif] }
         berlaku_dari: { type: string, format: date }
-        kepala: { $ref: '#/components/schemas/Pelaku', description: "Kepala unit dari data pegawai; null sampai tiket 1.8d" }
+        kepala: { $ref: '#/components/schemas/RingkasPegawai', description: "Kepala unit dari data pegawai; null sampai tiket 1.8d" }
         jumlah_anak: { type: integer, minimum: 0, description: "Anak langsung (aktif dan nonaktif)" }
         jalur:
           type: array
@@ -1104,7 +1120,7 @@ components:
         kode: { type: string }
         nama: { type: string }
         status: { type: string, enum: [aktif, nonaktif] }
-        ketua: { $ref: '#/components/schemas/Pelaku', description: "Ketua KSM dari data pegawai; null sampai tiket 1.8d" }
+        ketua: { $ref: '#/components/schemas/RingkasPegawai', description: "Ketua KSM dari data pegawai; null sampai tiket 1.8d" }
         versi: { type: string }
         diubah_pada: { type: string, format: date-time }
     StatusMenu:
