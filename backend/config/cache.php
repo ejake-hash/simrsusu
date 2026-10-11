@@ -17,6 +17,11 @@ return [
 
     'default' => env('CACHE_STORE', 'database'),
 
+    // Penghitung batas laju dan kunci nama pengguna fiktif (PRD 14.1.1 butir 6–7, 14.2). Tidak boleh di
+    // instans cache (allkeys-lru): saat memori penuh penghitung ikut dibuang dan batas laju/kunci hilang.
+    // Tes memakai `array` (phpunit.xml) agar perjalanan waktu ($this->travel()) ikut berlaku.
+    'limiter' => env('CACHE_LIMITER_STORE', 'batas-laju'),
+
     /*
     |--------------------------------------------------------------------------
     | Cache Stores
@@ -76,6 +81,13 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_CACHE_CONNECTION', 'cache'),
             'lock_connection' => env('REDIS_CACHE_LOCK_CONNECTION', 'default'),
+        ],
+
+        // Instans `default` (noeviction), untuk 'limiter' di atas.
+        'batas-laju' => [
+            'driver' => 'redis',
+            'connection' => 'default',
+            'lock_connection' => 'default',
         ],
 
         'dynamodb' => [
