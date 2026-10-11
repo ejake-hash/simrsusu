@@ -28,7 +28,8 @@ interface BarisAtribut {
   nilai: string
 }
 const bangsalId = ref('')
-const kapasitas = ref('')
+/** v-model di input number memberi number begitu diisi; dinormalkan lewat String() saat dibaca. */
+const kapasitas = ref<string | number>('')
 const atribut = ref<BarisAtribut[]>([])
 const dasar = ref('')
 const kesalahan = ref<Record<string, string>>({})
@@ -76,7 +77,8 @@ const judul = computed(() => (props.kamar ? `Ubah kamar ${props.ruang.kode_lengk
 async function kirim() {
   kesalahan.value = {}
   if (!bangsalId.value) kesalahan.value.bangsal_id = 'Pilih bangsal.'
-  const kap = kapasitas.value.trim() === '' ? null : Number(kapasitas.value)
+  const teksKap = String(kapasitas.value).trim()
+  const kap = teksKap === '' ? null : Number(teksKap)
   if (kap !== null && (!Number.isInteger(kap) || kap < 1 || kap > 99)) kesalahan.value.kapasitas_maksimum = 'Bilangan bulat 1–99, atau kosong.'
   if (dasar.value.trim().length < 3) kesalahan.value.dasar_perubahan = 'Isi dasar perubahan, minimal 3 karakter.'
   const atr = bentukAtribut()
@@ -141,6 +143,7 @@ async function kirim() {
           <button type="button" class="tombol" :aria-label="`Hapus atribut ${b.kunci || i + 1}`" @click="atribut.splice(i, 1)">Hapus</button>
           <p v-if="kesalahan[`atribut-${i}`]" class="kolom-error">{{ kesalahan[`atribut-${i}`] }}</p>
         </div>
+        <p v-if="kesalahan.atribut_standar" class="kolom-error" role="alert">{{ kesalahan.atribut_standar }}</p>
         <button type="button" class="tombol" :disabled="atribut.length >= 50" @click="atribut.push({ kunci: '', nilai: '' })"><Ikon nama="tambah" :ukuran="16" />Tambah atribut</button>
       </fieldset>
       <KolomIsian v-slot="a" label="Dasar perubahan" :error="kesalahan.dasar_perubahan" petunjuk="Nomor SK, memo, atau persetujuan." wajib>
