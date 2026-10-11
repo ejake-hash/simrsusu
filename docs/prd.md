@@ -6,13 +6,13 @@
 
 | Atribut | Nilai |
 |---|---|
-| Versi dokumen | 0.10.11 |
+| Versi dokumen | 0.10.9 |
 | Tanggal | 11 Oktober 2026 |
 | Penyusun | Eza (Karyasistemnusantara) · disusun bersama Claude |
 | Sumber konteks | Lampiran 1 *Visual Layar SIMRS* (15 layar), Lampiran 2 *Visual Dasbor Berjenjang* (7 dasbor + contoh kewenangan), HTML *Dasbor Berjenjang Karsitara*, *Pedoman Identitas USU* (2021) dan folder Logo |
 | Tech stack | Laravel 12 (PHP 8.3+) · Vue 3 + TypeScript · PostgreSQL 16 · Valkey (kompatibel Redis) · Laravel Reverb |
 | Status | **Produk generik** (3.4). Fase 0 mode produk selesai dengan satu gerbang tertunda: uji SUS (16.1). Keputusan yang biasanya diambil RS dicatat sebagai keputusan produk di 17.2 dan dikonfirmasi tiap RS saat implementasi |
-| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · v0.10.1 hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) · v0.10.2 kontrak autentikasi dan MFA (10.3.2) · v0.10.3 header Retry-After (10.3.2) · v0.10.4 nama modul bahasa Indonesia (10.3, 10.4, D.3), menu *Segera hadir* (10.4), alur kerja per halaman (D.5) · v0.10.5 keputusan basis data dan Valkey (10.1), pendaftaran MFA hanya dari jaringan RS (10.3.2), superadmin pertama lewat konsol (FR-54-08) · v0.10.6 responsif dan perangkat (5.5), DoD uji kelas layar (D.7) · v0.10.7 ketahanan beban (14.1.1), DoD endpoint daftar (D.7) · v0.10.8 siapa wajib MFA dan batas kewenangan admin (10.3.2); kontrak API pertama di `docs/api/openapi.yaml` · v0.10.9 penyelarasan dengan implementasi hak akses tiket 1.2a: format kode menu dan izin (9.1), letak Akun & Peran di Pengaturan Sistem (9.1), aturan layar peran dan akun (9.3), kolom tabel `akses` (11.2) · v0.10.10 order penunjang dari semua pos dan pengembalian hasil ke perawat pasien saat ini (7.00.5, 7.19, 7.20), lokasi fisik bertingkat dan pengelolaan kamar/TT (7.08, 7.54, 11.2) · **v0.10.11** istilah umum: glosarium 10.3.3, format `error`, `challenge_id`, kolom `email`, *rate limit*, *queue* (tiket 1.0g) |
+| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · v0.10.1 hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) · v0.10.2 kontrak autentikasi dan MFA (10.3.2) · v0.10.3 header Retry-After (10.3.2) · v0.10.4 nama modul bahasa Indonesia (10.3, 10.4, D.3), menu *Segera hadir* (10.4), alur kerja per halaman (D.5) · v0.10.5 keputusan basis data dan Valkey (10.1), pendaftaran MFA hanya dari jaringan RS (10.3.2), superadmin pertama lewat konsol (FR-54-08) · v0.10.6 responsif dan perangkat (5.5), DoD uji kelas layar (D.7) · v0.10.7 ketahanan beban (14.1.1), DoD endpoint daftar (D.7) · v0.10.8 siapa wajib MFA dan batas kewenangan admin (10.3.2); kontrak API pertama di `docs/api/openapi.yaml` · **v0.10.9** penyelarasan dengan implementasi hak akses tiket 1.2a: format kode menu dan izin (9.1), letak Akun & Peran di Pengaturan Sistem (9.1), aturan layar peran dan akun (9.3), kolom tabel `akses` (11.2) |
 
 > **Konvensi penandaan sumber**
 > - **[K]** = fitur/aturan tertulis eksplisit di dokumen konteks (Lampiran 1/2/HTML).
@@ -230,7 +230,7 @@ Daftar peran berikut menjadi **template peran** di modul Kendali Akses (54). Set
 Butir 9–17 ditambahkan dari tinjauan heuristik Fase 0 (Lampiran E). Semuanya syarat terima komponen bersama, bukan saran.
 
 9. **Dua penanda identitas di semua titik pasien.** Setiap daftar, pemilih (dropdown), papan, ceklis, dan modal yang menyangkut satu pasien menampilkan **nama lengkap + No. RM + tanggal lahir**. Inisial hanya untuk layar publik (antrean, display). Pasien berinisial atau bernama mirip dalam satu daftar diberi penanda *nama mirip*.
-10. **Modal TTE menyebut apa dan siapa.** Modal `TtdModal` memuat pasien (butir 9), jenis dokumen, ringkasan isi, dan nama penanda tangan **sama dengan akun yang login**. Menandatangani atas nama orang lain tidak mungkin; yang ada hanya *minta tanda tangan* ke kotak kerja orang tersebut.
+10. **Modal TTE menyebut apa dan siapa.** Modal `TtdModal` memuat pasien (butir 9), jenis dokumen, ringkasan isi, dan nama penanda tangan **sama dengan akun yang login**. Menandatangani atas nama orang lain tidak mungkin; yang ada hanya *minta tanda tangan* ke antrean orang tersebut.
 11. **Aksi tak terbalikkan dikonfirmasi dengan objeknya.** Disposisi meninggal/pulang/APS, kirim klaim, rilis data, finalisasi koding, tetapkan HAIs, penyerahan obat: konfirmasi menyebut pasien atau jumlah berkas, alasan bila relevan, dan dokumen wajib (misal formulir APS) sebelum aktif.
 12. **Aksi massal tidak menelan peringatan.** "Centang semua", "setujui semua", dan sejenisnya tidak pernah mencakup butir berstatus peringatan atau perlu perhatian; butir itu diputuskan satu per satu dengan alasan.
 13. **Validasi di field, bukan hanya toast.** Format identitas (NIK 16 digit, kartu BPJS 13 digit), rentang fisiologis dan angka stok divalidasi di klien dan server. Batas rentang berasal dari data induk, bukan kode. Field yang salah ditandai dan diberi pesan di dekatnya.
@@ -294,7 +294,7 @@ Warna formal dan kasual pedoman (hal. 30–31). Nilai HEX diambil dari tampilan 
 | `--brand-50` / `--brand-25` | `#E8F4EC` / `#F4FAF6` | turunan | Latar item aktif, baris terpilih | teks `--brand-600` 6,0:1 |
 | `--usu-gelap` | `#135851` | latar halaman pembatas pedoman | Panel merek (halaman masuk) | putih 8,3:1 |
 | `--usu-hijau` | `#487629` | Pantone 364 C (formal) | Kop dokumen dan cetak | — |
-| `--accent` (`--usu-emas`) | `#F3C300` | Pantone 7406 C (formal) | **Isian saja**: garis penanda, badge notifikasi, aksen kartu RS | teks hitam di atasnya 10,1:1 |
+| `--accent` (`--usu-emas`) | `#F3C300` | Pantone 7406 C (formal) | **Isian saja**: garis penanda, lencana notifikasi, aksen kartu RS | teks hitam di atasnya 10,1:1 |
 | `--accent-ink` | `#7A5A00` | turunan emas | Teks bernuansa emas | 6,4:1 |
 | `--usu-kuning` | `#FAE345` | Pantone 106 C | Teks penekanan di latar gelap | 6,3:1 pada `#135851` |
 | `--text` | `#1D1D1B` | Pantone Black | Teks utama | — |
@@ -304,7 +304,7 @@ Warna formal dan kasual pedoman (hal. 30–31). Nilai HEX diambil dari tampilan 
 | `--success` / `--success-bg` | `#187A3E` / `#E7F5EC` | hijau fungsional | Selesai, normal | 4,8:1 |
 | `--info` / `--info-bg` | `#2457C5` / `#EAF1FF` | **tidak ada di pedoman** [I] | Informasi | 5,7:1 |
 | `--brand-700` / `--brand-500` / `--brand-100` | `#005A2F` / `#1F8A4C` / `#CDE7D6` | turunan 349 C | Hover tombol utama; tepi fokus; garis tipis bernuansa hijau | `--brand-500` di putih 4,4:1, **jangan untuk teks kecil** |
-| `--danger-bg` | `#FDECEA` | turunan | Latar pesan/badge kritis | teks `--danger` 5,3:1 |
+| `--danger-bg` | `#FDECEA` | turunan | Latar pesan/lencana kritis | teks `--danger` 5,3:1 |
 | `--accent-bg` | `#FEF6D6` | turunan emas | Latar penanda bernuansa emas | teks `--accent-ink` 5,9:1 |
 | `--usu-merah` / `--usu-hitam` | `#E1251B` / `#1D1D1B` | Pantone 485 C / Black | Dokumen cetak dan kop; bukan untuk status di layar | — |
 
@@ -331,7 +331,7 @@ Warna formal dan kasual pedoman (hal. 30–31). Nilai HEX diambil dari tampilan 
 Kuning triase dan emas USU hampir tidak bisa dibedakan (1,1:1), karena itu aturan butir 3 di bawah wajib.
 
 **Risiko dan aturan pakai:**
-1. **Hijau merek dan hijau "berhasil" berdekatan.** Status tidak boleh bergantung pada warna saja: selalu ada teks dan ikon (5.1 butir 4). Tombol utama hijau solid; status berhasil berupa badge hijau muda dengan ikon centang.
+1. **Hijau merek dan hijau "berhasil" berdekatan.** Status tidak boleh bergantung pada warna saja: selalu ada teks dan ikon (5.1 butir 4). Tombol utama hijau solid; status berhasil berupa lencana hijau muda dengan ikon centang.
 2. **Emas USU tidak lolos kontras sebagai teks** (1,7:1 di latar putih). Emas hanya untuk isian dan garis; teks memakai `--accent-ink`.
 3. **Emas dan kuning triase mudah tertukar.** Di layar IGD dan papan triase, emas merek tidak dipakai sama sekali.
 4. Motif grafis pedoman (Pengabdian, Ulos, Melayu, dan lain-lain; file `PATTERN DESIGN USU.ai`) hanya dipakai di halaman masuk, layar tunggu antrean, dan cetak. **Tidak dipakai di layar kerja klinis**, agar tetap tenang dan mudah dibaca.
@@ -532,20 +532,7 @@ Setiap ✔ adalah **perintah** yang wajib membawa: siapa yang memutuskan, alasan
 | FR-00-05 | Penanda readmisi ≤ 30 hari dengan diagnosis utama sama, lengkap dengan pengecualiannya, tampil ke DPJP dan casemix | M | [R] Permenkes 26/2021 E.1 |
 | FR-00-06 | Penanda IGD mendekati 6 jam (aturan D.1.f/D.2.b) di papan IGD | M | [R] |
 | FR-00-07 | Satu tagihan per episode untuk penjamin JKN; pengelompokan penjamin lain mengikuti kontrak | M | [R] / [I] |
-| FR-00-08 | Komponen order penunjang bersama dipakai semua pos di matriks 7.00.3; order terikat kunjungan dan episode saat dipesan (7.00.5) | M | [I] |
-| FR-00-09 | Hasil penunjang dirutekan ke pemesan **dan** DPJP/ruang tempat pasien berada saat hasil keluar; perpindahan pasien di antara order dan hasil tidak menghilangkan tindak lanjut | M | [I] |
 
-
-#### 7.00.5 Order penunjang dari pos mana pun
-
-Order laboratorium, radiologi, patologi anatomi, bank darah, dan gizi **tidak terikat ke rawat jalan**. Setiap pos yang diberi ✔ "Penunjang" di matriks 7.00.3 (poliklinik, IGD, rawat inap, ICU/HCU, kamar operasi, hemodialisa, MCU, dan pendaftaran untuk penunjang langsung) memesan lewat **satu komponen order bersama** dengan aturan yang sama:
-
-1. **Order terikat ke kunjungan dan episode tempat pasien berada saat dipesan** (bukan ke modul pemesan), sehingga hasil, BMHP/kontras, dan tagihan masuk episode yang benar (7.00.2) dan ServiceRequest SATUSEHAT merujuk Encounter yang benar.
-2. **Hasil mengikuti pasien, bukan alamat pemesan.** Hasil dikirim ke pemesan **dan** ke DPJP serta ruang tempat pasien dirawat saat hasil keluar. Contoh: foto toraks dipesan dokter IGD, hasil keluar setelah pasien pindah ke bangsal → muncul di kotak kerja dokter IGD (sebagai informasi) dan DPJP bangsal (sebagai tindak lanjut). Hasil kritis memakai jalur lapor-baca ulang ke penanggung jawab saat itu (FR-19-07, FR-20-10).
-3. **Semua tahap tercatat di rekam medis episode itu**: order beserta indikasi klinis, persiapan dan skrining keamanan, pelaksanaan (waktu, petugas, lokasi, alat), hasil/ekspertise yang disahkan, adendum, dan pelaporan hasil kritis. Tampil di linimasa pasien dan dapat dibuka dari semua pos yang sedang merawat pasien sesuai hak akses (9.2). Hasil yang sudah disahkan tidak diubah; koreksi lewat adendum bertanda (FR-26-06).
-4. **Lokasi pelaksanaan** dicatat: di instalasi penunjang, di samping tempat tidur (portabel), atau di kamar operasi. Pasien rawat inap/ICU yang dibawa ke instalasi penunjang memiliki status *sedang di penunjang* di peta TT dan serah terima pendamping.
-
-Dasar: Permenkes 24/2022 memasukkan hasil pemeriksaan penunjang ke isi rekam medis dan mewajibkan pencatatan oleh pemberi pelayanan [High confidence untuk prinsipnya; nomor pasal per isian perlu dicocokkan ulang]. Pola "hasil mengikuti pasien" adalah praktik keselamatan pasien (komunikasi hasil kritis, sasaran keselamatan pasien) [Medium confidence — standar akreditasi KMK belum dibaca langsung].
 
 ### 7.01 Admisi & Pendaftaran
 **Pengguna:** petugas pendaftaran & admisi. **Tujuan:** pasien terdaftar sekali dengan satu No. RM seumur hidup; SEP terbit tanpa pindah aplikasi.
@@ -608,7 +595,7 @@ Anjungan adalah **perangkat**, bukan akun orang. Setiap mesin terdaftar di data 
 | VClaim/Antrean tidak terjangkau | "Sistem BPJS sedang lambat." | Nomor loket; kunjungan tersimpan berstatus *menunggu SEP* |
 | Data tidak ditemukan | "Data belum terdaftar." | Loket pasien baru |
 
-**Keamanan dan privasi:** mesin tidak memakai akun petugas; API anjungan memakai token perangkat dengan cakupan sempit, rate limit per perangkat, dan jejak audit per sesi. Sesi dihapus otomatis setelah 60 detik tanpa sentuhan [I — nilai awal di data induk]. Layar tidak pernah menampilkan diagnosis, alamat, atau riwayat.
+**Keamanan dan privasi:** mesin tidak memakai akun petugas; API anjungan memakai token perangkat dengan cakupan sempit, pembatasan laju per perangkat, dan jejak audit per sesi. Sesi dihapus otomatis setelah 60 detik tanpa sentuhan [I — nilai awal di data induk]. Layar tidak pernah menampilkan diagnosis, alamat, atau riwayat.
 
 **Ketersediaan dan aksesibilitas:** printer habis → QR tampil di layar dan dikirim ke nomor ponsel terdaftar; tombol ≥ 64 px, teks ≥ 20 px, kontras AA, suara panduan, satu unit setinggi pengguna kursi roda; petugas pendamping di jam sibuk [I].
 
@@ -799,11 +786,6 @@ Rawat jalan RS pendidikan berarti banyak poli, banyak dokter per poli, dokter ya
 | FR-08-13 | Clinical pathway per diagnosis dan varians (INM kepatuhan CP) | M | [K] |
 | FR-08-14 | Order diet ke gizi, permintaan linen, permintaan BMHP ke depo | M | [I] |
 | FR-08-15 | Ruang isolasi & kewaspadaan transmisi | M | [K] |
-| FR-08-16 | **Pengelolaan ruang dan TT dari layar** (Master Data → Organisasi, Unit, Ruang & Tempat Tidur): tambah, ubah, tutup sementara, dan tutup permanen ruang/kamar/TT lewat **usulan berjenjang dengan tanggal berlaku** (FR-54-02). Kode TT yang pernah dipakai **tidak pernah dihapus atau dipakai ulang** untuk TT lain, karena dirujuk riwayat penempatan pasien | M | [K] (prototipe Master Data: contoh usulan ICU 12 → 16 TT) |
-| FR-08-17 | **Aturan pengurangan TT**: TT yang terisi atau dipesan pada tanggal berlaku tidak bisa ditutup; sistem menandainya *akan ditutup setelah kosong* dan menolak penempatan baru. Penambahan dan pengurangan berlaku otomatis pada tanggalnya, memperbarui peta TT, SIRANAP, dan Aplicares | M | [I] |
-| FR-08-18 | **Kapasitas TT per tanggal** (riwayat jumlah TT tersedia per ruang dan kelas) menjadi penyebut BOR, BTO, dan TOI; perubahan TT di tengah bulan tidak mengubah angka bulan sebelumnya. TT tambahan saat lonjakan (*TT ekstra*) ditandai terpisah; dihitung atau tidak dalam kapasitas resmi adalah konfigurasi | M | [I] — aturan perhitungan resmi perlu dicocokkan dengan juknis SIRS |
-| FR-08-19 | **Atribut kamar untuk standar ruang rawat** (KRIS dan standar kelas lama): kapasitas maksimum TT per kamar, kamar mandi dalam, outlet oksigen per TT, tirai/partisi, bel perawat, dan atribut lain sebagai **daftar periksa data induk** yang bisa diubah tanpa rilis. Sistem memperingatkan bila jumlah TT melebihi kapasitas maksimum kamar | S | [R] KRIS (T-4); isi kriteria dan jadwalnya **perlu verifikasi live**, tidak dikodekan keras |
-| FR-08-20 | Peta TT dapat difilter dan dikelompokkan per gedung, lantai, dan bangsal (7.54 lokasi fisik), dengan pencarian kode TT | M | [I] |
 
 ### 7.09 Rawat Intensif
 | ID | Kebutuhan | Prio | Sumber |
@@ -896,7 +878,7 @@ Rawat jalan RS pendidikan berarti banyak poli, banyak dokter per poli, dokter ya
 ### 7.19 Laboratorium Patologi Klinik (LIS)
 | ID | Kebutuhan | Prio | Sumber |
 |---|---|---|---|
-| FR-19-01 | **Satu daftar kerja** order dari poli, IGD, rawat inap, ICU/HCU, kamar operasi (lab cito intraoperatif), MCU, HD, dan penunjang langsung (7.00.5); cito di urutan atas | M | [K] |
+| FR-19-01 | **Satu daftar kerja** order dari poli, IGD, rawat inap, MCU, HD; cito di urutan atas | M | [K] |
 | FR-19-02 | Tahap: order → sampel diambil → diterima lab → diperiksa alat → menunggu validasi → divalidasi | M | [K] |
 | FR-19-03 | Barcode sampel; specimen (jenis, waktu, petugas) → FHIR Specimen | M | [K] |
 | FR-19-04 | **Hasil dari alat via antarmuka** (HL7 v2 / ASTM / LIS middleware), tanpa diketik | M | [K] |
@@ -916,13 +898,6 @@ Rawat jalan RS pendidikan berarti banyak poli, banyak dokter per poli, dokter ya
 | FR-20-03 | Ekspertise oleh Sp.Rad dengan TTE; ekspertise ≤ 24 jam dipantau | M | [K] |
 | FR-20-04 | ImagingStudy harus tertaut ServiceRequest (validasi sebelum kirim SATUSEHAT) | M | [K] |
 | FR-20-05 | Dosis radiasi pasien & dosimetri petugas | C | [I] |
-| FR-20-06 | **Order dari semua pos** di matriks 7.00.3: poli, IGD, rawat inap, ICU/HCU, kamar operasi (fluoroskopi/C-arm intraoperatif), HD, MCU, dan penunjang langsung dengan surat permintaan dokter luar; satu worklist dengan asal order, prioritas (cito/rutin/terjadwal), dan lokasi pelaksanaan (instalasi, portabel di tempat tidur, kamar operasi) | M | [I] |
-| FR-20-07 | **Isi order wajib**: indikasi/pertanyaan klinis dan diagnosis kerja; untuk kontras: riwayat alergi kontras dan fungsi ginjal terbaru (diambil otomatis dari hasil lab, bukan diketik ulang); status kehamilan untuk perempuan usia subur; untuk MRI: implan logam, alat pacu jantung, dan perangkat terpasang; kebutuhan transport, oksigen, dan isolasi. Daftar skrining adalah data induk per modalitas | M | [I] — praktik keselamatan radiologi umum, daftar baku perlu ditetapkan Instalasi Radiologi RS |
-| FR-20-08 | Pemeriksaan portabel dan intraoperatif tercatat pada kunjungan tempat pasien berada (bangsal/ICU/OK); waktu fluoroskopi dan dosis ikut laporan operasi bila dilakukan di OK | M | [I] |
-| FR-20-09 | Penjadwalan dan transport pasien rawat inap/ICU ke radiologi: tugas petugas antar dan pendamping, serah terima, status *sedang di penunjang* di peta TT | S | [I] |
-| FR-20-10 | **Temuan kritis/tak terduga**: dilaporkan Sp.Rad ke pemesan atau DPJP saat ini dengan baca ulang dan jam lapor, masuk CPPT, eskalasi bila tidak dikonfirmasi (pola FR-19-07) | M | [I] |
-| FR-20-11 | Order, skrining, pelaksanaan, tautan gambar PACS, ekspertise bertanda tangan, adendum, serta kontras/BMHP yang dipakai masuk RME dan tagihan episode yang sama; gambar dan ekspertise dapat dibuka dari semua pos yang merawat pasien (7.00.5) | M | [I] |
-| FR-20-12 | Pemeriksaan pembanding (pemeriksaan sebelumnya pasien yang sama) tampil di worklist dan viewer | S | [I] |
 
 ### 7.21 Gizi
 | ID | Kebutuhan | Prio | Sumber |
@@ -1330,7 +1305,7 @@ Daftar 13 INM pada konteks [K]: kebersihan tangan; penggunaan APD; identifikasi 
 | FR-53-03 | **Eskalasi 3 tingkat**: Tingkat 1 pengingat ke pelaksana (sebelum tenggat) → Tingkat 2 teguran ke kepala unit (tenggat lewat) → Tingkat 3 eskalasi ke kepala bidang & dasbor Direktur | M | [K] |
 | FR-53-04 | **Tenggat & tingkat ditetapkan RS per jenis tugas** (konfigurasi, bukan kode) | M | [K] |
 | FR-53-05 | Jenis tugas bawaan [K]: resume belum TTE > 2×24 jam; instruksi lisan belum dikonfirmasi; pasien menunggu kamar > 4 jam; reasesmen risiko jatuh; pasien melewati rencana lama rawat; SIP berakhir 30 hari; stok di bawah minimum; kalibrasi jatuh tempo; insiden belum dianalisis 2×24 jam; persetujuan tindakan belum lengkap untuk operasi besok; laporan wajib belum siap; persetujuan etik berakhir; berkas klaim belum lengkap | M | [K] |
-| FR-53-06 | Kanal: in-app (real-time), email, WhatsApp/SMS (gateway), push mobile | M | [K] |
+| FR-53-06 | Kanal: in-app (real-time), surel, WhatsApp/SMS (gateway), push mobile | M | [K] |
 | FR-53-07 | Riwayat tugas (linimasa pengingat/teguran/eskalasi) | M | [K] |
 | FR-53-08 | Kinerja tindak lanjut unit: % selesai tepat waktu, rata-rata keterlambatan | M | [K] |
 | FR-53-09 | Preferensi notifikasi per pengguna (kecuali notifikasi kritis tidak bisa dimatikan) | S | [I] |
@@ -1347,10 +1322,6 @@ Daftar 13 INM pada konteks [K]: kebersihan tangan; penggunaan APD; identifikasi 
 | FR-54-08 | **Wizard penyiapan instalasi kosong** (3.4), urutan wajib: (1) dua akun superadmin bernama + MFA, dibuat lewat perintah konsol di server (`php artisan akses:superadmin-pertama`), karena pendaftaran MFA lewat web hanya dari jaringan RS dan daftar jaringan RS belum diisi; instalasi menolak login biasa sampai `AUTENTIKASI_MFA_JARINGAN_RS` diisi, (2) profil RS dan paket identitas (warna merek diuji kontras otomatis; ditolak bila teks di latar putih < 4,5:1 atau isian < 3:1), (3) unit organisasi, KSM, poli, bangsal/kamar/TT, kelas rawat, (4) muat paket referensi (FR-54-09), (5) pegawai dan izin praktik minimal, (6) penjamin dan tarif, (7) formularium, (8) kredensial integrasi (disimpan di vault, diuji ke sandbox), (9) modul aktif. Tiap langkah bisa diulang, tercatat di audit, dan instalasi **tidak bisa melayani pasien** sebelum langkah 1–6 lengkap | M | [I] |
 | FR-54-09 | **Paket data referensi** dimuat dengan sumber, versi, dan tanggal muat di `inti.paket_referensi`; pembaruan versi tidak menghapus kode lama (kode lama ditandai tidak aktif dan tetap terbaca di data historis). Isi dan status lisensi per paket di tabel di bawah | M | [I] |
 | FR-54-10 | **Data demo sintetis** untuk pelatihan dan demo: nama, NIK, dan No. RM dibangkitkan dan tidak valid secara format nasional bila memungkinkan; seeder menolak berjalan di produksi; setiap layar instalasi demo diberi pita *DEMO — data fiktif* | M | [I] |
-| FR-54-11 | **Lokasi fisik bertingkat**, terpisah dari unit organisasi: situs/kompleks → gedung → sayap/zona → lantai → ruang → tempat tidur. Unit organisasi menjawab *siapa yang mengelola* (misal Bangsal Penyakit Dalam), lokasi menjawab *di mana* (Gedung B, Lantai 3, Ruang 304). Satu unit boleh menempati beberapa ruang di beberapa lantai; satu ruang dipakai satu unit pada satu waktu, dengan riwayat | M | [I]; padanan FHIR Location (`physicalType` si/bu/wi/lvl/ro/bd dan `partOf`) [High], pemakaian rinci di SATUSEHAT **perlu verifikasi** |
-| FR-54-12 | Setiap lokasi punya kode baku yang bisa dibaca orang (misal `B-3-304-2` = gedung B, lantai 3, ruang 304, TT 2), nama tampilan, fungsi ruang (rawat inap, rawat jalan, IGD, OK, intensif, penunjang, administrasi, gudang, dll.), status (aktif, renovasi, ditutup) dengan tanggal berlaku, dan pemetaan `satusehat_lokasi_id` | M | [I] |
-| FR-54-13 | **Penunjuk arah**: kode dan nama lokasi (gedung, lantai, ruang) tampil di tiket antrean, display, anjungan, pesan ke pasien, dan surat kontrol. Denah per lantai opsional (unggah gambar, titik ruang ditandai) | S | [I] |
-| FR-54-14 | Penyiapan awal lokasi lewat **templat impor CSV** di wizard (FR-54-08 langkah 3) dan validasi: kode unik per induk, tidak ada siklus, TT hanya di bawah ruang | M | [I] |
 
 **Paket referensi (FR-54-09)**
 
@@ -1784,7 +1755,7 @@ Legenda: ● penuh · ◐ lihat/terbatas · – tidak ada.
 | Frontend | **SPA Vue 3 + TypeScript + Vite**, API JSON (bukan Inertia) | Papan real-time, offline-tolerant, kemungkinan aplikasi mobile/PWA berbagi API | Butuh manajemen state & auth token; SEO tidak relevan |
 | Basis data | **PostgreSQL 16** | JSONB untuk formulir RME fleksibel, partisi tabel besar (observasi, audit), Row-Level Security opsional, ekstensi `pg_trgm` untuk pencarian nama | Tim perlu kompetensi Postgres (bukan MySQL) |
 | Real-time | **Laravel Reverb** (WebSocket) + Redis pub/sub | Papan IGD, peta TT, antrean, notifikasi | Perlu sticky/scale-out Reverb dengan Redis |
-| Queue | **Valkey + Laravel Horizon** (klien `phpredis`; `predis` hanya untuk lokal bila ekstensi tidak tersedia) | Bridging BPJS/SATUSEHAT async + retry, eskalasi terjadwal | HA (Sentinel) wajib. **Valkey** (BSD-3, Linux Foundation) dipakai menggantikan Redis karena Redis ≥ 7.4 tidak lagi BSD (source-available sejak Mar 2024; AGPLv3 mulai Redis 8). Protokol dan klien sama; istilah "Redis" di dokumen ini berarti server kompatibel Redis. Implikasi lisensi perlu verifikasi legal |
+| Antrean pekerjaan | **Valkey + Laravel Horizon** (klien `phpredis`; `predis` hanya untuk lokal bila ekstensi tidak tersedia) | Bridging BPJS/SATUSEHAT async + retry, eskalasi terjadwal | HA (Sentinel) wajib. **Valkey** (BSD-3, Linux Foundation) dipakai menggantikan Redis karena Redis ≥ 7.4 tidak lagi BSD (source-available sejak Mar 2024; AGPLv3 mulai Redis 8). Protokol dan klien sama; istilah "Redis" di dokumen ini berarti server kompatibel Redis. Implikasi lisensi perlu verifikasi legal |
 | Integrasi | **Integration Gateway** (modul Laravel terpisah, deploy sebagai worker sendiri) + **Outbox pattern** | Kiriman tidak hilang saat API eksternal turun; kirim ulang otomatis [K] | Kompleksitas tambahan tabel outbox |
 | Analitik | **Read replica** + materialized view / skema `analitik` (opsional ClickHouse saat volume tinggi) | Dasbor tidak membebani OLTP | Latensi data dasbor (menit) |
 | File/dokumen | **Object storage S3-compatible (MinIO)** on-premise | PDF TTE, scan, lampiran; enkripsi at-rest | Perlu backup terpisah |
@@ -1893,7 +1864,7 @@ app/
 | Kunci JSON | `snake_case` bahasa Indonesia, sama dengan kolom; ID berupa UUIDv7; waktu ISO 8601 dengan zona | `{"nomor_rm": "00-48-21-07", "dibuat_pada": "2026-10-10T09:12:00+07:00"}` |
 | Daftar | Paginasi kursor `?kursor=&batas=`; filter sebagai query; respons `{data: [...], meta: {kursor_berikutnya}}` | `GET /api/v1/kunjungan?poli=PD&tanggal=2026-10-10` |
 | Bagian halaman | Respons hanya memuat bagian yang diizinkan (9.2.5); bagian yang tidak diizinkan **tidak dikirim**, bukan `null` | — |
-| Error | Satu format untuk semua: `{"error": {"kode": "akses_ditolak", "pesan": "…", "rincian": [...]}}`; `pesan` bahasa Indonesia untuk pengguna dan **tidak memuat data pasien**; status HTTP standar (400, 401, 403, 404, 409, 422, 429, 503); token CSRF tidak valid = 403 `csrf_tidak_valid` (bukan 419 bawaan Laravel) | `403 {"error":{"kode":"akses_ditolak","pesan":"Anda tidak punya izin untuk tindakan ini."}}` |
+| Galat | Satu format untuk semua: `{"galat": {"kode": "akses_ditolak", "pesan": "…", "rincian": [...]}}`; `pesan` bahasa Indonesia untuk pengguna dan **tidak memuat data pasien**; status HTTP standar (400, 401, 403, 404, 409, 422, 429, 503); token CSRF tidak valid = 403 `csrf_tidak_valid` (bukan 419 bawaan Laravel) | `403 {"galat":{"kode":"akses_ditolak","pesan":"Anda tidak punya izin untuk tindakan ini."}}` |
 | Idempotensi | Aksi yang memicu kiriman eksternal atau tanda tangan menerima header `Idempotency-Key` | `POST /api/v1/bpjs/sep` |
 | Autentikasi | SPA: cookie Sanctum stateful + CSRF; mesin-ke-mesin: token Sanctum bercakupan; kios: token perangkat (7.01.1) | — |
 
@@ -1905,18 +1876,18 @@ Kontrak ini mengikat backend (tiket 1.1, 1.1b) dan halaman masuk (tiket 1.4a). P
 
 **Kapan MFA wajib** (14.2, 9.2.4): superadmin, peran sensitif, dan akses dari luar jaringan RS. Sebelum peran ada (tiket 1.2), penentunya kolom `akses.pengguna.wajib_mfa` dan daftar CIDR jaringan RS di konfigurasi; sesudahnya diturunkan dari peran.
 
-| Langkah | Permintaan | Respons sukses | Error |
+| Langkah | Permintaan | Respons sukses | Galat |
 |---|---|---|---|
-| 1. Sandi | `POST /api/v1/autentikasi/masuk` `{nama_pengguna, sandi}` | `200` salah satu: `{"status":"masuk","pengguna":{…}}` · `{"status":"perlu_mfa","challenge_id":"<uuid>","metode":["totp","kode_cadangan"],"kedaluwarsa_pada":"<ISO 8601>"}` · `{"status":"perlu_daftar_mfa","challenge_id":"<uuid>","kedaluwarsa_pada":"<ISO 8601>"}` | Tidak berubah dari tiket 1.1: `401 kredensial_salah`, `403 akun_terkunci`, `403 akun_nonaktif`, `403 asal_tidak_diizinkan`, `429` |
-| 2a. Kode MFA | `POST /api/v1/autentikasi/mfa` `{challenge_id, metode, kode}` | `200 {"status":"masuk","pengguna":{…}}` | `401 kode_mfa_salah` · `401 challenge_tidak_berlaku` (kedaluwarsa, sudah dipakai, atau dari sesi lain; klien kembali ke langkah 1) · `403 akun_terkunci` · `429` |
-| 2b. Daftar MFA (pertama kali) | `POST /api/v1/autentikasi/mfa/daftar` `{challenge_id}` | `200 {"uri_otpauth":"otpauth://…","qr_svg":"<svg…>"}` | `401 challenge_tidak_berlaku` |
-| 2c. Konfirmasi daftar | `POST /api/v1/autentikasi/mfa/daftar/konfirmasi` `{challenge_id, kode}` | `200 {"status":"masuk","pengguna":{…},"kode_cadangan":["…" ×10]}`; kode cadangan **hanya ditampilkan sekali** | `401 kode_mfa_salah` · `401 challenge_tidak_berlaku` |
+| 1. Sandi | `POST /api/v1/autentikasi/masuk` `{nama_pengguna, sandi}` | `200` salah satu: `{"status":"masuk","pengguna":{…}}` · `{"status":"perlu_mfa","tantangan_id":"<uuid>","metode":["totp","kode_cadangan"],"kedaluwarsa_pada":"<ISO 8601>"}` · `{"status":"perlu_daftar_mfa","tantangan_id":"<uuid>","kedaluwarsa_pada":"<ISO 8601>"}` | Tidak berubah dari tiket 1.1: `401 kredensial_salah`, `403 akun_terkunci`, `403 akun_nonaktif`, `403 asal_tidak_diizinkan`, `429` |
+| 2a. Kode MFA | `POST /api/v1/autentikasi/mfa` `{tantangan_id, metode, kode}` | `200 {"status":"masuk","pengguna":{…}}` | `401 kode_mfa_salah` · `401 tantangan_tidak_berlaku` (kedaluwarsa, sudah dipakai, atau dari sesi lain; klien kembali ke langkah 1) · `403 akun_terkunci` · `429` |
+| 2b. Daftar MFA (pertama kali) | `POST /api/v1/autentikasi/mfa/daftar` `{tantangan_id}` | `200 {"uri_otpauth":"otpauth://…","qr_svg":"<svg…>"}` | `401 tantangan_tidak_berlaku` |
+| 2c. Konfirmasi daftar | `POST /api/v1/autentikasi/mfa/daftar/konfirmasi` `{tantangan_id, kode}` | `200 {"status":"masuk","pengguna":{…},"kode_cadangan":["…" ×10]}`; kode cadangan **hanya ditampilkan sekali** | `401 kode_mfa_salah` · `401 tantangan_tidak_berlaku` |
 
 Aturan:
 - `pengguna` berisi bentuk `PenggunaResource` yang sama dengan `GET /api/v1/saya`, ditambah `mfa_aktif` (boolean).
 - **Siapa wajib MFA** (keputusan 11 Okt 2026): wajib bila peran aktif mana pun bertanda `wajib_mfa`, atau akun bertanda `wajib_mfa`, atau akses dari luar jaringan RS. Admin boleh mewajibkan MFA per peran dan per akun serta mereset MFA (beralasan, tercatat, daftar ulang dari jaringan RS). Admin **tidak bisa** membebaskan MFA untuk: superadmin, peran sensitif (9.2.4), dan **akses dari luar jaringan RS untuk akun mana pun**. Daftar jaringan RS hanya diubah superadmin dengan persetujuan superadmin kedua. Keringanan bagi pengguna diberikan lewat *perangkat terdaftar* (MFA sekali per perangkat dalam rentang waktu yang diatur), bukan dengan mematikan MFA.
 - **Pendaftaran MFA hanya dari jaringan RS** (keputusan 11 Okt 2026): dari luar `AUTENTIKASI_MFA_JARINGAN_RS`, akun yang belum punya MFA ditolak `403 mfa_belum_terdaftar` (bukan `perlu_daftar_mfa`), dengan pesan agar mendaftar dari jaringan RS atau meminta reset ke admin. Akses dari luar jaringan untuk akun yang sudah ber-MFA tetap diizinkan.
-- Selama status `perlu_mfa`/`perlu_daftar_mfa`, sesi **belum masuk**: `GET /api/v1/saya` tetap `401 belum_masuk`, dan tidak ada endpoint lain yang bisa dipakai. Challenge terikat ke sesi (cookie) yang membuatnya, sekali pakai, berlaku 5 menit.
+- Selama status `perlu_mfa`/`perlu_daftar_mfa`, sesi **belum masuk**: `GET /api/v1/saya` tetap `401 belum_masuk`, dan tidak ada endpoint lain yang bisa dipakai. Tantangan terikat ke sesi (cookie) yang membuatnya, sekali pakai, berlaku 5 menit.
 - `403 akun_terkunci` dan `429` membawa header `Retry-After` (detik) berisi sisa waktu; nama pengguna yang tidak ada mengikuti aturan kunci dan header yang sama persis.
 - ID sesi diganti (`regenerate`) setelah langkah yang menghasilkan `status: masuk`.
 - Kode MFA salah dihitung ke penghitung gagal yang sama dengan sandi; 5 kali gagal → `akun_terkunci` 15 menit.
@@ -1924,32 +1895,6 @@ Aturan:
 - Audit: `autentikasi.mfa_berhasil`, `autentikasi.mfa_gagal`, `autentikasi.mfa_didaftarkan`, `autentikasi.kode_cadangan_dipakai`; tanpa kode, rahasia, maupun URI otpauth di log.
 - Halaman masuk disusun sebagai mesin status `sandi → (perlu_mfa → kode) | (perlu_daftar_mfa → pindai QR → konfirmasi → tampilkan kode cadangan) → masuk`. Sampai tiket 1.1b merge, respons sukses tanpa `status` diperlakukan sebagai `masuk`.
 - WebAuthn (14.2) menyusul sebagai `metode` tambahan tanpa mengubah bentuk kontrak.
-
-#### 10.3.3 Glosarium istilah
-
-Nama di kode, API, dan layar memakai kata yang dipakai orang sehari-hari di RS dan tim IT, supaya pengembang baru dan pengguna tidak perlu menebak arti kata baku yang jarang dipakai (tiket 1.0g).
-
-Aturan:
-1. **Istilah pelayanan dan administrasi RS tetap bahasa Indonesia** (pasien, kunjungan, tagihan, peran, izin, antrean pasien, kata sandi). Itu bahasa pengguna.
-2. **Istilah teknis memakai kata yang paling lazim.** Bila padanan bakunya jarang dipakai, pakai istilah serapan/Inggris yang umum (error, email, cache, token, log, queue, rate limit).
-3. **Tabel ini satu-satunya rujukan** dan dirujuk CLAUDE.md. Istilah baru yang meragukan ditambahkan ke tabel ini lewat PR, tidak diputuskan per berkas.
-4. **Hindari di layar dan kode:** galat, surel, daring/luring, peladen, pranala, tembolok, kuki, tetikus, awakutu.
-
-| Lama | Baru | Di mana |
-|---|---|---|
-| galat | **error** | JSON `{"error": {"kode", "pesan", "rincian"}}` (10.3.1); kelas `ApiError`, `ErrorHandler`, `MfaError`, `FieldError`. Teks layar memakai kalimat biasa ("Terjadi kesalahan…") atau pesan dari server |
-| surel | **email** | Kolom `akses.pengguna.email`, field API, label |
-| tantangan (MFA) | **challenge** | `challenge_id`, `challenge_tidak_berlaku`, `MfaChallenge` (10.3.2) |
-| jangkar (audit) | **anchor** | Berkas anchor rantai audit, `AUDIT_ANCHOR_DISK`, channel log `audit_anchor`, perintah `audit:ekspor-anchor` |
-| penyamaran | **masking** | `SqlMasker`, `MaskingProcessor`, `InstallMasking`; masking data pribadi di log (14.2) |
-| batas laju | **rate limit** | Limiter dan store `rate-limit`, `config/rate_limit.php`, `RATE_LIMIT_*` (`CACHE_LIMITER_STORE` tetap) |
-| proksi tepercaya | **trusted proxy** | `TrustedProxies`, `TRUSTED_PROXIES` |
-| antrean pekerjaan | **queue** | `JenisQueue`, supervisor Horizon `queue-<jenis>`. Kata **antrean** khusus antrean pasien (modul 02) |
-| lencana (field menu) | **jumlah_tugas** | `Menu.jumlah_tugas` di `GET /api/v1/saya/menu` (angka tugas terbuka) |
-| lencana (komponen layar) | **badge** | Komponen dan token desain (5.3) |
-| data induk (kode menu) | **master_data** | Kode menu `master_data.*`, rute `/master-data` (label sudah "Master Data") |
-
-Tetap dipakai karena sudah lazim: kata sandi/sandi, sesi, kursor, peran, izin, cakupan, berkas, unggah/unduh, dasbor, *Segera hadir*. Nama modul domain (Akses, Pendaftaran, dll.) dan istilah klinis di luar cakupan glosarium ini.
 
 ### 10.4 Struktur frontend (Vue 3)
 
@@ -2003,7 +1948,7 @@ sequenceDiagram
 
 ## 11. Desain Database
 
-> Seluruh nama skema, tabel, dan kolom domain memakai **bahasa Indonesia**. Tabel bawaan kerangka kerja (queue, sesi, migrasi) tetap berbahasa Inggris di skema `sistem` agar pembaruan Laravel tidak memerlukan penamaan ulang.
+> Seluruh nama skema, tabel, dan kolom domain memakai **bahasa Indonesia**. Tabel bawaan kerangka kerja (antrean pekerjaan, sesi, migrasi) tetap berbahasa Inggris di skema `sistem` agar pembaruan Laravel tidak memerlukan penamaan ulang.
 
 ### 11.1 Konvensi penamaan dan struktur
 
@@ -2034,7 +1979,7 @@ sequenceDiagram
 | Role | Hak | Dipakai oleh |
 |---|---|---|
 | `simrs_migrator` | Pemilik semua skema; DDL | Perintah migrasi saat rilis saja |
-| `simrs_app` | `sistem`: `SELECT, INSERT, UPDATE, DELETE`; skema domain: `SELECT, INSERT, UPDATE` (tanpa `DELETE`; pengecualian per tabel diberikan di migrasinya dengan alasan dan direview); `audit`: `SELECT, INSERT`; `analitik`: `SELECT` saja; tanpa DDL | Aplikasi Laravel (web, queue worker, Reverb) |
+| `simrs_app` | `sistem`: `SELECT, INSERT, UPDATE, DELETE`; skema domain: `SELECT, INSERT, UPDATE` (tanpa `DELETE`; pengecualian per tabel diberikan di migrasinya dengan alasan dan direview); `audit`: `SELECT, INSERT`; `analitik`: `SELECT` saja; tanpa DDL | Aplikasi Laravel (web, antrean pekerjaan, Reverb) |
 | `simrs_analitik` | Pemilik materialized view di skema `analitik` (`CREATE` di skema itu, syarat pemindahan kepemilikan); `SELECT` pada skema domain agar `REFRESH` berjalan, **kecuali** skema `akses`, `ttd`, `audit`, dan `sistem` (berisi hash sandi, PIN, kunci, dan jejak audit); tanpa hak tulis di skema domain. Data dari skema yang dikecualikan hanya lewat view khusus yang dibuat migrasi dan ditinjau | Perintah terjadwal pembaruan dasbor |
 | `simrs_baca` | `SELECT` pada skema `analitik` dan replika baca | Dasbor dan pelaporan |
 
@@ -2093,11 +2038,8 @@ Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis
 | `paket_referensi` | id, sistem, versi, sumber, catatan_lisensi, dimuat_pada, dimuat_oleh, jumlah_kode |
 | `unit_organisasi` | id, induk_id, kode, nama, jenis (instalasi/bidang/bagian/ruang/poli/depo), satusehat_lokasi_id, pusat_biaya_id, aktif |
 | `ksm` | id, kode, nama, ketua_pegawai_id |
-| `lokasi` | id, induk_id, jenis (situs/gedung/sayap/lantai/ruang/tempat_tidur), kode, kode_lengkap, nama, fungsi, unit_organisasi_id (pengelola saat ini), status, berlaku_dari, berlaku_sampai, satusehat_lokasi_id, denah_berkas_id, posisi_denah jsonb (FR-54-11…14) |
-| `lokasi_riwayat_unit` | id, lokasi_id, unit_organisasi_id, berlaku_dari, berlaku_sampai, dasar |
-| `poliklinik` | id, unit_organisasi_id, kode_poli_bpjs, nama, lokasi_id (ruang) |
-| `bangsal` / `kamar` / `tempat_tidur` | bangsal: id, unit_organisasi_id, kelas_layanan; kamar: id, bangsal_id, lokasi_id (ruang), nomor, kapasitas_maksimum, atribut_standar jsonb (FR-08-19); tempat_tidur: id, kamar_id, lokasi_id, kode (tidak dipakai ulang), kelas_rawat_id, aturan_jenis_kelamin, isolasi, ekstra (TT lonjakan), satusehat_lokasi_id, status_operasional (aktif/akan_ditutup/ditutup), berlaku_dari, berlaku_sampai, status_saat_ini |
-| `kapasitas_tempat_tidur_harian` | tanggal, bangsal_id, kelas_rawat_id, jumlah_tersedia, jumlah_ekstra — penyebut BOR/BTO/TOI (FR-08-18) |
+| `poliklinik` | id, unit_organisasi_id, kode_poli_bpjs, nama, ruang, lantai |
+| `bangsal` / `kamar` / `tempat_tidur` | bangsal: id, unit_organisasi_id, kelas_layanan; kamar: id, bangsal_id, nomor; tempat_tidur: id, kamar_id, kode (PD-304B), kelas_rawat_id, aturan_jenis_kelamin, isolasi, satusehat_lokasi_id, status_saat_ini |
 | `kelas_rawat` | id, kode (III, II, I, VIP, KRIS), kode_aplicares, berlaku_dari |
 | `wilayah` | id, tingkat (provinsi/kabupaten/kecamatan/kelurahan), kode_kemendagri, nama, induk_id |
 | `referensi` | id, kelompok (agama, pekerjaan, pendidikan, …), kode, label, aktif |
@@ -2111,7 +2053,7 @@ Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis
 #### `akses` — akun, peran, menu, akses
 | Tabel | Kolom utama |
 |---|---|
-| `pengguna` | id, pegawai_id, peserta_didik_id, nama_pengguna, email, sandi_hash, status, login_terakhir_pada, percobaan_gagal, terkunci_sampai, mfa_rahasia_enkripsi, mfa_aktif_pada, mfa_langkah_terakhir, wajib_mfa (kewajiban MFA tingkat akun, di samping yang diturunkan dari peran) |
+| `pengguna` | id, pegawai_id, peserta_didik_id, nama_pengguna, surel, sandi_hash, status, login_terakhir_pada, percobaan_gagal, terkunci_sampai, mfa_rahasia_enkripsi, mfa_aktif_pada, mfa_langkah_terakhir, wajib_mfa (kewajiban MFA tingkat akun, di samping yang diturunkan dari peran) |
 | `kode_cadangan_mfa` | id, pengguna_id, kode_hash (Argon2id), dipakai_pada, dibatalkan_pada (diisi saat kode baru dibuat atau MFA direset) |
 | `peran` | id, kode (snake_case, mis. `superadmin`, `dokter`), nama, uraian, bawaan_sistem, wajib_mfa (superadmin selalu `true`, dijaga constraint), status (aktif/nonaktif) |
 | `izin` | id, kode (`<menu>.<sub_menu>.<aksi>`, mis. `farmasi.telaah_resep.sahkan`), menu_id (sub-menu tempat aksi berada), jenis_aksi (lihat/input/perbaiki/sahkan/verifikasi/setujui/batal/ekspor/cetak/lihat_rupiah), uraian, sensitif, butuh_mfa, butuh_kewenangan_klinis |
@@ -2356,7 +2298,7 @@ Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis
 #### `integrasi`
 | Tabel | Kolom utama |
 |---|---|
-| `kotak_keluar` (partisi) | id, agregat_jenis, agregat_id, tujuan (satusehat/bpjs_vclaim/antrean/aplicares/eklaim/siranap/sisrute/sirs/…), jenis_resource, muatan jsonb, status (menunggu/terkirim/gagal/tertahan), percobaan, coba_lagi_pada, error_terakhir, pemilik_unit_id, dibuat_pada |
+| `kotak_keluar` (partisi) | id, agregat_jenis, agregat_id, tujuan (satusehat/bpjs_vclaim/antrean/aplicares/eklaim/siranap/sisrute/sirs/…), jenis_resource, muatan jsonb, status (menunggu/terkirim/gagal/tertahan), percobaan, coba_lagi_pada, galat_terakhir, pemilik_unit_id, dibuat_pada |
 | `id_eksternal` | jenis_lokal, id_lokal, sistem, id_luar |
 | `log_api` (partisi) | tujuan, endpoint, permintaan (disamarkan), respons, kode_http, latensi_ms, terjadi_pada |
 | `kredensial_api` | tujuan, cons_id, rahasia_enkripsi, user_key_enkripsi, lingkungan, aktif |
@@ -2688,7 +2630,7 @@ Target kinerja di tabel atas hanya tercapai bila pola berikut menjadi aturan kod
 3. **Indeks dirancang bersama query**: setiap daftar kerja punya indeks komposit sesuai filter dan urutannya (misal `(unit_id, status, masuk_pada)`); pencarian nama memakai `pg_trgm` + GIN; kolom JSON yang dicari dijadikan *generated column* berindeks.
 4. **Paginasi keyset** (berdasarkan `(waktu, id)`), bukan `OFFSET`, untuk daftar panjang.
 5. **Cache Redis** untuk data induk (tarif berlaku, formularium, menu per peran, jadwal dokter) dengan invalidasi berbasis kejadian saat data induk berubah.
-6. **Pekerjaan berat dipindah ke queue**: pembuatan PDF, permintaan TTE ke PSrE, kiriman SATUSEHAT/BPJS, perhitungan indikator, ekspor.
+6. **Pekerjaan berat dipindah ke antrean**: pembuatan PDF, permintaan TTE ke PSrE, kiriman SATUSEHAT/BPJS, perhitungan indikator, ekspor.
 7. **Partisi bulanan** untuk tabel besar (Bagian 11.1) dan *materialized view* untuk dasbor.
 8. **Ukuran respons**: API mengembalikan kolom yang dibutuhkan layar saja (resource per layar), kompresi Brotli, HTTP/2.
 
@@ -2712,19 +2654,19 @@ Target kinerja di tabel atas hanya tercapai bila pola berikut menjadi aturan kod
 | Baris terbanyak di satu daftar kerja (antrean resep, pasien rawat inap RS, tugas unit) | 1.000–5.000 |
 | Pasien di basis data / kunjungan per tahun | ≥ 2 juta / ≥ 600 ribu |
 
-**Target uji:** 2× beban puncak selama 1 jam dengan error < 0,1% dan anggaran 14.1 tetap terpenuhi; uji ketahanan (*soak*) 8 jam tanpa kebocoran memori; layanan lokal tetap normal saat BPJS/SATUSEHAT/PSrE mati.
+**Target uji:** 2× beban puncak selama 1 jam dengan galat < 0,1% dan anggaran 14.1 tetap terpenuhi; uji ketahanan (*soak*) 8 jam tanpa kebocoran memori; layanan lokal tetap normal saat BPJS/SATUSEHAT/PSrE mati.
 
 **Aturan wajib (berlaku sejak tiket pertama yang membuat daftar):**
 1. **Tidak ada endpoint daftar tanpa batas.** Paginasi keyset wajib, ukuran halaman bawaan 50, maksimum 200; permintaan di atas batas ditolak `422`. Daftar kerja wajib punya filter cakupan (unit, tanggal, status) yang dipaksa server.
 2. **Batas waktu berlapis:** `statement_timeout` per role database (`simrs_app` 5 detik, `simrs_analitik` 5 menit), batas waktu permintaan HTTP 30 detik, dan batas waktu klien API eksternal 10 detik. Query yang melewati batas gagal sendiri, tidak menahan koneksi.
-3. **Ekspor dan laporan besar selalu di queue**, dibaca dari replika, hasilnya berkas yang diunduh kemudian. Tidak ada ekspor sinkron.
-4. **Queue dipisah per jenis** dengan pekerja masing-masing (Horizon): `integrasi` (BPJS, SATUSEHAT, PSrE), `notifikasi`, `dokumen` (PDF), `laporan`, `bawaan`. Gangguan di satu sistem luar tidak menghabiskan pekerja jenis lain. Panggilan ke sistem luar memakai *circuit breaker*, coba ulang dengan jeda bertingkat, dan antrean gagal (*dead letter*) yang dipantau.
+3. **Ekspor dan laporan besar selalu di antrean**, dibaca dari replika, hasilnya berkas yang diunduh kemudian. Tidak ada ekspor sinkron.
+4. **Antrean dipisah per jenis** dengan pekerja masing-masing (Horizon): `integrasi` (BPJS, SATUSEHAT, PSrE), `notifikasi`, `dokumen` (PDF), `laporan`, `bawaan`. Gangguan di satu sistem luar tidak menghabiskan pekerja jenis lain. Panggilan ke sistem luar memakai *circuit breaker*, coba ulang dengan jeda bertingkat, dan antrean gagal (*dead letter*) yang dipantau.
 5. **Pembaruan real-time berupa perubahan (delta), bukan daftar penuh**, dan dikelompokkan per kanal unit; klien menggabungkan delta ke cache TanStack Query.
-6. **Dua instans Valkey**: satu untuk cache (`allkeys-lru`, boleh membuang data lama) dan satu untuk sesi + queue (`noeviction`, tidak boleh membuang). Satu instans untuk keduanya berisiko menghapus sesi atau pekerjaan di queue saat memori penuh.
-7. **Rate limit per pengguna** untuk semua API (bukan hanya masuk), dengan batas lebih longgar untuk layar kerja yang wajar dipakai cepat.
+6. **Dua instans Valkey**: satu untuk cache (`allkeys-lru`, boleh membuang data lama) dan satu untuk sesi + antrean (`noeviction`, tidak boleh membuang). Satu instans untuk keduanya berisiko menghapus sesi atau pekerjaan antrean saat memori penuh.
+7. **Pembatasan laju per pengguna** untuk semua API (bukan hanya masuk), dengan batas lebih longgar untuk layar kerja yang wajar dipakai cepat.
 8. **Aplikasi tanpa status (*stateless*)**: beberapa simpul Octane di belakang penyeimbang beban, pemeriksaan kesehatan (`/up` hidup, `/siap` siap melayani), sehingga satu simpul mati tidak menghentikan layanan. PgBouncer membatasi koneksi agar PostgreSQL tidak kehabisan `max_connections`.
 9. **Frontend**: pencarian dengan jeda ketik (*debounce*) ≥ 300 ms, permintaan lama dibatalkan saat filter berubah, tabel virtual untuk > 100 baris, tidak pernah meminta "semua baris".
-10. **Pemantauan dengan ambang peringatan**: P95 API, panjang queue per jenis, umur pekerjaan tertua, koneksi PgBouncer, lag replika, memori Valkey, ruang disk partisi; setiap peringatan punya prosedur tindakan.
+10. **Pemantauan dengan ambang peringatan**: P95 API, panjang antrean per jenis, umur pekerjaan tertua, koneksi PgBouncer, lag replika, memori Valkey, ruang disk partisi; setiap peringatan punya prosedur tindakan.
 
 **Bukti:** skrip uji beban (k6) disimpan di repo dan dijalankan terhadap staging sebelum setiap rilis besar; hasilnya dilampirkan di catatan rilis.
 
@@ -2734,10 +2676,10 @@ Dasar: Permenkes 24/2022 Ps. 29 (kerahasiaan, integritas, ketersediaan), Ps. 20 
 
 | Area | Kebutuhan |
 |---|---|
-| **Autentikasi** | Sandi minimal 12 karakter, dicek terhadap daftar sandi bocor, disimpan Argon2id; tanpa kewajiban ganti berkala kecuali ada indikasi bocor. MFA (aplikasi autentikator atau WebAuthn) wajib untuk peran sensitif, superadmin, dan akses dari luar jaringan RS. Kunci 15 menit setelah 5 kali gagal, berlaku juga untuk nama pengguna yang tidak ada agar keberadaan akun tidak bisa ditebak; verifikasi hash tetap dijalankan untuk akun yang tidak ada agar waktu respons setara. Pesan error tidak membedakan nama pengguna dan sandi yang salah; status *nonaktif* hanya diungkap bila sandi benar. Setiap penguncian akun nyata dicatat di audit dan diberitahukan ke pemilik akun (penguncian massal dapat dipakai untuk mengganggu layanan) |
+| **Autentikasi** | Sandi minimal 12 karakter, dicek terhadap daftar sandi bocor, disimpan Argon2id; tanpa kewajiban ganti berkala kecuali ada indikasi bocor. MFA (aplikasi autentikator atau WebAuthn) wajib untuk peran sensitif, superadmin, dan akses dari luar jaringan RS. Kunci 15 menit setelah 5 kali gagal, berlaku juga untuk nama pengguna yang tidak ada agar keberadaan akun tidak bisa ditebak; verifikasi hash tetap dijalankan untuk akun yang tidak ada agar waktu respons setara. Pesan galat tidak membedakan nama pengguna dan sandi yang salah; status *nonaktif* hanya diungkap bila sandi benar. Setiap penguncian akun nyata dicatat di audit dan diberitahukan ke pemilik akun (penguncian massal dapat dipakai untuk mengganggu layanan) |
 | **Sesi** | Sesi berbasis cookie `HttpOnly`, `Secure`, `SameSite=Strict` (Sanctum SPA), bukan token di `localStorage`. Kedaluwarsa tidak aktif: 15 menit di komputer bersama/area publik, 60 menit di perangkat pribadi terdaftar. Ganti pengguna cepat di komputer ruangan (kartu pegawai/PIN) tanpa menutup aplikasi. Sesi dicabut saat akun dinonaktifkan atau perannya berubah, diperiksa di setiap permintaan; koneksi realtime (Reverb) ikut diputus. Masa hidup sesi di penyimpanan (`SESSION_LIFETIME`) lebih panjang dari batas diam terpanjang agar pengguna menerima `sesi_kedaluwarsa`, bukan `belum_masuk` |
 | **Otorisasi** | Model 9.2 diperiksa di server; pemeriksaan per objek di setiap endpoint (mencegah IDOR); respons dibentuk sesuai izin bagian dan kolom; tidak ada endpoint tanpa kebijakan akses (diuji otomatis di CI) |
-| **Aplikasi web** | Validasi semua masukan di server; perlindungan *mass assignment*; CSRF; CORS hanya domain RS; header keamanan (CSP ketat, HSTS, X-Frame-Options, Referrer-Policy); rate limit per pengguna dan per IP; unggahan berkas dicek tipe, ukuran, dan dipindai antivirus sebelum disimpan |
+| **Aplikasi web** | Validasi semua masukan di server; perlindungan *mass assignment*; CSRF; CORS hanya domain RS; header keamanan (CSP ketat, HSTS, X-Frame-Options, Referrer-Policy); batas laju per pengguna dan per IP; unggahan berkas dicek tipe, ukuran, dan dipindai antivirus sebelum disimpan |
 | **Data** | TLS 1.2+ di semua jalur termasuk antar-server; enkripsi disk dan cadangan; kolom sensitif dienkripsi aplikasi; kunci di KMS/HSM dengan rotasi tahunan; pengguna basis data aplikasi tanpa hak DDL (role `simrs_app`, 11.1); tabel audit hanya bisa ditambah (hak `INSERT` saja); data pribadi disamarkan di log dan di lingkungan uji (data uji sintetis, bukan salinan produksi) |
 | **Ekspor dan cetak** | Ekspor data pasien hanya dengan izin `ekspor` + alasan; berkas ekspor diberi tanda air nama pengguna dan waktu; cetak terkendali bernomor (Lampiran C) |
 | **Infrastruktur** | Segmentasi jaringan: zona aplikasi, zona basis data, zona perangkat medis (LIS/PACS), zona publik (portal pasien, verifikasi QR) di balik WAF; akses administrasi server lewat VPN + bastion dengan MFA; server dikeraskan (CIS benchmark) dan ditambal terjadwal; cadangan terenkripsi di lokasi berbeda dan diuji pulih bulanan |
@@ -2775,7 +2717,7 @@ Dasar: Permenkes 24/2022 Ps. 29 (kerahasiaan, integritas, ketersediaan), Ps. 20 
 | Formularium Nasional (KMK terbaru) | Kepatuhan Fornas pasien JKN | Validasi resep & INM Fornas | 22, 32 | [High] keberadaan; versi KMK perlu dicek |
 | Permenkes 290/2008 Persetujuan Tindakan Kedokteran | Informasi & persetujuan tertulis untuk tindakan berisiko | e-consent (P + T1/T2), saksi | 57, 26 | [Medium] — status berlaku setelah UU 17/2023 dan PP 28/2024 **tidak dapat dipastikan** saat audit; keabsahan tanda tangan pasien elektronik perlu opini hukum |
 | Permenkes 4/2018 Kewajiban RS & Kewajiban Pasien | Hak pasien, keluhan | Persetujuan umum, keluhan | 01, 37 | [High] |
-| UU 27/2022 Pelindungan Data Pribadi ✔ | Ps. 4 data kesehatan = data spesifik; Ps. 34 penilaian dampak wajib; Ps. 46 pemberitahuan kegagalan ≤ 3 × 24 jam; Ps. 53 pejabat PDP; Ps. 74 penyesuaian 2 tahun (sudah lewat) | Enkripsi, masking, akses berbasis kebutuhan, penilaian dampak, alur kebocoran data (B-21), data riset de-identifikasi | 54, 47, 32 | [High] |
+| UU 27/2022 Pelindungan Data Pribadi ✔ | Ps. 4 data kesehatan = data spesifik; Ps. 34 penilaian dampak wajib; Ps. 46 pemberitahuan kegagalan ≤ 3 × 24 jam; Ps. 53 pejabat PDP; Ps. 74 penyesuaian 2 tahun (sudah lewat) | Enkripsi, penyamaran, akses berbasis kebutuhan, penilaian dampak, alur kebocoran data (B-21), data riset de-identifikasi | 54, 47, 32 | [High] |
 | UU 11/2008 jo. UU 1/2024 ITE & PP 71/2019 PSTE ✔ (PP) | Ps. 59 ayat 3 enam syarat TTE sah; Ps. 60 TTE tersertifikasi (PSrE Indonesia) dan tidak tersertifikasi; Ps. 61 data pembuatan unik | TTE tiga tingkat (T1 PIN, T2 PSrE, segel RS), QR verifikasi | 57 | [High] untuk TTE; [Medium] lokasi data & PSE |
 | UU 10/2020 tentang Bea Meterai | Objek bea meterai termasuk dokumen elektronik | E-meterai hanya untuk dokumen terutang | 57, 28, 42 | [Medium] — objek dan ambang perlu verifikasi |
 | Regulasi JKN: Perpres 82/2018 jo. perubahan (Perpres 59/2024 — KRIS), Permenkes tentang Standar Tarif & INA-CBG, Juknis BPJS | SEP, klaim, KRIS, obat kronis, antrean online | Bridging, grouper adapter, aturan kelas konfigurabel | 01, 27, 50, 22 | [Medium] — **status KRIS & iDRG perlu verifikasi live** |
@@ -3078,7 +3020,7 @@ Status: **Digital** = tanpa kertas; **Digital + cetak terkendali** = sumber elek
 | 24 | Surat keterangan sakit/sehat | T2 + QR | Digital + cetak terkendali | — |
 | 25 | Surat keterangan kematian | T2 + QR | Digital + cetak terkendali | Penerimaan elektronik oleh Dukcapil perlu konfirmasi |
 | 26 | Visum et repertum | T2 + QR | Digital + cetak terkendali | Penerimaan oleh penyidik/pengadilan perlu konfirmasi |
-| 27 | Kuitansi dan rincian tagihan | E-kuitansi (WhatsApp/email/portal) | Digital | E-meterai bila terutang bea meterai |
+| 27 | Kuitansi dan rincian tagihan | E-kuitansi (WhatsApp/surel/portal) | Digital | E-meterai bila terutang bea meterai |
 | 28 | Berkas klaim BPJS | Unggah ke E-Klaim | Digital | Ikuti juknis BPJS terbaru |
 | 29 | Cuti dan presensi | Aplikasi pegawai | Digital | — |
 | 30 | Jadwal dinas tempel | Tampilan elektronik di ruang | Digital | — |
@@ -3208,7 +3150,7 @@ Di luar lingkup tiket: …
 - [ ] Isian klinis menyimpan nama, waktu server, dan TTE sesuai tingkat di data induk (FR-57-05); perbaikan membuat versi/adendum.
 - [ ] Aksi tercatat di `audit.log_aktivitas`.
 - [ ] Anggaran kinerja 14.1 terpenuhi pada data uji; tidak ada N+1 (diperiksa di CI).
-- [ ] Endpoint daftar mematuhi 14.1.1: paginasi keyset, batas ukuran halaman, filter cakupan dipaksa server; pekerjaan berat masuk queue jenis yang tepat.
+- [ ] Endpoint daftar mematuhi 14.1.1: paginasi keyset, batas ukuran halaman, filter cakupan dipaksa server; pekerjaan berat masuk antrean jenis yang tepat.
 - [ ] Teks antarmuka berbahasa Indonesia baku; nama tabel/kolom baru sesuai 11.1.
 - [ ] Layar diuji di kelas perangkat utamanya (5.5): e2e/tangkapan layar pada 1440, 1024, dan 768 px (ditambah 390 px bila layar termasuk daftar ponsel); target sentuh ≥ 44 px untuk kelas tablet.
 - [ ] Tidak ada nilai [I] atau "perlu verifikasi" yang dikodekan keras.

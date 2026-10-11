@@ -60,6 +60,10 @@ merge (bisa revert); proteksi cabang tidak aktif (GitHub Free), jadi aturan ini 
      menghapus data/kolom berisi data;
    - menambah dependensi baru di luar yang disebut tiket, atau menaikkan versi mayor.
    Tandai PR dengan judul berawalan "[Perlu pemilik]" dan lanjutkan tiket lain yang tidak bergantung padanya.
+   **Pisahkan PR "[Perlu pemilik]"** (ketentuan pemilik produk, 11 Okt 2026): perubahan yang menunggu pemilik repo
+   (PRD karangan sesi, pelonggaran keamanan, dsb.) dibuat sebagai PR kecil tersendiri; kode yang tidak bergantung
+   padanya di-merge sendiri. Bila kode memang bergantung pada isi PRD itu, tulis aturannya di backlog/tiket dulu lalu
+   lanjutkan; PRD menyusul di PR terpisah.
 4. **Berhenti dan laporkan** bila: butuh keputusan produk di luar PRD/tiket; butuh data/kredensial pihak luar;
    CI gagal 3 kali untuk penyebab yang sama; atau tidak ada tiket Siap. Laporan berisi apa yang dibutuhkan dan dari siapa.
 5. **Serah terima.** Setiap PR memuat: yang selesai, utang baru (juga ditulis ke backlog), dan langkah berikutnya —
@@ -115,9 +119,9 @@ merge (bisa revert); proteksi cabang tidak aktif (GitHub Free), jadi aturan ini 
 - Analisis statis: `composer analyse` (Larastan level 5, juga di CI). `phpstan-baseline.neon` hanya berisi temuan kode lama; kode baru harus bersih, jangan menambah baseline.
 - Playwright hanya ke **staging**, atau ke **lokal/CI dengan data sintetis**. Jangan pernah memakai data pasien asli di tes, seed, log, atau rekaman.
 
-**Istilah (PRD 10.3.3)**
+**Istilah (PRD 10.3.3; sampai PR PRD #39 merge, glosarium = badan tiket 1.0g di backlog)**
 - Istilah pelayanan RS tetap bahasa Indonesia (pasien, kunjungan, tagihan, peran, izin, antrean pasien). Istilah teknis memakai kata yang lazim: `error` (bukan galat), `email`, `challenge`, `anchor`, `masking`, `rate limit`, `trusted proxy`, `queue` (kata "antrean" khusus antrean pasien), `jumlah_tugas`, `master_data`.
-- Istilah baru yang meragukan ditambahkan ke tabel glosarium PRD 10.3.3 lewat PR, tidak diputuskan per berkas.
+- Istilah baru yang meragukan ditambahkan ke tabel glosarium (PRD 10.3.3, atau tiket 1.0g selama #39 belum merge) lewat PR, tidak diputuskan per berkas.
 
 **Klinis dan integrasi**
 - Regulasi yang berlaku: Indonesia (Permenkes 24/2022, UU 27/2022 PDP, dan regulasi lain di PRD 15). Abaikan rujukan HIPAA/GDPR/DISHA di skill pihak ketiga kecuali diminta.
