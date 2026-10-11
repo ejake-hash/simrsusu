@@ -34,7 +34,9 @@ info:
     waktu aktif sesi).
     v0.8.0: Tanda tangan elektronik T1 (tiket 1.6): /saya/ttd/aktivasi, /saya/ttd/pin, /ttd/{id}/reset (persetujuan akses
     `reset_ttd` dengan penyetuju orang: atasan langsung), /ttd/tandatangani, /ttd/verifikasi/{objek_jenis}/{objek_id};
-    Saya.ttd; PersetujuanAkses.penyetuju_pengguna.
+    Saya.ttd; PersetujuanAkses.penyetuju_pengguna. Penyelarasan 1.7-be (#53): ETag /saya/menu = `versi` + jumlah tugas
+    Beranda; `jumlah_tugas` null di /akun/{id}/menu; AKUN_TERKUNCI paling banyak satu per jam (in-app dan email);
+    pelaksana PERMINTAAN_AKSES = peran pemegang pengaturan.akun.perbaiki.
 servers:
   - url: /api/v1
 security:
@@ -82,7 +84,8 @@ paths:
         - Menu tampil bila minimal satu bagiannya boleh dilihat.
         - Modul yang belum dibangun/aktif dikirim dengan status "segera" HANYA bila konfigurasi
           `menu.tampilkan_segera_hadir` = true (pengembangan/demo); di produksi tidak dikirim.
-        - Respons di-cache per akun (Valkey cache) dan memakai ETag dari `versi`.
+        - Respons di-cache per akun (Valkey cache). ETag = `versi` + jumlah tugas Beranda (`"<versi>-<n>"`, sejak 1.7):
+          tugas baru mengubah ETag tanpa mengubah `versi`.
       parameters:
         - in: header
           name: If-None-Match
@@ -378,7 +381,8 @@ paths:
       operationId: menuAkun
       summary: Lihat sebagai — menu efektif dan izin akun lain, dihitung AccessEvaluator yang sama dengan /saya/menu
       description: |
-        Izin: pengaturan.akun.lihat. Bentuk respons = MenuSaya. Hanya pratinjau: tidak membuat sesi atas nama akun itu.
+        Izin: pengaturan.akun.lihat. Bentuk respons = MenuSaya, dengan `jumlah_tugas` selalu null (jumlah tugas akun lain tidak
+        dikirim). Hanya pratinjau: tidak membuat sesi atas nama akun itu.
         Status "segera" mengikuti aturan yang sama dengan /saya/menu. Audit `akses.lihat_sebagai`.
       responses:
         '200':
@@ -971,7 +975,8 @@ paths:
   # Persetujuan akses dan permintaan akses (tiket 1.2d; PRD 9.2.3–9.2.4, 9.3; keputusan K3, K4, K13)
   # Pemberian berisiko tidak langsung berlaku: dicatat sebagai persetujuan menunggu dan diterapkan (dalam transaksi
   # yang sama dengan keputusan) saat semua penyetuju yang dibutuhkan menyetujui. Penyetuju = pemegang peran penyetuju
-  # yang berlaku; tidak pernah pengaju dan tidak pernah akun penerima akses. Kedaluwarsa 7 hari.
+  # yang berlaku, atau orang tertentu (`penyetuju_pengguna`, sejak 1.6: reset TTE oleh atasan langsung); tidak pernah
+  # pengaju dan tidak pernah akun penerima akses. Kedaluwarsa 7 hari.
   # Jalan masuk layar: sub-menu `pengaturan.persetujuan` (izin `pengaturan.persetujuan.lihat`, tidak sensitif) diberikan
   # **lewat peran** seperti menu lain: bawaan untuk superadmin; untuk pemilik data, admin memberikannya ke peran penyetujunya.
   # Endpoint /persetujuan-akses sendiri tidak butuh izin (hanya data yang relevan bagi akun itu). Usulan sub-menu otomatis
@@ -979,7 +984,7 @@ paths:
   # Tidak ada POST /persetujuan-akses: persetujuan dibuat oleh endpoint pemberian (PUT izin peran, penugasan, izin khusus,
   # pengakhiran penugasan superadmin, penyetuju izin).
   # Aturan penyetuju (diperiksa server):
-  # - memegang peran penyetuju yang berlaku; bukan pengaju (403 pengaju_sendiri);
+  # - memegang peran penyetuju yang berlaku (atau = penyetuju_pengguna); bukan pengaju (403 pengaju_sendiri);
   # - bukan penerima (403 penerima_sendiri): untuk penugasan/izin khusus = akun sasaran; untuk izin peran = semua pemegang
   #   peran sasaran (penugasan aktif); untuk penyetuju izin = pemegang peran yang ditunjuk;
   # - kontrol ganda K3/K13 tidak bisa dilewati satu superadmin: menunjuk penyetuju izin (PUT /izin/{kode}/penyetuju) dan
@@ -2575,8 +2580,9 @@ paths:
   #   `unit` = tugas terbuka bukan milik akun ini di unit yang dikepalainya (termasuk turunan) atau yang eskalasinya dikirim
   #   ke akun ini; `selesai` = tugas akun ini dan unitnya yang selesai bulan ini. Tugas di tab mana pun bisa dibuka di
   #   /tugas/{id}.
-  # - Pemberitahuan AKUN_TERKUNCI (issue #11) bukan jenis tugas (tidak ada di /jenis-tugas): selalu kritis, email paling
-  #   banyak satu per jam per akun agar penguncian sengaja tidak membanjiri kotak masuk.
+  # - Pemberitahuan AKUN_TERKUNCI (issue #11) bukan jenis tugas (tidak ada di /jenis-tugas): selalu kritis, paling banyak
+  #   satu per jam per akun (in-app dan email) agar penguncian sengaja tidak membanjiri pemilik. TTD_TERKUNCI (1.6): ke
+  #   pemilik dan atasan langsung, juga kritis.
   # - Kanal (K2): in-app selalu; email (antrean `notifikasi`) bila akun punya email dan preferensinya menyala; WA/SMS
   #   lewat adapter dengan driver `log` di fase 1. Notifikasi kritis tidak bisa dimatikan preferensi (FR-53-09).
   # ---------------------------------------------------------------------------
@@ -2852,14 +2858,19 @@ paths:
         '428': { $ref: '#/components/responses/Error' }
   # ---------------------------------------------------------------------------
   # Tanda tangan elektronik T1 (tiket 1.6; PRD 7.57.1–7.57.2, FR-57-01…03/05, 11.2 ttd.*; keputusan K10).
-  # - Pasangan kunci Ed25519 per akun; kunci privat dibungkus kunci turunan PIN (Argon2id + garam per akun), PIN hanya
-  #   hash. Tidak ada jalur admin untuk menandatangani atas nama orang lain: penanda tangan selalu akun yang masuk.
+  # - Pasangan kunci Ed25519 per akun; kunci privat dibungkus kunci turunan PIN (Argon2id + garam per akun) DAN kunci
+  #   server (env/vault, bukan di DB), PIN hanya hash berlada kunci server: salinan DB saja tidak cukup untuk menebak PIN
+  #   atau membuka kunci. Tidak ada jalur admin untuk menandatangani atas nama orang lain: penanda tangan = akun yang masuk.
   # - Isi yang ditandatangani dihitung SERVER dari objeknya (JSON kanonik, kunci terurut) → SHA-256 → tanda tangan; klien
   #   tidak pernah mengirim isi. Cap waktu = waktu server (NTP). Setiap objek = satu baris tanda tangan.
   # - PIN 6 digit, bukan berurutan (123456, 654321) atau berulang (111111). 5 kali salah → terkunci 15 menit (konfigurasi)
-  #   dan atasan (kepala unit pegawai) diberi notifikasi kritis (1.7). PIN tidak pernah di log/audit/URL.
+  #   dan pemilik serta atasan langsung diberi notifikasi kritis (1.7). PIN tidak pernah di log/audit/URL.
+  #   `pin_salah` (422): `rincian` = `[{kolom: "pin" | "pin_lama", pesan: "Sisa percobaan: n."}]`. `ttd_terkunci` (403):
+  #   header `Retry-After` (detik).
   # - Sesi tanda tangan 15 menit (konfigurasi) sesudah PIN benar: penandatanganan berikutnya di sesi login yang sama boleh
-  #   tanpa PIN; tetap satu baris per objek.
+  #   tanpa PIN; tetap satu baris per objek. Sesi berakhir saat keluar, ganti sandi, ganti PIN, terkunci, atau TTE dicabut.
+  # - Isi kanonik hanya dari kolom tersimpan yang tidak berubah sesudah objek final (id, kode, nilai, waktu), bukan dari
+  #   label/nama yang disusun saat dibaca: mengganti nama peran atau unit tidak membuat tanda tangan lama `isi_berubah`.
   # - Objek yang bisa ditandatangani di fase 1: `persetujuan_akses` (penyetuju menandatangani keputusannya, 1.2d);
   #   `usulan_data_induk` menyusul 1.8c. Aturan tingkat per jenis objek (FR-57-05) adalah data induk; fase 1 hanya T1.
   # - T2/PSrE: antarmuka + simulator untuk uji alur asinkron, tanpa endpoint publik dan tanpa penyedia nyata (K10).
@@ -2869,16 +2880,19 @@ paths:
       operationId: aktivasiTtd
       summary: Aktivasi T1 — buat pasangan kunci dan tetapkan PIN
       description: |
-        Tanpa izin khusus (akun yang masuk). 409 `ttd_sudah_aktif`; 422 `pin_lemah` (bukan 6 digit, berurutan, atau
-        berulang) atau `pin_tidak_sama`. Audit `ttd.diaktifkan` (tanpa PIN). Status tampil di `Saya.ttd`.
+        Tanpa izin khusus (akun yang masuk). Sandi akun wajib: sesi yang dibajak tidak bisa membuat TTE atas nama pemilik.
+        - 422 `sandi_salah` (dibatasi laju per akun seperti /saya/sandi: 429 sesudah 5 kali per 15 menit);
+        - 409 `ttd_sudah_aktif`; 422 `pin_lemah` (bukan 6 digit, berurutan, atau berulang) atau `pin_tidak_sama`.
+        Audit `ttd.diaktifkan` (sidik kunci, tanpa PIN). Status tampil di `Saya.ttd`.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [pin, pin_ulang]
+              required: [sandi, pin, pin_ulang]
               properties:
+                sandi: { type: string, maxLength: 200 }
                 pin: { type: string, pattern: '^[0-9]{6}$' }
                 pin_ulang: { type: string, pattern: '^[0-9]{6}$' }
       responses:
@@ -2890,13 +2904,14 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
   /saya/ttd/pin:
     put:
       operationId: gantiPinTtd
       summary: Ganti PIN (pasangan kunci tetap; kunci privat dibungkus ulang)
       description: |
         422 `pin_salah` (dihitung ke penguncian; `rincian` = sisa percobaan), `pin_lemah`, `pin_tidak_sama`;
-        409 `ttd_belum_aktif`; 403 `ttd_terkunci` (header Retry-After). Audit `ttd.pin_diganti`.
+        409 `ttd_belum_aktif`; 403 `ttd_terkunci` (header Retry-After). Sesi tanda tangan berakhir. Audit `ttd.pin_diganti`.
       requestBody:
         required: true
         content:
@@ -2928,11 +2943,14 @@ paths:
         Izin: sdm.kredensial.perbaiki, cakupan `rs`. Reset = TTE lama dicabut (tanda tangan lama tetap terverifikasi
         dengan kunci publik lama); pemilik mengaktifkan ulang dengan pasangan kunci dan PIN baru. Tidak ada yang
         menetapkan PIN untuk orang lain.
-        Dua orang: pengaju (SDM) dan penyetuju = atasan langsung pemilik (kepala unit pegawainya; bila pemilik itu sendiri
-        kepala unit, kepala unit induknya), sebagai persetujuan akses `jenis = reset_ttd` dengan `penyetuju_pengguna`.
-        - 202 = persetujuan menunggu (PersetujuanAkses); berlaku saat disetujui.
+        Dua orang: pengaju (SDM) dan penyetuju = atasan langsung pemilik, sebagai persetujuan akses `jenis = reset_ttd`
+        dengan `penyetuju_pengguna`. Atasan = akun aktif kepala unit pegawainya; bila kepala itu pemilik sendiri, pengaju,
+        atau tanpa akun aktif, naik ke kepala unit induk, dan seterusnya sampai unit akar.
+        - 202 = persetujuan menunggu (PersetujuanAkses); berlaku saat disetujui: TTE lama dicabut, pemilik diberi notifikasi.
+          Audit `ttd.dicabut` saat diterapkan (pengajuannya diaudit `akses.persetujuan_diajukan`).
         - 403 `diri_sendiri` (mengajukan untuk akun sendiri); 409 `ttd_belum_aktif`; 409 `persetujuan_ganda`;
-          422 `atasan_belum_ditetapkan` (kepala unit kosong atau tanpa akun aktif); 422 `atasan_adalah_pengaju`.
+          422 `atasan_belum_ditetapkan` (pegawai tanpa unit, atau sampai unit akar tidak ada kepala lain berakun aktif,
+          mis. TTE Direktur: jalur puncak menunggu keputusan pemilik produk, lihat backlog 1.6).
       requestBody:
         required: true
         content:
@@ -2961,7 +2979,9 @@ paths:
       description: |
         Penanda tangan = akun yang masuk. `pin` wajib kecuali sesi tanda tangan masih berlaku (`Saya.ttd.sesi_berlaku_sampai`).
         Semua objek diperiksa dulu; satu yang tidak boleh → tidak ada yang ditandatangani (422 `objek_tidak_bisa_ditandatangani`,
-        `rincian` = `[{kolom: "objek[i]", pesan}]`). Objek yang sudah ditandatangani akun ini dilewati (tidak digandakan).
+        `rincian` = `[{kolom: "objek[i]", pesan}]`). Objek yang sudah ditandatangani akun ini tidak digandakan: respons memuat
+        tanda tangan yang sudah ada (pengganti Idempotency-Key: kirim ulang aman). Id ganda dalam satu permintaan → 422
+        `validasi_gagal`.
         Aturan per jenis objek: `persetujuan_akses` hanya oleh akun yang memutuskannya, dan hanya sesudah diputuskan.
         - 422 `pin_salah` (sisa percobaan di `rincian`), 422 `pin_wajib`; 403 `ttd_terkunci` (Retry-After); 409 `ttd_belum_aktif`.
         Audit `ttd.ditandatangani` per objek (hash isi, tanpa isi).
@@ -3012,7 +3032,8 @@ paths:
       description: |
         Hanya akun yang boleh melihat objek itu (persetujuan_akses: aturan /persetujuan-akses/{id}); selain itu 404.
         Isi kanonik dihitung ulang dari objek saat ini: `isi_berubah` bila hash berbeda dari saat ditandatangani,
-        `tanda_tangan_tidak_sah` bila tanda tangan tidak cocok dengan kunci publik saat itu. Hasil kosong = belum ada tanda tangan.
+        `tanda_tangan_tidak_sah` bila tanda tangan tidak cocok dengan kunci publik saat itu (diperiksa lebih dulu: bila
+        keduanya bermasalah, hasilnya `isi_berubah`). Hasil kosong = belum ada tanda tangan; urut ditandatangani_pada.
       responses:
         '200':
           description: Hasil verifikasi

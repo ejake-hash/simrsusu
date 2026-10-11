@@ -866,6 +866,10 @@ Aturan rinci (kontrak v0.7.0):
   - `notifikasi.notifikasi` berpartisi bulanan seperti audit, tetapi bukan append-only: `dibaca_pada` di-UPDATE.
   - Polling memakai header `X-Permintaan-Latar: 1` yang tidak memperbarui waktu aktif sesi (SesiPengguna).
   - Utang fase 2: tugas yang memuat pasien wajib lolos AccessEvaluator lapis 4 sebelum tampil di kotak kerja.
+  - Utang (tinjauan #53): satu objek dengan beberapa peran pelaksana yang dipegang akun yang sama (mis. dua peran pemegang
+    pengaturan.akun.perbaiki) terhitung ganda di lencana/tab; pengaju yang memegang peran penyetuju ikut menerima tugas
+    persetujuannya sendiri; pesan singkat masih sinkron di transaksi; eskalasi yang tertunda karena scheduler mati
+    terkirim sekaligus; seeder sintetis tugas/notifikasi untuk e2e.
 Di luar lingkup tiket: WebSocket/Reverb (fase 2), push mobile, kinerja tindak lanjut unit FR-53-08 (fase 4 dasbor).
 ```
 
@@ -876,7 +880,7 @@ Tujuan     : Setiap pengesahan di SIMRS ditandatangani oleh orangnya sendiri den
              PP 71/2019 Ps. 59 ayat 3, dan bisa diverifikasi kapan saja.
 FR         : PRD 7.57.1–7.57.2, FR-57-01…03, FR-57-05; 11.2 ttd.*; keputusan K10
 API (be)   : POST /saya/ttd/aktivasi (buat pasangan kunci + PIN), PUT /saya/ttd/pin (ganti), POST /ttd/{pengguna}/reset
-             (oleh atasan + SDM, dua persetujuan lewat 1.2d), POST /ttd/tandatangani (satu atau banyak objek; isi kanonik
+             (diajukan SDM, disetujui atasan lewat 1.2d; lihat aturan rinci), POST /ttd/tandatangani (satu atau banyak objek; isi kanonik
              dihitung server, bukan dikirim klien), GET /ttd/verifikasi/{objek_jenis}/{objek_id}
 Pekerjaan  :
   be 1. Ed25519 (ext-sodium); kunci privat dibungkus kunci turunan PIN (Argon2id + garam per pengguna); PIN hanya
@@ -902,20 +906,34 @@ Uji penerimaan:
 Aturan rinci (kontrak v0.8.0):
   - Reset TTE (PRD 7.57.2 huruf b, "oleh atasan + SDM"): petugas SDM (`sdm.kredensial.perbaiki`) mengajukan sesudah
     memverifikasi identitas pemilik (dicatat di `dasar`), atasan langsung menyetujui lewat alur 1.2d. Atasan = akun aktif
-    kepala unit pegawai itu (`inti.unit_organisasi.kepala_pegawai_id`); bila pemilik sendiri kepala unitnya → kepala unit
-    induk. Dua orang berbeda: pengaju ≠ atasan ≠ pemilik. Tanpa atasan berakun → 422 `atasan_belum_ditetapkan` (RS
-    melengkapi kepala unit dulu). Ekstensi 1.2d: `persetujuan_akses.penyetuju_pengguna_id` (penyetuju orang tertentu,
+    kepala unit pegawai itu (`inti.unit_organisasi.kepala_pegawai_id`); bila kepala itu pemilik sendiri, pengaju, atau
+    tanpa akun aktif → naik ke kepala unit induk, terus sampai unit akar. Dua orang berbeda: pengaju ≠ atasan ≠ pemilik.
+    Tidak ada atasan sampai unit akar (mis. Direktur, atau pegawai tanpa unit) → 422 `atasan_belum_ditetapkan`.
+    **Perlu keputusan pemilik produk:** penyetuju reset TTE pejabat puncak (Direktur): mis. Dewan Pengawas/pemilik RS
+    berakun, atau verifikasi tatap muka oleh dua superadmin. Sampai diputuskan, TTE Direktur tidak bisa direset lewat
+    sistem (aktivasi baru tidak terhalang). Ekstensi 1.2d: `persetujuan_akses.penyetuju_pengguna_id` (penyetuju orang tertentu,
     `penyetuju_peran_id` boleh kosong), jenis/objek `reset_ttd`, kedaluwarsa 7 hari seperti persetujuan lain.
   - Disetujui → kredensial lama berstatus `dicabut` (kunci publiknya tetap untuk verifikasi tanda tangan lama), pemilik
     mengaktifkan ulang sendiri (pasangan kunci + PIN baru). Tidak ada yang menetapkan PIN untuk orang lain.
-  - Isi kanonik per jenis objek dihitung penyedia isi di modul pemilik objek (antarmuka `PenyediaIsiTtd`); fase 1:
-    `persetujuan_akses` (nomor, jenis, ringkasan, objek, status, pemutus, waktu putus, catatan), ditandatangani oleh akun
+  - Isi kanonik per jenis objek dihitung penyedia isi (antarmuka `PenyediaIsiTtd`) hanya dari kolom tersimpan yang tidak
+    berubah sesudah objek final, bukan dari label yang disusun saat dibaca. Fase 1 `persetujuan_akses`: id, nomor, jenis,
+    objek_jenis, objek (jsonb), peran_id, izin_id, sasaran_pengguna_id, penyetuju_peran_id, penyetuju_pengguna_id,
+    diajukan_oleh, alasan, dasar, status, diputuskan_oleh, diputuskan_pada, catatan_keputusan; ditandatangani oleh akun
     pemutusnya sesudah diputuskan. Menyetujui tidak mensyaratkan tanda tangan di fase 1 (layar memanggil tandatangani
     sesudah setujui/tolak); kewajiban per jenis dokumen mengikuti `ttd.aturan_tingkat` (FR-57-05) saat dokumen klinis
     hadir di fase 2.
+  - Kunci server `TTD_KUNCI` (env/vault, 32 bita; daftar kunci lama `TTD_KUNCI_LAMA` untuk rotasi): lada HMAC untuk PIN
+    sebelum Argon2id (hash PIN dan kunci pembungkus). Salinan DB tanpa kunci server tidak bisa menebak PIN 6 digit
+    secara offline (uji penerimaan tambahan). Kunci server hilang = semua TTE perlu diaktifkan ulang (tanda tangan lama
+    tetap terverifikasi karena verifikasi hanya butuh kunci publik).
+  - Aktivasi mewajibkan sandi akun (dibatasi laju seperti ganti sandi).
   - 5 PIN salah → terkunci 15 menit (konfigurasi `ttd.*`) dan notifikasi kritis ke atasan (penerima sama dengan reset)
-    serta pemilik; penghitung dipulihkan saat PIN benar. PIN salah di ganti PIN ikut dihitung.
-  - Sesi tanda tangan 15 menit terikat sesi login (ID sesi); keluar/ganti sandi mengakhirinya.
+    serta pemilik; penghitung dipulihkan saat PIN benar. PIN salah di ganti PIN ikut dihitung. Reset diterapkan →
+    notifikasi ke pemilik.
+  - Sesi tanda tangan 15 menit terikat sesi login; berakhir saat keluar, ganti sandi, ganti PIN, terkunci, atau dicabut.
+    Kunci privat sesi disimpan terbungkus kunci acak: bungkusan di sesi server, kunci acak di cookie HttpOnly.
+  - Utang: syarat MFA/perangkat terdaftar untuk peran sensitif (PRD 7.57.1 T1) mengikuti lapis 5 di 1.5 (K11);
+    ETag/versi per objek bertanda tangan menyusul fase 2; frontend 1.2d menampilkan jenis `reset_ttd`.
   - `ttd.aturan_tingkat` (jenis dokumen → tingkat T1/T2/S/P) berisi data awal `persetujuan_akses → T1`, tanpa API di
     fase 1. `ttd.permintaan` dipakai SimulatorTte (T2) di uji; tanpa endpoint publik (K10).
 Di luar lingkup tiket: PSrE nyata, segel elektronik RS, halaman verifikasi publik ber-QR, tanda tangan pasien di
