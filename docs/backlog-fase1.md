@@ -150,6 +150,8 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   pertama dibuat (injeksi formula); nomor baris kesalahan impor = nomor rekaman CSV (berbeda bila sel memuat baris baru).
 - PRD menyusul (1.8d): 10.3.2 belum menyebut 403 `wajib_ganti_sandi` sesudah masuk dengan sandi awal, dan 9.1 belum
   memuat bagian `sdm.pegawai.identitas`; aturannya ada di badan tiket 1.8d, PRD diperbarui di PR [Perlu pemilik] terpisah.
+- **[Perlu pemilik] Usulan (1.8d):** reset sandi oleh admin (sandi awal baru sekali tampil, wajib ganti) dan masa berlaku
+  sandi awal; di luar API tiket 1.8d. Sampai itu sandi awal yang hilang tidak bisa dipulihkan.
 - **[Perlu pemilik] Usulan (1.8b):** daftar periksa baku atribut kamar (FR-08-19) sebagai data induk dengan endpoint
   sendiri (mis. `/atribut-kamar`: kode, label, jenis nilai, berlaku untuk KRIS/kelas lama). Endpoint ini tidak tercantum
   di API tiket 1.8b, jadi menunggu pemilik; sampai itu `Kamar.atribut_standar` berupa pasangan kunci-nilai bebas
@@ -744,12 +746,15 @@ Aturan rinci (kontrak v0.6.0):
   - Status pegawai diturunkan dari `tanggal_keluar` (aktif | akan_keluar | keluar). Keluar → akun nonaktif + sesi diputus
     pada tanggalnya (langsung atau tugas harian), audit.
   - Izin praktik dan RKK tidak diubah setelah dicatat: perbaikan = batalkan lalu catat ulang. Dokumen privat ≤ 5 MB
-    (PDF/JPEG/PNG, jenis dari isi berkas). Ambang "akan habis" dari konfigurasi (angka awal 90 hari, perlu verifikasi).
+    (PDF/JPEG/PNG, jenis dari isi berkas). Ambang "akan habis" dari konfigurasi (angka awal 60 hari, contoh FR-40-01; perlu verifikasi).
     Kode tindakan RKK diisi RS (bentuk saja yang diperiksa; tanpa daftar bawaan).
   - Akun dari pegawai: sandi awal acak ditampilkan sekali, wajib ganti saat masuk pertama. Selama wajib ganti, endpoint
     lain 403 `wajib_ganti_sandi` (status masuk di PRD 10.3.2 tidak berubah; `Saya.wajib_ganti_sandi`). Tautan aktivasi
     lewat email menunggu 1.7.
-  - Nonaktifkan akun pemegang superadmin ditolak 409 `superadmin_aktif` (akhiri penugasan superadmin lewat K4 dulu).
+  - Akun pemegang superadmin tidak bisa dinonaktifkan, diaktifkan, atau pegawainya dicatat keluar lewat jalur SDM/akun:
+    409 `superadmin_aktif` (akhiri penugasan superadmin lewat K4 dulu); tugas harian menunda keluar pegawai seperti itu
+    dan mencatat audit. `tanggal_keluar` = hari pertama tidak bekerja.
+  - Daftar pegawai: isi `akun` hanya untuk pemegang `pengaturan.akun.lihat` (selain itu `punya_akun` saja).
   - Kepala unit / ketua KSM ditetapkan lewat PATCH /unit-organisasi dan /ksm (`kepala_pegawai_id`, `ketua_pegawai_id`).
 Di luar lingkup tiket: jadwal dinas, kredensial lengkap komite (fase 4), peserta didik (fase 5).
 ```

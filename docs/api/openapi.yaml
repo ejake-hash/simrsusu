@@ -11,6 +11,7 @@ info:
     Kode error umum: belum_masuk (401), akses_ditolak (403), csrf_tidak_valid (403), tidak_ditemukan (404),
     validasi_gagal (422), ukuran_halaman_melebihi_batas (422), kursor_tidak_valid (422), versi_berubah (412),
     if_match_wajib (428), terlalu_banyak_permintaan (429). Sesi berakhir (401): sesi_kedaluwarsa, sesi_dicabut (ADR 0002).
+    Sejak v0.6.0: wajib_ganti_sandi (403) untuk akun bersandi awal, sampai POST /saya/sandi (lihat di sana).
     v0.2.0: Pengaturan Sistem → Peran & Izin, Akun & Akses (tiket 1.2c); kode menu data_induk.peran/akun → pengaturan.peran/akun.
     v0.2.1: istilah umum (tiket 1.0g, PRD 10.3.3): skema dan kunci respons `error`, field menu `jumlah_tugas`,
     kode menu `master_data`.
@@ -2089,8 +2090,15 @@ paths:
   # semuanya dengan cakupan `rs`. NIK disimpan terenkripsi (PRD 11.1) dan dikirim utuh hanya bila akun punya izin bagian
   # `sdm.pegawai.identitas.lihat` (sensitif: diberikan lewat persetujuan pemilik data, K3) — tanpa izin itu field `nik`
   # tidak dikirim, hanya `nik_samaran` (`1271 •••• •••• 0042`). NIK tidak pernah ada di URL, query string, log, atau audit.
-  # Satu akun = satu pegawai (K5). Pegawai keluar (`tanggal_keluar` ≤ hari ini zona RS) → akunnya nonaktif dan sesinya
-  # diputus pada tanggal itu (langsung bila tanggalnya sudah lewat, selain itu tugas harian), tercatat audit (9.2.6).
+  # Satu akun = satu pegawai (K5). `tanggal_keluar` = hari pertama pegawai tidak lagi bekerja: mulai tanggal itu akunnya
+  # nonaktif dan sesinya diputus (langsung bila tanggalnya sudah tercapai, selain itu tugas harian 00.10 zona RS), audit
+  # `akses.akun_dinonaktifkan` dengan alasan pegawai_keluar (9.2.6).
+  # Superadmin (PRD 9.2.4, K4): akun yang memegang peran superadmin (penugasan aktif, berlaku atau akan berlaku) tidak bisa
+  # dinonaktifkan, diaktifkan, atau dicatat keluar lewat jalur SDM/akun — 409 `superadmin_aktif`; akhiri penugasan
+  # superadmin lebih dulu lewat persetujuan superadmin lain. Tugas harian tidak memproses keluar pegawai yang akunnya
+  # (sesudah dicatat) memegang superadmin; dicatat audit `sdm.keluar_tertunda_superadmin`.
+  # Pemilih unit di form pegawai butuh /unit-organisasi (master_data.organisasi.lihat) dan pemilih kepala unit/ketua KSM
+  # butuh /pegawai (sdm.pegawai.lihat): berikan lewat peran yang sama, tidak ada izin silang otomatis.
   # 409/422 bisnis membawa `rincian` `[{kolom, pesan}]` (kolom = isian yang salah), kecuali yang disebut lain.
   # ---------------------------------------------------------------------------
   /pegawai:
@@ -2126,8 +2134,9 @@ paths:
       operationId: buatPegawai
       summary: Tambah pegawai
       description: |
-        Izin: sdm.pegawai.input. 409 `nip_sudah_dipakai`, 409 `nik_sudah_dipakai` (dibandingkan lewat sidik, bukan teks);
-        422 `unit_tidak_valid`. NIK wajib 16 digit bila diisi.
+        Izin: sdm.pegawai.input. 409 `nip_sudah_dipakai`; 409 `nik_sudah_dipakai` (dibandingkan lewat sidik; `rincian` tidak
+        menyebut pegawai pemegang NIK itu); 422 `unit_tidak_valid`. NIK 16 digit; mengisinya butuh izin bagian
+        `sdm.pegawai.identitas.lihat` (403 `akses_ditolak`). Respons memuat `nik` bila akun punya izin itu (audit `sdm.nik_dilihat`).
       requestBody:
         required: true
         content:
@@ -2166,9 +2175,11 @@ paths:
       summary: Ubah data pegawai, termasuk pencatatan keluar
       description: |
         Izin: sdm.pegawai.perbaiki. Wajib If-Match. Kirim minimal satu isian selain `dasar_perubahan`. Mengubah `nik` butuh
-        izin `sdm.pegawai.identitas.lihat` (403 `akses_ditolak`). 409 `nip_sudah_dipakai`, `nik_sudah_dipakai`.
-        - `tanggal_keluar` (+ `alasan_keluar` wajib): akun pegawai itu nonaktif dan sesinya diputus pada tanggal itu; tanggal
-          lampau/hari ini = langsung. `tanggal_keluar: null` membatalkan rencana keluar; akun yang sudah nonaktif tidak aktif
+        izin `sdm.pegawai.identitas.lihat` (403 `akses_ditolak`). 409 `nip_sudah_dipakai`, `nik_sudah_dipakai`. Respons memuat `nik`
+        dengan aturan sama seperti GET (audit `sdm.nik_dilihat`).
+        - 409 `superadmin_aktif`: mencatat `tanggal_keluar` untuk pegawai yang akunnya memegang superadmin (lihat aturan di atas).
+        - `tanggal_keluar` (hari pertama tidak bekerja; + `alasan_keluar` wajib): akun pegawai itu nonaktif dan sesinya diputus
+          mulai tanggal itu; tanggal lampau/hari ini = langsung. `tanggal_keluar: null` membatalkan rencana keluar; akun yang sudah nonaktif tidak aktif
           otomatis (aktifkan lewat /akun/{id}/aktifkan).
         - Pegawai yang menjadi kepala unit / ketua KSM tetap tercatat; layar menandai bila ia sudah keluar.
       parameters:
@@ -2235,11 +2246,11 @@ paths:
       operationId: buatIzinPraktik
       summary: Catat izin praktik beserta dokumennya
       description: |
-        Izin: sdm.kredensial.input. Dokumen PDF/JPEG/PNG paling besar 5 MB (jenis diperiksa dari isi berkas), disimpan
-        privat. Data tidak diubah setelah dicatat: perbaikan = batalkan lalu catat ulang (riwayat tetap).
+        Izin: sdm.kredensial.input. Dokumen opsional PDF/JPEG/PNG paling besar 5 MB, disimpan privat. Data tidak diubah setelah dicatat: perbaikan = batalkan lalu catat ulang (riwayat tetap).
         - `berlaku_sampai` kosong hanya untuk STR (seumur hidup); 422 `tanggal_tidak_valid` bila sebelum `terbit`.
         - 409 `izin_ganda`: jenis dan nomor yang sama masih tercatat (belum dibatalkan).
-        - 422 `berkas_tidak_valid`.
+        - 422 `tipe_berkas_tidak_diizinkan` (jenis dari isi berkas), 422 `berkas_terlalu_besar` (> 5 MB; di atas batas server
+          web 413), sama dengan unggahan profil RS.
       requestBody:
         required: true
         content:
@@ -2395,7 +2406,9 @@ paths:
         Izin: pengaturan.akun.input (dan sdm.pegawai.lihat). Respons memuat `sandi_awal` sekali saja (tidak disimpan
         terbaca, tidak dicatat di log/audit; `Cache-Control: no-store`). Tautan aktivasi lewat email menunggu notifikasi (1.7).
         Akun baru tanpa peran; penugasan lewat /akun/{id}/penugasan.
-        - 409 `pegawai_sudah_punya_akun` (satu akun = satu pegawai, K5); 409 `nama_pengguna_dipakai`; 422 `pegawai_keluar`.
+        - 409 `pegawai_sudah_punya_akun` (satu akun = satu pegawai, K5); 409 `nama_pengguna_dipakai`; 409 `pegawai_keluar`
+          (status pegawai keluar atau akan keluar). Audit `akses.akun_dibuat` (tanpa sandi).
+        Sandi awal yang hilang belum bisa dipulihkan (reset sandi oleh admin di luar tiket ini, dicatat di backlog).
       requestBody:
         required: true
         content:
@@ -2465,7 +2478,8 @@ paths:
       summary: Aktifkan kembali akun (alasan wajib)
       description: |
         Izin: pengaturan.akun.perbaiki. 403 `diri_sendiri`, `akun_superadmin`. 409 `sudah_aktif`; 409 `pegawai_keluar`
-        (pegawainya sudah keluar; batalkan dulu tanggal keluar di data pegawai). Audit `akses.akun_diaktifkan`.
+        (pegawainya keluar atau akan keluar; batalkan dulu tanggal keluar di data pegawai); 409 `superadmin_aktif` (akun
+        masih memegang penugasan superadmin: mengaktifkannya = menambah superadmin tanpa K4). Audit `akses.akun_diaktifkan`.
       requestBody:
         required: true
         content:
@@ -2492,11 +2506,13 @@ paths:
       summary: Ganti sandi akun yang sedang masuk
       description: |
         Tanpa izin khusus. Selama `Saya.wajib_ganti_sandi` = true (akun baru dari /pegawai/{id}/akun), semua endpoint /api/v1
-        selain GET /saya, GET /saya/menu, POST /saya/sandi, dan POST /autentikasi/keluar menjawab 403 `wajib_ganti_sandi`.
-        Sandi baru mengikuti PRD 14.2 (panjang minimal, cek sandi bocor) dan cek kontekstual: tidak memuat nama pengguna,
-        nama RS, atau nama produk (ADR 0001), dan tidak sama dengan sandi lama.
-        - 422 `sandi_lama_salah` (dibatasi laju seperti masuk); 422 `validasi_gagal` (`rincian` kolom `sandi_baru`).
-        - Sesudah berhasil: sesi lain akun ini diputus, sesi ini tetap. Audit `akses.sandi_diganti` (tanpa sandi).
+        selain GET /saya, GET /saya/menu, POST /saya/sandi, POST /autentikasi/keluar, dan GET /profil-rs(/berkas/*) (identitas
+        RS di layar ganti sandi) menjawab 403 `wajib_ganti_sandi`.
+        Sandi baru mengikuti PRD 14.2 (panjang minimal dari konfigurasi, bawaan 12; cek sandi bocor) dan cek kontekstual:
+        tidak memuat nama pengguna, nama RS, atau nama produk (ADR 0001), dan tidak sama dengan sandi lama.
+        - 422 `sandi_lama_salah`: dibatasi laju per akun (429 sesudah 5 kali per 15 menit); tidak menambah hitungan
+          penguncian masuk. 422 `validasi_gagal` (`rincian` kolom `sandi_baru`).
+        - Sesudah berhasil: ID sesi diganti, sesi lain akun ini diputus, sesi ini tetap. Audit `akses.sandi_diganti` (tanpa sandi).
       requestBody:
         required: true
         content:
@@ -3017,11 +3033,11 @@ components:
         nama: { type: string }
     StatusIzinPraktik:
       type: string
-      enum: [berlaku, akan_habis, habis, dibatalkan]
-      description: "akan_habis = berlaku_sampai dalam N hari (konfigurasi, angka awal 90; perlu verifikasi kebijakan RS)"
+      enum: [berlaku, akan_habis, habis, batal]
+      description: "akan_habis = berlaku_sampai dalam N hari (konfigurasi, angka awal 60 mengikuti contoh FR-40-01; perlu verifikasi kebijakan RS)"
     PegawaiRingkas:
       type: object
-      required: [id, nip, nama, nik_samaran, profesi, jabatan, unit, status, akun, izin_praktik_status]
+      required: [id, nip, nama, nik_samaran, profesi, jabatan, unit, status, punya_akun, akun, izin_praktik_status]
       properties:
         id: { type: string, format: uuid }
         nip: { type: [string, 'null'] }
@@ -3031,8 +3047,10 @@ components:
         jabatan: { type: [string, 'null'] }
         unit: { $ref: '#/components/schemas/RingkasUnitPegawai' }
         status: { $ref: '#/components/schemas/StatusPegawai' }
+        punya_akun: { type: boolean }
         akun:
           type: [object, 'null']
+          description: "Hanya dikirim isinya untuk pemegang pengaturan.akun.lihat; selain itu null (lihat punya_akun)"
           required: [id, nama_pengguna, status]
           properties:
             id: { type: string, format: uuid }
@@ -3096,7 +3114,7 @@ components:
         dibatalkan_pada: { type: [string, 'null'], format: date-time }
     KewenanganKlinis:
       type: object
-      required: [id, kategori, kode_tindakan, berlaku_dari, berlaku_sampai, komite, dasar, status, dicatat_oleh, dicatat_pada, alasan_batal, dibatalkan_pada]
+      required: [id, kategori, kode_tindakan, berlaku_dari, berlaku_sampai, komite, dasar, status, dicatat_oleh, dicatat_pada, alasan_batal, dibatalkan_oleh, dibatalkan_pada]
       properties:
         id: { type: string, format: uuid }
         kategori: { type: string }
@@ -3105,10 +3123,11 @@ components:
         berlaku_sampai: { type: string, format: date }
         komite: { type: string }
         dasar: { type: [string, 'null'] }
-        status: { type: string, enum: [belum_berlaku, berlaku, habis, dibatalkan] }
+        status: { type: string, enum: [belum_berlaku, berlaku, habis, batal] }
         dicatat_oleh: { $ref: '#/components/schemas/Pelaku' }
         dicatat_pada: { type: string, format: date-time }
         alasan_batal: { type: [string, 'null'] }
+        dibatalkan_oleh: { $ref: '#/components/schemas/Pelaku' }
         dibatalkan_pada: { type: [string, 'null'], format: date-time }
     RingkasPeran:
       type: [object, 'null']
