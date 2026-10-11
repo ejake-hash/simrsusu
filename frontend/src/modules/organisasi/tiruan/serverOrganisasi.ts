@@ -292,8 +292,13 @@ export function buatServerOrganisasi(opsi: OpsiServerOrganisasi = {}) {
     return u ? `${u.kode} · ${u.nama}` : null
   }
   const unitAktif = (uid: string) => unit.get(uid)?.status === 'aktif'
+  /** Ringkasan unit untuk server tiruan lokasi (1.8b): unit pengelola lokasi, bangsal, poliklinik. */
+  const ringkasUnit = (uid: string) => {
+    const u = unit.get(uid)
+    return u ? { id: u.id, kode: u.kode, nama: u.nama, aktif: u.status === 'aktif' } : null
+  }
 
-  return { tangani, labelUnit, unitAktif, akar: { irna, irja, yanmed, bpd } }
+  return { tangani, labelUnit, unitAktif, ringkasUnit, akar: { irna, irja, yanmed, bpd } }
 }
 
 export type ServerOrganisasi = ReturnType<typeof buatServerOrganisasi>

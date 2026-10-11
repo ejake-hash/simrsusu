@@ -93,11 +93,16 @@ export interface HasilImporLokasi {
   kesalahan_terpotong: boolean
 }
 
+/**
+ * TT per kelas, dilihat hari ini (kontrak v0.5.0 sesudah #46). Kelompok saling lepas: (jumlah_tersedia + jumlah_ekstra),
+ * belum_berlaku, ditutup (kumulatif). `akan_ditutup` ⊂ yang dihitung hari ini.
+ */
 export interface RingkasanTtKelas {
   kelas_rawat: RingkasKelasRawat
-  tersedia: number
-  ekstra: number
+  jumlah_tersedia: number
+  jumlah_ekstra: number
   akan_ditutup: number
+  belum_berlaku: number
   ditutup: number
 }
 export interface Bangsal {

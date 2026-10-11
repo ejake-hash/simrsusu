@@ -6,7 +6,7 @@ import type { PermintaanTiruan, ResponsTiruan } from './serverTiruan'
  * Memasang server tiruan 1.2c sebagai adapter axios: permintaan yang dikenali dijawab dari memori, sisanya
  * diteruskan ke backend. Hanya untuk `vite` dev (VITE_API_TIRUAN=true) dan unit test; tidak masuk build produksi.
  */
-export function pasangTiruan<S extends { tangani: (r: PermintaanTiruan) => ResponsTiruan | null }>(klien: AxiosInstance, server: S = buatServerGabungan() as unknown as S): S {
+export function pasangTiruan<S extends { tangani: (r: PermintaanTiruan) => ResponsTiruan | Promise<ResponsTiruan> | null }>(klien: AxiosInstance, server: S = buatServerGabungan() as unknown as S): S {
   const asli = getAdapter(klien.defaults.adapter)
 
   klien.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
@@ -19,7 +19,8 @@ export function pasangTiruan<S extends { tangani: (r: PermintaanTiruan) => Respo
     // FormData (unggah berkas) diteruskan apa adanya; JSON diurai.
     const isi = typeof config.data === 'string' && config.data ? JSON.parse(config.data) : config.data
 
-    const hasil = server.tangani({ metode: config.method ?? 'get', jalur: url.pathname, kueri, header, isi })
+    // Sebagian rute tiruan asinkron (mis. impor CSV membaca isi berkas).
+    const hasil = await server.tangani({ metode: config.method ?? 'get', jalur: url.pathname, kueri, header, isi })
     if (!hasil) return asli(config)
 
     const respons = {
