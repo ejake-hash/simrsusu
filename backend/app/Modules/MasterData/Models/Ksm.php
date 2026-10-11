@@ -26,7 +26,7 @@ final class Ksm extends Model
 
     protected $table = 'inti.ksm';
 
-    protected $fillable = ['kode', 'nama', 'status'];
+    protected $fillable = ['kode', 'nama', 'status', 'ketua_pegawai_id'];
 
     protected $attributes = ['status' => 'aktif', 'revisi' => 0];
 

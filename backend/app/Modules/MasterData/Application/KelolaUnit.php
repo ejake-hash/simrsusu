@@ -85,7 +85,10 @@ final class KelolaUnit
                 $this->pastikanTidakDipakai($unit);
             }
 
-            $unit->fill(array_intersect_key($isi, array_flip(['induk_id', 'kode', 'nama', 'jenis', 'status', 'berlaku_dari'])));
+            if (($isi['kepala_pegawai_id'] ?? null) !== null) {
+                PegawaiPimpinan::pastikan($isi['kepala_pegawai_id'], 'kepala_pegawai_id');
+            }
+            $unit->fill(array_intersect_key($isi, array_flip(['induk_id', 'kode', 'nama', 'jenis', 'status', 'berlaku_dari', 'kepala_pegawai_id'])));
             $unit->forceFill(['diubah_oleh' => $penyunting->id])->save();
             $this->audit->catat('master_data.unit_diubah', $penyunting->id, 'inti.unit_organisasi', $unit->id,
                 [...$this->isiAudit($unit), 'dasar_perubahan' => $isi['dasar_perubahan']], $sebelum);
@@ -145,6 +148,6 @@ final class KelolaUnit
     /** @return array<string, mixed> */
     private function isiAudit(UnitOrganisasi $unit): array
     {
-        return [...$unit->only(['induk_id', 'kode', 'nama', 'jenis', 'status']), 'berlaku_dari' => $unit->berlaku_dari->toDateString()];
+        return [...$unit->only(['induk_id', 'kode', 'nama', 'jenis', 'status', 'kepala_pegawai_id']), 'berlaku_dari' => $unit->berlaku_dari->toDateString()];
     }
 }

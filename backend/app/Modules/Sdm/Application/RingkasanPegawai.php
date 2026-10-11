@@ -18,6 +18,20 @@ final class RingkasanPegawai
     }
 
     /**
+     * Ringkasan banyak pegawai sekaligus (kontrak RingkasPegawai: id, nama, status kepegawaian).
+     *
+     * @param  iterable<string>  $pegawaiId
+     * @return array<string, array{id: string, nama: string, status: string}>
+     */
+    public function ringkas(iterable $pegawaiId): array
+    {
+        $id = array_values(array_unique([...$pegawaiId]));
+
+        return $id === [] ? [] : Pegawai::query()->whereIn('id', $id)->get(['id', 'nama', 'tanggal_keluar'])
+            ->mapWithKeys(fn (Pegawai $p) => [$p->id => ['id' => $p->id, 'nama' => $p->nama, 'status' => $p->statusKepegawaian()]])->all();
+    }
+
+    /**
      * Nama banyak pegawai sekaligus (daftar berhalaman, tanpa N+1).
      *
      * @param  iterable<string>  $pegawaiId

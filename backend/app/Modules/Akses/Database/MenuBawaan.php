@@ -19,7 +19,7 @@ final class MenuBawaan
     public const PERAN_SUPERADMIN = 'superadmin';
 
     /** Halaman yang sudah dibangun; menu lain tampil sebagai Segera hadir atau disembunyikan. */
-    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'master_data.organisasi'];
+    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'master_data.organisasi', 'sdm.pegawai'];
 
     /** Aksi dasar Permenkes 24/2022 Ps. 30 ayat 3 untuk setiap sub-menu (FR-09-03). */
     public const AKSI_DASAR = ['lihat', 'input', 'perbaiki'];
@@ -35,6 +35,21 @@ final class MenuBawaan
     public const IZIN_SENSITIF = [
         'pengaturan.peran.input', 'pengaturan.peran.perbaiki', 'pengaturan.akun.input', 'pengaturan.akun.perbaiki',
     ];
+
+    /**
+     * Bagian halaman (PRD 9.1, 9.2.1) per sub-menu: kode bagian => [label, aksi]. Data bagian tanpa izin tidak dikirim
+     * server. Tidak ikut induk: diberikan tersendiri.
+     */
+    public const BAGIAN = [
+        // NIK pegawai utuh (tiket 1.8d); tanpa izin ini hanya NIK tersamar.
+        'sdm.pegawai' => ['identitas' => ['Identitas pribadi (NIK)', ['lihat']]],
+    ];
+
+    /**
+     * Izin data pribadi yang sensitif tanpa penyetuju bawaan: tidak bisa diberikan sampai RS menetapkan pemilik datanya
+     * (K3, PUT /izin/{kode}/penyetuju). pasang() hanya menyalakan tanda sensitif, tidak pernah mematikannya.
+     */
+    public const IZIN_DATA_PRIBADI = ['sdm.pegawai.identitas.lihat'];
 
     /**
      * Kode yang pindah tempat (lama => baru), diganti di tempat sebelum pohon dipasang agar id, peran,
@@ -140,7 +155,7 @@ final class MenuBawaan
             ]],
             'sdm' => ['SDM', 4, 39, [
                 'jadwal_dinas' => ['Jadwal dinas', 39],
-                'pegawai' => ['Data pegawai', 39],
+                'pegawai' => ['Data pegawai', 39, 1],
                 'kredensial' => ['Izin & kredensial', 40],
                 'cuti' => ['Cuti & presensi', 39],
             ]],
@@ -225,11 +240,21 @@ final class MenuBawaan
                     foreach (self::AKSI_DASAR as $aksi) {
                         self::simpanIzin("$kode.$aksi", $idSub, $aksi);
                     }
+                    $urutanBagian = 0;
+                    foreach (self::BAGIAN[$kode] ?? [] as $kodeBagian => [$labelBagian, $aksiBagian]) {
+                        $idBagian = self::simpanMenu("$kode.$kodeBagian", $idSub, 'bagian', [
+                            'label' => $labelBagian, 'modul_no' => $sub[1], 'fase' => $sub[2] ?? $fase, 'urutan' => ++$urutanBagian,
+                            'tersedia' => in_array($kode, self::TERSEDIA, true), 'ikut_induk' => false,
+                        ]);
+                        foreach ($aksiBagian as $aksi) {
+                            self::simpanIzin("$kode.$kodeBagian.$aksi", $idBagian, $aksi);
+                        }
+                    }
                 }
             }
         }
 
-        DB::table('akses.izin')->whereIn('kode', self::IZIN_SENSITIF)->where('sensitif', false)
+        DB::table('akses.izin')->whereIn('kode', [...self::IZIN_SENSITIF, ...self::IZIN_DATA_PRIBADI])->where('sensitif', false)
             ->update(['sensitif' => true, 'diubah_pada' => now()]);
         self::pasangSuperadmin();
         self::pasangPenyetujuBawaan();

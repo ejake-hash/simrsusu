@@ -13,24 +13,6 @@ parameters:
 			path: app/Modules/Akses/Database/Seeders/AkunSintetisSeeder.php
 
 		-
-			message: '#^Access to an undefined property App\\Modules\\Sdm\\Models\\Pegawai\:\:\$nama\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Modules/Sdm/Application/RingkasanPegawai.php
-
-		-
-			message: '#^Method App\\Modules\\Sdm\\Application\\RingkasanPegawai\:\:untuk\(\) never returns array\{id\: string, nama\: string\} so it can be removed from the return type\.$#'
-			identifier: return.unusedType
-			count: 1
-			path: app/Modules/Sdm/Application/RingkasanPegawai.php
-
-		-
-			message: '#^Method App\\Modules\\Sdm\\Application\\RingkasanPegawai\:\:untuk\(\) should return array\{id\: string, nama\: string\}\|null but returns array\{id\: int, nama\: mixed\}\|null\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Modules/Sdm/Application/RingkasanPegawai.php
-
-		-
 			message: '#^Call to an undefined static method Illuminate\\Support\\Facades\\Log\:\:shouldHaveReceived\(\)\.$#'
 			identifier: staticMethod.notFound
 			count: 1

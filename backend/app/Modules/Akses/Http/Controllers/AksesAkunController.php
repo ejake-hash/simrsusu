@@ -100,6 +100,20 @@ final class AksesAkunController
         return new JsonResponse(['data' => $this->presenter->statusMfa($akun, $request->user())]);
     }
 
+    public function nonaktifkan(Request $request, Pengguna $akun): JsonResponse
+    {
+        $isi = $request->validate(['alasan' => self::ALASAN]);
+
+        return new JsonResponse(['data' => $this->presenter->rinci($this->kelola->nonaktifkan($request->user(), $akun, $isi['alasan']), $request->user())]);
+    }
+
+    public function aktifkan(Request $request, Pengguna $akun): JsonResponse
+    {
+        $isi = $request->validate(['alasan' => self::ALASAN]);
+
+        return new JsonResponse(['data' => $this->presenter->rinci($this->kelola->aktifkan($request->user(), $akun, $isi['alasan']), $request->user())]);
+    }
+
     public function resetMfa(Request $request, Pengguna $akun): JsonResponse
     {
         $isi = $request->validate(['alasan' => self::ALASAN, 'dasar' => self::DASAR]);

@@ -150,6 +150,11 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   pertama dibuat (injeksi formula); nomor baris kesalahan impor = nomor rekaman CSV (berbeda bila sel memuat baris baru).
 - PRD menyusul (1.8d): 10.3.2 belum menyebut 403 `wajib_ganti_sandi` sesudah masuk dengan sandi awal, dan 9.1 belum
   memuat bagian `sdm.pegawai.identitas`; aturannya ada di badan tiket 1.8d, PRD diperbarui di PR [Perlu pemilik] terpisah.
+- Utang 1.8d: layar persetujuan K4 belum memperingatkan bila superadmin diberikan ke akun pegawai `akan_keluar`; dokumen
+  izin praktik yang sudah tertulis ke disk bisa tertinggal bila transaksi gagal sesudahnya (jalur privat, tanpa rujukan);
+  modul SDM membaca `akses.pengguna`/`inti.unit_organisasi` langsung untuk daftar pegawai (belum lewat antarmuka modul);
+  APP_KEY dirotasi = sidik NIK dihitung ulang (perintah belum ada). Usulan sesi 2: path terpisah `GET /pegawai/{id}/nik`
+  (di luar API tiket; kini `?tampilkan_nik=true`).
 - **[Perlu pemilik] Usulan (1.8d):** reset sandi oleh admin (sandi awal baru sekali tampil, wajib ganti) dan masa berlaku
   sandi awal; di luar API tiket 1.8d. Sampai itu sandi awal yang hilang tidak bisa dipulihkan.
 - **[Perlu pemilik] Usulan (1.8b):** daftar periksa baku atribut kamar (FR-08-19) sebagai data induk dengan endpoint

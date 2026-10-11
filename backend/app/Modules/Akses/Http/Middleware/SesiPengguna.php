@@ -38,6 +38,22 @@ final class SesiPengguna
         ]);
     }
 
+    /** Sesi ini dianggap dimulai sekarang (sesudah ganti sandi memutus sesi lain), batas diamnya tetap. */
+    public static function mulaiUlang(Request $request): void
+    {
+        $request->session()->put(self::MASUK_PADA, (int) now()->getPreciseTimestamp(6) + 1);
+    }
+
+    /**
+     * Rute yang tetap boleh selama akun wajib ganti sandi (tiket 1.8d): metode => pola path.
+     *
+     * @var list<array{0: string, 1: string}>
+     */
+    private const BOLEH_SAAT_WAJIB_GANTI_SANDI = [
+        ['GET', 'api/v1/saya'], ['GET', 'api/v1/saya/menu'], ['POST', 'api/v1/saya/sandi'], ['POST', 'api/v1/autentikasi/keluar'],
+        ['GET', 'api/v1/profil-rs'], ['GET', 'api/v1/profil-rs/berkas/*'],
+    ];
+
     public function handle(Request $request, Closure $next): Response
     {
         /** @var Pengguna $pengguna */
@@ -51,6 +67,10 @@ final class SesiPengguna
         };
 
         $request->session()->put(self::TERAKHIR_AKTIF, now()->getTimestamp());
+
+        if ($pengguna->getAttribute('wajib_ganti_sandi') === true && ! self::bolehSaatWajibGanti($request)) {
+            throw new ApiError(403, 'wajib_ganti_sandi', 'Ganti sandi awal Anda lebih dulu.');
+        }
 
         return $next($request);
     }
@@ -74,6 +94,17 @@ final class SesiPengguna
             ! is_int($terakhir) || now()->getTimestamp() - $terakhir > $batasDetik => 'diam',
             default => null,
         };
+    }
+
+    private static function bolehSaatWajibGanti(Request $request): bool
+    {
+        foreach (self::BOLEH_SAAT_WAJIB_GANTI_SANDI as [$metode, $pola]) {
+            if ($request->isMethod($metode) && $request->is($pola)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @return never */

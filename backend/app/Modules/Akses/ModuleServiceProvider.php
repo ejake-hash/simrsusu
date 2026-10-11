@@ -4,6 +4,7 @@ namespace App\Modules\Akses;
 
 use App\Core\Http\PenggunaSesi;
 use App\Modules\Akses\Application\AccessEvaluator;
+use App\Modules\Akses\Application\AkunPegawai;
 use App\Modules\Akses\Application\PendaftaranPerangkat;
 use App\Modules\Akses\Application\SandiTidakBocor;
 use App\Modules\Akses\Console\BuatSuperadminPertama;
@@ -15,8 +16,10 @@ use App\Modules\Akses\Infrastructure\PenggunaSesiAkses;
 use App\Modules\Akses\Infrastructure\PerangkatBelumTerdaftar;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\TokenAksesPribadi;
+use App\Modules\Sdm\Events\PegawaiKeluar;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -45,6 +48,9 @@ class ModuleServiceProvider extends ServiceProvider
 
         Sanctum::usePersonalAccessTokenModel(TokenAksesPribadi::class);
 
+        // Pegawai keluar (modul SDM) → akun nonaktif dan sesi diputus, di dalam transaksi yang sama (PRD 9.2.6).
+        Event::listen(PegawaiKeluar::class, [AkunPegawai::class, 'nonaktifkanKarenaKeluar']);
+
         // Semua kemampuan berbentuk kode izin (<menu>.<sub_menu>.<aksi>) diputuskan AccessEvaluator
         // (PRD 9.2.5), mis. ->middleware('can:pengaturan.peran.lihat') atau Gate::allows($kode, $cakupan).
         // Argumen selain Cakupan ditolak sampai pemeriksaan per objek dibuat (tolak kecuali diberikan).
@@ -62,7 +68,8 @@ class ModuleServiceProvider extends ServiceProvider
 
         // Aturan sandi PRD 14.2; dipakai lewat Password::defaults() di mana pun sandi ditetapkan.
         Password::defaults(function () {
-            $aturan = Password::min((int) config('autentikasi.sandi.panjang_minimal'))
+            // PRD 14.2: minimal 12, walau konfigurasi diisi lebih kecil.
+            $aturan = Password::min(max(12, (int) config('autentikasi.sandi.panjang_minimal')))
                 ->rules([$this->app->make(SandiTidakBocor::class)]);
 
             return config('autentikasi.sandi.cek_hibp') ? $aturan->uncompromised() : $aturan;

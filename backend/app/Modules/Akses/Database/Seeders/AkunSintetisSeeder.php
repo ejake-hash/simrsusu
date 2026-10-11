@@ -47,6 +47,9 @@ final class AkunSintetisSeeder extends Seeder
         'contoh.data.induk' => 'Contoh Admin Data Induk',
     ];
 
+    /** Profesi pegawai sintetis (selain ini non_kesehatan). */
+    private const PROFESI = ['contoh.perawat' => 'perawat', 'contoh.dokter' => 'dokter'];
+
     /**
      * Peran contoh (tiket 1.2a) agar menu tiap akun sintetis berbeda: kode peran => [nama, akun, menu].
      * Seluruh sub-menu menu itu diberikan beserta aksi dasarnya, cakupan seluruh RS.
@@ -78,10 +81,13 @@ final class AkunSintetisSeeder extends Seeder
 
         $urutan = 0;
         foreach (self::AKUN as $namaPengguna => $nama) {
+            // Pegawai sintetis lengkap (tiket 1.8d); NIK tidak diisi (tidak ada NIK sintetis yang aman dipakai).
             $pegawai = Pegawai::query()->updateOrCreate(
                 ['nip' => sprintf('SINTETIS-%03d', ++$urutan)],
-                ['nama' => $nama],
+                ['nama' => $nama, 'profesi' => self::PROFESI[$namaPengguna] ?? 'non_kesehatan', 'jabatan' => $nama,
+                    'jenis_kepegawaian' => 'Sintetis', 'tanggal_keluar' => null, 'alasan_keluar' => null],
             );
+            $pegawai->forceFill(['status' => 'aktif'])->save();
             Pengguna::query()->firstOrNew(['nama_pengguna' => $namaPengguna])->forceFill([
                 'pegawai_id' => $pegawai->id,
                 'email' => $namaPengguna.'@contoh.invalid',

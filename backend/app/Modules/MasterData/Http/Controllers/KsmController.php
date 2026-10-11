@@ -62,6 +62,7 @@ final class KsmController
             'kode' => ['sometimes', ...self::KODE],
             'nama' => ['sometimes', 'string', 'min:2', 'max:150'],
             'status' => ['sometimes', Rule::in(['aktif', 'nonaktif'])],
+            'ketua_pegawai_id' => ['sometimes', 'nullable', 'uuid'],
             'dasar_perubahan' => ['required', 'string', 'min:3', 'max:200'],
         ]);
         if (count($isi) < 2) {
