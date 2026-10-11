@@ -23,6 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Pengganti statefulApi(): versi Sanctum memaksa SameSite=Lax.
         $middleware->api(prepend: [SesiSpaStateful::class]);
 
+        // Batas laju per pengguna untuk semua rute api/v1 (PRD 14.1.1 butir 7); limiter di AppServiceProvider.
+        $middleware->throttleApi('api');
+
         // Proksi tepercaya dari config (PROKSI_TEPERCAYA), bukan nilai tetap di kode.
         $middleware->replace(TrustProxies::class, ProksiTepercaya::class);
     })

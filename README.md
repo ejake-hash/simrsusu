@@ -43,6 +43,21 @@ Pindah dari compose lama (layanan `redis`): `docker compose up -d --remove-orpha
 tidak dipakai lagi dan boleh dihapus setelah semua worktree pindah. Worktree yang perlu instans sendiri:
 `VALKEY_PORT=… VALKEY_CACHE_PORT=… docker compose -p simrs-usu-<tiket> up -d valkey valkey-cache`.
 
+## Ketahanan beban (PRD 14.1.1)
+
+| Bagian | Di mana |
+|---|---|
+| Pemeriksaan kesehatan | `GET /up` (proses hidup), `GET /api/v1/siap` (basis data + kedua Valkey; `503` bila salah satu tidak terjangkau). Tanpa autentikasi, berbatas laju per IP |
+| Batas waktu query | `statement_timeout` per role di `docker/postgres/init/sql/01-role.sql` (`simrs_app` 5 s, `simrs_analitik` 5 min) |
+| Paginasi | `App\Core\Http\Paginasi` (keyset, `?kursor=&batas=`, maks 200) |
+| Antrean per jenis | `App\Core\Antrean\JenisAntrean` + `config/horizon.php`; jalankan `php artisan horizon` (dasbor `/horizon` hanya di `APP_ENV=local`) |
+| Batas laju | `config/batas_laju.php` (semua `api/v1`, per akun) dan `config/autentikasi.php` (masuk) |
+| Uji beban | `backend/tests/beban/` (k6, manual ke lokal/staging) |
+
+Cluster Postgres lokal yang dibuat sebelum batas waktu ini ada: jalankan ulang
+`psql -h 127.0.0.1 -p 5433 -U postgres -d postgres -v migrator_password=simrs_migrator -v app_password=simrs_app -f docker/postgres/init/sql/01-role.sql`
+(aman diulang), lalu sambung ulang aplikasi.
+
 ## Autentikasi
 
 SPA masuk dengan cookie sesi Sanctum (bukan token di `localStorage`):

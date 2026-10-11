@@ -64,11 +64,22 @@ return [
             'after_commit' => false,
         ],
 
+        // Antrean per jenis: App\Core\Antrean\JenisAntrean dan supervisor di config/horizon.php.
+        // retry_after harus lebih lama dari batas waktu terpanjang jenis di koneksi itu.
         'redis' => [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
-            'queue' => env('REDIS_QUEUE', 'default'),
-            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+            'queue' => env('REDIS_QUEUE', 'bawaan'),
+            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 150),
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
+        'redis-laporan' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'laporan',
+            'retry_after' => 960,
             'block_for' => null,
             'after_commit' => false,
         ],

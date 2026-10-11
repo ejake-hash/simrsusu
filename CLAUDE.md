@@ -65,6 +65,12 @@ Beberapa sesi (orang atau agen) bisa bekerja bersamaan di mesin yang sama. Atura
 **API (PRD 10.3.1)**
 - Prefiks `/api/v1/`, kata benda **bahasa Indonesia**, kebab-case, **tanpa bentuk jamak**: `/api/v1/pasien`, `/api/v1/permintaan-pemeriksaan/{id}`. Aksi bisnis sebagai sub-sumber kata kerja: `POST /api/v1/resep/{id}/sahkan`. Kunci JSON `snake_case` Indonesia.
 
+**Ketahanan beban (PRD 14.1.1)**
+- Endpoint daftar **hanya** lewat `App\Core\Http\Paginasi::respons()`: keyset `(waktu, id)`, `?kursor=&batas=`, bawaan 50, maksimum 200 (di atas itu `422 ukuran_halaman_melebihi_batas`). Jangan `paginate()`, `cursorPaginate()` (mikrodetik hilang), atau `get()` tanpa batas. Filter cakupan (unit, tanggal, status) dipaksa server.
+- Pekerjaan antrean memilih jenis di `App\Core\Antrean\JenisAntrean` (`integrasi`, `notifikasi`, `dokumen`, `laporan`, `bawaan`): `->onConnection($jenis->koneksi())->onQueue($jenis->value)`. Supervisor Horizon per jenis dibentuk dari enum itu; ekspor dan laporan selalu di antrean.
+- `simrs_app` punya `statement_timeout` 5 detik. Pekerjaan yang memang lama memakai `SET LOCAL statement_timeout` di transaksinya sendiri, bukan menaikkan batas role.
+- Semua rute `api/v1` kena `throttle:api` (per akun, tanpa sesi per IP; `config/batas_laju.php`). Layar kerja yang wajar dipakai cepat: `->withoutMiddleware('throttle:api')->middleware('throttle:api-layar-kerja')`. `BatasLajuTest` gagal bila ada rute `api/v1` tanpa batas laju.
+
 **Tes**
 - PHPUnit/Pest terhadap **PostgreSQL** (bukan SQLite). Tes memakai **`DatabaseTransactions`** lewat `Tests\TestCase`. `RefreshDatabase`, `DatabaseMigrations`, `DatabaseTruncation` **ditolak CI**.
 - Jalankan dengan `composer test` (migrasi sebagai migrator, lalu phpunit). Database tes bawaan `simrs_test`; di worktree pakai `DB_DATABASE_TES=simrs_test_<tiket> composer test` (lihat "Kerja paralel").

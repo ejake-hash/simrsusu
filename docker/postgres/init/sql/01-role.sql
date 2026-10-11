@@ -28,3 +28,9 @@ WHERE NOT EXISTS (
   JOIN pg_roles u ON u.oid = m.member AND u.rolname = 'simrs_migrator'
 ) \gexec
 ALTER ROLE simrs_migrator SET search_path = sistem, public;
+
+-- Batas waktu per role (PRD 14.1.1 butir 2): query yang melewati batas dibatalkan (SQLSTATE 57014),
+-- tidak menahan koneksi. Pekerjaan yang memang lama memakai `SET LOCAL statement_timeout` di transaksinya.
+-- Berlaku untuk sesi baru; simrs_analitik baru berlaku saat diberi LOGIN (fase 4).
+ALTER ROLE simrs_app SET statement_timeout = '5s';
+ALTER ROLE simrs_analitik SET statement_timeout = '5min';
