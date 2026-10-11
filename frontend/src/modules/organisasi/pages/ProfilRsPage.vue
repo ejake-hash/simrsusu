@@ -5,7 +5,7 @@ import { computed, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { z } from 'zod'
 import { terapkanProfilRs } from '@/app/profilRs'
-import { hexKeRgb, kontras } from '@/app/tema'
+import { hexKeRgb, kontras, type Rgb } from '@/app/tema'
 import Tombol from '@/design-system/components/Tombol.vue'
 import { tampilkanToast } from '@/design-system/components/toast'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
@@ -94,18 +94,16 @@ watch(
   { immediate: true },
 )
 
-// ── Kontras (rumus WCAG yang sama dengan server; warna pembanding dari token agar tanpa HEX di kode) ──
-function token(nama: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(nama).trim()
-}
-const PEMBANDING = { putih: token('--surface') || 'white', teks: token('--text') }
-function rasio(hex: string | undefined, lawan: string): number | null {
+// ── Kontras: rumus dan pembanding sama dengan server (App\Core\ProfilRs\KontrasWarna): warna utama vs putih,
+// aksen vs tinta teks rgb(29, 29, 27); keduanya ≥ 4,5:1. Server tetap penentu (422 kontras_kurang). ──
+const PUTIH: Rgb = [255, 255, 255]
+const TINTA: Rgb = [29, 29, 27]
+function rasio(hex: string | undefined, lawan: Rgb): number | null {
   const a = hexKeRgb(hex ?? '')
-  const b = hexKeRgb(lawan)
-  return a && b ? kontras(a, b) : null
+  return a ? kontras(a, lawan) : null
 }
-const rasioBrand = computed(() => rasio(values.brand, PEMBANDING.putih))
-const rasioAccent = computed(() => rasio(values.accent, PEMBANDING.teks))
+const rasioBrand = computed(() => rasio(values.brand, PUTIH))
+const rasioAccent = computed(() => rasio(values.accent, TINTA))
 const angka = (r: number) => r.toFixed(2).replace('.', ',')
 
 // ── Simpan ──
@@ -281,7 +279,7 @@ onBeforeRouteLeave(() => {
             <div class="kartu-kepala">
               <div>
                 <h2 id="judul-pratinjau">Pratinjau</h2>
-                <p>Halaman masuk dan sidebar dengan isian di samping, sebelum disimpan.</p>
+                <p>Halaman masuk dan sidebar dengan isian formulir, sebelum disimpan.</p>
               </div>
             </div>
             <div class="kartu-isi">
@@ -337,6 +335,7 @@ h3 {
 .tiga-kolom {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: start;
   gap: 0 var(--space-3);
 }
 .tiga-kolom {
@@ -355,8 +354,9 @@ h3 {
 }
 .contoh {
   flex: none;
-  width: 40px;
-  height: 36px;
+  align-self: stretch;
+  width: 44px;
+  height: auto;
   padding: 2px;
   border: 1px solid var(--border-input);
   border-radius: var(--radius-input);
@@ -386,12 +386,6 @@ h3 {
 @media (max-width: 1279.98px) {
   .tata {
     grid-template-columns: minmax(0, 1fr);
-  }
-}
-@media (min-width: 768px) and (max-width: 1279.98px) {
-  .contoh {
-    width: 44px;
-    height: 44px;
   }
 }
 </style>

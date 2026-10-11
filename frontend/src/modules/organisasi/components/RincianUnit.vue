@@ -94,6 +94,9 @@ defineExpose({ unit })
 </template>
 
 <style scoped>
+.rincian {
+  scroll-margin-top: calc(var(--tinggi-atas-lekat, 60px) + var(--space-3));
+}
 .kepala {
   flex-wrap: wrap;
   align-items: flex-start;

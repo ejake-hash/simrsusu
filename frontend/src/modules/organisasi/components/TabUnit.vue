@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQueries, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PohonData from '@/design-system/components/PohonData.vue'
 import type { SimpulPohon } from '@/design-system/components/pohon'
@@ -111,6 +111,13 @@ function ubahStatus(u: Berversi<UnitOrganisasi>) {
   unitDiubah.value = u
   dialogStatus.value = true
 }
+
+// Layar sempit: rincian ada di bawah pohon, jadi digulir ke tampilan saat unit dipilih.
+watch(terpilih, async (id) => {
+  if (!id || !window.matchMedia?.('(max-width: 1023.98px)').matches) return
+  await nextTick()
+  ;(rincian.value?.$el as HTMLElement | undefined)?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+})
 
 // Unit yang dibuka dari URL: buka cabangnya sekali agar terlihat di pohon.
 watch(

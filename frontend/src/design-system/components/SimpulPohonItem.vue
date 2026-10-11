@@ -25,6 +25,7 @@ const buka = () => props.terbuka.has(props.simpul.id)
     :id="`${awalan}-${simpul.id}`"
     role="treeitem"
     class="simpul"
+    :aria-labelledby="simpul.keterangan ? `${awalan}-${simpul.id}-label ${awalan}-${simpul.id}-ket` : `${awalan}-${simpul.id}-label`"
     :aria-level="tingkat"
     :aria-posinset="posisi"
     :aria-setsize="jumlah"
@@ -41,8 +42,9 @@ const buka = () => props.terbuka.has(props.simpul.id)
         <Ikon v-else :nama="buka() ? 'panah_bawah' : 'panah_kanan'" :ukuran="16" />
       </span>
       <span v-else class="lipat" />
-      <span class="label"><slot name="label" :simpul="simpul">{{ simpul.label }}</slot></span>
-      <span v-if="simpul.keterangan" class="keterangan">{{ simpul.keterangan }}</span>
+      <!-- Nama treeitem = label dan keterangan baris ini saja, bukan seluruh teks anaknya. -->
+      <span :id="`${awalan}-${simpul.id}-label`" class="label"><slot name="label" :simpul="simpul">{{ simpul.label }}</slot></span>
+      <span v-if="simpul.keterangan" :id="`${awalan}-${simpul.id}-ket`" class="keterangan">{{ simpul.keterangan }}</span>
     </div>
     <ul v-if="simpul.anak?.length && buka()" role="group" class="grup">
       <SimpulPohonItem

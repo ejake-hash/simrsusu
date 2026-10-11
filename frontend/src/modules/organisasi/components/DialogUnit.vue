@@ -155,6 +155,7 @@ const kirim = handleSubmit(async (v) => {
 .dua-kolom {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: start;
   gap: 0 var(--space-3);
 }
 .kode {
