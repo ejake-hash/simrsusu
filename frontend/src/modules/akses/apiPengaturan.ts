@@ -116,6 +116,12 @@ export async function aturWajibMfaAkun(akunId: string, wajibMfa: boolean, alasan
   return data.data
 }
 
+/** Nonaktifkan/aktifkan akun dengan alasan (1.8d). Nonaktif memutus sesi berjalan akun itu (server). */
+export async function ubahStatusAkun(akunId: string, aksi: 'nonaktifkan' | 'aktifkan', alasan: string): Promise<AkunRinci> {
+  const { data } = await klien.post<{ data: AkunRinci }>(`/akun/${akunId}/${aksi}`, { alasan })
+  return data.data
+}
+
 export async function resetMfaAkun(akunId: string, alasan: string, dasar: string): Promise<StatusMfaAkun> {
   const { data } = await klien.post<{ data: StatusMfaAkun }>(`/akun/${akunId}/mfa/reset`, { alasan, dasar })
   return data.data

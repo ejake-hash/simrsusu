@@ -29,6 +29,8 @@ export const router = createRouter({
           component: () => import('@/modules/akses/pages/MasukPage.vue'),
           meta: { publik: true, judul: 'Masuk' },
         },
+        // Butuh sesi; di luar AppShell karena selama sandi awal belum diganti menu dan data lain ditolak server (1.8d).
+        { path: '/ganti-sandi', name: 'ganti-sandi', component: () => import('@/modules/akses/pages/GantiSandiPage.vue'), meta: { judul: 'Ganti sandi' } },
       ],
     },
     {
@@ -42,6 +44,7 @@ export const router = createRouter({
         { path: 'pengaturan/persetujuan', name: 'pengaturan-persetujuan', component: () => import('@/modules/akses/pages/PersetujuanPage.vue'), meta: { judul: 'Persetujuan akses' } },
         { path: 'pengaturan/profil-rs', name: 'pengaturan-profil-rs', component: () => import('@/modules/organisasi/pages/ProfilRsPage.vue'), meta: { judul: 'Profil rumah sakit' } },
         { path: 'master-data/organisasi', name: 'master-data-organisasi', component: () => import('@/modules/organisasi/pages/OrganisasiPage.vue'), meta: { judul: 'Organisasi, Unit, Ruang & Tempat Tidur' } },
+        { path: 'sdm/pegawai', name: 'sdm-pegawai', component: () => import('@/modules/sdm/pages/PegawaiPage.vue'), meta: { judul: 'Data pegawai' } },
         // Halaman modul didaftarkan di atas baris ini. Jalur lain: Segera hadir bila ada di menu, selain itu tidak ditemukan.
         { path: ':jalur(.*)*', name: 'menu', component: () => import('@/layouts/HalamanMenu.vue') },
       ],
@@ -58,6 +61,9 @@ router.beforeEach(async (ke) => {
   }
   if (!sesi.pengguna) {
     return { name: 'masuk', query: ke.fullPath === '/' ? {} : { kembali: ke.fullPath } }
+  }
+  if (sesi.pengguna.wajib_ganti_sandi && ke.name !== 'ganti-sandi') {
+    return { name: 'ganti-sandi', query: ke.fullPath === '/' ? {} : { kembali: ke.fullPath } }
   }
   return true
 })

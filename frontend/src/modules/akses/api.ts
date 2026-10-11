@@ -12,6 +12,8 @@ export interface Pengguna {
   nama_pengguna: string
   login_terakhir_pada: string | null
   mfa_aktif: boolean
+  /** Sejak 1.8d: akun bersandi awal; endpoint bersesi lain 403 wajib_ganti_sandi sampai POST /saya/sandi. */
+  wajib_ganti_sandi?: boolean
   pegawai: { id: string; nama: string } | null
   /** Peran dengan penugasan yang berlaku sekarang, urut nama; kosong = belum ada modul. */
   peran: { id: string; nama: string }[]
@@ -84,6 +86,12 @@ export function lupakanMenuSaya(): void {
 
 export async function ambilSaya(): Promise<Pengguna> {
   const { data } = await klien.get<{ data: Pengguna }>('/saya', { tangani401Sendiri: true })
+  return data.data
+}
+
+/** Ganti sandi akun yang masuk (kontrak v0.6.0). Sesi ini tetap; sesi lain akun ini diputus server. */
+export async function gantiSandi(isian: { sandi_lama: string; sandi_baru: string }): Promise<Pengguna> {
+  const { data } = await klien.post<{ data: Pengguna }>('/saya/sandi', isian)
   return data.data
 }
 

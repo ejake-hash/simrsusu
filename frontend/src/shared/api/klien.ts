@@ -42,10 +42,16 @@ export const klien = axios.create({
 })
 
 let penangan401: ((error: ApiError) => void) | null = null
+let penanganWajibGantiSandi: (() => void) | null = null
 
 /** Dipasang sekali di main.ts: 401 di mana pun mengakhiri sesi di klien. */
 export function aturPenangan401(penangan: (error: ApiError) => void): void {
   penangan401 = penangan
+}
+
+/** Dipasang sekali di main.ts: 403 wajib_ganti_sandi (akun bersandi awal, 1.8d) mengarahkan ke layar ganti sandi. */
+export function aturPenanganWajibGantiSandi(penangan: () => void): void {
+  penanganWajibGantiSandi = penangan
 }
 
 klien.interceptors.response.use(undefined, (error: unknown) => {
@@ -53,6 +59,9 @@ klien.interceptors.response.use(undefined, (error: unknown) => {
   const config = error instanceof AxiosError ? error.config : undefined
   if (hasil.status === 401 && !config?.tangani401Sendiri) {
     penangan401?.(hasil)
+  }
+  if (hasil.status === 403 && hasil.kode === 'wajib_ganti_sandi') {
+    penanganWajibGantiSandi?.()
   }
   return Promise.reject(hasil)
 })

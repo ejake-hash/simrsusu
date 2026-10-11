@@ -177,6 +177,9 @@ async function keluar() {
               <b>{{ namaTampil }}</b>
               <small>{{ sesi.pengguna?.nama_pengguna }}</small>
             </span>
+            <RouterLink class="tombol-ikon" :to="{ path: '/ganti-sandi', query: { kembali: route.fullPath } }" aria-label="Ganti sandi" title="Ganti sandi">
+              <Ikon nama="gembok" />
+            </RouterLink>
             <button type="button" class="tombol-ikon" aria-label="Keluar" title="Keluar" @click="keluar">
               <Ikon nama="keluar" />
             </button>

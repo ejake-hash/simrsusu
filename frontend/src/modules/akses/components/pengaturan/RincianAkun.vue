@@ -3,10 +3,12 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 import Tabs from '@/design-system/components/Tabs.vue'
 import Ikon from '@/design-system/ikon/Ikon.vue'
+import { boleh } from '@/shared/composables/usePermission'
 import { formatTanggalWaktu } from '@/shared/utils/waktu'
 import { ambilAkun } from '../../apiPengaturan'
 import type { IndeksMatriks } from '../../matriks'
 import { KUNCI, pesanError } from '../../pengaturan'
+import DialogStatusAkun from './DialogStatusAkun.vue'
 import TabLihatSebagai from './TabLihatSebagai.vue'
 import TabMfa from './TabMfa.vue'
 import TabPenugasan from './TabPenugasan.vue'
@@ -36,6 +38,10 @@ watch(
     pesan.value = null
   },
 )
+
+const dialogStatus = ref(false)
+/** Nonaktif/aktif hanya untuk akun yang boleh diubah akun ini (bukan diri sendiri, bukan superadmin oleh non-superadmin). */
+const bolehUbahStatus = computed(() => !!akun.value && akun.value.dapat_diubah && boleh('pengaturan.akun.perbaiki'))
 
 const terkunci = computed(() => akun.value?.terkunci_sampai && new Date(akun.value.terkunci_sampai) > new Date())
 const superadmin = computed(() => akun.value?.mfa.sumber_wajib.some((s) => s.jenis === 'superadmin') ?? false)
@@ -67,6 +73,11 @@ function berubah(teks: string) {
           <span v-if="terkunci" class="pil pil-bahaya"><Ikon nama="gembok" :ukuran="12" />Terkunci</span>
         </div>
       </div>
+      <div v-if="bolehUbahStatus" class="kartu-isi aksi-status">
+        <button type="button" class="tombol" :class="{ 'tombol-bahaya': akun.status === 'aktif' }" @click="dialogStatus = true">
+          {{ akun.status === 'aktif' ? 'Nonaktifkan akun' : 'Aktifkan akun' }}
+        </button>
+      </div>
       <div class="kartu-isi">
         <p v-if="akun.diri_sendiri" class="catatan catatan-netral catatan-atas">
           <Ikon nama="info" :ukuran="16" />
@@ -92,6 +103,11 @@ function berubah(teks: string) {
           <template #mfa><TabMfa :akun="akun" @berubah="berubah" /></template>
         </Tabs>
       </div>
+      <DialogStatusAkun
+        v-model:open="dialogStatus"
+        :akun="akun"
+        @selesai="(h) => berubah(h.status === 'aktif' ? `Akun ${h.nama_pengguna} diaktifkan.` : `Akun ${h.nama_pengguna} dinonaktifkan; sesinya diakhiri.`)"
+      />
     </template>
   </section>
 </template>
@@ -107,6 +123,9 @@ function berubah(teks: string) {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
+}
+.aksi-status {
+  padding-bottom: 0;
 }
 .catatan-atas {
   margin: 0 0 var(--space-3);
