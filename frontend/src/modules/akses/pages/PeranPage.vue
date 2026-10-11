@@ -109,15 +109,13 @@ function dibuat(hasil: PeranBerversi) {
   margin: 0;
 }
 
+/* Tablet: daftar di atas editor agar matriks memakai lebar penuh (PRD 5.5). */
 @media (max-width: 1279.98px) {
   .tata {
-    grid-template-columns: 260px minmax(0, 1fr);
-  }
-}
-/* Tablet tegak: daftar di atas editor. */
-@media (max-width: 1023.98px) {
-  .tata {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .tata :deep(.item-daftar) {
+    max-height: 264px;
   }
 }
 </style>

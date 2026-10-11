@@ -154,7 +154,7 @@ const JENIS: Record<NodeMenu['tingkat'], string> = { menu: 'menu', sub_menu: 'su
                   </button>
                   <span v-else class="lipat-kosong" />
                   <span class="label-node">{{ r.b.node.label }}</span>
-                  <span class="pil pil-netral">{{ JENIS[r.b.node.tingkat] }}</span>
+                  <span class="pil pil-netral jenis">{{ JENIS[r.b.node.tingkat] }}</span>
                   <span v-if="!r.b.node.modul_aktif && r.b.kedalaman === 0" class="pil pil-peringatan">Modul nonaktif</span>
                   <span v-else-if="!r.b.node.tersedia && r.b.kedalaman === 0" class="pil pil-netral">Belum dibangun</span>
                   <span v-if="berubah(r.b)" class="pil pil-info">Diubah</span>
@@ -306,6 +306,9 @@ tr.dikunci td {
 .kol-tingkat {
   width: 124px;
 }
+.pilih-tingkat {
+  min-width: 108px;
+}
 .kol-khusus {
   min-width: 180px;
 }
@@ -421,6 +424,10 @@ tr.dikunci td {
   }
   .kol-node {
     min-width: 220px;
+  }
+  /* Indentasi sudah menunjukkan tingkat node; label jenis disembunyikan agar baris tidak terlipat. */
+  .jenis {
+    display: none;
   }
 }
 </style>
