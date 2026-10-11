@@ -1,0 +1,85 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Using nullsafe property access "\?\-\>sandi_hash" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Modules/Akses/Application/MasukPengguna.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Console\\Command\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Modules/Akses/Database/Seeders/AkunSintetisSeeder.php
+
+		-
+			message: '#^Access to an undefined property App\\Modules\\Akses\\Http\\Resources\\PenggunaResource\:\:\$login_terakhir_pada\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Modules/Akses/Http/Resources/PenggunaResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Modules\\Akses\\Http\\Resources\\PenggunaResource\:\:\$surel\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Modules/Akses/Http/Resources/PenggunaResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Modules\\Sdm\\Models\\Pegawai\:\:\$nama\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Modules/Sdm/Application/RingkasanPegawai.php
+
+		-
+			message: '#^Method App\\Modules\\Sdm\\Application\\RingkasanPegawai\:\:untuk\(\) never returns array\{id\: string, nama\: string\} so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Modules/Sdm/Application/RingkasanPegawai.php
+
+		-
+			message: '#^Method App\\Modules\\Sdm\\Application\\RingkasanPegawai\:\:untuk\(\) should return array\{id\: string, nama\: string\}\|null but returns array\{id\: int, nama\: mixed\}\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Modules/Sdm/Application/RingkasanPegawai.php
+
+		-
+			message: '#^Access to an undefined property App\\Modules\\Akses\\Models\\Pengguna\:\:\$percobaan_gagal\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Akses/AkunSintetisSeederTest.php
+
+		-
+			message: '#^Access to an undefined property App\\Modules\\Akses\\Models\\Pengguna\:\:\$login_terakhir_pada\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Akses/AutentikasiTest.php
+
+		-
+			message: '#^Access to an undefined property App\\Modules\\Akses\\Models\\Pengguna\:\:\$percobaan_gagal\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Akses/AutentikasiTest.php
+
+		-
+			message: '#^Method Tests\\Feature\\Akses\\AutentikasiTest\:\:buatPengguna\(\) should return App\\Modules\\Akses\\Models\\Pengguna but returns Illuminate\\Database\\Eloquent\\Model\.$#'
+			identifier: return.type
+			count: 1
+			path: tests/Feature/Akses/AutentikasiTest.php
+
+		-
+			message: '#^Call to an undefined static method Illuminate\\Support\\Facades\\Log\:\:shouldHaveReceived\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: tests/Feature/Audit/RantaiAuditTest.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 2
+			path: tests/Feature/Audit/RantaiAuditTest.php
+
+		-
+			message: '#^Call to method PHPUnit\\Framework\\Assert\:\:assertTrue\(\) with true will always evaluate to true\.$#'
+			identifier: method.alreadyNarrowedType
+			count: 1
+			path: tests/Unit/ExampleTest.php

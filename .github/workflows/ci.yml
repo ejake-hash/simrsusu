@@ -68,6 +68,10 @@ jobs:
       - name: Siapkan .env
         run: cp .env.example .env && php artisan key:generate
 
+      # Level 5; temuan kode lama ada di phpstan-baseline.neon, kode baru harus bersih.
+      - name: phpstan
+        run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress --error-format=github
+
       - name: Tes (migrasi simrs_test sebagai simrs_migrator, lalu phpunit)
         run: composer test
 
