@@ -8,6 +8,7 @@ use App\Modules\Akses\Domain\Totp;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Akses\Models\PenggunaIzinKhusus;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\Peran;
 use App\Modules\Sdm\Models\Pegawai;
@@ -22,6 +23,9 @@ use RuntimeException;
 /** Akun sintetis untuk lokal/staging (PRD 3.4, FR-54-10). Ditolak di production. */
 final class AkunSintetisSeeder extends Seeder
 {
+    /** Akun tanpa peran dan pengecualian (Beranda "belum ada modul", tiket 1.2e). */
+    public const TANPA_PERAN = 'contoh.tanpa.peran';
+
     private const AKUN = [
         'contoh.admisi' => 'Contoh Petugas Admisi',
         'contoh.perawat' => 'Contoh Perawat',
@@ -34,6 +38,9 @@ final class AkunSintetisSeeder extends Seeder
         'contoh.mfa.baru' => 'Contoh Akun MFA Baru',
         // Superadmin sintetis untuk e2e Pengaturan (tiket 1.2c), MFA aktif dengan rahasia yang diketahui e2e.
         'contoh.superadmin' => 'Contoh Superadmin',
+        // Tanpa penugasan dan tanpa wajib MFA: Beranda "belum ada modul" (tiket 1.2e). Seeding ulang
+        // mengakhiri penugasan yang sempat dibuat uji lain.
+        self::TANPA_PERAN => 'Contoh Akun Tanpa Peran',
     ];
 
     /**
@@ -92,6 +99,7 @@ final class AkunSintetisSeeder extends Seeder
             ->update(['dibatalkan_pada' => now()]);
 
         $this->pasangPeranContoh();
+        $this->kosongkanAkses(self::TANPA_PERAN);
         $this->tugaskan('contoh.superadmin', Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->firstOrFail());
 
         $this->command?->info('Akun sintetis: '.implode(', ', array_keys(self::AKUN)).'.');
@@ -122,6 +130,19 @@ final class AkunSintetisSeeder extends Seeder
             app(CacheHakAkses::class)->lupakanSemua();
 
             $this->tugaskan($namaPengguna, $peran);
+        }
+    }
+
+    /** Akhiri penugasan dan pengecualian per akun yang sempat dibuat uji lain (status batal, tidak dihapus). */
+    private function kosongkanAkses(string $namaPengguna): void
+    {
+        $penggunaId = Pengguna::query()->where('nama_pengguna', $namaPengguna)->select('id');
+        $pemberian = [
+            ...PenggunaPeran::query()->where('status', 'aktif')->whereIn('pengguna_id', $penggunaId)->get(),
+            ...PenggunaIzinKhusus::query()->where('status', 'aktif')->whereIn('pengguna_id', $penggunaId)->get(),
+        ];
+        foreach ($pemberian as $p) {
+            $p->forceFill(['status' => 'batal', 'alasan_batal' => 'Seeding ulang: akun contoh tanpa peran', 'dibatalkan_pada' => now()])->save();
         }
     }
 

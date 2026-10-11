@@ -211,7 +211,7 @@ class MfaTest extends TestCase
         $pengguna = Pengguna::factory()->denganSandi(self::SANDI)->create();
 
         $this->masuk($pengguna)->assertOk()->assertExactJsonStructure([
-            'status', 'pengguna' => ['id', 'nama_pengguna', 'email', 'login_terakhir_pada', 'mfa_aktif', 'pegawai'],
+            'status', 'pengguna' => ['id', 'nama_pengguna', 'login_terakhir_pada', 'mfa_aktif', 'pegawai', 'peran', 'masuk_sebelumnya_pada', 'masuk_sebelumnya_dari_jaringan_rs'],
         ])->assertJsonPath('status', 'masuk');
     }
 

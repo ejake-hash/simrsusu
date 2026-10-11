@@ -5,7 +5,9 @@ namespace Tests\Feature\Akses;
 use App\Modules\Akses\Application\AccessEvaluator;
 use App\Modules\Akses\Application\CacheHakAkses;
 use App\Modules\Akses\Database\Seeders\AkunSintetisSeeder;
+use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Akses\Models\PenggunaIzinKhusus;
 use App\Modules\Akses\Models\PenggunaPeran;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -32,7 +34,7 @@ class AkunSintetisSeederTest extends TestCase
 
         $akun = Pengguna::query()->where('nama_pengguna', 'like', 'contoh.%')->get();
         $this->assertEqualsCanonicalizing(
-            ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci', 'contoh.mfa', 'contoh.mfa.baru', 'contoh.superadmin'],
+            ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci', 'contoh.mfa', 'contoh.mfa.baru', 'contoh.superadmin', 'contoh.tanpa.peran'],
             $akun->pluck('nama_pengguna')->all(),
         );
         foreach ($akun as $pengguna) {
@@ -72,6 +74,19 @@ class AkunSintetisSeederTest extends TestCase
 
         $this->assertTrue($evaluator->boleh($akun('contoh.dokter'), 'rawat_jalan.pemeriksaan.input'));
         $this->assertSame(1, PenggunaPeran::query()->where('pengguna_id', $superadmin->id)->count());
+
+        // Akun tanpa peran kembali tanpa penugasan berlaku walau sempat ditugaskan, dan tidak wajib MFA.
+        $tanpaPeran = $akun(AkunSintetisSeeder::TANPA_PERAN);
+        PenggunaPeran::query()->create(['pengguna_id' => $tanpaPeran->id, 'peran_id' => $peranDokter, 'dasar_pemberian' => 'Uji e2e']);
+        PenggunaIzinKhusus::query()->create([
+            'pengguna_id' => $tanpaPeran->id, 'efek' => 'tambah', 'dasar_pemberian' => 'Uji e2e', 'alasan' => 'Uji',
+            'menu_id' => Menu::query()->where('kode', 'igd.papan')->value('id'),
+        ]);
+        $this->seed(AkunSintetisSeeder::class);
+        $this->assertFalse(PenggunaPeran::query()->berlaku()->where('pengguna_id', $tanpaPeran->id)->exists());
+        $this->assertFalse(PenggunaIzinKhusus::query()->berlaku()->where('pengguna_id', $tanpaPeran->id)->exists());
+        $this->assertSame(['beranda'], array_keys(app(AccessEvaluator::class)->hak($tanpaPeran->refresh())->menu));
+        $this->assertFalse($tanpaPeran->refresh()->wajib_mfa);
     }
 
     public function test_seeding_ulang_membuka_kunci_akun_sintetis(): void

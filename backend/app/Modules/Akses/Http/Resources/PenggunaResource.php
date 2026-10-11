@@ -3,22 +3,54 @@
 namespace App\Modules\Akses\Http\Resources;
 
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Sdm\Application\RingkasanPegawai;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Carbon;
 
-/** @mixin Pengguna */
+/**
+ * Akun yang sedang masuk (kontrak skema Saya): GET /saya dan `pengguna` di respons masuk (PRD 10.3.2).
+ * Tidak mengirim email, NIP, atau data rahasia: tidak dipakai layar. Tanda instalasi demo bukan milik akun
+ * (GET /profil-rs, tiket 1.8a).
+ *
+ * @mixin Pengguna
+ */
 final class PenggunaResource extends JsonResource
 {
+    /**
+     * Waktu masuk yang memulai sesi ini (detik epoch, sama dengan login_terakhir_pada yang disimpan), diisi
+     * PenyelesaiMasuk. Dibandingkan sebagai angka, bukan teks, agar tidak bergantung zona waktu. Dua masuk
+     * dalam detik yang sama tidak dibedakan (kolom berpresisi detik).
+     */
+    public const LOGIN_SESI_INI = 'autentikasi.login_pada';
+
     public function toArray(Request $request): array
     {
+        $peran = PenggunaPeran::query()->berlaku()->where('pengguna_id', $this->id)
+            ->whereHas('peran', fn ($p) => $p->where('status', 'aktif'))
+            ->with('peran:id,nama')->get()
+            ->pluck('peran')->unique('id')->sortBy('nama')
+            ->map(fn ($p) => ['id' => $p->id, 'nama' => $p->nama])->values()->all();
+
+        // "Apakah ini Anda?": bila akun ini masuk lagi di tempat lain sesudah sesi ini dimulai, masuk itulah
+        // yang ditampilkan, bukan masuk sebelum sesi ini. Sesi lama tanpa catatan memakai nilai di akun.
+        $terakhir = $this->login_terakhir_pada;
+        $sesiIni = $request->hasSession() ? $request->session()->get(self::LOGIN_SESI_INI) : null;
+        $adaMasukLain = is_int($sesiIni) && $terakhir !== null && $sesiIni !== $terakhir->getTimestamp();
+        [$sebelumnya, $sebelumnyaDariRs] = $adaMasukLain
+            ? [$terakhir->toIso8601String(), $this->login_terakhir_dari_jaringan_rs]
+            : [$this->masuk_sebelumnya_pada?->toIso8601String(), $this->masuk_sebelumnya_dari_jaringan_rs];
+
         return [
             'id' => $this->id,
             'nama_pengguna' => $this->nama_pengguna,
-            'email' => $this->email,
-            'login_terakhir_pada' => $this->login_terakhir_pada?->toIso8601String(),
+            'login_terakhir_pada' => is_int($sesiIni) ? Carbon::createFromTimestamp($sesiIni, config('app.timezone'))->toIso8601String() : $terakhir?->toIso8601String(),
             'mfa_aktif' => $this->mfaAktif(),
             'pegawai' => app(RingkasanPegawai::class)->untuk($this->pegawai_id),
+            'peran' => $peran,
+            'masuk_sebelumnya_pada' => $sebelumnya,
+            'masuk_sebelumnya_dari_jaringan_rs' => $sebelumnya === null ? null : $sebelumnyaDariRs,
         ];
     }
 }
