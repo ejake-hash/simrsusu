@@ -4,10 +4,12 @@ namespace App\Modules\Akses\Http\Controllers;
 
 use App\Modules\Akses\Application\KelolaAksesAkun;
 use App\Modules\Akses\Http\Resources\AkunPresenter;
+use App\Modules\Akses\Http\Resources\PersetujuanPresenter;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaIzinKhusus;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\Peran;
+use App\Modules\Akses\Models\PersetujuanAkses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -22,6 +24,7 @@ final class AksesAkunController
     public function __construct(
         private readonly KelolaAksesAkun $kelola,
         private readonly AkunPresenter $presenter,
+        private readonly PersetujuanPresenter $persetujuan,
     ) {}
 
     public function tugaskan(Request $request, Pengguna $akun): JsonResponse
@@ -34,9 +37,13 @@ final class AksesAkunController
             'berlaku_sampai' => ['nullable', 'date'],
             'dasar_pemberian' => self::DASAR,
             'alasan' => ['nullable', 'string', 'max:500'],
+            'permintaan_akses_id' => ['nullable', 'uuid'],
         ]);
 
         $penugasan = $this->kelola->tugaskan($request->user(), $akun, $isi);
+        if ($penugasan instanceof PersetujuanAkses) {
+            return $this->menunggu($request, $penugasan);
+        }
 
         return new JsonResponse(['data' => $this->presenter->satuPenugasan($penugasan)], 201);
     }
@@ -47,6 +54,9 @@ final class AksesAkunController
         $penugasan = PenggunaPeran::query()->where('pengguna_id', $akun->id)->findOrFail($penugasanId);
 
         $penugasan = $this->kelola->batalkanPenugasan($request->user(), $akun, $penugasan, $isi['alasan_batal']);
+        if ($penugasan instanceof PersetujuanAkses) {
+            return $this->menunggu($request, $penugasan);
+        }
 
         return new JsonResponse(['data' => $this->presenter->satuPenugasan($penugasan)]);
     }
@@ -60,9 +70,13 @@ final class AksesAkunController
             'berlaku_sampai' => ['nullable', 'date'],
             'dasar_pemberian' => self::DASAR,
             'alasan' => self::ALASAN,
+            'permintaan_akses_id' => ['nullable', 'uuid'],
         ]);
 
         $khusus = $this->kelola->buatIzinKhusus($request->user(), $akun, $isi);
+        if ($khusus instanceof PersetujuanAkses) {
+            return $this->menunggu($request, $khusus);
+        }
 
         return new JsonResponse(['data' => $this->presenter->satuIzinKhusus($khusus)], 201);
     }
@@ -93,5 +107,11 @@ final class AksesAkunController
         $akun = $this->kelola->resetMfa($request->user(), $akun, $isi['alasan'], $isi['dasar']);
 
         return new JsonResponse(['data' => $this->presenter->statusMfa($akun, $request->user())]);
+    }
+
+    /** 202: pemberian berisiko menunggu persetujuan (data = persetujuan pertama dalam grup, tiket 1.2d). */
+    private function menunggu(Request $request, PersetujuanAkses $p): JsonResponse
+    {
+        return new JsonResponse(['data' => $this->persetujuan->satu($p->refresh(), $request->user())], 202);
     }
 }

@@ -10,6 +10,7 @@ use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\Peran;
+use App\Modules\Akses\Models\PersetujuanAkses;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -20,8 +21,8 @@ use Illuminate\Support\Str;
  *
  * - Izin peran disimpan per kode izin; peran_menu diturunkan dari izin `lihat` (lapis 1 = node yang
  *   boleh dilihat). Izin dan sub-menu yang dicabut berstatus batal, tidak dihapus.
- * - Menambah izin sensitif ditolak utuh (409 butuh_persetujuan) sampai alur persetujuan pemilik data
- *   dibuat (tiket 1.2d). Peran bawaan sistem (superadmin) terkunci dari layar.
+ * - Izin sensitif baru tidak langsung berlaku: masing-masing menjadi persetujuan pemilik data (tiket 1.2d,
+ *   AlurPersetujuan); izin lain langsung berlaku. Peran bawaan sistem (superadmin) terkunci dari layar.
  * - Versi = akses.peran.revisi, dinaikkan dengan compare-and-set di awal transaksi: dua penyunting dengan
  *   versi sama → yang kedua 412 versi_berubah, tidak ada yang tertimpa diam-diam.
  * - Audit dicatat di akhir transaksi (ADR 0003). Cache hak akses semua akun dihapus sekali per perubahan.
@@ -32,6 +33,7 @@ final class KelolaPeran
         private readonly CatatAktivitas $audit,
         private readonly PenjagaPenyunting $penjaga,
         private readonly CacheHakAkses $cache,
+        private readonly AlurPersetujuan $alur,
     ) {}
 
     /** @param  array{kode: string, nama: string, uraian?: string|null, wajib_mfa: bool, salin_dari_id?: string|null, dasar_perubahan: string}  $isi */
@@ -104,7 +106,7 @@ final class KelolaPeran
      * Ganti utuh himpunan izin peran (simpan matriks).
      *
      * @param  list<string>  $kodeIzin
-     * @return array{peran: Peran, ditambah: list<string>, dicabut: list<string>, akun_terdampak: int}
+     * @return array{peran: Peran, ditambah: list<string>, dicabut: list<string>, akun_terdampak: int, menunggu_persetujuan: list<PersetujuanAkses>}
      */
     public function gantiIzin(Pengguna $penyunting, Peran $peran, string $versi, array $kodeIzin, string $dasar, ?string $alasan): array
     {
@@ -121,11 +123,18 @@ final class KelolaPeran
             $ditambah = $izin->whereNotIn('id', $lama->pluck('id'));
             $dicabut = $lama->whereNotIn('id', $izin->pluck('id'));
 
-            $sensitifBaru = $ditambah->where('sensitif', true);
-            if ($sensitifBaru->isNotEmpty()) {
-                throw new ApiError(409, 'butuh_persetujuan', 'Izin sensitif hanya bisa diberikan dengan persetujuan pemilik data. Tidak ada perubahan yang disimpan.',
-                    $sensitifBaru->map(fn (Izin $i) => ['kode' => $i->kode, 'pesan' => 'Izin sensitif'])->values()->all());
+            // Izin sensitif baru menunggu persetujuan; yang sudah menunggu tidak diajukan ulang (idempoten).
+            $sensitifBaru = $ditambah->where('sensitif', true)->values();
+            $penyetuju = $this->alur->penyetujuIzin(Izin::query()->whereIn('id', $sensitifBaru->pluck('id'))->get());
+            $menunggu = PersetujuanAkses::query()->menunggu()->where('objek_jenis', 'izin_peran')->where('peran_id', $peran->id)
+                ->whereIn('izin_id', $sensitifBaru->pluck('id'))->get()->keyBy('izin_id');
+            $persetujuan = [];
+            foreach ($sensitifBaru as $i) {
+                $persetujuan[] = $menunggu[$i->id] ?? $this->alur->ajukan($penyunting, 'izin_sensitif', 'izin_peran',
+                    ['peran_id' => $peran->id, 'izin_id' => $i->id], [$penyetuju[$i->id]], ['peran_id' => $peran->id, 'izin_id' => $i->id], $dasar, $alasan)[0];
             }
+            $ditambah = $ditambah->where('sensitif', false)->values();
+            $izin = $izin->reject(fn (Izin $i) => $sensitifBaru->contains('id', $i->id))->values();
 
             $this->tulisIzin($peran, $izin, $penyunting, $dasar);
             $akunTerdampak = $peran->jumlahAkunBerlaku();
@@ -134,6 +143,7 @@ final class KelolaPeran
                 'ditambah' => $ditambah->pluck('kode')->sort()->values()->all(),
                 'dicabut' => $dicabut->pluck('kode')->sort()->values()->all(),
                 'akun_terdampak' => $akunTerdampak,
+                'menunggu_persetujuan' => $persetujuan,
             ];
 
             $this->audit->catat('akses.izin_diganti', $penyunting->id, 'akses.peran', $peran->id, [
@@ -141,6 +151,7 @@ final class KelolaPeran
                 'ditambah' => $hasil['ditambah'],
                 'dicabut' => $hasil['dicabut'],
                 'akun_terdampak' => $akunTerdampak,
+                'menunggu_persetujuan' => array_map(fn (PersetujuanAkses $p) => $p->nomor, $persetujuan),
                 'dasar_perubahan' => $dasar,
                 'alasan' => $alasan,
             ], ['izin' => $lama->pluck('kode')->sort()->values()->all()]);

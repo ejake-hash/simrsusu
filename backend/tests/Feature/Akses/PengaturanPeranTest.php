@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\Akses;
 
+use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Menu;
+use App\Modules\Akses\Models\PenggunaIzinKhusus;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\Peran;
 use Illuminate\Support\Facades\DB;
@@ -249,7 +251,7 @@ class PengaturanPeranTest extends TestCase
         $this->assertSame(3, DB::table('akses.peran_izin')->where('peran_id', $peran->id)->where('status', 'aktif')->count());
     }
 
-    public function test_izin_sensitif_baru_ditolak_utuh_tetapi_yang_sudah_ada_tetap(): void
+    public function test_izin_sensitif_baru_tanpa_penyetuju_ditolak_utuh_tetapi_yang_sudah_ada_tetap(): void
     {
         $peran = $this->buatPeran(['kasir.tagihan']);
         Izin::query()->whereIn('kode', ['kasir.tagihan.perbaiki', 'kasir.deposit.perbaiki'])->update(['sensitif' => true]);
@@ -258,7 +260,7 @@ class PengaturanPeranTest extends TestCase
 
         $ditolak = $this->mintaDenganVersi('PUT', "/api/v1/peran/{$peran->id}/izin", $versi, [
             'izin' => ['kasir.tagihan.lihat', 'kasir.tagihan.perbaiki', 'kasir.deposit.lihat', 'kasir.deposit.perbaiki'], 'dasar_perubahan' => self::DASAR,
-        ])->assertStatus(409)->assertJsonPath('error.kode', 'butuh_persetujuan')->assertJsonPath('error.rincian.0.kode', 'kasir.deposit.perbaiki');
+        ])->assertStatus(422)->assertJsonPath('error.kode', 'penyetuju_belum_ditetapkan')->assertJsonPath('error.rincian.0.kode', 'kasir.deposit.perbaiki');
         $this->assertSesuaiKontrak($ditolak, 'PUT', '/peran/{id}/izin');
         $this->assertSame(3, DB::table('akses.peran_izin')->where('peran_id', $peran->id)->where('status', 'aktif')->count());
 
@@ -268,32 +270,37 @@ class PengaturanPeranTest extends TestCase
         ])->assertOk()->assertJsonPath('perubahan.dicabut', ['kasir.tagihan.input'])->assertJsonPath('data.wajib_mfa_terkunci', true);
     }
 
-    public function test_izin_pengelola_akses_sensitif_tidak_bisa_dibagikan_dari_layar(): void
+    public function test_izin_pengelola_akses_sensitif_hanya_lewat_persetujuan_superadmin(): void
     {
         $peran = $this->buatPeran(['igd.papan']);
         $akun = $this->buatPengguna();
         $this->masukSebagai($this->pengelola());
 
-        // Lewat matriks peran.
-        $this->mintaDenganVersi('PUT', "/api/v1/peran/{$peran->id}/izin", (string) $peran->refresh()->revisi, [
+        // Lewat matriks peran: izin lain langsung berlaku, izin pengelola menunggu superadmin (K13).
+        $matriks = $this->mintaDenganVersi('PUT', "/api/v1/peran/{$peran->id}/izin", (string) $peran->refresh()->revisi, [
             'izin' => ['igd.papan.lihat', 'pengaturan.akun.lihat', 'pengaturan.akun.perbaiki'], 'dasar_perubahan' => self::DASAR,
-        ])->assertStatus(409)->assertJsonPath('error.kode', 'butuh_persetujuan')->assertJsonPath('error.rincian.0.kode', 'pengaturan.akun.perbaiki');
+        ])->assertOk()->assertJsonPath('data.izin', ['igd.papan.lihat', 'pengaturan.akun.lihat'])
+            ->assertJsonPath('data.izin_menunggu.0.kode', 'pengaturan.akun.perbaiki')
+            ->assertJsonPath('perubahan.menunggu_persetujuan.0.penyetuju_peran.kode', MenuBawaan::PERAN_SUPERADMIN);
+        $this->assertSesuaiKontrak($matriks, 'PUT', '/peran/{id}/izin');
         // Lewat salinan peran superadmin: hanya izin lihat yang ikut.
         $salinan = $this->minta('POST', '/api/v1/peran', [
             'kode' => 'salin_superadmin', 'nama' => 'Salinan superadmin', 'wajib_mfa' => false, 'salin_dari_id' => $this->superadmin()->id, 'dasar_perubahan' => self::DASAR,
         ])->assertCreated();
-        // Profil RS (tiket 1.8a) tidak sensitif, jadi ikut tersalin.
-        $this->assertSame(['pengaturan.akun.lihat', 'pengaturan.peran.lihat', 'pengaturan.profil_rs.input', 'pengaturan.profil_rs.lihat', 'pengaturan.profil_rs.perbaiki'],
+        // Persetujuan akses (1.2d) dan profil RS (1.8a) tidak sensitif, jadi ikut tersalin.
+        $this->assertSame(['pengaturan.akun.lihat', 'pengaturan.peran.lihat', 'pengaturan.persetujuan.input', 'pengaturan.persetujuan.lihat', 'pengaturan.persetujuan.perbaiki',
+            'pengaturan.profil_rs.input', 'pengaturan.profil_rs.lihat', 'pengaturan.profil_rs.perbaiki'],
             $salinan->json('data.izin'));
-        // Lewat pengecualian per akun, dan peran yang memuatnya tidak bisa ditugaskan.
+        // Lewat pengecualian per akun, dan penugasan peran yang memuatnya: menunggu superadmin, belum berlaku.
         $this->minta('POST', "/api/v1/akun/{$akun->id}/izin-khusus", [
             'efek' => 'tambah', 'sasaran_jenis' => 'izin', 'sasaran_kode' => 'pengaturan.peran.input', 'berlaku_sampai' => now()->addDay()->toIso8601String(),
             'dasar_pemberian' => self::DASAR, 'alasan' => 'Bantu admin',
-        ])->assertStatus(409)->assertJsonPath('error.kode', 'butuh_persetujuan');
+        ])->assertStatus(202)->assertJsonPath('data.jenis', 'pengecualian')->assertJsonPath('data.penyetuju_peran.kode', MenuBawaan::PERAN_SUPERADMIN);
         $pengelolaLain = Peran::query()->whereIn('id', DB::table('akses.peran_izin')->whereIn('izin_id',
             Izin::query()->where('kode', 'pengaturan.peran.perbaiki')->select('id'))->select('peran_id'))->where('bawaan_sistem', false)->firstOrFail();
         $this->minta('POST', "/api/v1/akun/{$akun->id}/penugasan", ['peran_id' => $pengelolaLain->id, 'cakupan_jenis' => 'rs', 'dasar_pemberian' => self::DASAR])
-            ->assertStatus(409)->assertJsonPath('error.kode', 'butuh_persetujuan');
+            ->assertStatus(202)->assertJsonPath('data.objek.jenis', 'penugasan')->assertJsonPath('data.penyetuju_peran.kode', MenuBawaan::PERAN_SUPERADMIN);
+        $this->assertSame(0, PenggunaIzinKhusus::query()->where('pengguna_id', $akun->id)->count() + PenggunaPeran::query()->where('pengguna_id', $akun->id)->count());
 
         // Pemegangnya wajib MFA dan sakelarnya terkunci.
         $this->minta('GET', "/api/v1/peran/{$pengelolaLain->id}")->assertJsonPath('data.wajib_mfa_terkunci', true)->assertJsonPath('data.memuat_izin_sensitif', true);

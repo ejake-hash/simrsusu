@@ -8,6 +8,7 @@ use App\Modules\Akses\Application\KelolaPeran;
 use App\Modules\Akses\Application\PenjagaPenyunting;
 use App\Modules\Akses\Http\Resources\PeranResource;
 use App\Modules\Akses\Http\Resources\PeranRinciResource;
+use App\Modules\Akses\Http\Resources\PersetujuanPresenter;
 use App\Modules\Akses\Models\Peran;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,7 +23,10 @@ final class PeranController
 {
     private const DASAR = ['required', 'string', 'min:3', 'max:200'];
 
-    public function __construct(private readonly KelolaPeran $kelola) {}
+    public function __construct(
+        private readonly KelolaPeran $kelola,
+        private readonly PersetujuanPresenter $persetujuan,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -94,6 +98,7 @@ final class PeranController
 
         return $this->rinci($request, $hasil['peran'], tambahan: ['perubahan' => [
             'ditambah' => $hasil['ditambah'], 'dicabut' => $hasil['dicabut'], 'akun_terdampak' => $hasil['akun_terdampak'],
+            'menunggu_persetujuan' => $this->persetujuan->daftar(collect($hasil['menunggu_persetujuan']), $request->user()),
         ]]);
     }
 

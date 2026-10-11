@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $menu_id
  * @property string $jenis_aksi
  * @property bool $sensitif
+ * @property string|null $peran_penyetuju_id pemilik data izin sensitif (K3, tiket 1.2d)
  */
 final class Izin extends Model
 {

@@ -6,8 +6,12 @@ use App\Core\Audit\CatatAktivitas;
 use App\Core\Database\Like;
 use App\Core\Http\Paginasi;
 use App\Modules\Akses\Application\MenuSaya;
+use App\Modules\Akses\Application\PohonMenu;
 use App\Modules\Akses\Http\Resources\AkunPresenter;
+use App\Modules\Akses\Models\Izin;
+use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Akses\Models\PenggunaIzinKhusus;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Sdm\Application\RingkasanPegawai;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +21,8 @@ use Illuminate\Validation\Rule;
 /** Pengaturan → Akun & akses: daftar, rincian, dan Lihat sebagai (kontrak /akun, /akun/{id}, /akun/{id}/menu). */
 final class AkunController
 {
+    private const SARAN_MINIMAL_AKUN = 5;
+
     public function __construct(private readonly AkunPresenter $presenter) {}
 
     public function index(Request $request, RingkasanPegawai $pegawai): JsonResponse
@@ -59,5 +65,27 @@ final class AkunController
         $audit->catat('akses.lihat_sebagai', $request->user()->id, 'akses.pengguna', $akun->id, ['versi' => $data['versi']]);
 
         return new JsonResponse(['data' => $data]);
+    }
+
+    /**
+     * Saran jadikan peran (FR-09-15): pengecualian berlaku yang sama dipakai >= 5 akun, terbanyak dulu, paling banyak 50.
+     */
+    public function saranPeran(): JsonResponse
+    {
+        $baris = PenggunaIzinKhusus::query()->berlaku()
+            ->selectRaw('efek, menu_id, izin_id, count(DISTINCT pengguna_id) AS jumlah_akun')
+            ->groupBy('efek', 'menu_id', 'izin_id')->havingRaw('count(DISTINCT pengguna_id) >= ?', [self::SARAN_MINIMAL_AKUN])
+            ->orderByDesc('jumlah_akun')->orderBy('efek')->orderBy('menu_id')->orderBy('izin_id')->limit(50)->toBase()->get();
+        $izin = Izin::query()->whereIn('id', $baris->pluck('izin_id')->filter()->unique()->values())->get(['id', 'kode', 'menu_id', 'jenis_aksi'])->keyBy('id');
+        $menu = Menu::query()->get(['id', 'induk_id', 'tingkat', 'kode', 'label'])->keyBy('id');
+
+        return new JsonResponse(['data' => $baris->map(function (object $b) use ($izin, $menu) {
+            $i = $b->izin_id === null ? null : $izin->get($b->izin_id);
+            [$jenis, $kode, $label] = $i !== null
+                ? ['izin', $i->kode, PohonMenu::jalurLabel($menu, $i->menu_id).' → '.PohonMenu::labelAksi($i->jenis_aksi)]
+                : ['menu', (string) $menu->get((string) $b->menu_id)?->kode, PohonMenu::jalurLabel($menu, (string) $b->menu_id)];
+
+            return ['efek' => $b->efek, 'sasaran_jenis' => $jenis, 'sasaran_kode' => $kode, 'sasaran_label' => $label, 'jumlah_akun' => (int) $b->jumlah_akun];
+        })->values()->all()]);
     }
 }
