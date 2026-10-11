@@ -932,8 +932,13 @@ Aturan rinci (kontrak v0.8.0):
     notifikasi ke pemilik.
   - Sesi tanda tangan 15 menit terikat sesi login; berakhir saat keluar, ganti sandi, ganti PIN, terkunci, atau dicabut.
     Kunci privat sesi disimpan terbungkus kunci acak: bungkusan di sesi server, kunci acak di cookie HttpOnly.
+  - be menyertakan untuk e2e: akun sintetis `contoh.ttd` dengan TTE aktif (PIN sintetis dari env
+    `AKUN_SINTETIS_TTD_PIN`, CI `E2E_TTD_PIN`) dan akun sintetis tanpa TTE untuk alur aktivasi; env e2e `TTD_KUNCI_MENIT`
+    pendek. Saat backend 1.6 merge, `Saya.ttd` dan `PersetujuanAkses.penyetuju_pengguna` masuk `required` di kontrak.
   - Utang: syarat MFA/perangkat terdaftar untuk peran sensitif (PRD 7.57.1 T1) mengikuti lapis 5 di 1.5 (K11);
-    ETag/versi per objek bertanda tangan menyusul fase 2; frontend 1.2d menampilkan jenis `reset_ttd`.
+    ETag/versi per objek bertanda tangan menyusul fase 2; frontend 1.2d menampilkan jenis `reset_ttd`; usulan
+    `PersetujuanAkses.ditandatangani` (badge di daftar) dan status TTE akun di `Pegawai.akun` (tombol Ajukan reset);
+    endpoint "akhiri sesi tanda tangan" untuk komputer bersama.
   - `ttd.aturan_tingkat` (jenis dokumen → tingkat T1/T2/S/P) berisi data awal `persetujuan_akses → T1`, tanpa API di
     fase 1. `ttd.permintaan` dipakai SimulatorTte (T2) di uji; tanpa endpoint publik (K10).
 Di luar lingkup tiket: PSrE nyata, segel elektronik RS, halaman verifikasi publik ber-QR, tanda tangan pasien di
