@@ -180,7 +180,7 @@ final class MenuBawaan
                 'unit' => ['Dasbor unit', 52],
             ]],
             'master_data' => ['Master Data', 1, 54, [
-                'organisasi' => ['Organisasi, unit & KSM', 54],
+                'organisasi' => ['Organisasi, Unit, Ruang & Tempat Tidur', 54],
                 'katalog' => ['Data induk', 54],
                 'usulan' => ['Usulan perubahan', 54],
             ]],

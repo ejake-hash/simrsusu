@@ -30,7 +30,7 @@
 | **1.2e** | Beranda: modul saya, keamanan akun, pencarian menu, aksesibilitas (`home.html`); tanpa angka tiruan | be: Selesai (kontrak #33, backend #34). Catatan: kolom `akses.pengguna.login_terakhir_dari_jaringan_rs`, `masuk_sebelumnya_pada`, `masuk_sebelumnya_dari_jaringan_rs`; `email` tidak dikirim di `/saya` maupun respons masuk; tanda instalasi demo tidak di `/saya` (milik instalasi, ke `/profil-rs` 1.8a). fe: **Dikerjakan sesi 2** (di atas 1.2c-fe #30) | #33, #34 |
 | 1.2d-be / 1.2d-fe | Persetujuan akses (izin sensitif, superadmin), permintaan akses dari layar "Akses ditolak" | be: Selesai (kontrak #41, backend #43). Catatan: `akses.persetujuan_akses` (satu baris per peran penyetuju, satu grup per pengajuan), `akses.permintaan_akses`, `akses.izin.peran_penyetuju_id`; sub-menu `pengaturan.persetujuan` lewat peran (bawaan superadmin); tugas harian `akses:kedaluwarsakan-persetujuan`; fe: siap (kontrak #41) | #41, #43 |
 | 1.8a-be / 1.8a-fe | Profil RS dan paket identitas, unit organisasi, KSM (ganti `VITE_RS_*`) | be: Selesai (kontrak #37, backend #38). Catatan: profil di `App\Core\ProfilRs`, unit/KSM di modul `MasterData`, lapis 3 cakupan `unit` = subpohon, berkas lewat disk `IDENTITAS_DISK`, akun e2e `contoh.data.induk`; fe: **Dikerjakan sesi 2** (#42). Catatan fe: profil dari `GET /profil-rs` (tanpa `VITE_RS_*`), tema dari dua warna paket identitas (`app/tema.ts`), pohon unit muat-lambat, cakupan penugasan `unit`, pemilih unit kerja di header | — |
-| 1.8b-be / 1.8b-fe | Lokasi fisik bertingkat, bangsal/kamar/TT, kelas rawat, poliklinik, impor CSV | be: **Dikerjakan sesi 1** (kontrak dulu, branch `docs/kontrak-1.8b`); fe: siap setelah kontrak | — |
+| 1.8b-be / 1.8b-fe | Lokasi fisik bertingkat, bangsal/kamar/TT, kelas rawat, poliklinik, impor CSV | be: **Dikerjakan sesi 1** (kontrak #44; branch `feat/lokasi-be`: lokasi/bangsal/kamar/TT/kelas/poliklinik/kapasitas dan impor CSV). Catatan: tabel di skema `inti`, izin `master_data.organisasi.*` cakupan `rs`, tugas harian `master-data:rekam-kapasitas-tt`; fe: siap (kontrak #44) | #44 |
 | 1.8c-be / 1.8c-fe | Usulan perubahan data induk berjenjang (mesin generik), dipakai pertama oleh TT | Siap setelah 1.7 | — |
 | 1.8d-be / 1.8d-fe | Pegawai, izin praktik (STR/SIP/SPK), RKK minimal, akun dibuat dari pegawai | Siap setelah 1.8a | — |
 | 1.8e-be | Pemuat paket referensi (`inti.paket_referensi`) | Siap setelah 1.8a | — |
@@ -144,6 +144,10 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   dijelaskan pemilik; TT terisi saat akan ditutup ditolak 409, padahal FR-08-17 meminta "akan ditutup setelah kosong" →
   bersama penempatan pasien (fase 2); impor lokasi lewat antrean `dokumen` untuk berkas > 5.000 baris butuh endpoint
   status impor (di luar daftar API tiket) → usulan bila dibutuhkan RS besar.
+  Dari tinjauan sesi 2 #44 (dikerjakan di #46 kecuali): penanda unit warisan di `Lokasi` (unit disalin saat dibuat, tidak
+  dinamis); PATCH TT tidak mengembalikan `peringatan` (kelas/ekstra tidak mengubah jumlah TT kamar).
+  Dari tinjauan subagen #46 (sisa): nama berawalan `=`/`+`/`-`/`@` diterima impor/API → wajib dinetralkan saat ekspor CSV
+  pertama dibuat (injeksi formula); nomor baris kesalahan impor = nomor rekaman CSV (berbeda bila sel memuat baris baru).
 - **[Perlu pemilik] Usulan (1.8b):** daftar periksa baku atribut kamar (FR-08-19) sebagai data induk dengan endpoint
   sendiri (mis. `/atribut-kamar`: kode, label, jenis nilai, berlaku untuk KRIS/kelas lama). Endpoint ini tidak tercantum
   di API tiket 1.8b, jadi menunggu pemilik; sampai itu `Kamar.atribut_standar` berupa pasangan kunci-nilai bebas

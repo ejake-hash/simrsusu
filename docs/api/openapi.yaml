@@ -1275,6 +1275,18 @@ paths:
   # ditanyakan ke pemilik (backlog).
   # Rekaman kapasitas hari T dibuat tugas harian 00.05 zona RS dan diperbarui setiap perubahan TT sepanjang hari T;
   # sesudah T lewat, rekaman tidak berubah.
+  # Status lokasi (bukan TT), semua perpindahan antara aktif, renovasi, dan ditutup boleh, dengan syarat:
+  #   - ke `renovasi`: tidak ada TT yang belum ditutup dan tidak ada poliklinik aktif di lokasi itu atau turunannya;
+  #   - ke `ditutup`: syarat renovasi, ditambah semua turunan non-TT sudah `ditutup`;
+  #   - gagal syarat → 409 `lokasi_masih_dipakai`, `rincian` = `[{jumlah_anak_aktif, jumlah_tempat_tidur, jumlah_poliklinik}]`
+  #     (`jumlah_anak_aktif` = turunan non-TT yang belum ditutup; TT dihitung terpisah);
+  #   - ke `aktif`/`renovasi` dari `ditutup`, menambah anak, dan pindah induk: induk tidak boleh `ditutup` (422 `induk_tidak_aktif`);
+  #     induk `renovasi` boleh;
+  #   - status sama dengan sekarang = tidak ada perubahan status.
+  # 409/422 bisnis membawa `rincian` `[{kolom, pesan}]` dengan `kolom` = nama isian yang salah (mis. kode_sudah_dipakai → kode,
+  # siklus/jenis_induk_tidak_sesuai/induk_tidak_aktif → induk_id, tanggal_tidak_valid → berlaku_dari/status_berlaku_dari),
+  # kecuali `*_masih_dipakai` (rincian berisi jumlah). Akun dengan izin bercakupan unit saja → 403 `akses_ditolak`.
+  # Urutan `kode_lengkap` leksikografis (10 sebelum 2); klien boleh mengurutkan alami untuk tampilan.
   # Lokasi menjawab *di mana* (gedung, lantai, ruang, TT); unit organisasi menjawab *siapa yang mengelola*.
   # Jenis anak sesuai jenis induk:
   #   (akar) → situs | gedung;  situs → gedung;  gedung → sayap | lantai;  sayap → lantai;  lantai → ruang;
@@ -1290,10 +1302,12 @@ paths:
       operationId: daftarLokasi
       summary: Daftar lokasi (paginasi kursor), per induk untuk pohon yang dimuat bertahap
       description: |
-        Izin: master_data.organisasi.lihat, cakupan `rs`. Untuk jenis `tempat_tidur`, `status` mengikuti TT-nya
-        (`ditutup` mulai hari pertama TT tidak dihitung); filter `status` membaca nilai itu.
+        Izin: master_data.organisasi.lihat, cakupan `rs`. Untuk jenis `tempat_tidur`, `status` mengikuti TT-nya:
+        `ditutup` mulai hari pertama TT tidak dihitung, selain itu `aktif` (rincian belum_berlaku/akan_ditutup ada di
+        `TempatTidur.status_operasional`); filter `status` membaca nilai itu.
         - `akar=true` → lokasi tingkat teratas; `induk_id=<id>` → anak langsung lokasi itu (`jumlah_anak` untuk pohon).
-        - `cari` → cocok sebagian pada `kode_lengkap` atau nama di seluruh pohon (mis. "B-3-304").
+        - `cari` → cocok sebagian pada `kode_lengkap`, nama, atau kode TT (`TempatTidur.kode`, tetap walau ruangnya dipindah)
+          di seluruh pohon (mis. "B-3-304").
         Urut: kode_lengkap.
       parameters:
         - $ref: '#/components/parameters/Kursor'
@@ -1325,7 +1339,7 @@ paths:
         - 422 `jenis_induk_tidak_sesuai` (aturan jenis di atas); 422 `induk_tidak_aktif` (induk ditutup);
           422 `fungsi_wajib` (ruang tanpa fungsi) / `fungsi_hanya_ruang`; 422 `unit_tidak_valid` (unit tidak ada atau nonaktif).
         - 409 `kode_sudah_dipakai`: kode sama dengan saudara, atau `kode_lengkap` yang terbentuk sudah ada.
-        - `unit_organisasi_id` kosong = mengikuti pengelola induk.
+        - `unit_organisasi_id` kosong = disalin dari pengelola induk saat dibuat (bukan warisan dinamis).
       requestBody:
         required: true
         content:
@@ -1365,13 +1379,13 @@ paths:
       description: |
         Izin: master_data.organisasi.perbaiki. Wajib If-Match. Kirim minimal satu isian selain `dasar_perubahan`.
         Lokasi jenis `tempat_tidur`: 422 `kelola_lewat_tempat_tidur`. `jenis` tidak bisa diubah.
-        - Pindah induk (`induk_id`): 422 `siklus` (induk baru = lokasi itu atau turunannya), 422 `jenis_induk_tidak_sesuai`;
+        - Pindah induk (`induk_id`): 422 `siklus` (induk baru = lokasi itu atau turunannya), 422 `jenis_induk_tidak_sesuai`,
+          422 `induk_tidak_aktif`;
           `kode_lengkap` lokasi dan seluruh turunannya dihitung ulang (409 `kode_sudah_dipakai` bila bentrok). Kode TT
           (`TempatTidur.kode`) tidak ikut berubah.
         - Status (`status` + `status_berlaku_dari`, tanggal ≤ hari ini zona RS, selain itu 422 `tanggal_tidak_valid`;
-          kosong = hari ini): `renovasi` dan `ditutup`
-          ditolak 409 `lokasi_masih_dipakai` bila masih ada turunan aktif, TT yang belum ditutup, atau poliklinik aktif di ruang
-          itu; `rincian` = daftar berisi satu objek `{jumlah_anak_aktif, jumlah_tempat_tidur, jumlah_poliklinik}`.
+          kosong = hari ini): perpindahan dan syaratnya di blok aturan di atas (409 `lokasi_masih_dipakai`,
+          422 `induk_tidak_aktif`).
           Penjadwalan status ke tanggal mendatang lewat usulan berjenjang (1.8c).
       parameters:
         - $ref: '#/components/parameters/IfMatch'
@@ -1428,15 +1442,18 @@ paths:
         Bangsal dan kelas rawat harus sudah ada dan aktif. Impor hanya menambah: `kode_lengkap` yang sudah ada, atau kode TT
         yang pernah dipakai TT mana pun (termasuk yang ditutup), = `kode_sudah_dipakai`.
         `per_jenis` menghitung semua baris berkas menurut kolom `jenis` (termasuk baris salah); `kamar` = ruang berisi `bangsal`.
+        Judul kolom persis seperti di atas (huruf kecil, urutan sama); penanda BOM UTF-8 dan pemisah `;` (Excel ber-locale
+        Indonesia) diterima. `dasar_perubahan` wajib juga untuk pratinjau.
         - `mode=pratinjau`: tidak menyimpan apa pun; mengembalikan ringkasan dan baris salah beserta alasannya.
         - `mode=terapkan`: memeriksa ulang; bila ada satu baris salah → 422 `impor_tidak_valid` (`rincian` = baris salah,
-          tidak ada yang disimpan; `rincian` = daftar KesalahanBarisImpor, paling banyak 500); bila semua benar → disimpan
+          tidak ada yang disimpan; `rincian` = daftar KesalahanBarisImpor, sama dengan `data.kesalahan` pratinjau, paling
+          banyak 500); bila semua benar → disimpan
           dalam satu transaksi, satu audit `master_data.lokasi_diimpor`.
         - 422 `berkas_tidak_valid`: bukan CSV UTF-8, judul kolom tidak sesuai, atau melebihi batas.
         Kode salah per baris: `kolom_wajib`, `jenis_tidak_dikenal`, `kode_tidak_valid`, `kode_ganda` (sama di berkas),
         `kode_sudah_dipakai`, `induk_tidak_ditemukan`, `siklus`, `jenis_induk_tidak_sesuai`, `induk_tidak_aktif`,
         `fungsi_wajib`, `fungsi_hanya_ruang`, `unit_tidak_valid`, `bangsal_tidak_valid`, `kelas_rawat_tidak_valid`, `bukan_kamar`,
-        `nilai_tidak_valid`, `terlalu_banyak_baris`.
+        `nilai_tidak_valid`. Berkas di atas batas baris → 422 `berkas_tidak_valid` (bukan kesalahan per baris).
       requestBody:
         required: true
         content:
@@ -1630,7 +1647,8 @@ paths:
       operationId: ubahKamar
       summary: Ubah bangsal, kapasitas maksimum, atau atribut standar kamar
       description: |
-        Izin: master_data.organisasi.perbaiki. Wajib If-Match. 422 `bangsal_tidak_valid`. Kapasitas di bawah jumlah TT aktif
+        Izin: master_data.organisasi.perbaiki. Wajib If-Match. 422 `bangsal_tidak_valid`. `atribut_standar` mengganti seluruh
+        objek (bukan menggabung). Kapasitas di bawah jumlah TT aktif
         tetap disimpan; kamar ditandai `melebihi_kapasitas` (peringatan, bukan penolakan).
       parameters:
         - $ref: '#/components/parameters/IfMatch'
@@ -1739,7 +1757,8 @@ paths:
       summary: Ubah kelas rawat, aturan jenis kelamin, isolasi, atau penanda ekstra
       description: |
         Izin: master_data.organisasi.perbaiki. Wajib If-Match. Kode dan kamar tidak bisa diubah (pindah kamar = tutup lalu buat
-        TT baru). 409 `sudah_ditutup`; 422 `kelas_rawat_tidak_valid`. Perubahan kelas/ekstra berlaku untuk kapasitas mulai
+        TT baru). 409 `sudah_ditutup`: TT yang sudah ditutup atau dijadwalkan tutup (`akan_ditutup`) tidak bisa diubah;
+        422 `kelas_rawat_tidak_valid`. Perubahan kelas/ekstra berlaku untuk kapasitas mulai
         hari ini; hari yang sudah lewat tetap memakai rekaman kapasitas harian.
       parameters:
         - $ref: '#/components/parameters/IfMatch'
@@ -1928,6 +1947,7 @@ paths:
         - $ref: '#/components/parameters/Batas'
         - { in: query, name: cari, schema: { type: string, maxLength: 100 } }
         - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
+        - { in: query, name: lokasi_id, schema: { type: string, format: uuid }, description: "Poliklinik di lokasi itu atau turunannya" }
       responses:
         '200':
           description: Satu halaman poliklinik
@@ -2284,14 +2304,14 @@ components:
       pattern: '^[A-Z0-9]{1,10}$'
       description: "Segmen kode, tanpa tanda hubung (pemisah kode_lengkap), mis. B, 3, 304, 2"
     RingkasUnit:
-      type: [object, 'null']
+      type: object
       required: [id, kode, nama]
       properties:
         id: { type: string, format: uuid }
         kode: { type: string }
         nama: { type: string }
     RingkasLokasi:
-      type: [object, 'null']
+      type: object
       required: [id, kode_lengkap, nama]
       properties:
         id: { type: string, format: uuid }
@@ -2308,13 +2328,15 @@ components:
         kode_lengkap: { type: string, examples: ['B-3-304-2'] }
         nama: { type: string }
         fungsi: { $ref: '#/components/schemas/FungsiRuang' }
-        unit: { $ref: '#/components/schemas/RingkasUnit', description: "Unit pengelola saat ini" }
+        unit:
+          description: "Unit pengelola saat ini; null = belum ditetapkan"
+          oneOf: [{ $ref: '#/components/schemas/RingkasUnit' }, { type: 'null' }]
         status: { $ref: '#/components/schemas/StatusLokasi' }
         status_berlaku_dari: { type: string, format: date }
         satusehat_lokasi_id: { type: [string, 'null'], description: "Diisi integrasi SATUSEHAT (tiket 1.9); hanya baca" }
         kamar_id: { type: [string, 'null'], format: uuid, description: "Ruang yang menjadi kamar rawat" }
         tempat_tidur_id: { type: [string, 'null'], format: uuid, description: "Untuk jenis tempat_tidur" }
-        jumlah_anak: { type: integer, minimum: 0 }
+        jumlah_anak: { type: integer, minimum: 0, description: "Anak langsung semua jenis dan status, termasuk node TT dan yang ditutup" }
         jalur:
           type: array
           description: "Induk dari akar sampai induk langsung, untuk breadcrumb"
@@ -2377,15 +2399,20 @@ components:
         jumlah_kamar: { type: integer, minimum: 0 }
         ringkasan_tt:
           type: array
-          description: "TT per kelas hari ini: tersedia (bukan ekstra), ekstra, akan ditutup, ditutup"
+          description: |
+            TT per kelas, dilihat hari ini (zona RS). `jumlah_tersedia` + `jumlah_ekstra` = TT yang dihitung hari ini (sama
+            dengan /kapasitas-tempat-tidur hari ini). `akan_ditutup` ⊂ keduanya (masih dihitung, sudah dijadwalkan tutup).
+            `belum_berlaku` = TT yang mulai dihitung sesudah hari ini. `ditutup` = kumulatif TT yang sudah tidak dihitung.
+            Kelompok yang saling lepas: (jumlah_tersedia + jumlah_ekstra), belum_berlaku, ditutup.
           items:
             type: object
-            required: [kelas_rawat, tersedia, ekstra, akan_ditutup, ditutup]
+            required: [kelas_rawat, jumlah_tersedia, jumlah_ekstra, akan_ditutup, belum_berlaku, ditutup]
             properties:
               kelas_rawat: { $ref: '#/components/schemas/RingkasKelasRawat' }
-              tersedia: { type: integer, minimum: 0 }
-              ekstra: { type: integer, minimum: 0 }
+              jumlah_tersedia: { type: integer, minimum: 0, description: "Dihitung hari ini, bukan ekstra" }
+              jumlah_ekstra: { type: integer, minimum: 0, description: "Dihitung hari ini, ekstra" }
               akan_ditutup: { type: integer, minimum: 0 }
+              belum_berlaku: { type: integer, minimum: 0 }
               ditutup: { type: integer, minimum: 0 }
         versi: { type: string }
         diubah_pada: { type: string, format: date-time }
@@ -2407,10 +2434,17 @@ components:
         id: { type: string, format: uuid }
         nomor: { type: string, description: "Kode ruang (segmen terakhir kode_lengkap)" }
         bangsal: { $ref: '#/components/schemas/RingkasBangsal' }
-        lokasi: { $ref: '#/components/schemas/RingkasLokasi', description: "Ruang fisik kamar ini" }
+        lokasi:
+          type: object
+          description: "Ruang fisik kamar ini"
+          required: [id, kode_lengkap, nama]
+          properties:
+            id: { type: string, format: uuid }
+            kode_lengkap: { type: string }
+            nama: { type: string }
         kapasitas_maksimum: { type: [integer, 'null'], minimum: 1 }
         atribut_standar: { $ref: '#/components/schemas/AtributKamar' }
-        jumlah_tempat_tidur_aktif: { type: integer, minimum: 0, description: "TT yang dihitung hari ini" }
+        jumlah_tempat_tidur_aktif: { type: integer, minimum: 0, description: "TT yang dihitung hari ini, termasuk ekstra (dasar melebihi_kapasitas)" }
         melebihi_kapasitas: { type: boolean }
         versi: { type: string }
         diubah_pada: { type: string, format: date-time }
@@ -2426,7 +2460,7 @@ components:
     StatusOperasionalTt:
       type: string
       enum: [belum_berlaku, aktif, akan_ditutup, ditutup]
-      description: "Diturunkan dari tanggal (zona RS): belum_berlaku = berlaku_dari > hari ini; akan_ditutup = berlaku_sampai ≥ hari ini; ditutup = berlaku_sampai < hari ini"
+      description: "Diturunkan dari tanggal (zona RS), diperiksa berurutan: ditutup = berlaku_sampai < hari ini; akan_ditutup = berlaku_sampai ≥ hari ini; belum_berlaku = berlaku_dari > hari ini; selain itu aktif"
     AturanJenisKelamin:
       type: string
       enum: [campur, laki_laki, perempuan]
@@ -2504,7 +2538,9 @@ components:
         kode: { type: string }
         nama: { type: string }
         unit: { $ref: '#/components/schemas/RingkasUnit' }
-        lokasi: { $ref: '#/components/schemas/RingkasLokasi', description: "Ruang poli; null = belum dipetakan" }
+        lokasi:
+          description: "Ruang poli; null = belum dipetakan"
+          oneOf: [{ $ref: '#/components/schemas/RingkasLokasi' }, { type: 'null' }]
         kode_poli_bpjs: { type: [string, 'null'] }
         status: { type: string, enum: [aktif, nonaktif] }
         versi: { type: string }
