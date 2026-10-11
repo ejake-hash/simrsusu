@@ -16,6 +16,21 @@ test.beforeAll(({}, info) => {
   if (!SANDI) throw new Error('Set E2E_SANDI sama dengan AKUN_SINTETIS_SANDI saat seeding.')
 })
 
+// Rate limit API 120/menit per akun (config/rate_limit.php) berlaku di e2e dan semua uji berkas ini memakai satu akun;
+// permintaan dihitung, lalu sebelum tiap uji dan tiap langkah tulis di uji panjang ditunggu bila satu menit terakhir
+// sudah mendekati batas (pola yang sama dengan pengaturan.spec.ts).
+const BATAS_PER_MENIT = 70
+const waktuPermintaan: number[] = []
+async function jagaBatasLaju() {
+  const sekarang = Date.now()
+  while (waktuPermintaan.length && sekarang - waktuPermintaan[0]! > 61_000) waktuPermintaan.shift()
+  if (waktuPermintaan.length <= BATAS_PER_MENIT) return
+  const jeda = 61_000 - (sekarang - waktuPermintaan[0]!)
+  test.info().setTimeout(test.info().timeout + jeda)
+  await new Promise((r) => setTimeout(r, jeda))
+}
+test.beforeEach(async () => jagaBatasLaju())
+
 /** Satu kali masuk per berkas (rate limit masuk 10/menit per nama pengguna). */
 async function halaman(browser: Browser, asal: string, lebar = 1440, tinggi = 900): Promise<Page> {
   if (!sesi) {
@@ -25,6 +40,9 @@ async function halaman(browser: Browser, asal: string, lebar = 1440, tinggi = 90
     await masuk.close()
   }
   const konteks = await browser.newContext({ baseURL: asal, storageState: sesi, viewport: { width: lebar, height: tinggi } })
+  konteks.on('request', (r) => {
+    if (r.url().includes('/api/v1/')) waktuPermintaan.push(Date.now())
+  })
   return konteks.newPage()
 }
 const asalDari = (baseURL: string | undefined) => new URL(baseURL ?? '').origin
@@ -183,6 +201,7 @@ test('1440 px: kelas rawat, bangsal, gedung → lantai → ruang, jadikan kamar,
 
   await page.getByRole('tab', { name: 'Lokasi & tempat tidur' }).click()
   const tambahLokasi = async (tombol: string, jenis: string | null, kode: string, nama: string, fungsi?: string) => {
+    await jagaBatasLaju()
     await page.getByRole('button', { name: tombol }).click()
     if (jenis) await dialog(page).getByLabel('Jenis').selectOption(jenis)
     await dialog(page).getByRole('textbox', { name: 'Kode', exact: true }).fill(kode)
@@ -198,6 +217,7 @@ test('1440 px: kelas rawat, bangsal, gedung → lantai → ruang, jadikan kamar,
   await tambahLokasi('Tambah di bawah', null, '101', `Ruang Uji ${SEG}`, 'rawat_inap')
   await expect(page.getByRole('region', { name: `Ruang Uji ${SEG}` })).toContainText(`${SEG}-1-101`)
 
+  await jagaBatasLaju()
   await page.getByRole('button', { name: 'Jadikan kamar' }).click()
   await dialog(page).getByLabel('Bangsal').selectOption({ label: `B${SEG} · Bangsal Uji ${SEG}` })
   await dialog(page).getByLabel('Kapasitas maksimum TT').fill('1')
@@ -206,6 +226,7 @@ test('1440 px: kelas rawat, bangsal, gedung → lantai → ruang, jadikan kamar,
   await expect(dialog(page)).toHaveCount(0)
 
   const tambahTt = async (kode: string) => {
+    await jagaBatasLaju()
     await page.getByRole('button', { name: 'Tambah TT' }).click()
     await dialog(page).getByLabel('Kode TT').fill(kode)
     await dialog(page).getByLabel('Kelas rawat').selectOption({ label: `K${SEG} · Kelas Uji ${SEG}` })
@@ -234,6 +255,7 @@ test('1440 px: kelas rawat, bangsal, gedung → lantai → ruang, jadikan kamar,
   await dialog(page).getByRole('button', { name: 'Batal' }).click()
 
   // Ringkasan bangsal: 2 dihitung hari ini (1 akan ditutup); kamar melebihi kapasitas tampil sebagai peringatan.
+  await jagaBatasLaju()
   await page.getByRole('tab', { name: 'Bangsal' }).click()
   await page.getByRole('searchbox', { name: 'Cari bangsal' }).fill(`B${SEG}`)
   const baris = page.getByRole('region', { name: 'Daftar bangsal' }).getByRole('row').filter({ hasText: `Bangsal Uji ${SEG}` })
@@ -265,6 +287,7 @@ test('impor CSV: pratinjau lalu terapkan (gedung → lantai → ruang+kamar → 
   const benar = [judul, `gedung,${g},,Gedung Impor ${SEG},,,,,,`, `lantai,2,${g},Lantai 2,,,,,,`, `ruang,201,${g}-2,Ruang Impor,rawat_inap,,BI${SEG},,4,`,
     ...['1', '2', '3', '4'].map((k) => `tempat_tidur,${k},${g}-2-201,,,,,KI${SEG},,tidak`)].join('\n')
   await page.getByRole('tab', { name: 'Lokasi & tempat tidur' }).click()
+  await jagaBatasLaju()
   await page.getByRole('button', { name: 'Impor CSV' }).click()
   await dialog(page).getByLabel('Berkas CSV').setInputFiles({ name: 'impor.csv', mimeType: 'text/csv', buffer: Buffer.from(benar) })
   await dialog(page).getByLabel('Dasar perubahan').fill('SK uji e2e impor')
@@ -277,6 +300,7 @@ test('impor CSV: pratinjau lalu terapkan (gedung → lantai → ruang+kamar → 
 
   // Duplikat di berkas dan induk tak dikenal: ditolak per baris, tidak ada yang disimpan.
   const salah = [judul, `gedung,X${SEG.slice(1)},,Gedung Salah,,,,,,`, `gedung,X${SEG.slice(1)},,Gedung Salah Ganda,,,,,,`, `lantai,1,TIDAKADA,Lantai,,,,,,`].join('\n')
+  await jagaBatasLaju()
   await page.getByRole('button', { name: 'Impor CSV' }).click()
   await dialog(page).getByLabel('Berkas CSV').setInputFiles({ name: 'salah.csv', mimeType: 'text/csv', buffer: Buffer.from(salah) })
   await dialog(page).getByLabel('Dasar perubahan').fill('SK uji e2e impor')
