@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSesiStore } from '@/app/sesi'
-import { GalatApi } from '@/shared/api/klien'
+import { ApiError } from '@/shared/api/klien'
 import { kirimKodeMfa } from '../api'
 import type { MetodeMfa } from '../alurMasuk'
 import LangkahKodeMfa from './LangkahKodeMfa.vue'
@@ -12,7 +12,7 @@ vi.mock('../api', () => ({ kirimKodeMfa: vi.fn(), ambilSaya: vi.fn(), keluar: vi
 function pasang(metode: MetodeMfa[] = ['totp', 'kode_cadangan']) {
   const lanjut = vi.fn().mockResolvedValue(undefined)
   const w = mount(LangkahKodeMfa, {
-    props: { langkah: { status: 'perlu_mfa', tantangan_id: 't-1', metode, kedaluwarsa_pada: '' }, lanjut },
+    props: { langkah: { status: 'perlu_mfa', challenge_id: 't-1', metode, kedaluwarsa_pada: '' }, lanjut },
     attachTo: document.body,
   })
   return { w, lanjut }
@@ -46,7 +46,7 @@ describe('LangkahKodeMfa', () => {
     await w.get('form').trigger('submit')
 
     expect(kirimKodeMfa).not.toHaveBeenCalled()
-    expect(w.get('#kode-mfa-galat').text()).toBe('Masukkan 6 digit dari aplikasi autentikator.')
+    expect(w.get('#kode-mfa-error').text()).toBe('Masukkan 6 digit dari aplikasi autentikator.')
     expect(w.get('#kode-mfa').attributes('aria-invalid')).toBe('true')
   })
 
@@ -68,7 +68,7 @@ describe('LangkahKodeMfa', () => {
   })
 
   it('kode salah: pesan di atas form, kolom dikosongkan dan difokuskan', async () => {
-    vi.mocked(kirimKodeMfa).mockRejectedValue(new GalatApi(401, 'kode_mfa_salah', 'Kode verifikasi salah.'))
+    vi.mocked(kirimKodeMfa).mockRejectedValue(new ApiError(401, 'kode_mfa_salah', 'Kode verifikasi salah.'))
     const { w } = pasang()
     await w.get('#kode-mfa').setValue('000000')
     await w.get('form').trigger('submit')
@@ -79,8 +79,8 @@ describe('LangkahKodeMfa', () => {
     expect(document.activeElement).toBe(w.get('#kode-mfa').element)
   })
 
-  it('tantangan tidak berlaku: kembali ke langkah sandi dengan pesan', async () => {
-    vi.mocked(kirimKodeMfa).mockRejectedValue(new GalatApi(401, 'tantangan_tidak_berlaku', 'x'))
+  it('challenge tidak berlaku: kembali ke langkah sandi dengan pesan', async () => {
+    vi.mocked(kirimKodeMfa).mockRejectedValue(new ApiError(401, 'challenge_tidak_berlaku', 'x'))
     const { w } = pasang()
     await w.get('#kode-mfa').setValue('000000')
     await w.get('form').trigger('submit')

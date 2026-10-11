@@ -32,5 +32,5 @@ Hanya ke lokal/CI dengan akun sintetis, atau staging. Jangan pernah dengan data 
    E2E_SANDI=<AKUN_SINTETIS_SANDI> npm run test:e2e
    ```
    Backend atau port lain: `SIMRS_API_URL=http://127.0.0.1:8001 E2E_PORT=5174`. Port Vite harus ada di
-   `SANCTUM_STATEFUL_DOMAINS` backend. Backend e2e perlu `PROKSI_TEPERCAYA=127.0.0.1`: uji
-   `jaringan-rs.spec.ts` meniru akses dari luar jaringan RS lewat `X-Forwarded-For` dari proksi Vite. Batas laju masuk 60/menit per IP dan 10/menit per nama pengguna.
+   `SANCTUM_STATEFUL_DOMAINS` backend. Backend e2e perlu `TRUSTED_PROXIES=127.0.0.1`: uji
+   `jaringan-rs.spec.ts` meniru akses dari luar jaringan RS lewat `X-Forwarded-For` dari proksi Vite. Rate limit masuk 60/menit per IP dan 10/menit per nama pengguna.

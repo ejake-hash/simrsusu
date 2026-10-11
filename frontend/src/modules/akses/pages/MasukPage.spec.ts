@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import { GalatApi } from '@/shared/api/klien'
+import { ApiError } from '@/shared/api/klien'
 import { ambilSaya, kirimSandi } from '../api'
 import MasukPage from './MasukPage.vue'
 
@@ -35,7 +35,7 @@ beforeEach(() => {
   vi.mocked(ambilSaya).mockReset().mockResolvedValue({
     id: 'p-1',
     nama_pengguna: 'contoh.dokter',
-    surel: null,
+    email: null,
     login_terakhir_pada: null,
     mfa_aktif: false,
     pegawai: { id: 'g-1', nama: 'Contoh Dokter' },
@@ -64,7 +64,7 @@ describe('MasukPage (mesin status PRD 10.3.2)', () => {
   it('perlu_mfa pindah ke langkah MFA, kembali ke langkah sandi dengan isian bersih', async () => {
     vi.mocked(kirimSandi).mockResolvedValue({
       status: 'perlu_mfa',
-      tantangan_id: 't-1',
+      challenge_id: 't-1',
       metode: ['totp'],
       kedaluwarsa_pada: '2026-10-10T10:05:00+07:00',
     })
@@ -82,7 +82,7 @@ describe('MasukPage (mesin status PRD 10.3.2)', () => {
 
   it('/saya gagal setelah sandi diterima: tetap di langkah sandi dengan pesan', async () => {
     vi.mocked(kirimSandi).mockResolvedValue({ status: 'masuk' })
-    vi.mocked(ambilSaya).mockRejectedValue(new GalatApi(503, 'layanan_tidak_tersedia', 'Layanan sedang tidak tersedia.'))
+    vi.mocked(ambilSaya).mockRejectedValue(new ApiError(503, 'layanan_tidak_tersedia', 'Layanan sedang tidak tersedia.'))
     const { w, router } = await pasang()
 
     await kirim(w)

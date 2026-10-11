@@ -2,18 +2,18 @@ import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { createApp, watch } from 'vue'
 import { createPinia } from 'pinia'
 import '@/design-system/tokens.css'
-import { aturPenangan401, GalatApi } from '@/shared/api/klien'
+import { aturPenangan401, ApiError } from '@/shared/api/klien'
 import { vCan } from '@/shared/composables/usePermission'
 import App from './App.vue'
 import { lupakanSesi, sambungIzin } from './menu'
 import { router } from './router'
 import { useSesiStore } from './sesi'
 
-// Galat 4xx (401, 403, 422, 429) tidak membaik dengan diulang; jaringan/5xx diulang sekali.
+// Error 4xx (401, 403, 422, 429) tidak membaik dengan diulang; jaringan/5xx diulang sekali.
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: (kali, galat) => !(galat instanceof GalatApi && galat.status >= 400 && galat.status < 500) && kali < 1,
+      retry: (kali, error) => !(error instanceof ApiError && error.status >= 400 && error.status < 500) && kali < 1,
     },
   },
 })
@@ -23,8 +23,8 @@ app.directive('can', vCan)
 sambungIzin(queryClient)
 
 // 401 dari endpoint mana pun = sesi berakhir: kembali ke /masuk, lalu ke rute asal setelah masuk.
-aturPenangan401((galat) => {
-  useSesiStore().akhiri(galat)
+aturPenangan401((error) => {
+  useSesiStore().akhiri(error)
   const sekarang = router.currentRoute.value
   if (sekarang.name !== 'masuk') {
     void router.replace({ name: 'masuk', query: sekarang.fullPath === '/' ? {} : { kembali: sekarang.fullPath } })

@@ -22,7 +22,7 @@ final class PenggunaFactory extends Factory
         return [
             'pegawai_id' => Pegawai::factory(),
             'nama_pengguna' => 'sintetis.'.fake()->unique()->numerify('######'),
-            'surel' => fake()->unique()->safeEmail(),
+            'email' => fake()->unique()->safeEmail(),
             'sandi_hash' => Hash::make(Str::password(24)),
             'status' => 'aktif',
         ];

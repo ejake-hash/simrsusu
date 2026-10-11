@@ -3,7 +3,7 @@
 namespace App\Modules\Akses\Http\Middleware;
 
 use App\Core\Audit\CatatAktivitas;
-use App\Core\Http\GalatApi;
+use App\Core\Http\ApiError;
 use App\Modules\Akses\Models\Pengguna;
 use Closure;
 use Illuminate\Http\Request;
@@ -62,6 +62,6 @@ final class SesiPengguna
         $request->session()->regenerateToken();
         $this->audit->catat('autentikasi.sesi_berakhir', $pengguna->id, 'akses.pengguna', $pengguna->id, ['alasan' => $kode]);
 
-        throw new GalatApi(401, $kode, $pesan);
+        throw new ApiError(401, $kode, $pesan);
     }
 }

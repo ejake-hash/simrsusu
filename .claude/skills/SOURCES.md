@@ -26,7 +26,7 @@ Skill ECC lainnya dipakai apa adanya, **kecuali** enam skill berikut yang diberi
 | laravel-tdd | PostgreSQL bukan SQLite; `DatabaseTransactions`, larangan `RefreshDatabase`; `composer test` |
 | postgres-patterns | PK UUIDv7 (PRD 11.1); beberapa role DB; RLS `::uuid` bila dipakai |
 | laravel-patterns | Tanpa `SoftDeletes`; pembatalan via status; migrasi UUIDv7 + kolom `*_pada`; SPA Vue |
-| api-design | `/api/v1/` + kata benda Indonesia tanpa jamak; format galat PRD 10.3.1 |
+| api-design | `/api/v1/` + kata benda Indonesia tanpa jamak; format error PRD 10.3.1 |
 | laravel-security | Cookie Sanctum untuk SPA; Argon2id; `akses.pengguna` |
 | database-migrations | Hanya migrasi Laravel; `--database=pgsql_migrator`; maju saja di produksi |
 

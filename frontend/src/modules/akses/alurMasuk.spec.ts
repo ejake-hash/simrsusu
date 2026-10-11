@@ -10,17 +10,17 @@ describe('langkahDariRespons (PRD 10.3.2)', () => {
     expect(langkahDariRespons({ status: 'masuk', pengguna: {} })).toEqual({ status: 'masuk' })
   })
 
-  it('perlu_mfa membawa tantangan, metode, dan kedaluwarsa', () => {
+  it('perlu_mfa membawa challenge, metode, dan kedaluwarsa', () => {
     expect(
       langkahDariRespons({
         status: 'perlu_mfa',
-        tantangan_id: 't-1',
+        challenge_id: 't-1',
         metode: ['totp', 'kode_cadangan'],
         kedaluwarsa_pada: '2026-10-10T10:00:00+07:00',
       }),
     ).toEqual({
       status: 'perlu_mfa',
-      tantangan_id: 't-1',
+      challenge_id: 't-1',
       metode: ['totp', 'kode_cadangan'],
       kedaluwarsa_pada: '2026-10-10T10:00:00+07:00',
     })
@@ -28,11 +28,11 @@ describe('langkahDariRespons (PRD 10.3.2)', () => {
 
   it('perlu_daftar_mfa', () => {
     expect(
-      langkahDariRespons({ status: 'perlu_daftar_mfa', tantangan_id: 't-2', kedaluwarsa_pada: '2026-10-10T10:00:00+07:00' }),
-    ).toEqual({ status: 'perlu_daftar_mfa', tantangan_id: 't-2', kedaluwarsa_pada: '2026-10-10T10:00:00+07:00' })
+      langkahDariRespons({ status: 'perlu_daftar_mfa', challenge_id: 't-2', kedaluwarsa_pada: '2026-10-10T10:00:00+07:00' }),
+    ).toEqual({ status: 'perlu_daftar_mfa', challenge_id: 't-2', kedaluwarsa_pada: '2026-10-10T10:00:00+07:00' })
   })
 
-  it('status tidak dikenal atau tantangan hilang ditolak, tidak dianggap masuk', () => {
+  it('status tidak dikenal atau challenge hilang ditolak, tidak dianggap masuk', () => {
     expect(() => langkahDariRespons({ status: 'aneh' })).toThrow()
     expect(() => langkahDariRespons({ status: 'perlu_mfa' })).toThrow()
   })

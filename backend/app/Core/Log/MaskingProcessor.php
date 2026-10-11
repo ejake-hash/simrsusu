@@ -8,14 +8,14 @@ use Throwable;
 
 /**
  * Prosesor Monolog untuk semua channel: membersihkan exception di konteks, pesan yang memuat
- * galat SQL, dan nilai binding (kunci `bindings`, seperti dari DB::listen).
+ * error SQL, dan nilai binding (kunci `bindings`, seperti dari DB::listen).
  */
-final class ProsesorPenyamaran implements ProcessorInterface
+final class MaskingProcessor implements ProcessorInterface
 {
     public function __invoke(LogRecord $record): LogRecord
     {
         return $record->with(
-            message: PenyamarSql::samarkanTeks($record->message),
+            message: SqlMasker::samarkanTeks($record->message),
             context: $this->bersihkan($record->context),
         );
     }
@@ -27,9 +27,9 @@ final class ProsesorPenyamaran implements ProcessorInterface
             if ($kunci === 'bindings' && is_array($nilai)) {
                 $data[$kunci] = array_fill(0, count($nilai), '?');
             } elseif ($nilai instanceof Throwable) {
-                PenyamarSql::samarkanException($nilai);
+                SqlMasker::samarkanException($nilai);
             } elseif (is_string($nilai)) {
-                $data[$kunci] = PenyamarSql::samarkanTeks($nilai);
+                $data[$kunci] = SqlMasker::samarkanTeks($nilai);
             } elseif (is_array($nilai)) {
                 $data[$kunci] = $this->bersihkan($nilai);
             }

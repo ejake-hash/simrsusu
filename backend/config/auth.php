@@ -87,7 +87,7 @@ return [
     |
     */
 
-    // Reset sandi lewat surel belum dalam lingkup (akses.pengguna dikelola admin).
+    // Reset sandi lewat email belum dalam lingkup (akses.pengguna dikelola admin).
     'passwords' => [],
 
     /*

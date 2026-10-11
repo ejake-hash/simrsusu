@@ -22,7 +22,7 @@ export const options = {
     masuk: { executor: 'constant-arrival-rate', exec: 'masuk', rate: 6, timeUnit: '1m', duration: DURASI, preAllocatedVUs: 2 },
     saya: { executor: 'constant-vus', exec: 'saya', vus: Math.max(1, Math.round(800 * SKALA)), duration: DURASI },
   },
-  // Anggaran PRD 14.1: baca P95 ≤ 200 ms, simpan P95 ≤ 500 ms; galat < 0,1% (14.1.1).
+  // Anggaran PRD 14.1: baca P95 ≤ 200 ms, simpan P95 ≤ 500 ms; error < 0,1% (14.1.1).
   thresholds: {
     'http_req_duration{scenario:saya}': ['p(95)<200'],
     'http_req_duration{scenario:masuk}': ['p(95)<500'],

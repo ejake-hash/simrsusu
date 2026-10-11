@@ -25,7 +25,7 @@ class SiapTest extends TestCase
 
         $respons = $this->getJson('/api/v1/siap')
             ->assertStatus(503)
-            ->assertExactJson(['galat' => [
+            ->assertExactJson(['error' => [
                 'kode' => 'layanan_tidak_tersedia',
                 'pesan' => 'Layanan sedang tidak tersedia.',
                 'rincian' => [['komponen' => 'valkey_sesi', 'status' => 'gagal']],
@@ -39,12 +39,12 @@ class SiapTest extends TestCase
 
         $this->getJson('/api/v1/siap')
             ->assertStatus(503)
-            ->assertJsonPath('galat.rincian', [['komponen' => 'valkey_cache', 'status' => 'gagal']]);
+            ->assertJsonPath('error.rincian', [['komponen' => 'valkey_cache', 'status' => 'gagal']]);
     }
 
-    public function test_siap_berbatas_laju_per_ip(): void
+    public function test_siap_berrate_limit_per_ip(): void
     {
-        config(['batas_laju.siap.per_ip_per_menit' => 2]);
+        config(['rate_limit.siap.per_ip_per_menit' => 2]);
 
         $this->getJson('/api/v1/siap')->assertOk();
         $this->getJson('/api/v1/siap')->assertOk();

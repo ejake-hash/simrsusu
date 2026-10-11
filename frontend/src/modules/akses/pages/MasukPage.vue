@@ -21,7 +21,7 @@ const langkah = shallowRef<LangkahTampil>(LANGKAH_AWAL)
 // Ganti kunci agar langkah yang sama (mis. kembali ke sandi) dipasang ulang dengan isian bersih.
 const putaran = ref(0)
 
-/** Dipanggil komponen langkah dengan hasil dari server; galatnya ditampilkan oleh langkah itu. */
+/** Dipanggil komponen langkah dengan hasil dari server; errornya ditampilkan oleh langkah itu. */
 async function lanjut(berikut: Langkah): Promise<void> {
   if (berikut.status !== 'masuk') {
     langkah.value = berikut

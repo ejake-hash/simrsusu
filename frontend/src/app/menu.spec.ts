@@ -13,9 +13,9 @@ describe('cariPosisi / cariHalaman', () => {
   })
 
   it('sub-menu menandai menu induknya; garis miring akhir diabaikan', () => {
-    const posisi = cariPosisi(grup, '/data-induk/akun/')
-    expect(posisi?.menu.kode).toBe('data_induk')
-    expect(posisi?.sub?.kode).toBe('data_induk.akun')
+    const posisi = cariPosisi(grup, '/master-data/akun/')
+    expect(posisi?.menu.kode).toBe('master_data')
+    expect(posisi?.sub?.kode).toBe('master_data.akun')
     expect(posisi?.grup.label).toBe('Tata Kelola')
   })
 

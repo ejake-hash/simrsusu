@@ -75,13 +75,13 @@ final class Paginasi
         }
 
         if (! is_string($nilai) || ! ctype_digit($nilai) || (int) $nilai < 1) {
-            throw new GalatApi(422, 'validasi_gagal', 'Isian belum benar.', [
+            throw new ApiError(422, 'validasi_gagal', 'Isian belum benar.', [
                 ['kolom' => 'batas', 'pesan' => 'Batas harus bilangan bulat positif.'],
             ]);
         }
 
         if ((int) $nilai > self::BATAS_MAKSIMUM) {
-            throw new GalatApi(422, 'ukuran_halaman_melebihi_batas', 'Jumlah baris per halaman terlalu besar.', [
+            throw new ApiError(422, 'ukuran_halaman_melebihi_batas', 'Jumlah baris per halaman terlalu besar.', [
                 ['kolom' => 'batas', 'pesan' => 'Maksimum '.self::BATAS_MAKSIMUM.' baris per halaman.'],
             ]);
         }
@@ -99,7 +99,7 @@ final class Paginasi
 
         $isi = is_string($nilai) ? json_decode((string) base64_decode(strtr($nilai, '-_', '+/'), true), true) : null;
         if (! is_array($isi) || ! array_is_list($isi) || count($isi) !== 2 || ! is_string($isi[0]) || ! is_string($isi[1])) {
-            throw new GalatApi(422, 'kursor_tidak_valid', 'Kursor halaman tidak valid. Muat ulang daftar dari awal.');
+            throw new ApiError(422, 'kursor_tidak_valid', 'Kursor halaman tidak valid. Muat ulang daftar dari awal.');
         }
 
         return $isi;

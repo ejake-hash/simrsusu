@@ -8,7 +8,7 @@ use App\Modules\Akses\Models\Peran;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-/** Data induk peran (sub-menu data_induk.peran). Pengelolaan lengkap di tiket 1.2c. */
+/** Master data peran (sub-menu master_data.peran). Pengelolaan lengkap di tiket 1.2c. */
 final class PeranController
 {
     public function index(Request $request): JsonResponse

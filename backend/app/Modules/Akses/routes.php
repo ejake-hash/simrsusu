@@ -14,7 +14,7 @@ Route::prefix('api/v1')->middleware('api')->group(function () {
     Route::post('autentikasi/masuk', [AutentikasiController::class, 'masuk'])
         ->middleware('throttle:autentikasi-masuk');
 
-    // Langkah MFA (PRD 10.3.2): sesi belum masuk, jadi di luar auth:web; tantangan di sesi.
+    // Langkah MFA (PRD 10.3.2): sesi belum masuk, jadi di luar auth:web; challenge di sesi.
     Route::middleware('throttle:autentikasi-mfa')->group(function () {
         Route::post('autentikasi/mfa', [MfaController::class, 'verifikasi'])->name('autentikasi.mfa');
         Route::post('autentikasi/mfa/daftar', [MfaController::class, 'daftar'])->name('autentikasi.mfa.daftar');
@@ -27,6 +27,6 @@ Route::prefix('api/v1')->middleware('api')->group(function () {
         Route::get('saya/menu', MenuSayaController::class);
 
         // Izin diperiksa Gate → AccessEvaluator (ModuleServiceProvider), bukan peran di controller.
-        Route::get('peran', [PeranController::class, 'index'])->middleware('can:data_induk.peran.lihat');
+        Route::get('peran', [PeranController::class, 'index'])->middleware('can:master_data.peran.lihat');
     });
 });

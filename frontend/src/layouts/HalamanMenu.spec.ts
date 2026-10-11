@@ -26,7 +26,7 @@ async function buka(jalur: string) {
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  useSesiStore().pengguna = { id: 'p-1', nama_pengguna: 'contoh.dokter', surel: null, login_terakhir_pada: null, mfa_aktif: false, pegawai: null }
+  useSesiStore().pengguna = { id: 'p-1', nama_pengguna: 'contoh.dokter', email: null, login_terakhir_pada: null, mfa_aktif: false, pegawai: null }
   vi.mocked(ambilMenuSaya).mockReset().mockResolvedValue(menuSayaTiruan)
 })
 
@@ -44,7 +44,7 @@ describe('HalamanMenu (rute dinamis dari menu)', () => {
   })
 
   it('menu aktif yang halamannya belum ada di frontend juga ke SegeraHadirPage', async () => {
-    const { w } = await buka('/data-induk/peran')
+    const { w } = await buka('/master-data/peran')
     expect(w.get('h1').text()).toBe('Master Data · Peran & menu')
   })
 

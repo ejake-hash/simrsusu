@@ -64,9 +64,9 @@ return [
             'after_commit' => false,
         ],
 
-        // Antrean per jenis: App\Core\Antrean\JenisAntrean dan supervisor di config/horizon.php.
+        // Queue per jenis: App\Core\Queue\JenisQueue dan supervisor di config/horizon.php.
         // retry_after harus lebih lama dari batas waktu terpanjang jenis di koneksi itu.
-        // after_commit: pekerjaan yang dikirim di dalam transaksi baru masuk antrean setelah commit,
+        // after_commit: pekerjaan yang dikirim di dalam transaksi baru masuk queue setelah commit,
         // dan dibuang bila transaksi batal, supaya pekerja tidak membaca data yang belum/tidak tersimpan.
         'redis' => [
             'driver' => 'redis',

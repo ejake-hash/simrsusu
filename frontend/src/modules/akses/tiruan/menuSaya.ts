@@ -2,7 +2,7 @@ import type { Menu, MenuSaya } from '../tipeMenu'
 
 /**
  * Data tiruan GET /api/v1/saya/menu sampai backend 1.2a tersedia: contoh di docs/api/openapi.yaml
- * (beranda, igd + igd.papan, data_induk + peran/akun, izin) ditambah menu sidebar docs/html/home.html
+ * (beranda, igd + igd.papan, master_data + peran/akun, izin) ditambah menu sidebar docs/html/home.html
  * agar kerangka bisa dibandingkan dengan prototipe. Fase dari PRD D.3 dan 16. Kode, rute, dan ikon
  * menu tambahan hanya perkiraan; yang berlaku adalah seeder menu 1.2a.
  * Dipakai unit test, e2e (page.route), dan `vite` dev dengan VITE_MENU_TIRUAN=true; tidak masuk build produksi.
@@ -64,19 +64,19 @@ export const menuSayaTiruan: MenuSaya = {
         segera('integrasi', 'Integrasi dan Laporan', '/integrasi', 4),
         segera('dasbor', 'Dasbor', '/dasbor', 4),
         {
-          kode: 'data_induk',
+          kode: 'master_data',
           label: 'Master Data',
-          ikon: 'data_induk',
-          rute: '/data-induk',
+          ikon: 'master_data',
+          rute: '/master-data',
           status: 'aktif',
           fase: 1,
           sub_menu: [
-            { kode: 'data_induk.peran', label: 'Peran & menu', rute: '/data-induk/peran', status: 'aktif', fase: 1 },
-            { kode: 'data_induk.akun', label: 'Akun & akses', rute: '/data-induk/akun', status: 'aktif', fase: 1 },
+            { kode: 'master_data.peran', label: 'Peran & menu', rute: '/master-data/peran', status: 'aktif', fase: 1 },
+            { kode: 'master_data.akun', label: 'Akun & akses', rute: '/master-data/akun', status: 'aktif', fase: 1 },
           ],
         },
       ],
     },
   ],
-  izin: ['data_induk.peran.lihat', 'data_induk.akun.lihat'],
+  izin: ['master_data.peran.lihat', 'master_data.akun.lihat'],
 }

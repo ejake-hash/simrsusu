@@ -58,7 +58,7 @@ h1:focus {
   flex: none;
   margin-top: 2px;
 }
-.pesan-galat {
+.pesan-error {
   background: var(--danger-bg);
   color: var(--danger);
 }
@@ -106,7 +106,7 @@ input[aria-invalid='true'] {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.3em;
 }
-.galat-field {
+.error-field {
   margin: 6px 0 0;
   color: var(--danger);
   font-size: 12px;

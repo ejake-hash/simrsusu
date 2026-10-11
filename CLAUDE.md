@@ -92,7 +92,7 @@ merge (bisa revert); proteksi cabang tidak aktif (GitHub Free), jadi aturan ini 
 **Otorisasi (PRD 9.2)**
 - Tolak kecuali diberikan. Policy/Gate Laravel lewat **`AccessEvaluator`** (lima lapis, rumus 9.2.5) adalah satu-satunya jalur; jangan cek peran langsung di controller atau komponen.
 - Data bagian halaman yang tidak diizinkan **tidak dikirim server** (bentuk `JsonResource` sesuai izin).
-- Kode izin `<menu>.<sub_menu>.<aksi>` (mis. `data_induk.peran.lihat`) diperiksa dengan `->middleware('can:<kode>')` atau `Gate::allows($kode, $cakupan)`; Gate meneruskannya ke `AccessEvaluator`. Menu/sub-menu/bagian baru dan halaman yang selesai dibangun (`TERSEDIA`) didaftarkan di `MenuBawaan`, lalu migrasi baru memanggil `MenuBawaan::pasang()`.
+- Kode izin `<menu>.<sub_menu>.<aksi>` (mis. `master_data.peran.lihat`) diperiksa dengan `->middleware('can:<kode>')` atau `Gate::allows($kode, $cakupan)`; Gate meneruskannya ke `AccessEvaluator`. Menu/sub-menu/bagian baru dan halaman yang selesai dibangun (`TERSEDIA`) didaftarkan di `MenuBawaan`, lalu migrasi baru memanggil `MenuBawaan::pasang()`.
 - Row Level Security PostgreSQL: **tidak dipakai** saat ini. Bila nanti dipakai, identitas diset per transaksi dengan `select set_config('app.user_id', ?, true)`, bukan `SET` biasa. `auth.uid()` adalah fungsi Supabase dan tidak ada di proyek ini.
 
 **Keamanan (PRD 14.2)**
@@ -105,15 +105,19 @@ merge (bisa revert); proteksi cabang tidak aktif (GitHub Free), jadi aturan ini 
 
 **Ketahanan beban (PRD 14.1.1)**
 - Endpoint daftar **hanya** lewat `App\Core\Http\Paginasi::respons()`: keyset `(waktu, id)`, `?kursor=&batas=`, bawaan 50, maksimum 200 (di atas itu `422 ukuran_halaman_melebihi_batas`). Jangan `paginate()`, `cursorPaginate()` (mikrodetik hilang), atau `get()` tanpa batas. Filter cakupan (unit, tanggal, status) dipaksa server.
-- Pekerjaan antrean memilih jenis di `App\Core\Antrean\JenisAntrean` (`integrasi`, `notifikasi`, `dokumen`, `laporan`, `bawaan`): `->onConnection($jenis->koneksi())->onQueue($jenis->value)`. Supervisor Horizon per jenis dibentuk dari enum itu; ekspor dan laporan selalu di antrean.
+- Pekerjaan queue memilih jenis di `App\Core\Queue\JenisQueue` (`integrasi`, `notifikasi`, `dokumen`, `laporan`, `bawaan`): `->onConnection($jenis->koneksi())->onQueue($jenis->value)`. Supervisor Horizon per jenis dibentuk dari enum itu; ekspor dan laporan selalu di antrean.
 - `simrs_app` punya `statement_timeout` 5 detik. Pekerjaan yang memang lama memakai `SET LOCAL statement_timeout` di transaksinya sendiri, bukan menaikkan batas role.
-- Semua rute `api/v1` kena `throttle:api` (per akun, tanpa sesi per IP; `config/batas_laju.php`). Layar kerja yang wajar dipakai cepat: `->withoutMiddleware('throttle:api')->middleware('throttle:api-layar-kerja')`. `BatasLajuTest` gagal bila ada rute `api/v1` tanpa batas laju.
+- Semua rute `api/v1` kena `throttle:api` (per akun, tanpa sesi per IP; `config/rate_limit.php`). Layar kerja yang wajar dipakai cepat: `->withoutMiddleware('throttle:api')->middleware('throttle:api-layar-kerja')`. `RateLimitTest` gagal bila ada rute `api/v1` tanpa batas laju.
 
 **Tes**
 - PHPUnit/Pest terhadap **PostgreSQL** (bukan SQLite). Tes memakai **`DatabaseTransactions`** lewat `Tests\TestCase`. `RefreshDatabase`, `DatabaseMigrations`, `DatabaseTruncation` **ditolak CI**.
 - Jalankan dengan `composer test` (migrasi sebagai migrator, lalu phpunit). Database tes bawaan `simrs_test`; di worktree pakai `DB_DATABASE_TES=simrs_test_<tiket> composer test` (lihat "Kerja paralel").
 - Analisis statis: `composer analyse` (Larastan level 5, juga di CI). `phpstan-baseline.neon` hanya berisi temuan kode lama; kode baru harus bersih, jangan menambah baseline.
 - Playwright hanya ke **staging**, atau ke **lokal/CI dengan data sintetis**. Jangan pernah memakai data pasien asli di tes, seed, log, atau rekaman.
+
+**Istilah (PRD 10.3.3)**
+- Istilah pelayanan RS tetap bahasa Indonesia (pasien, kunjungan, tagihan, peran, izin, antrean pasien). Istilah teknis memakai kata yang lazim: `error` (bukan galat), `email`, `challenge`, `anchor`, `masking`, `rate limit`, `trusted proxy`, `queue` (kata "antrean" khusus antrean pasien), `jumlah_tugas`, `master_data`.
+- Istilah baru yang meragukan ditambahkan ke tabel glosarium PRD 10.3.3 lewat PR, tidak diputuskan per berkas.
 
 **Klinis dan integrasi**
 - Regulasi yang berlaku: Indonesia (Permenkes 24/2022, UU 27/2022 PDP, dan regulasi lain di PRD 15). Abaikan rujukan HIPAA/GDPR/DISHA di skill pihak ketiga kecuali diminta.

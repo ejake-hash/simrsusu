@@ -17,10 +17,10 @@ return [
 
     'default' => env('CACHE_STORE', 'database'),
 
-    // Penghitung batas laju dan kunci nama pengguna fiktif (PRD 14.1.1 butir 6–7, 14.2). Tidak boleh di
-    // instans cache (allkeys-lru): saat memori penuh penghitung ikut dibuang dan batas laju/kunci hilang.
+    // Penghitung rate limit dan kunci nama pengguna fiktif (PRD 14.1.1 butir 6–7, 14.2). Tidak boleh di
+    // instans cache (allkeys-lru): saat memori penuh penghitung ikut dibuang dan rate limit/kunci hilang.
     // Tes memakai `array` (phpunit.xml) agar perjalanan waktu ($this->travel()) ikut berlaku.
-    'limiter' => env('CACHE_LIMITER_STORE', 'batas-laju'),
+    'limiter' => env('CACHE_LIMITER_STORE', 'rate-limit'),
 
     /*
     |--------------------------------------------------------------------------
@@ -84,7 +84,7 @@ return [
         ],
 
         // Instans `default` (noeviction), untuk 'limiter' di atas.
-        'batas-laju' => [
+        'rate-limit' => [
             'driver' => 'redis',
             'connection' => 'default',
             'lock_connection' => 'default',

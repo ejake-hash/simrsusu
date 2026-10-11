@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 // Pendaftaran MFA hanya dari jaringan RS (PRD 10.3.2, tiket 1.1c). Akun sintetis contoh.admisi
 // belum punya MFA. "Dari luar" ditiru dengan X-Forwarded-For: backend harus memercayai proksi Vite
-// lewat PROKSI_TEPERCAYA=127.0.0.1 (CI dan README frontend).
+// lewat TRUSTED_PROXIES=127.0.0.1 (CI dan README frontend).
 const SANDI = process.env.E2E_SANDI ?? ''
 const IP_LUAR = '203.0.113.25'
 
@@ -42,7 +42,7 @@ test('instalasi belum disiapkan: pesan konfigurasi, bukan "sandi salah"', async 
     rute.fulfill({
       status: 503,
       contentType: 'application/json',
-      body: JSON.stringify({ galat: { kode: 'konfigurasi_belum_lengkap', pesan: 'SIMRS belum selesai disiapkan.', rincian: [] } }),
+      body: JSON.stringify({ error: { kode: 'konfigurasi_belum_lengkap', pesan: 'SIMRS belum selesai disiapkan.', rincian: [] } }),
     }),
   )
 

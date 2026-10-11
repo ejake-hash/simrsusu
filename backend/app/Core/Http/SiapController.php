@@ -10,7 +10,7 @@ use Throwable;
 /**
  * Pemeriksaan kesiapan (PRD 14.1.1 butir 8): simpul hanya menerima lalu lintas bila basis data
  * dan kedua instans Valkey dapat dijangkau. Respons hanya nama komponen dan status, tanpa pesan
- * galat, alamat, atau versi.
+ * error, alamat, atau versi.
  */
 final class SiapController
 {
@@ -24,7 +24,7 @@ final class SiapController
 
         $gagal = array_keys(array_filter($komponen, fn (string $status) => $status !== 'ok'));
         if ($gagal !== []) {
-            return GalatApi::respons(503, 'layanan_tidak_tersedia', 'Layanan sedang tidak tersedia.',
+            return ApiError::respons(503, 'layanan_tidak_tersedia', 'Layanan sedang tidak tersedia.',
                 array_map(fn (string $nama) => ['komponen' => $nama, 'status' => 'gagal'], $gagal));
         }
 

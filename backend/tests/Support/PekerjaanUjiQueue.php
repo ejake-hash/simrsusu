@@ -7,11 +7,11 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Redis;
 
 /**
- * Pekerjaan uji untuk AntreanPerJenisTest. Dijalankan proses pekerja terpisah, jadi penanda
+ * Pekerjaan uji untuk QueuePerJenisTest. Dijalankan proses pekerja terpisah, jadi penanda
  * ditulis langsung ke Valkey (bukan cache tes yang berupa array). `$tahan` meniru sistem luar
  * yang macet: menunggu sampai kunci lepas diset (maksimal 20 detik).
  */
-class PekerjaanUjiAntrean implements ShouldQueue
+class PekerjaanUjiQueue implements ShouldQueue
 {
     use Queueable;
 

@@ -15,8 +15,8 @@ export interface SubMenu {
 export interface Menu extends SubMenu {
   /** Nama ikon design-system (`@/design-system/ikon`), bukan URL. */
   ikon: string
-  /** Jumlah tugas terbuka; null/tidak ada = belum tersedia, lencana tidak ditampilkan. */
-  lencana?: number | null
+  /** Jumlah tugas terbuka; null/tidak ada = belum tersedia, angkanya tidak ditampilkan. */
+  jumlah_tugas?: number | null
   sub_menu: SubMenu[]
 }
 

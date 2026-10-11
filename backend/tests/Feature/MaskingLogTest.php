@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Core\Log\PenyamarSql;
+use App\Core\Log\SqlMasker;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -11,11 +11,11 @@ use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
- * Galat basis data tidak boleh membawa nilai (contoh: NIK sintetis) ke berkas log maupun respons.
+ * Error basis data tidak boleh membawa nilai (contoh: NIK sintetis) ke berkas log maupun respons.
  * Diperiksa juga potongan 12 digit pertama, karena jejak tumpukan PHP memotong argumen string
  * ke 15 karakter.
  */
-class PenyamaranLogTest extends TestCase
+class MaskingLogTest extends TestCase
 {
     private const NIK = '1234567890123456';
 
@@ -25,7 +25,7 @@ class PenyamaranLogTest extends TestCase
     {
         parent::setUp();
 
-        $this->berkasLog = storage_path('framework/testing/penyamaran-'.Str::random(8).'.log');
+        $this->berkasLog = storage_path('framework/testing/masking-'.Str::random(8).'.log');
         config([
             'logging.default' => 'stack',
             'logging.channels.stack.channels' => ['single'],
@@ -35,13 +35,13 @@ class PenyamaranLogTest extends TestCase
         app('log')->forgetChannel('single');
 
         $nik = self::NIK;
-        Route::middleware('api')->get('/api/v1/uji-penyamaran/tipe', fn () => DB::select('SELECT ?::uuid', [$nik]));
-        Route::middleware('api')->get('/api/v1/uji-penyamaran/unik', function () use ($nik) {
+        Route::middleware('api')->get('/api/v1/uji-masking/tipe', fn () => DB::select('SELECT ?::uuid', [$nik]));
+        Route::middleware('api')->get('/api/v1/uji-masking/unik', function () use ($nik) {
             foreach ([1, 2] as $_) {
                 DB::table('sdm.pegawai')->insert(['id' => (string) Str::uuid7(), 'nip' => $nik, 'nama' => 'Pegawai Sintetis']);
             }
         });
-        Route::middleware('web')->get('/uji-penyamaran/web', fn () => DB::select('SELECT ?::uuid', [$nik]));
+        Route::middleware('web')->get('/uji-masking/web', fn () => DB::select('SELECT ?::uuid', [$nik]));
     }
 
     protected function tearDown(): void
@@ -50,24 +50,24 @@ class PenyamaranLogTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_galat_tipe_tidak_membocorkan_nilai_di_respons_api_dan_log(): void
+    public function test_error_tipe_tidak_membocorkan_nilai_di_respons_api_dan_log(): void
     {
-        $respons = $this->getJson('/api/v1/uji-penyamaran/tipe');
+        $respons = $this->getJson('/api/v1/uji-masking/tipe');
 
         $respons->assertStatus(500)->assertExactJson([
-            'galat' => ['kode' => 'kesalahan_server', 'pesan' => 'Terjadi kesalahan pada server.', 'rincian' => []],
+            'error' => ['kode' => 'kesalahan_server', 'pesan' => 'Terjadi kesalahan pada server.', 'rincian' => []],
         ]);
         $this->assertTidakBocor($respons->getContent());
 
         $log = $this->isiLog();
         $this->assertTidakBocor($log);
         $this->assertStringContainsString('SQL: SELECT ?::uuid', $log, 'SQL tetap tercatat dengan placeholder.');
-        $this->assertStringContainsString(PenyamarSql::PENANDA, $log);
+        $this->assertStringContainsString(SqlMasker::PENANDA, $log);
     }
 
     public function test_detail_pelanggaran_unik_tidak_membocorkan_nilai(): void
     {
-        $respons = $this->getJson('/api/v1/uji-penyamaran/unik');
+        $respons = $this->getJson('/api/v1/uji-masking/unik');
 
         $respons->assertStatus(500);
         $this->assertTidakBocor($respons->getContent());
@@ -80,9 +80,9 @@ class PenyamaranLogTest extends TestCase
     {
         config(['app.debug' => true]);
 
-        $respons = $this->getJson('/api/v1/uji-penyamaran/tipe');
+        $respons = $this->getJson('/api/v1/uji-masking/tipe');
 
-        $respons->assertStatus(500)->assertJsonPath('galat.kode', 'kesalahan_server');
+        $respons->assertStatus(500)->assertJsonPath('error.kode', 'kesalahan_server');
         $this->assertStringNotContainsString('SQL', $respons->getContent());
         $this->assertTidakBocor($respons->getContent());
     }
@@ -91,7 +91,7 @@ class PenyamaranLogTest extends TestCase
     {
         config(['app.debug' => false]);
 
-        $respons = $this->get('/uji-penyamaran/web');
+        $respons = $this->get('/uji-masking/web');
 
         $respons->assertStatus(500);
         $this->assertStringNotContainsString('SQLSTATE', $respons->getContent());
@@ -117,7 +117,7 @@ class PenyamaranLogTest extends TestCase
         $log = $this->isiLog();
         $this->assertTidakBocor($log);
         $this->assertStringContainsString('Pencarian gagal', $log);
-        $this->assertMatchesRegularExpression('/^#\d+ .*PenyamaranLogTest/m', $log, 'Jejak tumpukan tetap tercatat.');
+        $this->assertMatchesRegularExpression('/^#\d+ .*MaskingLogTest/m', $log, 'Jejak tumpukan tetap tercatat.');
         $this->assertDoesNotMatchRegularExpression("/^#\\d+ .*\\('/m", $log, 'Jejak tumpukan tanpa argumen string.');
     }
 

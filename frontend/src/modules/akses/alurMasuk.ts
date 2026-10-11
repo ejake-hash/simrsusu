@@ -8,8 +8,8 @@ export type MetodeMfa = 'totp' | 'kode_cadangan'
 
 export type Langkah =
   | { status: 'sandi' }
-  | { status: 'perlu_mfa'; tantangan_id: string; metode: MetodeMfa[]; kedaluwarsa_pada: string }
-  | { status: 'perlu_daftar_mfa'; tantangan_id: string; kedaluwarsa_pada: string }
+  | { status: 'perlu_mfa'; challenge_id: string; metode: MetodeMfa[]; kedaluwarsa_pada: string }
+  | { status: 'perlu_daftar_mfa'; challenge_id: string; kedaluwarsa_pada: string }
   | { status: 'masuk' }
 
 /** Langkah yang punya tampilan; `masuk` langsung diarahkan keluar dari halaman masuk. */
@@ -28,16 +28,16 @@ export function langkahDariRespons(isi: unknown): Langkah {
   if (status === 'masuk') {
     return { status: 'masuk' }
   }
-  if (status === 'perlu_mfa' && typeof respons.tantangan_id === 'string') {
+  if (status === 'perlu_mfa' && typeof respons.challenge_id === 'string') {
     return {
       status,
-      tantangan_id: respons.tantangan_id,
+      challenge_id: respons.challenge_id,
       metode: Array.isArray(respons.metode) ? (respons.metode as MetodeMfa[]) : [],
       kedaluwarsa_pada: String(respons.kedaluwarsa_pada ?? ''),
     }
   }
-  if (status === 'perlu_daftar_mfa' && typeof respons.tantangan_id === 'string') {
-    return { status, tantangan_id: respons.tantangan_id, kedaluwarsa_pada: String(respons.kedaluwarsa_pada ?? '') }
+  if (status === 'perlu_daftar_mfa' && typeof respons.challenge_id === 'string') {
+    return { status, challenge_id: respons.challenge_id, kedaluwarsa_pada: String(respons.kedaluwarsa_pada ?? '') }
   }
 
   throw new Error('Respons masuk tidak dikenali.')

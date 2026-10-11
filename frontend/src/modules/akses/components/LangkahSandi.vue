@@ -2,11 +2,11 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, useTemplateRef } from 'vue'
 import { profilRsDariEnv } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
-import { GalatApi } from '@/shared/api/klien'
+import { ApiError } from '@/shared/api/klien'
 import { formatSisaWaktu } from '@/shared/utils/waktu'
 import { kirimSandi } from '../api'
 import type { Langkah, LangkahTampil } from '../alurMasuk'
-import { validasiIsianSandi, type GalatIsian, type IsianSandi } from '../validasi'
+import { validasiIsianSandi, type FieldError, type IsianSandi } from '../validasi'
 
 // Antarmuka sama untuk semua komponen langkah (MasukPage): langkah aktif, lanjut(), emit kembali.
 const props = defineProps<{
@@ -18,9 +18,9 @@ defineEmits<{ kembali: [] }>()
 const sesi = useSesiStore()
 const { kontakAdmin, unitAdmin } = profilRsDariEnv()
 const isian = reactive<IsianSandi>({ nama_pengguna: '', sandi: '' })
-const galatIsian = ref<GalatIsian>({})
-/** tunggu = galat kunci/batas laju: punya baris "Coba lagi …" sendiri dan menahan tombol Masuk. */
-const galat = ref<{ pesan: string; tunggu: boolean; cobaLagiSampai: number | null } | null>(null)
+const fieldError = ref<FieldError>({})
+/** tunggu = error kunci/rate limit: punya baris "Coba lagi …" sendiri dan menahan tombol Masuk. */
+const error = ref<{ pesan: string; tunggu: boolean; cobaLagiSampai: number | null } | null>(null)
 const proses = ref(false)
 const tampilkanSandi = ref(false)
 const capsLock = ref(false)
@@ -34,7 +34,7 @@ const PESAN_TUNGGU: Record<string, string> = {
   terlalu_banyak_permintaan: 'Terlalu banyak percobaan masuk.',
 }
 
-// Galat yang tidak bisa diatasi dengan mengetik ulang: kalimat frontend menyebut langkah berikutnya.
+// Error yang tidak bisa diatasi dengan mengetik ulang: kalimat frontend menyebut langkah berikutnya.
 const PESAN_TINDAK_LANJUT: Record<string, string> = {
   mfa_belum_terdaftar:
     'Verifikasi dua langkah akun ini belum aktif, dan hanya bisa diaktifkan dari jaringan rumah sakit. ' +
@@ -46,13 +46,13 @@ const PESAN_TINDAK_LANJUT: Record<string, string> = {
 const sekarang = ref(Date.now())
 let detak: ReturnType<typeof setInterval> | undefined
 const sisaWaktu = computed(() => {
-  const sampai = galat.value?.cobaLagiSampai
+  const sampai = error.value?.cobaLagiSampai
   return sampai == null ? null : formatSisaWaktu(Math.ceil((sampai - sekarang.value) / 1000))
 })
 const menunggu = computed(() => sisaWaktu.value !== null)
 const barisTunggu = computed(() => {
-  if (!galat.value?.tunggu) return null
-  if (galat.value.cobaLagiSampai === null) return 'Coba lagi nanti.'
+  if (!error.value?.tunggu) return null
+  if (error.value.cobaLagiSampai === null) return 'Coba lagi nanti.'
   return sisaWaktu.value ? `Coba lagi dalam ${sisaWaktu.value}.` : 'Anda sudah bisa mencoba lagi.'
 })
 
@@ -71,24 +71,24 @@ onBeforeUnmount(() => clearInterval(detak))
 async function kirim(): Promise<void> {
   if (proses.value || menunggu.value) return
 
-  galatIsian.value = validasiIsianSandi(isian)
-  if (galatIsian.value.nama_pengguna) return inputNama.value?.focus()
-  if (galatIsian.value.sandi) return inputSandi.value?.focus()
+  fieldError.value = validasiIsianSandi(isian)
+  if (fieldError.value.nama_pengguna) return inputNama.value?.focus()
+  if (fieldError.value.sandi) return inputSandi.value?.focus()
 
   proses.value = true
-  galat.value = null
+  error.value = null
   try {
     await props.lanjut(await kirimSandi({ ...isian }))
   } catch (e) {
-    tampilkanGalat(e)
+    tampilkanError(e)
   } finally {
     proses.value = false
   }
 }
 
-function tampilkanGalat(e: unknown): void {
-  if (!(e instanceof GalatApi)) {
-    galat.value = {
+function tampilkanError(e: unknown): void {
+  if (!(e instanceof ApiError)) {
+    error.value = {
       pesan: `Respons server tidak dikenali. Coba lagi atau hubungi ${unitAdmin}.`,
       tunggu: false,
       cobaLagiSampai: null,
@@ -98,13 +98,13 @@ function tampilkanGalat(e: unknown): void {
 
   if (e.kode === 'validasi_gagal') {
     for (const r of e.rincian) {
-      if (r.kolom === 'nama_pengguna' || r.kolom === 'sandi') galatIsian.value[r.kolom] = r.pesan
+      if (r.kolom === 'nama_pengguna' || r.kolom === 'sandi') fieldError.value[r.kolom] = r.pesan
     }
   }
 
   const tunggu = e.kode in PESAN_TUNGGU
   const cobaLagiSampai = tunggu && e.cobaLagiDetik !== null ? Date.now() + e.cobaLagiDetik * 1000 : null
-  galat.value = { pesan: PESAN_TUNGGU[e.kode] ?? PESAN_TINDAK_LANJUT[e.kode] ?? e.message, tunggu, cobaLagiSampai }
+  error.value = { pesan: PESAN_TUNGGU[e.kode] ?? PESAN_TINDAK_LANJUT[e.kode] ?? e.message, tunggu, cobaLagiSampai }
   if (cobaLagiSampai !== null) mulaiHitungMundur(cobaLagiSampai)
 
   if (e.kode === 'kredensial_salah') {
@@ -129,7 +129,7 @@ function ubahTampilanSandi(): void {
     <h1 id="judul-masuk">Masuk ke akun Anda</h1>
     <p class="lead">Gunakan nama pengguna yang diberikan {{ unitAdmin }}.</p>
 
-    <p v-if="sesi.pesanBerakhir && !galat" class="pesan pesan-info" role="status">
+    <p v-if="sesi.pesanBerakhir && !error" class="pesan pesan-info" role="status">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
         <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" />
         <path d="M8 7.5v4M8 5h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
@@ -138,14 +138,14 @@ function ubahTampilanSandi(): void {
     </p>
 
     <!-- Wadah alert selalu ada agar isi baru dibacakan; hitung mundur di dalamnya tidak dibacakan ulang. -->
-    <div role="alert" class="wadah-galat">
-      <p v-if="galat" class="pesan pesan-galat" data-testid="galat-masuk">
+    <div role="alert" class="wadah-error">
+      <p v-if="error" class="pesan pesan-error" data-testid="error-masuk">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" />
           <path d="M8 4.5v4M8 11h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
         </svg>
         <span>
-          {{ galat.pesan }}
+          {{ error.pesan }}
           <span v-if="barisTunggu" id="baris-tunggu" class="baris-tunggu" aria-live="off">{{ barisTunggu }}</span>
         </span>
       </p>
@@ -164,10 +164,10 @@ function ubahTampilanSandi(): void {
           autocapitalize="none"
           autocorrect="off"
           spellcheck="false"
-          :aria-invalid="galatIsian.nama_pengguna ? 'true' : undefined"
-          :aria-describedby="galatIsian.nama_pengguna ? 'nama-pengguna-galat' : undefined"
+          :aria-invalid="fieldError.nama_pengguna ? 'true' : undefined"
+          :aria-describedby="fieldError.nama_pengguna ? 'nama-pengguna-error' : undefined"
         />
-        <p v-if="galatIsian.nama_pengguna" id="nama-pengguna-galat" class="galat-field">{{ galatIsian.nama_pengguna }}</p>
+        <p v-if="fieldError.nama_pengguna" id="nama-pengguna-error" class="error-field">{{ fieldError.nama_pengguna }}</p>
       </div>
 
       <div class="field">
@@ -183,8 +183,8 @@ function ubahTampilanSandi(): void {
             autocapitalize="none"
             autocorrect="off"
             spellcheck="false"
-            :aria-invalid="galatIsian.sandi ? 'true' : undefined"
-            :aria-describedby="[galatIsian.sandi && 'sandi-galat', capsLock && 'sandi-caps'].filter(Boolean).join(' ') || undefined"
+            :aria-invalid="fieldError.sandi ? 'true' : undefined"
+            :aria-describedby="[fieldError.sandi && 'sandi-error', capsLock && 'sandi-caps'].filter(Boolean).join(' ') || undefined"
             @keydown="periksaCapsLock"
             @keyup="periksaCapsLock"
             @blur="capsLock = false"
@@ -208,7 +208,7 @@ function ubahTampilanSandi(): void {
             </svg>
           </button>
         </div>
-        <p v-if="galatIsian.sandi" id="sandi-galat" class="galat-field">{{ galatIsian.sandi }}</p>
+        <p v-if="fieldError.sandi" id="sandi-error" class="error-field">{{ fieldError.sandi }}</p>
         <div aria-live="polite">
           <p v-if="capsLock" id="sandi-caps" class="caps">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -273,7 +273,7 @@ h1 {
   flex: none;
   margin-top: 2px;
 }
-.pesan-galat {
+.pesan-error {
   background: var(--danger-bg);
   color: var(--danger);
 }
@@ -347,7 +347,7 @@ input[aria-invalid='true'] {
   outline: none;
   box-shadow: var(--ring);
 }
-.galat-field {
+.error-field {
   margin: 6px 0 0;
   color: var(--danger);
   font-size: 12px;

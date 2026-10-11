@@ -8,15 +8,15 @@ use ReflectionProperty;
 use Throwable;
 
 /**
- * Membuang nilai dari galat basis data sebelum tercatat atau dirender (PRD 14.2, Data:
+ * Membuang nilai dari error basis data sebelum tercatat atau dirender (PRD 14.2, Data:
  * "data pribadi disamarkan di log"). SQL tetap tercatat dengan placeholder `?`.
  *
  * Nilai bocor di tiga tempat: binding yang disisipkan Laravel ke "SQL: ..." di pesan
- * QueryException, teks galat PostgreSQL (DETAIL berisi baris data, nilai bertanda kutip), dan
+ * QueryException, teks error PostgreSQL (DETAIL berisi baris data, nilai bertanda kutip), dan
  * PDOException::$errorInfo. Exception dibersihkan di tempat (reflection) agar jejak tumpukan
  * tetap utuh dan semua saluran pelapor menerima versi yang sama.
  */
-final class PenyamarSql
+final class SqlMasker
 {
     public const PENANDA = '[nilai disamarkan]';
 
@@ -26,16 +26,16 @@ final class PenyamarSql
             if ($saat instanceof QueryException) {
                 self::setel($saat, 'message', sprintf(
                     '%s (Connection: %s, SQL: %s) %s',
-                    self::samarkanTeksGalat((string) $saat->getPrevious()?->getMessage()),
+                    self::samarkanTeksError((string) $saat->getPrevious()?->getMessage()),
                     $saat->getConnectionName(),
                     $saat->getSql(),
                     self::PENANDA,
                 ));
                 self::setel($saat, 'bindings', array_fill(0, count($saat->getBindings()), '?'));
             } elseif ($saat instanceof PDOException) {
-                self::setel($saat, 'message', self::samarkanTeksGalat($saat->getMessage()));
+                self::setel($saat, 'message', self::samarkanTeksError($saat->getMessage()));
                 if (is_array($saat->errorInfo) && isset($saat->errorInfo[2])) {
-                    $saat->errorInfo[2] = self::samarkanTeksGalat((string) $saat->errorInfo[2]);
+                    $saat->errorInfo[2] = self::samarkanTeksError((string) $saat->errorInfo[2]);
                 }
             } elseif (str_contains($saat->getMessage(), 'SQLSTATE[')) {
                 self::setel($saat, 'message', self::samarkanTeks($saat->getMessage()));
@@ -55,11 +55,11 @@ final class PenyamarSql
 
         $teks = preg_replace('/\(Connection: ([^,)]+).*?, SQL: .*\)\s*$/s', '(Connection: $1, SQL: '.self::PENANDA.')', $teks);
 
-        return self::samarkanTeksGalat($teks);
+        return self::samarkanTeksError($teks);
     }
 
-    /** Teks galat PostgreSQL/PDO: hanya baris pertama, nilai bertanda kutip diganti `?`. */
-    public static function samarkanTeksGalat(string $teks): string
+    /** Teks error PostgreSQL/PDO: hanya baris pertama, nilai bertanda kutip diganti `?`. */
+    public static function samarkanTeksError(string $teks): string
     {
         [$baris] = explode("\n", $teks, 2);
         $sisa = str_contains($teks, "\n") && preg_match('/\(Connection: .*\)\s*$/s', $teks, $m) ? ' '.$m[0] : '';

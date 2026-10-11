@@ -23,7 +23,7 @@ describe('SidebarMenu', () => {
   })
 
   it('menu aktif mengikuti rute; sub-menu hanya di bawah menu aktif', async () => {
-    const w = await pasang('/data-induk/akun')
+    const w = await pasang('/master-data/akun')
     const aktif = w.get('.nav-item.aktif')
     expect(aktif.text()).toContain('Master Data')
     expect(w.findAll('.sub-item').map((s) => s.text())).toEqual(['Peran & menu', 'Akun & akses'])
@@ -38,20 +38,20 @@ describe('SidebarMenu', () => {
     expect(w.findAll('.nav-item')[0]?.find('.segera').exists()).toBe(false)
   })
 
-  it('lencana hanya bila nilainya bukan null', async () => {
+  it('jumlah tugas hanya bila nilainya bukan null', async () => {
     const grup: GrupMenu[] = [
       {
         kode: 'utama',
         label: null,
         menu: [
-          { kode: 'beranda', label: 'Beranda', ikon: 'beranda', rute: '/', status: 'aktif', fase: 1, lencana: 3, sub_menu: [] },
-          { kode: 'kasir', label: 'Kasir', ikon: 'kasir', rute: '/kasir', status: 'aktif', fase: 2, lencana: null, sub_menu: [] },
-          { kode: 'sdm', label: 'SDM', ikon: 'sdm', rute: '/sdm', status: 'aktif', fase: 4, lencana: 0, sub_menu: [] },
+          { kode: 'beranda', label: 'Beranda', ikon: 'beranda', rute: '/', status: 'aktif', fase: 1, jumlah_tugas: 3, sub_menu: [] },
+          { kode: 'kasir', label: 'Kasir', ikon: 'kasir', rute: '/kasir', status: 'aktif', fase: 2, jumlah_tugas: null, sub_menu: [] },
+          { kode: 'sdm', label: 'SDM', ikon: 'sdm', rute: '/sdm', status: 'aktif', fase: 4, jumlah_tugas: 0, sub_menu: [] },
         ],
       },
     ]
     const w = await pasang('/', grup)
-    expect(w.findAll('.lencana').map((l) => l.text())).toEqual(['3 tugas terbuka', '0 tugas terbuka'])
+    expect(w.findAll('.jumlah-tugas').map((l) => l.text())).toEqual(['3 tugas terbuka', '0 tugas terbuka'])
   })
 
   it('ponsel: hanya Beranda', async () => {

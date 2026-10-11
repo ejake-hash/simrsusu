@@ -2,7 +2,7 @@
 
 namespace App\Modules\Akses\Http\Controllers;
 
-use App\Core\Http\GalatApi;
+use App\Core\Http\ApiError;
 use App\Modules\Akses\Application\MasukPengguna;
 use App\Modules\Akses\Application\PendaftaranPerangkat;
 use App\Modules\Akses\Http\Middleware\SesiPengguna;
@@ -39,14 +39,14 @@ final class PenyelesaiMasuk
     public static function pastikanDariSpa(Request $request): void
     {
         if (! $request->hasSession()) {
-            throw new GalatApi(403, 'asal_tidak_diizinkan', 'Masuk hanya bisa dari aplikasi SIMRS.');
+            throw new ApiError(403, 'asal_tidak_diizinkan', 'Masuk hanya bisa dari aplikasi SIMRS.');
         }
     }
 
-    public static function galatTerkunci(?CarbonInterface $sampai): GalatApi
+    public static function errorTerkunci(?CarbonInterface $sampai): ApiError
     {
-        // Sisa waktu kunci lewat Retry-After (detik), sama seperti respons 429 batas laju.
-        return new GalatApi(403, 'akun_terkunci', 'Akun terkunci sementara karena terlalu banyak percobaan gagal. Coba lagi nanti atau hubungi admin.', [], [
+        // Sisa waktu kunci lewat Retry-After (detik), sama seperti respons 429 rate limit.
+        return new ApiError(403, 'akun_terkunci', 'Akun terkunci sementara karena terlalu banyak percobaan gagal. Coba lagi nanti atau hubungi admin.', [], [
             'Retry-After' => max(1, ($sampai?->getTimestamp() ?? now()->getTimestamp()) - now()->getTimestamp()),
         ]);
     }

@@ -15,7 +15,7 @@ final class PenggunaResource extends JsonResource
         return [
             'id' => $this->id,
             'nama_pengguna' => $this->nama_pengguna,
-            'surel' => $this->surel,
+            'email' => $this->email,
             'login_terakhir_pada' => $this->login_terakhir_pada?->toIso8601String(),
             'mfa_aktif' => $this->mfaAktif(),
             'pegawai' => app(RingkasanPegawai::class)->untuk($this->pegawai_id),

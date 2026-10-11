@@ -48,10 +48,10 @@ class MfaTest extends TestCase
             ->assertJsonMissingPath('pengguna');
         $this->assertEqualsWithDelta(5 * 60, now()->diffInSeconds($sandi->json('kedaluwarsa_pada')), 5);
 
-        $this->minta('GET', '/api/v1/saya')->assertUnauthorized()->assertJsonPath('galat.kode', 'belum_masuk');
+        $this->minta('GET', '/api/v1/saya')->assertUnauthorized()->assertJsonPath('error.kode', 'belum_masuk');
         $sesiSebelum = $this->kue[config('session.cookie')];
 
-        $this->kirimKode($sandi->json('tantangan_id'), 'totp', $this->kodeSekarang($rahasia))->assertOk()
+        $this->kirimKode($sandi->json('challenge_id'), 'totp', $this->kodeSekarang($rahasia))->assertOk()
             ->assertJsonPath('status', 'masuk')
             ->assertJsonPath('pengguna.id', $pengguna->id)
             ->assertJsonPath('pengguna.mfa_aktif', true);
@@ -66,12 +66,12 @@ class MfaTest extends TestCase
     {
         $pengguna = Pengguna::factory()->denganSandi(self::SANDI)->create(['wajib_mfa' => true]);
 
-        $tantangan = $this->masuk($pengguna)->assertOk()
+        $challenge = $this->masuk($pengguna)->assertOk()
             ->assertJsonPath('status', 'perlu_daftar_mfa')
-            ->json('tantangan_id');
+            ->json('challenge_id');
         $this->minta('GET', '/api/v1/saya')->assertUnauthorized();
 
-        $daftar = $this->minta('POST', '/api/v1/autentikasi/mfa/daftar', ['tantangan_id' => $tantangan])->assertOk();
+        $daftar = $this->minta('POST', '/api/v1/autentikasi/mfa/daftar', ['challenge_id' => $challenge])->assertOk();
         $this->assertStringContainsString('no-store', (string) $daftar->headers->get('Cache-Control'));
         $this->assertStringStartsWith('otpauth://totp/', $daftar->json('uri_otpauth'));
         $this->assertStringContainsString('<svg', $daftar->json('qr_svg'));
@@ -79,7 +79,7 @@ class MfaTest extends TestCase
         $rahasia = $query['secret'];
 
         $konfirmasi = $this->minta('POST', '/api/v1/autentikasi/mfa/daftar/konfirmasi', [
-            'tantangan_id' => $tantangan,
+            'challenge_id' => $challenge,
             'kode' => $this->kodeSekarang($rahasia),
         ])->assertOk()->assertJsonPath('status', 'masuk')->assertJsonPath('pengguna.mfa_aktif', true);
 
@@ -97,18 +97,18 @@ class MfaTest extends TestCase
         $this->assertSame('argon2id', password_get_info($hash[0])['algoName']);
         $this->assertAudit('autentikasi.mfa_didaftarkan', $pengguna->id);
 
-        // Tantangan sekali pakai.
-        $this->minta('POST', '/api/v1/autentikasi/mfa/daftar/konfirmasi', ['tantangan_id' => $tantangan, 'kode' => '000000'])
-            ->assertUnauthorized()->assertJsonPath('galat.kode', 'tantangan_tidak_berlaku');
+        // Challenge sekali pakai.
+        $this->minta('POST', '/api/v1/autentikasi/mfa/daftar/konfirmasi', ['challenge_id' => $challenge, 'kode' => '000000'])
+            ->assertUnauthorized()->assertJsonPath('error.kode', 'challenge_tidak_berlaku');
     }
 
     public function test_konfirmasi_tanpa_minta_rahasia_dulu_tidak_berlaku(): void
     {
         $pengguna = Pengguna::factory()->denganSandi(self::SANDI)->create(['wajib_mfa' => true]);
-        $tantangan = $this->masuk($pengguna)->json('tantangan_id');
+        $challenge = $this->masuk($pengguna)->json('challenge_id');
 
-        $this->minta('POST', '/api/v1/autentikasi/mfa/daftar/konfirmasi', ['tantangan_id' => $tantangan, 'kode' => '123456'])
-            ->assertUnauthorized()->assertJsonPath('galat.kode', 'tantangan_tidak_berlaku');
+        $this->minta('POST', '/api/v1/autentikasi/mfa/daftar/konfirmasi', ['challenge_id' => $challenge, 'kode' => '123456'])
+            ->assertUnauthorized()->assertJsonPath('error.kode', 'challenge_tidak_berlaku');
     }
 
     public function test_kode_salah_dihitung_bersama_sandi_lalu_terkunci_dengan_retry_after(): void
@@ -118,60 +118,60 @@ class MfaTest extends TestCase
         // Dua sandi salah, lalu sandi benar: penghitung TIDAK direset sebelum MFA lolos.
         $this->masuk($pengguna, 'sandi-salah-pertama')->assertUnauthorized();
         $this->masuk($pengguna, 'sandi-salah-kedua')->assertUnauthorized();
-        $tantangan = $this->masuk($pengguna)->assertJsonPath('status', 'perlu_mfa')->json('tantangan_id');
+        $challenge = $this->masuk($pengguna)->assertJsonPath('status', 'perlu_mfa')->json('challenge_id');
         $this->assertSame(2, $pengguna->refresh()->percobaan_gagal);
 
-        $this->kirimKode($tantangan, 'totp', '000000')->assertUnauthorized()->assertJsonPath('galat.kode', 'kode_mfa_salah');
-        $this->kirimKode($tantangan, 'kode_cadangan', 'aaaaa-aaaaa')->assertUnauthorized()->assertJsonPath('galat.kode', 'kode_mfa_salah');
-        $this->kirimKode($tantangan, 'totp', '111111')
-            ->assertForbidden()->assertJsonPath('galat.kode', 'akun_terkunci')
+        $this->kirimKode($challenge, 'totp', '000000')->assertUnauthorized()->assertJsonPath('error.kode', 'kode_mfa_salah');
+        $this->kirimKode($challenge, 'kode_cadangan', 'aaaaa-aaaaa')->assertUnauthorized()->assertJsonPath('error.kode', 'kode_mfa_salah');
+        $this->kirimKode($challenge, 'totp', '111111')
+            ->assertForbidden()->assertJsonPath('error.kode', 'akun_terkunci')
             ->assertHeader('Retry-After');
         $this->assertTrue($pengguna->refresh()->terkunci());
         $this->assertAudit('autentikasi.mfa_gagal', $pengguna->id);
         $this->assertAudit('autentikasi.terkunci', $pengguna->id);
 
-        // Tantangan dibuang saat terkunci; kode benar pun tidak berlaku lagi.
-        $this->kirimKode($tantangan, 'totp', $this->kodeSekarang($rahasia))
-            ->assertUnauthorized()->assertJsonPath('galat.kode', 'tantangan_tidak_berlaku');
+        // Challenge dibuang saat terkunci; kode benar pun tidak berlaku lagi.
+        $this->kirimKode($challenge, 'totp', $this->kodeSekarang($rahasia))
+            ->assertUnauthorized()->assertJsonPath('error.kode', 'challenge_tidak_berlaku');
     }
 
-    public function test_tantangan_kedaluwarsa_lima_menit(): void
+    public function test_challenge_kedaluwarsa_lima_menit(): void
     {
         [$pengguna, $rahasia] = $this->penggunaMfa();
-        $tantangan = $this->masuk($pengguna)->json('tantangan_id');
+        $challenge = $this->masuk($pengguna)->json('challenge_id');
 
         $this->travel(5)->minutes();
         $this->travel(1)->seconds();
 
-        $this->kirimKode($tantangan, 'totp', $this->kodeSekarang($rahasia))
-            ->assertUnauthorized()->assertJsonPath('galat.kode', 'tantangan_tidak_berlaku');
+        $this->kirimKode($challenge, 'totp', $this->kodeSekarang($rahasia))
+            ->assertUnauthorized()->assertJsonPath('error.kode', 'challenge_tidak_berlaku');
     }
 
-    public function test_tantangan_ditolak_dari_sesi_lain(): void
+    public function test_challenge_ditolak_dari_sesi_lain(): void
     {
         [$pengguna, $rahasia] = $this->penggunaMfa();
-        $tantangan = $this->masuk($pengguna)->json('tantangan_id');
+        $challenge = $this->masuk($pengguna)->json('challenge_id');
 
         $this->mulaiSesiSpa();
 
-        $this->kirimKode($tantangan, 'totp', $this->kodeSekarang($rahasia))
-            ->assertUnauthorized()->assertJsonPath('galat.kode', 'tantangan_tidak_berlaku');
+        $this->kirimKode($challenge, 'totp', $this->kodeSekarang($rahasia))
+            ->assertUnauthorized()->assertJsonPath('error.kode', 'challenge_tidak_berlaku');
     }
 
-    public function test_tantangan_sekali_pakai_dan_kode_totp_tidak_bisa_dipakai_ulang(): void
+    public function test_challenge_sekali_pakai_dan_kode_totp_tidak_bisa_dipakai_ulang(): void
     {
         [$pengguna, $rahasia] = $this->penggunaMfa();
         $kode = $this->kodeSekarang($rahasia);
-        $tantangan = $this->masuk($pengguna)->json('tantangan_id');
-        $this->kirimKode($tantangan, 'totp', $kode)->assertOk();
+        $challenge = $this->masuk($pengguna)->json('challenge_id');
+        $this->kirimKode($challenge, 'totp', $kode)->assertOk();
 
-        $this->kirimKode($tantangan, 'totp', $kode)
-            ->assertUnauthorized()->assertJsonPath('galat.kode', 'tantangan_tidak_berlaku');
+        $this->kirimKode($challenge, 'totp', $kode)
+            ->assertUnauthorized()->assertJsonPath('error.kode', 'challenge_tidak_berlaku');
 
         // Masuk lagi di sesi lain dalam periode yang sama: kode yang sama ditolak.
         $this->mulaiSesiSpa();
-        $baru = $this->masuk($pengguna)->json('tantangan_id');
-        $this->kirimKode($baru, 'totp', $kode)->assertUnauthorized()->assertJsonPath('galat.kode', 'kode_mfa_salah');
+        $baru = $this->masuk($pengguna)->json('challenge_id');
+        $this->kirimKode($baru, 'totp', $kode)->assertUnauthorized()->assertJsonPath('error.kode', 'kode_mfa_salah');
     }
 
     public function test_kode_periode_sebelumnya_diterima_tetapi_dua_periode_tidak(): void
@@ -179,9 +179,9 @@ class MfaTest extends TestCase
         [$pengguna, $rahasia] = $this->penggunaMfa();
         $langkah = Totp::langkah(now()->getTimestamp());
 
-        $tantangan = $this->masuk($pengguna)->json('tantangan_id');
-        $this->kirimKode($tantangan, 'totp', Totp::kode($rahasia, $langkah - 2))->assertJsonPath('galat.kode', 'kode_mfa_salah');
-        $this->kirimKode($tantangan, 'totp', Totp::kode($rahasia, $langkah - 1))->assertOk();
+        $challenge = $this->masuk($pengguna)->json('challenge_id');
+        $this->kirimKode($challenge, 'totp', Totp::kode($rahasia, $langkah - 2))->assertJsonPath('error.kode', 'kode_mfa_salah');
+        $this->kirimKode($challenge, 'totp', Totp::kode($rahasia, $langkah - 1))->assertOk();
     }
 
     public function test_kode_cadangan_masuk_sekali_pakai(): void
@@ -189,14 +189,14 @@ class MfaTest extends TestCase
         [$pengguna] = $this->penggunaMfa();
         $kode = $this->daftarkanKodeCadangan($pengguna);
 
-        $tantangan = $this->masuk($pengguna)->json('tantangan_id');
-        $this->kirimKode($tantangan, 'kode_cadangan', strtoupper(str_replace('-', ' ', $kode[3])))->assertOk()
+        $challenge = $this->masuk($pengguna)->json('challenge_id');
+        $this->kirimKode($challenge, 'kode_cadangan', strtoupper(str_replace('-', ' ', $kode[3])))->assertOk()
             ->assertJsonPath('status', 'masuk');
         $this->assertAudit('autentikasi.kode_cadangan_dipakai', $pengguna->id);
 
         $this->mulaiSesiSpa();
-        $baru = $this->masuk($pengguna)->json('tantangan_id');
-        $this->kirimKode($baru, 'kode_cadangan', $kode[3])->assertUnauthorized()->assertJsonPath('galat.kode', 'kode_mfa_salah');
+        $baru = $this->masuk($pengguna)->json('challenge_id');
+        $this->kirimKode($baru, 'kode_cadangan', $kode[3])->assertUnauthorized()->assertJsonPath('error.kode', 'kode_mfa_salah');
     }
 
     public function test_tanpa_kode_cadangan_metode_hanya_totp(): void
@@ -211,7 +211,7 @@ class MfaTest extends TestCase
         $pengguna = Pengguna::factory()->denganSandi(self::SANDI)->create();
 
         $this->masuk($pengguna)->assertOk()->assertExactJsonStructure([
-            'status', 'pengguna' => ['id', 'nama_pengguna', 'surel', 'login_terakhir_pada', 'mfa_aktif', 'pegawai'],
+            'status', 'pengguna' => ['id', 'nama_pengguna', 'email', 'login_terakhir_pada', 'mfa_aktif', 'pegawai'],
         ])->assertJsonPath('status', 'masuk');
     }
 
@@ -220,11 +220,11 @@ class MfaTest extends TestCase
         $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.10']);
         [$sudahDaftar, $rahasia] = $this->penggunaMfa(wajib: false);
 
-        $tantangan = $this->masuk($sudahDaftar)->assertOk()->assertJsonPath('status', 'perlu_mfa')->json('tantangan_id');
-        $this->kirimKode($tantangan, 'totp', $this->kodeSekarang($rahasia))->assertOk()->assertJsonPath('status', 'masuk');
+        $challenge = $this->masuk($sudahDaftar)->assertOk()->assertJsonPath('status', 'perlu_mfa')->json('challenge_id');
+        $this->kirimKode($challenge, 'totp', $this->kodeSekarang($rahasia))->assertOk()->assertJsonPath('status', 'masuk');
     }
 
-    public function test_dari_luar_jaringan_rs_akun_tanpa_mfa_ditolak_tanpa_tantangan(): void
+    public function test_dari_luar_jaringan_rs_akun_tanpa_mfa_ditolak_tanpa_challenge(): void
     {
         $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.10']);
         $tidakDitandai = Pengguna::factory()->denganSandi(self::SANDI)->create();
@@ -232,8 +232,8 @@ class MfaTest extends TestCase
 
         foreach ([$tidakDitandai, $wajib] as $pengguna) {
             $this->masuk($pengguna)->assertForbidden()
-                ->assertJsonPath('galat.kode', 'mfa_belum_terdaftar')
-                ->assertJsonMissingPath('tantangan_id');
+                ->assertJsonPath('error.kode', 'mfa_belum_terdaftar')
+                ->assertJsonMissingPath('challenge_id');
 
             $this->assertDatabaseHas('audit.log_aktivitas', [
                 'aksi' => 'autentikasi.gagal',
@@ -245,17 +245,17 @@ class MfaTest extends TestCase
             $this->assertNull($pengguna->login_terakhir_pada);
         }
         $this->minta('GET', '/api/v1/saya')->assertUnauthorized();
-        $this->assertNull($this->app['session']->driver()->get('autentikasi.tantangan_mfa'));
+        $this->assertNull($this->app['session']->driver()->get('autentikasi.challenge_mfa'));
     }
 
-    public function test_tantangan_daftar_tidak_berlaku_bila_berpindah_ke_luar_jaringan_rs(): void
+    public function test_challenge_daftar_tidak_berlaku_bila_berpindah_ke_luar_jaringan_rs(): void
     {
         $pengguna = Pengguna::factory()->denganSandi(self::SANDI)->create(['wajib_mfa' => true]);
-        $tantangan = $this->masuk($pengguna)->assertJsonPath('status', 'perlu_daftar_mfa')->json('tantangan_id');
+        $challenge = $this->masuk($pengguna)->assertJsonPath('status', 'perlu_daftar_mfa')->json('challenge_id');
 
         $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.10']);
-        $this->minta('POST', '/api/v1/autentikasi/mfa/daftar', ['tantangan_id' => $tantangan])
-            ->assertUnauthorized()->assertJsonPath('galat.kode', 'tantangan_tidak_berlaku');
+        $this->minta('POST', '/api/v1/autentikasi/mfa/daftar', ['challenge_id' => $challenge])
+            ->assertUnauthorized()->assertJsonPath('error.kode', 'challenge_tidak_berlaku');
         $this->assertFalse($pengguna->refresh()->mfaAktif());
     }
 
@@ -264,7 +264,7 @@ class MfaTest extends TestCase
         config(['autentikasi.mfa.jaringan_rs' => []]);
         [$pengguna] = $this->penggunaMfa();
 
-        $this->masuk($pengguna)->assertStatus(503)->assertJsonPath('galat.kode', 'konfigurasi_belum_lengkap');
+        $this->masuk($pengguna)->assertStatus(503)->assertJsonPath('error.kode', 'konfigurasi_belum_lengkap');
         $this->masuk($pengguna, 'sandi-salah-sekali')->assertStatus(503);
 
         $this->assertSame(0, $pengguna->refresh()->percobaan_gagal);
@@ -274,22 +274,22 @@ class MfaTest extends TestCase
     public function test_akun_dinonaktifkan_di_tengah_langkah_kembali_ke_sandi(): void
     {
         [$pengguna, $rahasia] = $this->penggunaMfa();
-        $tantangan = $this->masuk($pengguna)->json('tantangan_id');
+        $challenge = $this->masuk($pengguna)->json('challenge_id');
         $pengguna->forceFill(['status' => 'nonaktif'])->save();
 
-        $this->kirimKode($tantangan, 'totp', $this->kodeSekarang($rahasia))
-            ->assertUnauthorized()->assertJsonPath('galat.kode', 'tantangan_tidak_berlaku');
+        $this->kirimKode($challenge, 'totp', $this->kodeSekarang($rahasia))
+            ->assertUnauthorized()->assertJsonPath('error.kode', 'challenge_tidak_berlaku');
     }
 
     public function test_log_dan_audit_tanpa_kode_rahasia_maupun_uri_otpauth(): void
     {
         $pengguna = Pengguna::factory()->denganSandi(self::SANDI)->create(['wajib_mfa' => true]);
-        $tantangan = $this->masuk($pengguna)->json('tantangan_id');
-        $uri = $this->minta('POST', '/api/v1/autentikasi/mfa/daftar', ['tantangan_id' => $tantangan])->json('uri_otpauth');
+        $challenge = $this->masuk($pengguna)->json('challenge_id');
+        $uri = $this->minta('POST', '/api/v1/autentikasi/mfa/daftar', ['challenge_id' => $challenge])->json('uri_otpauth');
         parse_str((string) parse_url($uri, PHP_URL_QUERY), $query);
-        $this->minta('POST', '/api/v1/autentikasi/mfa/daftar/konfirmasi', ['tantangan_id' => $tantangan, 'kode' => '000000']);
+        $this->minta('POST', '/api/v1/autentikasi/mfa/daftar/konfirmasi', ['challenge_id' => $challenge, 'kode' => '000000']);
         $kodeBenar = $this->kodeSekarang($query['secret']);
-        $kodeCadangan = $this->minta('POST', '/api/v1/autentikasi/mfa/daftar/konfirmasi', ['tantangan_id' => $tantangan, 'kode' => $kodeBenar])
+        $kodeCadangan = $this->minta('POST', '/api/v1/autentikasi/mfa/daftar/konfirmasi', ['challenge_id' => $challenge, 'kode' => $kodeBenar])
             ->assertOk()->json('kode_cadangan');
 
         $audit = DB::table('audit.log_aktivitas')->get()->toJson();
@@ -334,9 +334,9 @@ class MfaTest extends TestCase
         return $this->minta('POST', '/api/v1/autentikasi/masuk', ['nama_pengguna' => $pengguna->nama_pengguna, 'sandi' => $sandi]);
     }
 
-    private function kirimKode(string $tantangan, string $metode, string $kode): TestResponse
+    private function kirimKode(string $challenge, string $metode, string $kode): TestResponse
     {
-        return $this->minta('POST', '/api/v1/autentikasi/mfa', ['tantangan_id' => $tantangan, 'metode' => $metode, 'kode' => $kode]);
+        return $this->minta('POST', '/api/v1/autentikasi/mfa', ['challenge_id' => $challenge, 'metode' => $metode, 'kode' => $kode]);
     }
 
     private function kodeSekarang(string $rahasia): string

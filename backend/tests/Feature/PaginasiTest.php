@@ -71,7 +71,7 @@ class PaginasiTest extends TestCase
 
         $this->getJson('/api/v1/uji-paginasi?batas=201')
             ->assertStatus(422)
-            ->assertJsonPath('galat.kode', 'ukuran_halaman_melebihi_batas');
+            ->assertJsonPath('error.kode', 'ukuran_halaman_melebihi_batas');
     }
 
     public function test_batas_bukan_bilangan_positif_ditolak(): void
@@ -79,7 +79,7 @@ class PaginasiTest extends TestCase
         foreach (['0', '-1', 'abc', '2.5'] as $batas) {
             $this->getJson('/api/v1/uji-paginasi?batas='.$batas)
                 ->assertStatus(422)
-                ->assertJsonPath('galat.kode', 'validasi_gagal');
+                ->assertJsonPath('error.kode', 'validasi_gagal');
         }
     }
 
@@ -88,7 +88,7 @@ class PaginasiTest extends TestCase
         foreach (['bukan-kursor', base64_encode('{"a":1}'), base64_encode('[1,2]')] as $kursor) {
             $this->getJson('/api/v1/uji-paginasi?kursor='.urlencode($kursor))
                 ->assertStatus(422)
-                ->assertJsonPath('galat.kode', 'kursor_tidak_valid');
+                ->assertJsonPath('error.kode', 'kursor_tidak_valid');
         }
     }
 }

@@ -39,7 +39,7 @@ class ModuleServiceProvider extends ServiceProvider
         Sanctum::usePersonalAccessTokenModel(TokenAksesPribadi::class);
 
         // Semua kemampuan berbentuk kode izin (<menu>.<sub_menu>.<aksi>) diputuskan AccessEvaluator
-        // (PRD 9.2.5), mis. ->middleware('can:data_induk.peran.lihat') atau Gate::allows($kode, $cakupan).
+        // (PRD 9.2.5), mis. ->middleware('can:master_data.peran.lihat') atau Gate::allows($kode, $cakupan).
         // Argumen selain Cakupan ditolak sampai pemeriksaan per objek dibuat (tolak kecuali diberikan).
         Gate::before(function (mixed $pengguna, string $kemampuan, array $argumen) {
             if (! str_contains($kemampuan, '.')) {
@@ -62,17 +62,17 @@ class ModuleServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('autentikasi-masuk', fn (Request $request) => [
-            Limit::perMinute((int) config('autentikasi.batas_laju.per_ip_per_menit'))
+            Limit::perMinute((int) config('autentikasi.rate_limit.per_ip_per_menit'))
                 ->by('ip:'.$request->ip()),
-            Limit::perMinute((int) config('autentikasi.batas_laju.per_nama_pengguna_per_menit'))
+            Limit::perMinute((int) config('autentikasi.rate_limit.per_nama_pengguna_per_menit'))
                 ->by('nama:'.hash('sha256', mb_strtolower(trim((string) $request->input('nama_pengguna'))))),
         ]);
 
-        // Per sesi, bukan per nama pengguna: langkah MFA tidak membawa nama; tantangan terikat ke sesi.
+        // Per sesi, bukan per nama pengguna: langkah MFA tidak membawa nama; challenge terikat ke sesi.
         RateLimiter::for('autentikasi-mfa', fn (Request $request) => [
-            Limit::perMinute((int) config('autentikasi.batas_laju.per_ip_per_menit'))
+            Limit::perMinute((int) config('autentikasi.rate_limit.per_ip_per_menit'))
                 ->by('ip:'.$request->ip()),
-            Limit::perMinute((int) config('autentikasi.batas_laju.per_nama_pengguna_per_menit'))
+            Limit::perMinute((int) config('autentikasi.rate_limit.per_nama_pengguna_per_menit'))
                 // ID sesi asli, bukan nilai cookie: cookie terenkripsi ulang dengan IV baru tiap respons.
                 ->by('sesi:'.hash('sha256', $request->hasSession() ? $request->session()->getId() : (string) $request->ip())),
         ]);

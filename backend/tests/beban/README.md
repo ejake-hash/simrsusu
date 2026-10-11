@@ -5,16 +5,16 @@ dan tidak ke produksi. Hasil uji ke staging dilampirkan di catatan rilis.
 
 | Skrip | Isi |
 |---|---|
-| `masuk-saya.js` | `masuk`: csrf-cookie → masuk → keluar, 6 kali/menit. `saya`: `GET /api/v1/saya` dengan sesi bersama, 800 × `SKALA` VU, ±1 permintaan/detik per VU. Ambang: P95 baca ≤ 200 ms, masuk ≤ 500 ms, galat < 0,1%. |
+| `masuk-saya.js` | `masuk`: csrf-cookie → masuk → keluar, 6 kali/menit. `saya`: `GET /api/v1/saya` dengan sesi bersama, 800 × `SKALA` VU, ±1 permintaan/detik per VU. Ambang: P95 baca ≤ 200 ms, masuk ≤ 500 ms, error < 0,1%. |
 
 ## Menjalankan lokal
 
 Backend di-seed `AkunSintetisSeeder` (sandi dari `AKUN_SINTETIS_SANDI`) dan dijalankan dengan beberapa pekerja:
 
 ```bash
-# backend/.env selama uji: semua VU memakai satu akun, jadi batas laju per pengguna dinaikkan
-# (yang diukur kapasitas server, bukan pembatas laju). Kembalikan setelah selesai.
-#   BATAS_LAJU_API_PER_PENGGUNA_PER_MENIT=100000
+# backend/.env selama uji: semua VU memakai satu akun, jadi rate limit per pengguna dinaikkan
+# (yang diukur kapasitas server, bukan pemrate limit). Kembalikan setelah selesai.
+#   RATE_LIMIT_API_PER_PENGGUNA_PER_MENIT=100000
 PHP_CLI_SERVER_WORKERS=8 php artisan serve --port=8000 --no-reload   # tanpa --no-reload hanya satu proses
 
 # k6 terpasang:

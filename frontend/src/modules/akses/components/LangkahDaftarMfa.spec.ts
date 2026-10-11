@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { GalatApi } from '@/shared/api/klien'
+import { ApiError } from '@/shared/api/klien'
 import { konfirmasiDaftarMfa, mintaRahasiaMfa } from '../api'
 import LangkahDaftarMfa from './LangkahDaftarMfa.vue'
 
@@ -16,7 +16,7 @@ const KODE_CADANGAN = Array.from({ length: 10 }, (_, i) => `aaaa${i}-bbbb${i}`)
 async function pasang() {
   const lanjut = vi.fn().mockResolvedValue(undefined)
   const w = mount(LangkahDaftarMfa, {
-    props: { langkah: { status: 'perlu_daftar_mfa', tantangan_id: 't-9', kedaluwarsa_pada: '' }, lanjut },
+    props: { langkah: { status: 'perlu_daftar_mfa', challenge_id: 't-9', kedaluwarsa_pada: '' }, lanjut },
     attachTo: document.body,
   })
   await flushPromises()
@@ -67,7 +67,7 @@ describe('LangkahDaftarMfa', () => {
   })
 
   it('kode salah saat konfirmasi: tetap di langkah pindai dengan pesan', async () => {
-    vi.mocked(konfirmasiDaftarMfa).mockRejectedValue(new GalatApi(401, 'kode_mfa_salah', 'x'))
+    vi.mocked(konfirmasiDaftarMfa).mockRejectedValue(new ApiError(401, 'kode_mfa_salah', 'x'))
     const { w } = await pasang()
     await w.get('#kode-daftar-mfa').setValue('000000')
     await w.get('form').trigger('submit')
@@ -78,7 +78,7 @@ describe('LangkahDaftarMfa', () => {
   })
 
   it('gagal meminta rahasia: pesan dan tombol coba lagi', async () => {
-    vi.mocked(mintaRahasiaMfa).mockReset().mockRejectedValueOnce(new GalatApi(0, 'jaringan', 'Tidak dapat terhubung ke server.'))
+    vi.mocked(mintaRahasiaMfa).mockReset().mockRejectedValueOnce(new ApiError(0, 'jaringan', 'Tidak dapat terhubung ke server.'))
     const { w } = await pasang()
 
     expect(w.get('[role="alert"]').text()).toContain('Tidak dapat terhubung ke server.')

@@ -17,7 +17,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $terkunci_sampai
  * @property int $percobaan_gagal
  * @property Carbon|null $login_terakhir_pada
- * @property string|null $surel
+ * @property string|null $email
  * @property string|null $mfa_rahasia_enkripsi sudah didekripsi oleh cast `encrypted`
  * @property Carbon|null $mfa_aktif_pada
  * @property bool $wajib_mfa
@@ -39,7 +39,7 @@ final class Pengguna extends Authenticatable
     protected $rememberTokenName = '';
 
     // sandi_hash, status, dan kolom penguncian hanya diisi lewat forceFill di kode akses.
-    protected $fillable = ['pegawai_id', 'nama_pengguna', 'surel'];
+    protected $fillable = ['pegawai_id', 'nama_pengguna', 'email'];
 
     protected $hidden = ['sandi_hash', 'mfa_rahasia_enkripsi'];
 

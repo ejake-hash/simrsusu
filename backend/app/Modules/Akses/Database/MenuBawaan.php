@@ -18,13 +18,13 @@ final class MenuBawaan
     public const PERAN_SUPERADMIN = 'superadmin';
 
     /** Halaman yang sudah dibangun; menu lain tampil sebagai Segera hadir atau disembunyikan. */
-    public const TERSEDIA = ['beranda', 'data_induk.peran', 'data_induk.akun'];
+    public const TERSEDIA = ['beranda', 'master_data.peran', 'master_data.akun'];
 
     /** Aksi dasar Permenkes 24/2022 Ps. 30 ayat 3 untuk setiap sub-menu (FR-09-03). */
     public const AKSI_DASAR = ['lihat', 'input', 'perbaiki'];
 
     /** Superadmin mengelola peran dan akun; tidak membuka rekam medis atau rupiah (PRD 9.2.4). */
-    public const SUB_MENU_SUPERADMIN = ['data_induk.peran', 'data_induk.akun'];
+    public const SUB_MENU_SUPERADMIN = ['master_data.peran', 'master_data.akun'];
 
     /**
      * Kode menu = kode prototipe, juga nama ikon di frontend/src/design-system/ikon/ikon.ts.
@@ -158,7 +158,7 @@ final class MenuBawaan
                 'penelitian' => ['Penelitian', 52, 5],
                 'unit' => ['Dasbor unit', 52],
             ]],
-            'data_induk' => ['Master Data', 1, 54, [
+            'master_data' => ['Master Data', 1, 54, [
                 'katalog' => ['Data induk', 54],
                 'usulan' => ['Usulan perubahan', 54],
                 'peran' => ['Peran & menu', 54],

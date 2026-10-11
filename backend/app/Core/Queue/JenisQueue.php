@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Core\Antrean;
+namespace App\Core\Queue;
 
 /**
- * Antrean dipisah per jenis dengan pekerja Horizon masing-masing (PRD 14.1.1 butir 4), agar
+ * Queue dipisah per jenis dengan pekerja Horizon masing-masing (PRD 14.1.1 butir 4), agar
  * sistem luar yang macet tidak menghabiskan pekerja jenis lain. Pekerjaan masuk lewat:
  * `dispatch($job)->onConnection($jenis->koneksi())->onQueue($jenis->value)`.
  */
-enum JenisAntrean: string
+enum JenisQueue: string
 {
     /** BPJS, SATUSEHAT, PSrE. */
     case Integrasi = 'integrasi';
