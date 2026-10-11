@@ -1,12 +1,11 @@
-import { expect, test as dasar, type APIRequestContext, type Browser, type BrowserContext, type Page } from '@playwright/test'
-import { kodeTotp } from './totp'
+import { expect, test as dasar, type Browser, type BrowserContext, type Page } from '@playwright/test'
+import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
 
 /**
  * Pengaturan → Peran & izin, Akun & akses (tiket 1.2c) ke backend asli dengan akun sintetis AkunSintetisSeeder.
  * Proyek Playwright sendiri yang berjalan sesudah proyek lain (playwright.config.ts): uji ini mengubah akses
  * contoh.admisi dan mereset MFA contoh.mfa, yang dipakai spec lain. Jalankan ulang seeder sebelum run berikutnya.
  */
-const SANDI = process.env.E2E_SANDI ?? ''
 const RAHASIA_SUPERADMIN = process.env.E2E_SUPERADMIN_MFA_RAHASIA ?? ''
 // Kode peran unik per run agar run lokal tanpa seeding ulang tidak bentrok kode_sudah_dipakai.
 const KODE_DASAR = `e2e_farmasi_${Date.now().toString(36)}`
@@ -15,26 +14,6 @@ const NAMA_DASAR = `E2E Petugas Stok ${Date.now().toString(36)}`
 let sesiSuperadmin: Awaited<ReturnType<BrowserContext['storageState']>> | undefined
 const test = dasar.extend({ storageState: async ({}, pakai) => pakai(sesiSuperadmin) })
 test.describe.configure({ mode: 'serial' })
-
-async function xsrf(permintaan: APIRequestContext): Promise<string> {
-  return decodeURIComponent((await permintaan.storageState()).cookies.find((c) => c.name === 'XSRF-TOKEN')?.value ?? '')
-}
-
-/** Langkah sandi (+ TOTP bila diminta) kontrak 10.3.2 lewat API; halaman masuk sudah diuji di masuk.spec/mfa.spec. */
-async function masukLewatApi(permintaan: APIRequestContext, asal: string, nama: string, rahasiaTotp?: string) {
-  await permintaan.get('/sanctum/csrf-cookie')
-  const header = async () => ({ 'X-XSRF-TOKEN': await xsrf(permintaan), Accept: 'application/json', Origin: asal })
-  const masuk = await permintaan.post('/api/v1/autentikasi/masuk', { data: { nama_pengguna: nama, sandi: SANDI }, headers: await header() })
-  expect(masuk.ok(), `${masuk.status()} ${await masuk.text()}`).toBeTruthy()
-  const isi = (await masuk.json()) as { status: string; challenge_id?: string }
-  if (isi.status === 'masuk') return
-  expect(isi.status).toBe('perlu_mfa')
-  const mfa = await permintaan.post('/api/v1/autentikasi/mfa', {
-    data: { challenge_id: isi.challenge_id, metode: 'totp', kode: kodeTotp(rahasiaTotp ?? '') },
-    headers: await header(),
-  })
-  expect(mfa.ok(), `${mfa.status()} ${await mfa.text()}`).toBeTruthy()
-}
 
 /** Storage kosong: browser.newContext() di dalam uji mewarisi storageState fixture (sesi superadmin), dan masuk
  * sebagai akun lain di atas cookie itu me-regenerasi lalu menghapus sesi superadmin. */
@@ -58,11 +37,6 @@ async function halamanAkun(browser: Browser, asal: string, nama: string): Promis
 }
 
 const menuUtama = (page: Page) => page.getByRole('navigation', { name: 'Menu utama' })
-
-async function tanpaGulirSamping(page: Page) {
-  const [lebarIsi, lebarLayar] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth])
-  expect(lebarIsi).toBeLessThanOrEqual(lebarLayar)
-}
 
 /** Ke Akun & akses lewat navigasi sub-menu bila sudah di Pengaturan (tanpa muat ulang: hemat rate limit API). */
 async function pilihAkun(page: Page, namaPengguna: string, nama: string) {
@@ -106,11 +80,17 @@ test.beforeAll(async ({ playwright }, info) => {
   await permintaan.dispose()
 })
 
-test('1440 px: halaman induk Pengaturan berisi kartu sub-menu; contoh.dokter tidak melihat Pengaturan', async ({ page, browser }, info) => {
+test('1440 px: halaman induk Pengaturan berisi kartu sub-menu, juga dari kartu Beranda; contoh.dokter tidak melihat Pengaturan', async ({ page, browser }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/pengaturan')
   await expect(page.getByRole('heading', { level: 1, name: 'Pengaturan Sistem' })).toBeVisible()
   const kartu = page.getByRole('navigation', { name: 'Sub-menu Pengaturan Sistem' })
+  await expect(kartu.getByRole('link', { name: 'Peran & izin' })).toBeVisible()
+
+  // Beranda (1.2e): kartu modul aktif membuka halamannya (halaman induk di atas).
+  await page.goto('/')
+  await page.getByRole('region', { name: 'Modul saya' }).getByRole('link', { name: 'Pengaturan Sistem', exact: true }).click()
+  await expect(page).toHaveURL(/\/pengaturan$/)
   await expect(kartu.getByRole('link', { name: 'Peran & izin' })).toBeVisible()
   await expect(kartu.getByRole('link', { name: 'Akun & akses' })).toBeVisible()
 
