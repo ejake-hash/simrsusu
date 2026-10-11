@@ -524,3 +524,29 @@ test('1440 px: kontrol ganda — penugasan dan pengakhiran peran Superadmin berl
   await expect(page.getByText('Belum ada peran yang berlaku.')).toBeVisible()
 })
 
+
+// ── Tiket 1.8d: nonaktif/aktif akun dengan alasan ──
+test('1440 px: nonaktifkan akun dengan alasan lalu aktifkan kembali (contoh.terkunci); akun sendiri tanpa tombol', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/pengaturan/akun')
+  await pilihAkun(page, 'contoh.terkunci', 'Contoh Akun Uji Kunci')
+  const rincian = page.getByRole('region', { name: 'Contoh Akun Uji Kunci' })
+  await rincian.getByRole('button', { name: 'Nonaktifkan akun' }).click()
+  const nonaktif = page.getByRole('alertdialog', { name: 'Nonaktifkan contoh.terkunci?' })
+  await nonaktif.getByRole('button', { name: 'Nonaktifkan' }).click()
+  await expect(nonaktif.getByText('Isi alasan, minimal 5 karakter.')).toBeVisible()
+  await nonaktif.getByLabel('Alasan').fill('Uji e2e nonaktif akun (sintetis)')
+  await nonaktif.getByRole('button', { name: 'Nonaktifkan' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Akun contoh.terkunci dinonaktifkan; sesinya diakhiri.' })).toBeVisible()
+  await expect(rincian.getByText('Nonaktif', { exact: true })).toBeVisible()
+
+  await rincian.getByRole('button', { name: 'Aktifkan akun' }).click()
+  const aktif = page.getByRole('dialog', { name: 'Aktifkan contoh.terkunci?' })
+  await aktif.getByLabel('Alasan').fill('Uji e2e selesai (sintetis)')
+  await aktif.getByRole('button', { name: 'Aktifkan' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Akun contoh.terkunci diaktifkan.' })).toBeVisible()
+  await expect(rincian.getByRole('button', { name: 'Nonaktifkan akun' })).toBeVisible()
+
+  await pilihAkun(page, 'contoh.superadmin', 'Contoh Superadmin')
+  await expect(page.getByRole('button', { name: /^(Nonaktifkan|Aktifkan) akun$/ })).toHaveCount(0)
+})

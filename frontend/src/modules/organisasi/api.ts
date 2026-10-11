@@ -66,6 +66,6 @@ export async function ambilKsm(id: string): Promise<Berversi<Ksm>> {
 export async function buatKsm(isian: { kode: string; nama: string; dasar_perubahan: string }): Promise<Berversi<Ksm>> {
   return berversi(await klien.post('/ksm', isian))
 }
-export async function ubahKsm(id: string, etag: string, isian: { kode?: string; nama?: string; status?: 'aktif' | 'nonaktif'; dasar_perubahan: string }): Promise<Berversi<Ksm>> {
+export async function ubahKsm(id: string, etag: string, isian: { kode?: string; nama?: string; status?: 'aktif' | 'nonaktif'; ketua_pegawai_id?: string | null; dasar_perubahan: string }): Promise<Berversi<Ksm>> {
   return berversi(await klien.patch(`/ksm/${id}`, isian, { headers: { 'If-Match': etag } }))
 }

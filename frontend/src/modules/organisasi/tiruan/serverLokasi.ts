@@ -80,7 +80,8 @@ export interface OpsiServerLokasi {
 export function buatServerLokasi(opsi: OpsiServerLokasi = {}) {
   const sekarang = opsi.sekarang ?? (() => new Date())
   const iso = () => sekarang().toISOString()
-  const hariIni = () => sekarang().toISOString().slice(0, 10)
+  // Tanggal zona RS (kontrak), bukan UTC: antara 00.00–07.00 WIB tanggal UTC masih kemarin.
+  const hariIni = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(sekarang())
   const unitDari = opsi.unit ?? (() => null)
   let nomor = 100
 

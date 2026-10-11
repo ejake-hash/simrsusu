@@ -420,7 +420,11 @@ export function buatServerSdm(opsi: OpsiServerSdm) {
     const p = pegawai.get(pegawaiId)
     return p ? statusPegawai(p) === 'keluar' : false
   }
-  return { tangani, pegawaiKeluar, contoh: { superadmin: sa.id, dokter: dokter.id, perawat: perawat.id, apoteker: apoteker.id, bidan: bidan.id, keluar: keluar.id } }
+  const ringkasPegawai = (pegawaiId: string) => {
+    const p = pegawai.get(pegawaiId)
+    return p ? { id: p.id, nama: p.nama, status: statusPegawai(p) } : null
+  }
+  return { tangani, pegawaiKeluar, ringkasPegawai, contoh: { superadmin: sa.id, dokter: dokter.id, perawat: perawat.id, apoteker: apoteker.id, bidan: bidan.id, keluar: keluar.id } }
 }
 
 export type ServerSdm = ReturnType<typeof buatServerSdm>

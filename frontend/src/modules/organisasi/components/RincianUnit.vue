@@ -78,7 +78,12 @@ defineExpose({ unit })
         </div>
         <div>
           <dt>Kepala unit</dt>
-          <dd>{{ u.kepala?.nama ?? '—' }}<span v-if="!u.kepala" class="ket"> (diisi dari data pegawai)</span></dd>
+          <dd>
+            {{ u.kepala?.nama ?? '—' }}<span v-if="!u.kepala" class="ket"> (ditetapkan lewat Ubah)</span>
+            <span v-if="u.kepala && u.kepala.status !== 'aktif'" class="pil" :class="u.kepala.status === 'keluar' ? 'pil-bahaya' : 'pil-peringatan'">
+              {{ u.kepala.status === 'keluar' ? 'Sudah keluar' : 'Akan keluar' }}
+            </span>
+          </dd>
         </div>
         <div>
           <dt>Berlaku dari</dt>

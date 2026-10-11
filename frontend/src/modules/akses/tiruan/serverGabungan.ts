@@ -13,7 +13,8 @@ import { buatServerTiruan, ID_SUPERADMIN, type OpsiServerTiruan } from './server
 export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawaiKeluar'> & { tanpaDataInduk?: boolean } = {}) {
   let unitMilikSaya: () => string[] = () => []
   let pegawaiKeluar: (pegawaiId: string) => boolean = () => false
-  const organisasi = buatServerOrganisasi({ unitMilikSaya: () => unitMilikSaya() })
+  let ringkasPegawai: (pegawaiId: string) => ReturnType<ReturnType<typeof buatServerSdm>['ringkasPegawai']> = () => null
+  const organisasi = buatServerOrganisasi({ unitMilikSaya: () => unitMilikSaya(), pegawai: (id) => ringkasPegawai(id) })
   const akses = buatServerTiruan({ ...opsi, unit: { label: organisasi.labelUnit, aktif: organisasi.unitAktif }, pegawaiKeluar: (id) => pegawaiKeluar(id) })
   if (!opsi.tanpaDataInduk && (opsi.penggunaId ?? ID_SUPERADMIN) === ID_SUPERADMIN) {
     akses.tambahPenugasanDev('contoh_data_induk')
@@ -36,6 +37,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     sekarang: opsi.sekarang,
   })
   pegawaiKeluar = sdm.pegawaiKeluar
+  ringkasPegawai = sdm.ringkasPegawai
 
   /** Selama wajib ganti sandi, endpoint bersesi selain daftar ini 403 wajib_ganti_sandi (kontrak v0.6.0, /saya/sandi). */
   const bebasGantiSandi = (r: PermintaanTiruan) => {

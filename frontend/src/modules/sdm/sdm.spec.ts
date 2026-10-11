@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import { useSesiStore } from '@/app/sesi'
 import RincianAkun from '@/modules/akses/components/pengaturan/RincianAkun.vue'
+import { ambilKsm, daftarKsm } from '@/modules/organisasi/api'
+import DialogKsm from '@/modules/organisasi/components/DialogKsm.vue'
 import GantiSandiPage from '@/modules/akses/pages/GantiSandiPage.vue'
 import { uid } from '@/modules/akses/tiruan/dataPengaturan'
 import { pasangTiruan } from '@/modules/akses/tiruan/pasangTiruan'
@@ -287,5 +289,37 @@ describe('Nonaktif/aktif akun (Pengaturan → Akun & akses)', () => {
   it('akun sendiri tidak punya tombol nonaktif/aktif', async () => {
     await pasang(RincianAkun, { akunId: ID_SUPERADMIN, indeks: null })
     expect(tombol('Nonaktifkan akun')).toBeUndefined()
+  })
+})
+
+describe('Ketua KSM dari pegawai (Organisasi)', () => {
+  it('pemilih menawarkan pegawai yang belum keluar; PATCH mengirim ketua_pegawai_id; tanpa sdm.pegawai.lihat kolomnya tidak dirender', async () => {
+    const ksm = (await daftarKsm({ cari: 'bedah' })).data[0]!
+    const w = await pasang(DialogKsm, { ksm: await ambilKsm(ksm.id), open: false })
+    await w.setProps({ open: true })
+    await tenang()
+    const pemilih = isian('Ketua KSM')
+    pemilih.focus()
+    pemilih.value = 'contoh'
+    pemilih.dispatchEvent(new Event('input'))
+    await tenang(300)
+    const opsi = [...document.querySelectorAll('[role="option"]')].map((o) => o.textContent ?? '')
+    expect(opsi.some((o) => o.includes('Contoh Dokter'))).toBe(true)
+    expect(opsi.some((o) => o.includes('Contoh Pegawai Keluar'))).toBe(false)
+    const dokter = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent?.includes('Contoh Dokter'))!
+    dokter.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await tenang()
+    await isi('Dasar perubahan', 'SK Komite Medik 05/2026')
+    await kirim('form-ksm')
+    const patch = permintaan.find((p) => p.metode === 'patch' && p.jalur.startsWith('/ksm/'))!
+    expect(patch.isi).toEqual({ ketua_pegawai_id: server.sdm.contoh.dokter, dasar_perubahan: 'SK Komite Medik 05/2026' })
+    expect((w.emitted('selesai')?.[0]?.[0] as { data: { ketua: unknown } }).data.ketua).toEqual({ id: server.sdm.contoh.dokter, nama: 'Contoh Dokter', status: 'aktif' })
+
+    document.body.innerHTML = ''
+    aturIzin(['master_data.organisasi.lihat', 'master_data.organisasi.perbaiki'])
+    const w2 = await pasang(DialogKsm, { ksm: await ambilKsm(ksm.id), open: false })
+    await w2.setProps({ open: true })
+    await tenang()
+    expect([...document.querySelectorAll('label')].some((l) => l.textContent?.includes('Ketua KSM'))).toBe(false)
   })
 })
