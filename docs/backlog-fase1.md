@@ -141,6 +141,8 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   - Pratinjau identitas memakai turunan warna `turunanTema()`, bukan token bawaan, sehingga warna bawaan di pratinjau bisa sedikit berbeda dari tampilan nyata (tidak berdampak, hanya pratinjau).
   - Cakupan penugasan di dialog: hanya Seluruh RS dan Unit kerja (kontrak). KSM dan pasien yang dirawat tampil nonaktif sampai kontraknya ada.
   - CI e2e kini menjalankan `db:seed` (DatabaseSeeder: akun + organisasi sintetis), bukan hanya AkunSintetisSeeder. e2e profil RS mengubah nama RS dan logo instalasi e2e; jalankan ulang seeder/DB baru sebelum run lokal bila perlu profil kosong.
+  - Berkas contoh paket RS USU dipindah dari `frontend/public/` ke `docs/brand/turunan/` (logo, foto, motif) agar tidak ikut build produksi (PRD 3.4); untuk demo internal, unggah lewat layar Profil rumah sakit.
+  - **Untuk sesi 1 / keputusan stack:** unggah berkas memakai `PUT` multipart (kontrak v0.3.0). Symfony hanya mengurai body multipart pada PUT di PHP ≥ 8.4 (`Request::createFromGlobals`, `request_parse_body`); di PHP 8.3 `$_FILES` kosong sehingga setiap unggahan ditolak 422. CI dan lokal memakai 8.4 sehingga tidak tertangkap, padahal `composer.json` dan CLAUDE.md menulis PHP 8.3+. Pilih: naikkan syarat ke PHP 8.4 (`composer.json` + CLAUDE.md), atau ubah kontrak ke `POST`.
   - Halaman profil RS dan organisasi belum punya pasangan di prototipe `docs/html/` (masterdata.html hanya katalog); tata letak mengikuti pola halaman Peran & izin.
 - Teks yang sengaja masih memuat istilah lama: migrasi yang sudah berjalan (sejarah, maju saja), ADR 0003 (diberi catatan nama baru), `docs/fase0/`, prototipe `docs/html/`, badan tiket lama di backlog, dan bagian "Kerja berkelanjutan" di CLAUDE.md (teks disetujui pemilik repo apa adanya).
 - Nama ikon yang dikenal frontend = kode menu prototipe (`frontend/src/design-system/ikon/ikon.ts`: `beranda`, `pendaftaran`, `igd`, `rawat_jalan`, `rawat_inap`, `kamar_operasi`, `penunjang`, `farmasi`, `rekam_medis`, `kasir`, `casemix`, `mutu`, `sdm`, `logistik`, `penelitian`, `pendidikan`, `integrasi`, `dasbor`, `master_data`, `pengaturan`). Seeder menu 1.2a memakai nama ini; nama lain tampil sebagai ikon umum.
@@ -152,7 +154,7 @@ Branch `lampiran/pr-1.4b` berisi gambar yang dirujuk deskripsi PR #10; jangan di
 
 Motif `docs/brand/motif-usu.svg` dibuat ulang (bukan berkas resmi pedoman); hanya untuk pengembangan sampai dicocokkan dengan `PATTERN DESIGN USU.ai` dari Humas/Promosi USU.
 
-Panel merek halaman masuk memakai foto gedung (`frontend/public/foto/rs-usu.webp`, turunan `docs/brand/RS USU Gedung.jpg`: dipotong 16:10, tanpa EXIF/GPS) menggantikan ilustrasi peta tempat tidur. Prototipe `docs/html/login.html` masih memakai peta tempat tidur. Hak pakai foto untuk materi di luar pengembangan belum dikonfirmasi ke Humas/Promosi USU.
+Panel merek halaman masuk memakai foto gedung dari paket identitas (contoh RS USU: `docs/brand/turunan/foto-rs-usu.webp`, turunan `docs/brand/RS USU Gedung.jpg`: dipotong 16:10, tanpa EXIF/GPS; diunggah lewat Pengaturan → Profil rumah sakit, tidak ikut build sejak 1.8a-fe) menggantikan ilustrasi peta tempat tidur. Prototipe `docs/html/login.html` masih memakai peta tempat tidur. Hak pakai foto untuk materi di luar pengembangan belum dikonfirmasi ke Humas/Promosi USU.
 
 ---
 

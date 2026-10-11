@@ -63,7 +63,14 @@ const [unitAdmin] = defineField('unit_admin')
 const [kontakAdmin] = defineField('kontak_admin')
 const [dasar] = defineField('dasar_perubahan')
 
-function isiForm(p: ProfilRsApi) {
+/**
+ * Versi yang menjadi dasar formulir: If-Match simpan memakai ini, bukan ETag kueri terbaru. Muat ulang di latar
+ * (fokus jendela) bisa membawa versi orang lain; formulir tidak diisi ulang, jadi simpan harus kalah dengan 412.
+ */
+const etagDasar = ref<string | null>(null)
+
+function isiForm({ data: p, etag }: Berversi<ProfilRsApi>) {
+  etagDasar.value = etag
   const r = p.rinci
   resetForm({
     values: {
@@ -88,7 +95,7 @@ watch(
   (p) => {
     if (p && !terisi) {
       terisi = true
-      isiForm(p.data)
+      isiForm(p)
     }
   },
   { immediate: true },
@@ -115,15 +122,21 @@ function pasang(hasil: Berversi<ProfilRsApi>) {
   qc.setQueryData(KUNCI_ORG.profil, hasil)
   terapkanProfilRs(hasil.data)
 }
+/** Unggahan sendiri menaikkan versi; dasar formulir ikut naik hanya bila memang versi sebelum unggah. */
+function diunggah(hasil: Berversi<ProfilRsApi>) {
+  const sebelum = profil.value?.etag
+  pasang(hasil)
+  if (etagDasar.value === sebelum) etagDasar.value = hasil.etag
+}
 async function muatUlang() {
   versiBerubah.value = false
   error.value = null
   const r = await kueri.refetch()
-  if (r.data) isiForm(r.data.data)
+  if (r.data) isiForm(r.data)
 }
 
 const kirim = handleSubmit(async (v) => {
-  if (!profil.value) return
+  if (!profil.value || !etagDasar.value) return
   if ((rasioBrand.value ?? 0) < 4.5 || (rasioAccent.value ?? 0) < 4.5) {
     error.value = 'Kontras warna belum cukup. Pilih warna yang lolos uji di bawah kolom warna.'
     return
@@ -133,7 +146,7 @@ const kirim = handleSubmit(async (v) => {
   versiBerubah.value = false
   const kosongNull = (s: string | undefined) => (s?.trim() ? s.trim() : null)
   try {
-    const hasil = await ubahProfilRs(profil.value.etag, {
+    const hasil = await ubahProfilRs(etagDasar.value, {
       nama: v.nama.trim(),
       kode_kemenkes: kosongNull(v.kode_kemenkes),
       kelas: kosongNull(v.kelas),
@@ -145,7 +158,7 @@ const kirim = handleSubmit(async (v) => {
       dasar_perubahan: v.dasar_perubahan.trim(),
     })
     pasang(hasil)
-    isiForm(hasil.data)
+    isiForm(hasil)
     tampilkanToast('Profil rumah sakit disimpan. Identitas baru langsung dipakai di semua layar.')
   } catch (e) {
     const kolom = errorKolom(e, ['nama', 'kode_kemenkes', 'kelas', 'status_blu', 'kode_ppk_bpjs', 'alamat', 'brand', 'accent', 'unit_admin', 'kontak_admin', 'dasar_perubahan'], {
@@ -264,7 +277,7 @@ onBeforeRouteLeave(() => {
             </p>
             <div v-if="bolehUbah" class="aksi">
               <button v-if="versiBerubah" type="button" class="tombol" @click="muatUlang">Muat ulang profil</button>
-              <button type="button" class="tombol" :disabled="sibuk || !meta.dirty" @click="isiForm(profil.data)">Batalkan perubahan</button>
+              <button type="button" class="tombol" :disabled="sibuk || !meta.dirty" @click="isiForm(profil)">Batalkan perubahan</button>
               <Tombol type="submit" varian="utama" :sibuk="sibuk">{{ sibuk ? 'Menyimpan…' : 'Simpan profil' }}</Tombol>
             </div>
             <p v-else class="catatan catatan-info">
@@ -300,7 +313,7 @@ onBeforeRouteLeave(() => {
               </div>
             </div>
             <div class="kartu-isi">
-              <BerkasIdentitas :profil="profil" :boleh-ubah="bolehUbah" @diunggah="pasang" @versi-berubah="versiBerubah = true" />
+              <BerkasIdentitas :profil="profil" :boleh-ubah="bolehUbah" @diunggah="diunggah" @versi-berubah="versiBerubah = true" />
             </div>
           </section>
         </div>

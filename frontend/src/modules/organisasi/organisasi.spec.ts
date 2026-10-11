@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
-import { useProfilRs } from '@/app/profilRs'
+import { terapkanProfilRs, useProfilRs } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
 import PohonData from '@/design-system/components/PohonData.vue'
 import DialogPenugasan from '@/modules/akses/components/pengaturan/DialogPenugasan.vue'
@@ -18,11 +18,14 @@ import { aturIzin, vCan } from '@/shared/composables/usePermission'
 import PemilihUnit from './components/PemilihUnit.vue'
 import TabKsm from './components/TabKsm.vue'
 import TabUnit from './components/TabUnit.vue'
+import { profilRsTiruan } from './tiruan/profilRs'
+import { KUNCI_ORG } from './organisasi'
 import ProfilRsPage from './pages/ProfilRsPage.vue'
 
 const adapterAsli = klien.defaults.adapter
 let server: ReturnType<typeof buatServerGabungan>
 let router: Router
+let qcUji: QueryClient
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -34,6 +37,8 @@ afterEach(() => {
   klien.defaults.adapter = adapterAsli
   document.body.innerHTML = ''
   document.documentElement.removeAttribute('style')
+  // Profil global dipakai seluruh layar: kembalikan ke instalasi kosong agar uji tidak saling bergantung.
+  terapkanProfilRs(profilRsTiruan())
 })
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -43,7 +48,7 @@ async function pasang(komponen: any, props: Record<string, unknown> = {}, jalur 
   const w = mount(komponen, {
     props,
     attachTo: document.body,
-    global: { plugins: [router, [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]], directives: { can: vCan } },
+    global: { plugins: [router, [VueQueryPlugin, { queryClient: (qcUji = new QueryClient({ defaultOptions: { queries: { retry: false } } })) }]], directives: { can: vCan } },
   })
   await tenang()
   return w
@@ -188,7 +193,8 @@ describe('PemilihUnit (combobox)', () => {
     const nilai = ref<string | null>(null)
     let terkirim = 0
     let escKeluar = 0
-    document.addEventListener('keydown', (e) => e.key === 'Escape' && escKeluar++)
+    const pantauEsc = (e: KeyboardEvent) => e.key === 'Escape' && escKeluar++
+    document.addEventListener('keydown', pantauEsc)
     await pasang(
       defineComponent({
         setup: () => () =>
@@ -220,6 +226,7 @@ describe('PemilihUnit (combobox)', () => {
     await tenang()
     expect(input.getAttribute('aria-expanded')).toBe('false')
     expect(escKeluar).toBe(0)
+    document.removeEventListener('keydown', pantauEsc)
   })
 })
 
@@ -289,5 +296,25 @@ describe('Profil rumah sakit', () => {
     expect(document.body.textContent).toContain('Profil diubah orang lain')
     await klik(tombol('Muat ulang profil'))
     expect(isian('Nama rumah sakit').value).toBe('RS Lain')
+  })
+
+  it('muat ulang latar membawa versi orang lain: simpan tetap memakai versi dasar formulir → 412, bukan menimpa', async () => {
+    await pasang(ProfilRsPage, {}, '/pengaturan/profil-rs')
+    await isi('Nama rumah sakit', 'RS Saya')
+    // Orang lain menyimpan; lalu kueri dimuat ulang di latar (mis. fokus jendela) dan ETag kueri ikut naik.
+    server.tangani({
+      metode: 'PUT',
+      jalur: '/profil-rs',
+      kueri: new URLSearchParams(),
+      header: { 'if-match': '"1"' },
+      isi: { nama: 'RS Lain', kode_kemenkes: null, kelas: null, status_blu: null, kode_ppk_bpjs: null, alamat: null, warna: { brand: '#006937', accent: '#F3C300' }, kontak_admin: { unit: 'IT', kontak: '0812' }, dasar_perubahan: 'uji' },
+    })
+    await qcUji.refetchQueries({ queryKey: KUNCI_ORG.profil })
+    await tenang()
+    expect(isian('Nama rumah sakit').value).toBe('RS Saya')
+    await isi('Dasar perubahan', 'SK Direktur 3/2026')
+    await klik(tombol('Simpan profil'))
+    expect(document.body.textContent).toContain('Profil diubah orang lain')
+    expect(useProfilRs().value.kontakAdmin).toBeNull()
   })
 })

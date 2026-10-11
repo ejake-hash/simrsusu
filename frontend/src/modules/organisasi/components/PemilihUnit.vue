@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query'
-import { computed, ref, useAttrs, useId, watch } from 'vue'
+import { computed, nextTick, ref, useAttrs, useId, watch } from 'vue'
 import { daftarUnit } from '../api'
 import { refDebounced } from '@/shared/composables/refDebounced'
 import { KUNCI_ORG, LABEL_JENIS, labelUnit, teksJalur } from '../organisasi'
@@ -24,6 +24,7 @@ const emit = defineEmits<{ pilih: [unit: UnitOrganisasi | null] }>()
 const attrs = useAttrs()
 
 const idDaftar = `pemilih-unit-${useId()}`
+const idOpsi = (i: number) => `${idDaftar}-${i}`
 const buka = ref(false)
 const kueri = ref('')
 const aktif = ref(0)
@@ -46,9 +47,13 @@ const pilihan = computed<(UnitOrganisasi | null)[]>(() => {
   return [...(props.opsiKosong && !kueri.value.trim() ? [null] : []), ...unit]
 })
 watch(pilihan, () => (aktif.value = 0))
+// Opsi aktif (panah atas/bawah) selalu terlihat di daftar yang bergulir.
+watch(aktif, async (i) => {
+  await nextTick()
+  document.getElementById(idOpsi(i))?.scrollIntoView?.({ block: 'nearest' })
+})
 
 const tampil = computed(() => (buka.value ? kueri.value : nilai.value === null ? (props.opsiKosong ?? '') : (label.value ?? '')))
-const idOpsi = (i: number) => `${idDaftar}-${i}`
 
 function bukaDaftar() {
   if (buka.value) return
@@ -170,5 +175,11 @@ function tekan(e: KeyboardEvent) {
 }
 .status {
   padding: 8px;
+}
+/* Kelas tablet: target sentuh 44 px (PRD 5.5 aturan 1). */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  .opsi {
+    min-height: 44px;
+  }
 }
 </style>

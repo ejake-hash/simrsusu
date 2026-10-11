@@ -49,7 +49,7 @@ defineExpose({ unit })
           <nav v-if="u.jalur.length" class="jalur" aria-label="Unit induk">
             <span v-for="j in u.jalur" :key="j.id">{{ j.nama }}<Ikon nama="panah_kanan" :ukuran="12" /></span>
           </nav>
-          <h2 id="judul-rincian-unit">{{ u.nama }}</h2>
+          <h2 id="judul-rincian-unit" tabindex="-1">{{ u.nama }}</h2>
           <p>
             <code>{{ u.kode }}</code> · {{ LABEL_JENIS[u.jenis] }}
             <span class="pil" :class="u.status === 'aktif' ? 'pil-ok' : 'pil-netral'">{{ u.status === 'aktif' ? 'Aktif' : 'Nonaktif' }}</span>
@@ -107,6 +107,9 @@ defineExpose({ unit })
 }
 .judul h2 {
   font-size: 17px;
+}
+.judul h2:focus {
+  outline: none;
 }
 .judul p {
   display: flex;

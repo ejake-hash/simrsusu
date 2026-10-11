@@ -2,6 +2,7 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 import DataTable, { type KolomTabel } from '@/design-system/components/DataTable.vue'
+import Tombol from '@/design-system/components/Tombol.vue'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import { pesanError } from '@/modules/akses/pengaturan'
 import { boleh } from '@/shared/composables/usePermission'
@@ -110,10 +111,11 @@ function selesai() {
       <template #sel-diubah_pada="{ baris: k }">{{ formatTanggalWaktu(k.diubah_pada) }}</template>
       <template #sel-aksi="{ baris: k }">
         <span class="aksi">
-          <button type="button" class="tombol" :disabled="memuatId === k.id" :aria-label="`Ubah ${k.nama}`" @click="buka(k, 'ubah')">Ubah</button>
-          <button type="button" class="tombol" :disabled="memuatId === k.id" :aria-label="`${k.status === 'aktif' ? 'Nonaktifkan' : 'Aktifkan'} ${k.nama}`" @click="buka(k, 'status')">
+          <!-- Sibuk (aria-disabled), bukan disabled: tombol yang difokus tetap fokus selama GET /ksm/{id}. -->
+          <Tombol :sibuk="memuatId === k.id" :aria-label="`Ubah ${k.nama}`" @click="buka(k, 'ubah')">Ubah</Tombol>
+          <Tombol :sibuk="memuatId === k.id" :aria-label="`${k.status === 'aktif' ? 'Nonaktifkan' : 'Aktifkan'} ${k.nama}`" @click="buka(k, 'status')">
             {{ k.status === 'aktif' ? 'Nonaktifkan' : 'Aktifkan' }}
-          </button>
+          </Tombol>
         </span>
       </template>
     </DataTable>

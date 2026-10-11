@@ -119,19 +119,30 @@ watch(terpilih, async (id) => {
   ;(rincian.value?.$el as HTMLElement | undefined)?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
 })
 
-// Unit yang dibuka dari URL: buka cabangnya sekali agar terlihat di pohon.
+// Unit yang dibuka dari URL: buka cabangnya sekali per unit agar terlihat di pohon. Muat ulang rincian berikutnya
+// (fokus jendela, invalidasi) tidak membuka lagi cabang yang sengaja dilipat pengguna.
+let jalurDibuka: string | null = null
 watch(
   () => rincian.value?.unit?.data,
   (u) => {
-    if (u) bukaJalur(u)
+    if (!u || jalurDibuka === u.id) return
+    jalurDibuka = u.id
+    bukaJalur(u)
   },
 )
 
 async function selesai(hasil: Berversi<UnitOrganisasi>) {
+  const pindah = hasil.data.id !== terpilih.value
   qc.setQueryData(KUNCI_ORG.unit(hasil.data.id), hasil)
   if (hasil.data.induk_id) bukaJalur({ jalur: [...hasil.data.jalur] })
-  await qc.invalidateQueries({ queryKey: KUNCI_ORG.semuaUnit })
   pilih(hasil.data.id)
+  // Unit baru: rincian dipasang ulang dan tombol pemicu dialog hilang, jadi fokus dipindah ke judul unit baru
+  // (sesudah dialog selesai mengembalikan fokus) agar tidak jatuh ke body.
+  if (pindah) {
+    await nextTick()
+    requestAnimationFrame(() => document.getElementById('judul-rincian-unit')?.focus())
+  }
+  await qc.invalidateQueries({ queryKey: KUNCI_ORG.semuaUnit })
 }
 function muatUlang() {
   void qc.invalidateQueries({ queryKey: KUNCI_ORG.semuaUnit })
