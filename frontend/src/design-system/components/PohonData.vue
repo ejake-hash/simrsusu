@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useId } from 'vue'
 import SimpulPohonItem from './SimpulPohonItem.vue'
-import type { SimpulPohon } from './pohon'
+import { bisaDibuka, type SimpulPohon } from './pohon'
 
 /**
  * Pohon data yang bisa dilipat (unit organisasi, lokasi bertingkat). Pola tree WAI-ARIA dengan satu tab stop:
  * panah atas/bawah pindah, kanan membuka/masuk anak, kiri melipat/ke induk, Home/End ke ujung, Enter/Spasi memilih.
- * Isi label bisa diganti lewat slot `label` ({ simpul }).
+ * Isi label bisa diganti lewat slot `label` ({ simpul }). Muat-lambat: simpul dengan `adaAnak` bisa dibuka sebelum
+ * `anak` diisi; pemakai memantau `terbuka` lalu mengisi `anak` (selama itu `memuat`).
  */
 const props = defineProps<{ simpul: SimpulPohon[]; label: string }>()
 const terpilih = defineModel<string | null>('terpilih', { default: null })
@@ -79,7 +80,7 @@ function pilih(id: string) {
 function tekan(e: KeyboardEvent, id: string) {
   const info = indeks.value.get(id)
   if (!info) return
-  const punyaAnak = !!info.simpul.anak?.length
+  const punyaAnak = bisaDibuka(info.simpul)
   const i = terlihat.value.indexOf(id)
   const tangani = () => {
     e.preventDefault()
@@ -102,7 +103,7 @@ function tekan(e: KeyboardEvent, id: string) {
       tangani()
       if (!punyaAnak) return
       if (!setTerbuka.value.has(id)) return ubahTerbuka(id, true)
-      return void fokuskan(info.simpul.anak![0]!.id)
+      return void fokuskan(info.simpul.anak?.[0]?.id)
     case 'ArrowLeft':
       tangani()
       if (punyaAnak && setTerbuka.value.has(id)) return ubahTerbuka(id, false)

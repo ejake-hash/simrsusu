@@ -46,7 +46,7 @@ const POHON: [kode: string, label: string | null, menu: DefMenu[]][] = [
       ['logistik', 'Logistik', 4, [['gudang', 'Gudang & persediaan'], ['pengadaan', 'Pengadaan'], ['aset', 'Aset tetap'], ['pemeliharaan', 'Pemeliharaan & kalibrasi']]],
       ['integrasi', 'Integrasi dan Laporan', 2, [['satusehat', 'SATUSEHAT'], ['bpjs', 'Bridging BPJS'], ['laporan_wajib', 'Laporan wajib', 4]]],
       ['dasbor', 'Dasbor', 4, [['ringkasan_direksi', 'Ringkasan direksi'], ['keuangan', 'Keuangan'], ['pelayanan', 'Pelayanan']]],
-      ['master_data', 'Master Data', 1, [['katalog', 'Data induk'], ['usulan', 'Usulan perubahan'], ['organisasi', 'Organisasi']]],
+      ['master_data', 'Master Data', 1, [['katalog', 'Data induk'], ['usulan', 'Usulan perubahan'], ['organisasi', 'Organisasi, unit & KSM']]],
       ['pengaturan', 'Pengaturan Sistem', 1, [['peran', 'Peran & izin'], ['akun', 'Akun & akses'], ['audit', 'Jejak audit'], ['menu', 'Pengaturan menu'], ['integrasi', 'Konfigurasi integrasi'], ['profil_rs', 'Profil rumah sakit']]],
     ],
   ],

@@ -22,6 +22,8 @@ const LABEL_CAKUPAN: Record<Penugasan['cakupan_jenis'], string> = {
   depo: 'Depo farmasi',
   pasien_dirawat: 'Pasien yang dirawat',
 }
+/** Cakupan unit: "Unit kerja · KODE · Nama" (cakupan_label dari server, kontrak v0.3.0). */
+const teksCakupan = (p: Penugasan) => [LABEL_CAKUPAN[p.cakupan_jenis], p.cakupan_label].filter(Boolean).join(' · ')
 
 const berlaku = computed(() => props.akun.penugasan.filter((p) => p.berlaku_sekarang))
 const riwayat = computed(() => props.akun.penugasan.filter((p) => !p.berlaku_sekarang))
@@ -59,7 +61,7 @@ async function akhiri(alasan: string) {
       <li v-for="p in berlaku" :key="p.id" class="baris">
         <div>
           <b>{{ p.peran.nama }}</b>
-          <p>Cakupan: {{ LABEL_CAKUPAN[p.cakupan_jenis] }}</p>
+          <p>Cakupan: {{ teksCakupan(p) }}</p>
           <p>Berlaku {{ formatTanggal(p.berlaku_dari) }} s.d. {{ formatTanggal(p.berlaku_sampai) ?? 'tidak dibatasi' }} · dasar: {{ p.dasar_pemberian }}</p>
           <p v-if="p.diberikan_oleh" class="pelaku">Diberikan oleh {{ p.diberikan_oleh.nama }}</p>
         </div>

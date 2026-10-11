@@ -7,6 +7,7 @@ import { useSesiStore } from '@/app/sesi'
 import NotifikasiToast from '@/design-system/components/NotifikasiToast.vue'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import { useKelasLayar } from '@/shared/composables/useKelasLayar'
+import PemilihUnitKerja from './PemilihUnitKerja.vue'
 import PencarianMenu from './PencarianMenu.vue'
 import PitaDemo from './PitaDemo.vue'
 import { adalahPintasanCari, bukaPencarianMenu, pencarianTerbuka } from './pencarianMenu'
@@ -167,6 +168,7 @@ async function keluar() {
             <span id="cari-segera" class="segera">Segera<span class="sr-only"> hadir</span></span>
           </div>
 
+          <PemilihUnitKerja />
           <PencarianMenu />
 
           <div class="akun">

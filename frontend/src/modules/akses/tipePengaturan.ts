@@ -200,8 +200,6 @@ export interface IsianPenugasan {
   peran_id: string
   cakupan_jenis: CakupanJenis
   cakupan_id: string | null
-  /** Nama dan kode unit untuk cakupan `unit`, null untuk `rs` (kontrak v0.3.0; opsional bila backend lebih lama). */
-  cakupan_label?: string | null
   berlaku_dari: string | null
   berlaku_sampai: string | null
   dasar_pemberian: string
