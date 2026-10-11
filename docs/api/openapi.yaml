@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.4.0
+  version: 0.5.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -23,6 +23,8 @@ info:
     v0.4.0: Persetujuan dan permintaan akses (tiket 1.2d; kontrol ganda K3/K4/K13): /persetujuan-akses, /permintaan-akses, /izin/{kode}/penyetuju,
     /akun/saran-peran; pemberian berisiko menjadi persetujuan menunggu (202 / `menunggu_persetujuan`); 409 `butuh_persetujuan`
     dan `peran_bawaan_terkunci` (penugasan superadmin) tetap tercantum untuk backend sebelum 1.2d.
+    v0.5.0: Lokasi fisik, ruang, dan tempat tidur (tiket 1.8b): /lokasi (pohon, impor CSV), /bangsal, /kamar,
+    /tempat-tidur (tutup bertanggal, kode tidak dipakai ulang), /kelas-rawat, /poliklinik, /kapasitas-tempat-tidur.
 servers:
   - url: /api/v1
 security:
@@ -1264,6 +1266,782 @@ paths:
                         jumlah_akun: { type: integer, minimum: 5 }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # Lokasi fisik, ruang, dan tempat tidur (tiket 1.8b; PRD v0.10.11 FR-54-11…14, FR-08-16…20 — PRD menyusul di #39,
+  # aturan yang dipakai kode ditulis di sini dan di badan tiket backlog).
+  # Izin: sub-menu `master_data.lokasi` ("Lokasi, ruang & tempat tidur"), aksi lihat/input/perbaiki, semuanya dengan
+  # cakupan `rs` (pengelolaan per unit menyusul bersama admin delegasi). Poliklinik memakai `master_data.organisasi.*`.
+  # Lokasi menjawab *di mana* (gedung, lantai, ruang, TT); unit organisasi menjawab *siapa yang mengelola*.
+  # Jenis anak sesuai jenis induk:
+  #   (akar) → situs | gedung;  situs → gedung;  gedung → sayap | lantai;  sayap → lantai;  lantai → ruang;
+  #   ruang → tempat_tidur;  tempat_tidur → (tidak ada).
+  # `kode` = segmen pendek, unik di antara saudara; `kode_lengkap` = gabungan kode dari akar dengan "-" (mis. B-3-304-2),
+  # dihitung server, unik di seluruh RS. Lokasi tidak pernah dihapus: penutupan lewat status dan tanggal.
+  # Tempat tidur: node lokasi jenis `tempat_tidur` dibuat/dikelola lewat /tempat-tidur (bukan /lokasi). Kode TT tidak
+  # pernah dihapus atau dipakai ulang, termasuk setelah TT ditutup atau ruangnya dipindah.
+  # Mengubah ruang/kamar/TT dengan usulan berjenjang = tiket 1.8c; di 1.8b perubahan langsung oleh pemegang izin.
+  # ---------------------------------------------------------------------------
+  /lokasi:
+    get:
+      operationId: daftarLokasi
+      summary: Daftar lokasi (paginasi kursor), per induk untuk pohon yang dimuat bertahap
+      description: |
+        Izin: master_data.lokasi.lihat ATAU master_data.organisasi.lihat (pemilih ruang di form poliklinik), cakupan `rs`.
+        - `akar=true` → lokasi tingkat teratas; `induk_id=<id>` → anak langsung lokasi itu (`jumlah_anak` untuk pohon).
+        - `cari` → cocok sebagian pada `kode_lengkap` atau nama di seluruh pohon (mis. "B-3-304").
+        Urut: kode_lengkap.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: induk_id, schema: { type: string, format: uuid } }
+        - { in: query, name: akar, schema: { type: boolean } }
+        - { in: query, name: cari, schema: { type: string, maxLength: 100 } }
+        - { in: query, name: jenis, schema: { $ref: '#/components/schemas/JenisLokasi' } }
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/StatusLokasi' } }
+      responses:
+        '200':
+          description: Satu halaman lokasi
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Lokasi' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatLokasi
+      summary: Tambah lokasi (situs, gedung, sayap, lantai, atau ruang)
+      description: |
+        Izin: master_data.lokasi.input. Jenis `tempat_tidur` lewat POST /tempat-tidur (422 `kelola_lewat_tempat_tidur`).
+        - 422 `jenis_induk_tidak_sesuai` (aturan jenis di atas); 422 `induk_tidak_aktif` (induk ditutup);
+          422 `fungsi_wajib` (ruang tanpa fungsi) / `fungsi_hanya_ruang`; 422 `unit_tidak_valid` (unit tidak ada atau nonaktif).
+        - 409 `kode_sudah_dipakai`: kode sama dengan saudara, atau `kode_lengkap` yang terbentuk sudah ada.
+        - `unit_organisasi_id` kosong = mengikuti pengelola induk.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianLokasi' }
+      responses:
+        '201':
+          description: Lokasi dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Lokasi' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /lokasi/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciLokasi
+      summary: Rincian lokasi beserta jalur induknya
+      description: "Izin: master_data.lokasi.lihat ATAU master_data.organisasi.lihat. ETag = `versi`."
+      responses:
+        '200':
+          description: Rincian lokasi
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Lokasi' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: ubahLokasi
+      summary: Ubah, pindah induk, atau ubah status lokasi
+      description: |
+        Izin: master_data.lokasi.perbaiki. Wajib If-Match. Kirim minimal satu isian selain `dasar_perubahan`.
+        Lokasi jenis `tempat_tidur`: 422 `kelola_lewat_tempat_tidur`. `jenis` tidak bisa diubah.
+        - Pindah induk (`induk_id`): 422 `siklus` (induk baru = lokasi itu atau turunannya), 422 `jenis_induk_tidak_sesuai`;
+          `kode_lengkap` lokasi dan seluruh turunannya dihitung ulang (409 `kode_sudah_dipakai` bila bentrok). Kode TT
+          (`TempatTidur.kode`) tidak ikut berubah.
+        - Status (`status` + `status_berlaku_dari`, tanggal ≤ hari ini zona RS; kosong = hari ini): `renovasi` dan `ditutup`
+          ditolak 409 `lokasi_masih_dipakai` bila masih ada turunan aktif, TT yang belum ditutup, atau poliklinik aktif di ruang
+          itu; `rincian` = daftar berisi satu objek `{jumlah_anak_aktif, jumlah_tempat_tidur, jumlah_poliklinik}`.
+          Penjadwalan status ke tanggal mendatang lewat usulan berjenjang (1.8c).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              properties:
+                induk_id: { type: [string, 'null'], format: uuid }
+                kode: { $ref: '#/components/schemas/KodeLokasi' }
+                nama: { type: string, minLength: 2, maxLength: 150 }
+                fungsi: { $ref: '#/components/schemas/FungsiRuang' }
+                unit_organisasi_id: { type: [string, 'null'], format: uuid }
+                status: { $ref: '#/components/schemas/StatusLokasi' }
+                status_berlaku_dari: { type: [string, 'null'], format: date }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Lokasi sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Lokasi' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /lokasi/impor:
+    post:
+      operationId: imporLokasi
+      summary: Impor lokasi, kamar, dan TT dari CSV (pratinjau dulu, lalu terapkan)
+      description: |
+        Izin: master_data.lokasi.input. Berkas CSV UTF-8 (RFC 4180, pemisah koma, baris pertama judul kolom), paling
+        besar 5 MB dan 10.000 baris data. Templat dibuat klien dari daftar kolom ini:
+        `jenis,kode,induk,nama,fungsi,unit,bangsal,kelas_rawat,kapasitas_maksimum,ekstra`
+        - `jenis`: situs | gedung | sayap | lantai | ruang | tempat_tidur.
+        - `kode`: segmen (KodeLokasi). `induk`: `kode_lengkap` induk, kosong = akar. Induk boleh ada di basis data atau di
+          baris lain berkas yang sama (urutan bebas).
+        - `nama` wajib kecuali `tempat_tidur` (kosong = "TT <kode>"). `fungsi` wajib untuk ruang (FungsiRuang).
+        - `unit`: kode unit organisasi pengelola; kosong = mengikuti induk.
+        - `bangsal` (hanya ruang): kode bangsal; bila diisi, ruang itu sekaligus menjadi kamar bangsal tersebut, dengan
+          `kapasitas_maksimum` opsional. Ruang induk baris `tempat_tidur` wajib menjadi kamar (di berkas atau sudah ada).
+        - `kelas_rawat` (wajib untuk tempat_tidur): kode kelas rawat. `ekstra`: `ya` | `tidak` (kosong = tidak).
+        Bangsal dan kelas rawat harus sudah ada. Impor hanya menambah; `kode_lengkap` yang sudah ada = salah.
+        - `mode=pratinjau`: tidak menyimpan apa pun; mengembalikan ringkasan dan baris salah beserta alasannya.
+        - `mode=terapkan`: memeriksa ulang; bila ada satu baris salah → 422 `impor_tidak_valid` (`rincian` = baris salah,
+          tidak ada yang disimpan); bila semua benar → disimpan dalam satu transaksi, satu audit `master_data.lokasi_diimpor`.
+        - 422 `berkas_tidak_valid`: bukan CSV UTF-8, judul kolom tidak sesuai, atau melebihi batas.
+        Kode salah per baris: `kolom_wajib`, `jenis_tidak_dikenal`, `kode_tidak_valid`, `kode_ganda` (sama di berkas),
+        `kode_sudah_dipakai`, `induk_tidak_ditemukan`, `siklus`, `jenis_induk_tidak_sesuai`, `induk_tidak_aktif`,
+        `fungsi_wajib`, `unit_tidak_valid`, `bangsal_tidak_valid`, `kelas_rawat_tidak_valid`, `bukan_kamar`, `nilai_tidak_valid`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [berkas, mode, dasar_perubahan]
+              properties:
+                berkas: { type: string, contentMediaType: text/csv }
+                mode: { type: string, enum: [pratinjau, terapkan] }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Hasil pratinjau atau penerapan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/HasilImporLokasi' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '413': { description: "Berkas melebihi batas unggah server web" }
+        '422': { $ref: '#/components/responses/Error' }
+  /bangsal:
+    get:
+      operationId: daftarBangsal
+      summary: Daftar bangsal (paginasi kursor)
+      description: "Izin: master_data.lokasi.lihat, cakupan `rs`. Urut: kode."
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: cari, schema: { type: string, maxLength: 100 } }
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
+      responses:
+        '200':
+          description: Satu halaman bangsal
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Bangsal' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatBangsal
+      summary: Tambah bangsal
+      description: "Izin: master_data.lokasi.input. 409 `kode_sudah_dipakai`; 422 `unit_tidak_valid`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kode, nama, unit_organisasi_id, dasar_perubahan]
+              properties:
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 2, maxLength: 150 }
+                unit_organisasi_id: { type: string, format: uuid }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '201':
+          description: Bangsal dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Bangsal' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /bangsal/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciBangsal
+      summary: Rincian bangsal beserta ringkasan TT per kelas
+      description: "Izin: master_data.lokasi.lihat. ETag = `versi`."
+      responses:
+        '200':
+          description: Rincian bangsal
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Bangsal' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: ubahBangsal
+      summary: Ubah atau nonaktifkan bangsal
+      description: |
+        Izin: master_data.lokasi.perbaiki. Wajib If-Match. 409 `kode_sudah_dipakai`; 422 `unit_tidak_valid`;
+        409 `bangsal_masih_dipakai` bila dinonaktifkan selagi punya TT yang belum ditutup (`rincian` = `[{jumlah_tempat_tidur}]`).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              properties:
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 2, maxLength: 150 }
+                unit_organisasi_id: { type: string, format: uuid }
+                status: { type: string, enum: [aktif, nonaktif] }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Bangsal sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Bangsal' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /kamar:
+    get:
+      operationId: daftarKamar
+      summary: Daftar kamar (paginasi kursor)
+      description: "Izin: master_data.lokasi.lihat, cakupan `rs`. Urut: kode_lengkap ruangnya."
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: bangsal_id, schema: { type: string, format: uuid } }
+        - { in: query, name: cari, schema: { type: string, maxLength: 100 } }
+        - { in: query, name: melebihi_kapasitas, schema: { type: boolean }, description: "Hanya kamar yang TT-nya melebihi kapasitas maksimum" }
+      responses:
+        '200':
+          description: Satu halaman kamar
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Kamar' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatKamar
+      summary: Jadikan sebuah ruang kamar rawat dalam bangsal
+      description: |
+        Izin: master_data.lokasi.input. `lokasi_id` = lokasi jenis ruang yang aktif (422 `bukan_ruang`); satu ruang paling
+        banyak satu kamar (409 `ruang_sudah_kamar`); 422 `bangsal_tidak_valid` (tidak ada atau nonaktif).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianKamar' }
+      responses:
+        '201':
+          description: Kamar dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Kamar' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /kamar/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciKamar
+      summary: Rincian kamar
+      description: "Izin: master_data.lokasi.lihat. ETag = `versi`."
+      responses:
+        '200':
+          description: Rincian kamar
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Kamar' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: ubahKamar
+      summary: Ubah bangsal, kapasitas maksimum, atau atribut standar kamar
+      description: |
+        Izin: master_data.lokasi.perbaiki. Wajib If-Match. 422 `bangsal_tidak_valid`. Kapasitas di bawah jumlah TT aktif
+        tetap disimpan; kamar ditandai `melebihi_kapasitas` (peringatan, bukan penolakan).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              properties:
+                bangsal_id: { type: string, format: uuid }
+                kapasitas_maksimum: { type: [integer, 'null'], minimum: 1, maximum: 99 }
+                atribut_standar: { $ref: '#/components/schemas/AtributKamar' }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Kamar sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Kamar' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /tempat-tidur:
+    get:
+      operationId: daftarTempatTidur
+      summary: Daftar tempat tidur (paginasi kursor)
+      description: "Izin: master_data.lokasi.lihat, cakupan `rs`. Urut: kode. `cari` cocok sebagian pada kode TT."
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: kamar_id, schema: { type: string, format: uuid } }
+        - { in: query, name: bangsal_id, schema: { type: string, format: uuid } }
+        - { in: query, name: kelas_rawat_id, schema: { type: string, format: uuid } }
+        - { in: query, name: status_operasional, schema: { $ref: '#/components/schemas/StatusOperasionalTt' } }
+        - { in: query, name: cari, schema: { type: string, maxLength: 100 } }
+      responses:
+        '200':
+          description: Satu halaman TT
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/TempatTidur' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatTempatTidur
+      summary: Tambah TT di sebuah kamar (sekaligus node lokasi jenis tempat_tidur di bawah ruangnya)
+      description: |
+        Izin: master_data.lokasi.input. Kode TT = `kode_lengkap` ruang + "-" + `kode`; 409 `kode_sudah_dipakai` bila kode
+        itu pernah dipakai TT mana pun (termasuk yang ditutup) atau lokasi lain. 422 `kamar_tidak_valid` (ruangnya tidak
+        aktif), 422 `kelas_rawat_tidak_valid`; 422 `tanggal_tidak_valid` (`berlaku_dari` sebelum hari ini).
+        Bila TT aktif melebihi kapasitas maksimum kamar: tetap dibuat, `peringatan` berisi `melebihi_kapasitas`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianTempatTidur' }
+      responses:
+        '201':
+          description: TT dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, peringatan]
+                properties:
+                  data: { $ref: '#/components/schemas/TempatTidur' }
+                  peringatan: { type: array, items: { type: string, enum: [melebihi_kapasitas] } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /tempat-tidur/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciTempatTidur
+      summary: Rincian TT
+      description: "Izin: master_data.lokasi.lihat. ETag = `versi`."
+      responses:
+        '200':
+          description: Rincian TT
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/TempatTidur' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: ubahTempatTidur
+      summary: Ubah kelas rawat, aturan jenis kelamin, isolasi, atau penanda ekstra
+      description: |
+        Izin: master_data.lokasi.perbaiki. Wajib If-Match. Kode dan kamar tidak bisa diubah (pindah kamar = tutup lalu buat
+        TT baru). 409 `sudah_ditutup`; 422 `kelas_rawat_tidak_valid`. Perubahan kelas/ekstra berlaku untuk kapasitas mulai
+        hari ini; hari yang sudah lewat tetap memakai rekaman kapasitas harian.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              properties:
+                kelas_rawat_id: { type: string, format: uuid }
+                aturan_jenis_kelamin: { $ref: '#/components/schemas/AturanJenisKelamin' }
+                isolasi: { type: boolean }
+                ekstra: { type: boolean }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: TT sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/TempatTidur' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /tempat-tidur/{id}/tutup:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: tutupTempatTidur
+      summary: Tutup TT mulai sebuah tanggal (permanen; kodenya tidak dipakai ulang)
+      description: |
+        Izin: master_data.lokasi.perbaiki. Wajib If-Match. `berlaku_dari` = hari pertama TT tidak dihitung (≥ hari ini zona RS;
+        422 `tanggal_tidak_valid`); sampai hari sebelumnya TT tetap dihitung dalam kapasitas (status `akan_ditutup`).
+        - 409 `tempat_tidur_terisi`: TT terisi atau dipesan pada tanggal itu (penempatan pasien di fase 2; di fase 1 selalu kosong).
+        - 409 `sudah_ditutup` (termasuk yang sudah dijadwalkan tutup).
+        Tutup sementara (renovasi singkat) dan pembukaan kembali lewat usulan berjenjang (1.8c).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [berlaku_dari, alasan, dasar_perubahan]
+              properties:
+                berlaku_dari: { type: string, format: date }
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: TT sesudah dijadwalkan/ditutup
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/TempatTidur' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /kelas-rawat:
+    get:
+      operationId: daftarKelasRawat
+      summary: Daftar kelas rawat (paginasi kursor)
+      description: |
+        Izin: master_data.lokasi.lihat, cakupan `rs`. Urut: kode. Kelas lama dan KRIS boleh berdampingan dengan tanggal
+        berlaku (PRD T-4); isi kelas dan kode Aplicares diisi RS, tidak ada data bawaan.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
+      responses:
+        '200':
+          description: Satu halaman kelas rawat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/KelasRawat' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatKelasRawat
+      summary: Tambah kelas rawat
+      description: "Izin: master_data.lokasi.input. 409 `kode_sudah_dipakai`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kode, nama, dasar_perubahan]
+              properties:
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 1, maxLength: 100 }
+                kode_aplicares: { type: [string, 'null'], maxLength: 20, description: "Kode kelas di Aplicares BPJS, diisi RS dari dokumen resmi" }
+                berlaku_dari: { type: [string, 'null'], format: date, description: "Kosong = hari ini" }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '201':
+          description: Kelas rawat dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/KelasRawat' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /kelas-rawat/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciKelasRawat
+      summary: Rincian kelas rawat
+      description: "Izin: master_data.lokasi.lihat. ETag = `versi`."
+      responses:
+        '200':
+          description: Rincian kelas rawat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/KelasRawat' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: ubahKelasRawat
+      summary: Ubah atau nonaktifkan kelas rawat
+      description: |
+        Izin: master_data.lokasi.perbaiki. Wajib If-Match. 409 `kode_sudah_dipakai`; 409 `kelas_masih_dipakai` bila
+        dinonaktifkan selagi ada TT yang belum ditutup di kelas itu (`rincian` = `[{jumlah_tempat_tidur}]`).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              properties:
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 1, maxLength: 100 }
+                kode_aplicares: { type: [string, 'null'], maxLength: 20 }
+                status: { type: string, enum: [aktif, nonaktif] }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Kelas rawat sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/KelasRawat' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /poliklinik:
+    get:
+      operationId: daftarPoliklinik
+      summary: Daftar poliklinik (paginasi kursor)
+      description: "Izin: master_data.organisasi.lihat, cakupan `rs`. Urut: kode."
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: cari, schema: { type: string, maxLength: 100 } }
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
+      responses:
+        '200':
+          description: Satu halaman poliklinik
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Poliklinik' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatPoliklinik
+      summary: Tambah poliklinik
+      description: |
+        Izin: master_data.organisasi.input. 409 `kode_sudah_dipakai`; 422 `unit_tidak_valid`; 422 `bukan_ruang`
+        (`lokasi_id` bukan ruang aktif). `kode_poli_bpjs` diisi RS dari referensi BPJS resmi (tidak ada daftar bawaan).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kode, nama, unit_organisasi_id, dasar_perubahan]
+              properties:
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 2, maxLength: 150 }
+                unit_organisasi_id: { type: string, format: uuid }
+                lokasi_id: { type: [string, 'null'], format: uuid, description: "Ruang tempat poli (penunjuk arah)" }
+                kode_poli_bpjs: { type: [string, 'null'], maxLength: 10 }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '201':
+          description: Poliklinik dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Poliklinik' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /poliklinik/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciPoliklinik
+      summary: Rincian poliklinik
+      description: "Izin: master_data.organisasi.lihat. ETag = `versi`."
+      responses:
+        '200':
+          description: Rincian poliklinik
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Poliklinik' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: ubahPoliklinik
+      summary: Ubah atau nonaktifkan poliklinik
+      description: "Izin: master_data.organisasi.perbaiki. Wajib If-Match. 409 `kode_sudah_dipakai`; 422 `unit_tidak_valid`, `bukan_ruang`."
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              properties:
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 2, maxLength: 150 }
+                unit_organisasi_id: { type: string, format: uuid }
+                lokasi_id: { type: [string, 'null'], format: uuid }
+                kode_poli_bpjs: { type: [string, 'null'], maxLength: 10 }
+                status: { type: string, enum: [aktif, nonaktif] }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Poliklinik sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Poliklinik' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /kapasitas-tempat-tidur:
+    get:
+      operationId: kapasitasTempatTidur
+      summary: Kapasitas TT per bangsal dan kelas pada satu tanggal (penyebut BOR/BTO/TOI), paginasi per bangsal
+      description: |
+        Izin: master_data.lokasi.lihat, cakupan `rs`. `tanggal` kosong = hari ini (zona RS).
+        - Tanggal yang sudah lewat dibaca dari rekaman harian (`sumber = tersimpan`, tugas harian 00.05 zona RS); perubahan TT
+          sesudahnya tidak mengubah angka hari itu. Hari ini, tanggal mendatang, atau hari lampau tanpa rekaman dihitung dari
+          masa berlaku TT (`sumber = dihitung`).
+        - TT dihitung pada tanggal T bila `berlaku_dari ≤ T` dan (`berlaku_sampai` kosong atau `T ≤ berlaku_sampai`).
+          `jumlah_tersedia` = TT bukan ekstra; `jumlah_ekstra` = TT ekstra (dihitung atau tidak dalam kapasitas resmi adalah
+          konfigurasi pelaporan, bukan di endpoint ini).
+        Urut: kode bangsal. Satu baris = satu bangsal dengan rincian per kelas.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: tanggal, schema: { type: string, format: date } }
+        - { in: query, name: bangsal_id, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Satu halaman kapasitas
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/KapasitasBangsal' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -1474,6 +2252,248 @@ components:
         ketua: { $ref: '#/components/schemas/RingkasPegawai', description: "Ketua KSM dari data pegawai; null sampai tiket 1.8d" }
         versi: { type: string }
         diubah_pada: { type: string, format: date-time }
+    JenisLokasi:
+      type: string
+      enum: [situs, gedung, sayap, lantai, ruang, tempat_tidur]
+      description: "Padanan FHIR Location.physicalType si/bu/wi/lvl/ro/bd (tiket 1.8b)"
+    StatusLokasi:
+      type: string
+      enum: [aktif, renovasi, ditutup]
+    FungsiRuang:
+      type: [string, 'null']
+      enum: [rawat_inap, rawat_jalan, igd, kamar_operasi, intensif, penunjang, administrasi, gudang, lainnya, null]
+      description: "Wajib untuk ruang, kosong untuk jenis lain"
+    KodeLokasi:
+      type: string
+      pattern: '^[A-Z0-9]{1,10}$'
+      description: "Segmen kode, tanpa tanda hubung (pemisah kode_lengkap), mis. B, 3, 304, 2"
+    RingkasUnit:
+      type: [object, 'null']
+      required: [id, kode, nama]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+    RingkasLokasi:
+      type: [object, 'null']
+      required: [id, kode_lengkap, nama]
+      properties:
+        id: { type: string, format: uuid }
+        kode_lengkap: { type: string }
+        nama: { type: string }
+    Lokasi:
+      type: object
+      required: [id, induk_id, jenis, kode, kode_lengkap, nama, fungsi, unit, status, status_berlaku_dari, satusehat_lokasi_id, kamar_id, tempat_tidur_id, jumlah_anak, jalur, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        induk_id: { type: [string, 'null'], format: uuid }
+        jenis: { $ref: '#/components/schemas/JenisLokasi' }
+        kode: { type: string }
+        kode_lengkap: { type: string, examples: ['B-3-304-2'] }
+        nama: { type: string }
+        fungsi: { $ref: '#/components/schemas/FungsiRuang' }
+        unit: { $ref: '#/components/schemas/RingkasUnit', description: "Unit pengelola saat ini" }
+        status: { $ref: '#/components/schemas/StatusLokasi' }
+        status_berlaku_dari: { type: string, format: date }
+        satusehat_lokasi_id: { type: [string, 'null'], description: "Diisi integrasi SATUSEHAT (tiket 1.9); hanya baca" }
+        kamar_id: { type: [string, 'null'], format: uuid, description: "Ruang yang menjadi kamar rawat" }
+        tempat_tidur_id: { type: [string, 'null'], format: uuid, description: "Untuk jenis tempat_tidur" }
+        jumlah_anak: { type: integer, minimum: 0 }
+        jalur:
+          type: array
+          description: "Induk dari akar sampai induk langsung, untuk breadcrumb"
+          items: { $ref: '#/components/schemas/RingkasLokasi' }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    IsianLokasi:
+      type: object
+      required: [induk_id, jenis, kode, nama, dasar_perubahan]
+      properties:
+        induk_id: { type: [string, 'null'], format: uuid, description: "null = akar (situs atau gedung)" }
+        jenis: { $ref: '#/components/schemas/JenisLokasi' }
+        kode: { $ref: '#/components/schemas/KodeLokasi' }
+        nama: { type: string, minLength: 2, maxLength: 150 }
+        fungsi: { $ref: '#/components/schemas/FungsiRuang' }
+        unit_organisasi_id: { type: [string, 'null'], format: uuid }
+        dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+    HasilImporLokasi:
+      type: object
+      required: [mode, diterapkan, jumlah_baris, jumlah_salah, per_jenis, kesalahan, kesalahan_terpotong]
+      properties:
+        mode: { type: string, enum: [pratinjau, terapkan] }
+        diterapkan: { type: boolean }
+        jumlah_baris: { type: integer, minimum: 0 }
+        jumlah_salah: { type: integer, minimum: 0, description: "Jumlah baris yang salah" }
+        per_jenis:
+          type: object
+          description: "Jumlah baris per jenis lokasi, plus kamar yang terbentuk"
+          required: [situs, gedung, sayap, lantai, ruang, tempat_tidur, kamar]
+          properties:
+            situs: { type: integer, minimum: 0 }
+            gedung: { type: integer, minimum: 0 }
+            sayap: { type: integer, minimum: 0 }
+            lantai: { type: integer, minimum: 0 }
+            ruang: { type: integer, minimum: 0 }
+            tempat_tidur: { type: integer, minimum: 0 }
+            kamar: { type: integer, minimum: 0 }
+        kesalahan:
+          type: array
+          maxItems: 500
+          items: { $ref: '#/components/schemas/KesalahanBarisImpor' }
+        kesalahan_terpotong: { type: boolean, description: "true bila kesalahan lebih dari 500 baris" }
+    KesalahanBarisImpor:
+      type: object
+      required: [baris, kolom, kode, pesan]
+      properties:
+        baris: { type: integer, minimum: 2, description: "Nomor baris di berkas (judul kolom = baris 1)" }
+        kolom: { type: [string, 'null'] }
+        kode: { type: string }
+        pesan: { type: string }
+    Bangsal:
+      type: object
+      required: [id, kode, nama, unit, status, jumlah_kamar, ringkasan_tt, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+        unit: { $ref: '#/components/schemas/RingkasUnit' }
+        status: { type: string, enum: [aktif, nonaktif] }
+        jumlah_kamar: { type: integer, minimum: 0 }
+        ringkasan_tt:
+          type: array
+          description: "TT per kelas hari ini: tersedia (bukan ekstra), ekstra, akan ditutup, ditutup"
+          items:
+            type: object
+            required: [kelas_rawat, tersedia, ekstra, akan_ditutup, ditutup]
+            properties:
+              kelas_rawat: { $ref: '#/components/schemas/RingkasKelasRawat' }
+              tersedia: { type: integer, minimum: 0 }
+              ekstra: { type: integer, minimum: 0 }
+              akan_ditutup: { type: integer, minimum: 0 }
+              ditutup: { type: integer, minimum: 0 }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    AtributKamar:
+      type: object
+      description: |
+        Atribut standar ruang rawat (FR-08-19; KRIS dan kelas lama) sebagai daftar periksa: kunci snake_case,
+        nilai boolean/angka/teks pendek. Isi kriteria tidak dikodekan keras (perlu verifikasi); daftar periksa baku per RS
+        menunggu keputusan pemilik (backlog).
+      maxProperties: 50
+      propertyNames: { pattern: '^[a-z][a-z0-9_]{1,49}$' }
+      additionalProperties:
+        type: [boolean, number, string]
+        maxLength: 100
+    Kamar:
+      type: object
+      required: [id, nomor, bangsal, lokasi, kapasitas_maksimum, atribut_standar, jumlah_tempat_tidur_aktif, melebihi_kapasitas, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        nomor: { type: string, description: "Kode ruang (segmen terakhir kode_lengkap)" }
+        bangsal: { $ref: '#/components/schemas/RingkasUnit', description: "id/kode/nama bangsal" }
+        lokasi: { $ref: '#/components/schemas/RingkasLokasi', description: "Ruang fisik kamar ini" }
+        kapasitas_maksimum: { type: [integer, 'null'], minimum: 1 }
+        atribut_standar: { $ref: '#/components/schemas/AtributKamar' }
+        jumlah_tempat_tidur_aktif: { type: integer, minimum: 0, description: "TT yang dihitung hari ini" }
+        melebihi_kapasitas: { type: boolean }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    IsianKamar:
+      type: object
+      required: [bangsal_id, lokasi_id, dasar_perubahan]
+      properties:
+        bangsal_id: { type: string, format: uuid }
+        lokasi_id: { type: string, format: uuid, description: "Lokasi jenis ruang" }
+        kapasitas_maksimum: { type: [integer, 'null'], minimum: 1, maximum: 99 }
+        atribut_standar: { $ref: '#/components/schemas/AtributKamar' }
+        dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+    StatusOperasionalTt:
+      type: string
+      enum: [aktif, akan_ditutup, ditutup]
+      description: "Diturunkan dari tanggal: akan_ditutup = berlaku_sampai ≥ hari ini; ditutup = berlaku_sampai < hari ini"
+    AturanJenisKelamin:
+      type: string
+      enum: [campur, laki_laki, perempuan]
+    RingkasKelasRawat:
+      type: object
+      required: [id, kode, nama]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+    TempatTidur:
+      type: object
+      required: [id, kode, kamar, bangsal, lokasi_id, kelas_rawat, aturan_jenis_kelamin, isolasi, ekstra, status_operasional, berlaku_dari, berlaku_sampai, alasan_tutup, satusehat_lokasi_id, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string, examples: ['B-3-304-2'], description: "Tidak pernah berubah atau dipakai ulang" }
+        kamar: { $ref: '#/components/schemas/RingkasLokasi', description: "id kamar, kode_lengkap dan nama ruangnya" }
+        bangsal: { $ref: '#/components/schemas/RingkasUnit', description: "id/kode/nama bangsal" }
+        lokasi_id: { type: string, format: uuid, description: "Node lokasi jenis tempat_tidur" }
+        kelas_rawat: { $ref: '#/components/schemas/RingkasKelasRawat' }
+        aturan_jenis_kelamin: { $ref: '#/components/schemas/AturanJenisKelamin' }
+        isolasi: { type: boolean }
+        ekstra: { type: boolean, description: "TT tambahan saat lonjakan, dihitung terpisah" }
+        status_operasional: { $ref: '#/components/schemas/StatusOperasionalTt' }
+        berlaku_dari: { type: string, format: date }
+        berlaku_sampai: { type: [string, 'null'], format: date, description: "Hari terakhir TT dihitung; null = tanpa batas" }
+        alasan_tutup: { type: [string, 'null'] }
+        satusehat_lokasi_id: { type: [string, 'null'] }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    IsianTempatTidur:
+      type: object
+      required: [kamar_id, kode, kelas_rawat_id, dasar_perubahan]
+      properties:
+        kamar_id: { type: string, format: uuid }
+        kode: { $ref: '#/components/schemas/KodeLokasi' }
+        kelas_rawat_id: { type: string, format: uuid }
+        aturan_jenis_kelamin: { $ref: '#/components/schemas/AturanJenisKelamin', description: "Kosong = campur" }
+        isolasi: { type: boolean, default: false }
+        ekstra: { type: boolean, default: false }
+        berlaku_dari: { type: [string, 'null'], format: date, description: "Hari pertama dihitung (≥ hari ini); kosong = hari ini" }
+        dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+    KelasRawat:
+      type: object
+      required: [id, kode, nama, kode_aplicares, berlaku_dari, status, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+        kode_aplicares: { type: [string, 'null'] }
+        berlaku_dari: { type: string, format: date }
+        status: { type: string, enum: [aktif, nonaktif] }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    Poliklinik:
+      type: object
+      required: [id, kode, nama, unit, lokasi, kode_poli_bpjs, status, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+        unit: { $ref: '#/components/schemas/RingkasUnit' }
+        lokasi: { $ref: '#/components/schemas/RingkasLokasi', description: "Ruang poli; null = belum dipetakan" }
+        kode_poli_bpjs: { type: [string, 'null'] }
+        status: { type: string, enum: [aktif, nonaktif] }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    KapasitasBangsal:
+      type: object
+      required: [tanggal, sumber, bangsal, kelas]
+      properties:
+        tanggal: { type: string, format: date }
+        sumber: { type: string, enum: [tersimpan, dihitung] }
+        bangsal: { $ref: '#/components/schemas/RingkasUnit', description: "id/kode/nama bangsal" }
+        kelas:
+          type: array
+          items:
+            type: object
+            required: [kelas_rawat, jumlah_tersedia, jumlah_ekstra]
+            properties:
+              kelas_rawat: { $ref: '#/components/schemas/RingkasKelasRawat' }
+              jumlah_tersedia: { type: integer, minimum: 0 }
+              jumlah_ekstra: { type: integer, minimum: 0 }
     RingkasPeran:
       type: [object, 'null']
       required: [id, kode, nama]
