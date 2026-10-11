@@ -10,7 +10,7 @@ metadata:
 > - Prefiks **`/api/v1/`**, kata benda **bahasa Indonesia**, kebab-case, **tanpa jamak** (bahasa Indonesia tidak memakai bentuk jamak): `/api/v1/pasien`, `/api/v1/pasien/{id}`, `/api/v1/permintaan-pemeriksaan`. Abaikan contoh `/api/v1/users` di bawah.
 > - Aksi bisnis sebagai sub-sumber kata kerja Indonesia: `POST /api/v1/resep/{id}/sahkan`, `POST /api/v1/tagihan/{id}/batal`. Tidak ada `DELETE` untuk data klinis/keuangan.
 > - Kunci JSON `snake_case` bahasa Indonesia, sama dengan kolom (`nomor_rm`, `dibuat_pada`). ID berupa UUIDv7.
-> - Galat memakai format tunggal PRD 10.3.1; pesan galat untuk pengguna dalam bahasa Indonesia dan **tanpa data pasien**.
+> - Error memakai format tunggal PRD 10.3.1 (`{"error": {"kode", "pesan", "rincian"}}`); `pesan` untuk pengguna dalam bahasa Indonesia dan **tanpa data pasien**.
 > - Detail konvensi: PRD 10.3.1.
 
 

@@ -54,7 +54,7 @@ final class MenuSaya
                 if ($statusMenu !== null) {
                     $daftarMenu[] = [
                         'kode' => $m->kode, 'label' => $m->label, 'ikon' => $m->ikon, 'rute' => $m->rute,
-                        'status' => $statusMenu, 'fase' => $m->fase, 'lencana' => null, 'sub_menu' => $subMenu,
+                        'status' => $statusMenu, 'fase' => $m->fase, 'jumlah_tugas' => null, 'sub_menu' => $subMenu,
                     ];
                 }
             }

@@ -23,16 +23,18 @@
 | 1.0f | Antrean setelah commit, penghitung batas laju di instans `noeviction`, aturan bersih-bersih tiket di CLAUDE.md. Catatan: store `batas-laju` = `cache.limiter`; tes memakai `array` (`CACHE_LIMITER_STORE`) agar `travel()` berlaku | Selesai | #25 |
 | 1.2a | Backend akses: tabel menu/peran/izin/penugasan, seeder menu dari prototipe, `AccessEvaluator` lapis 1–3, `GET /api/v1/saya/menu`, superadmin sementara → peran. Catatan: menu bawaan di `MenuBawaan` (dipasang migrasi), halaman yang sudah dibangun ditandai `TERSEDIA`; izin lewat `can:<menu>.<sub_menu>.<aksi>`; e2e kerangka kini ke backend asli dengan `contoh.dokter` | Selesai | #27 |
 | 1.2b | Frontend kerangka aplikasi: `AppShell` + `SidebarMenu` dinamis (kontrak `docs/api/openapi.yaml`), `SegeraHadirPage`, responsif PRD 5.5. Catatan: menu aktif tanpa halaman frontend juga ke `SegeraHadirPage`; jalur di luar menu = *Halaman tidak ditemukan* (tidak dibedakan dari tidak diizinkan); e2e masih memakai menu tiruan (lihat utang) | Selesai | #26 |
-| — | PRD v0.10.9 (penyelarasan 1.2a, aturan layar peran/akun), kontrak `openapi.yaml` v0.2.0, paket halaman 1.2c | **Siap dikerjakan** (PR dokumen, dulu) | — |
-| **1.2c-be** | Backend Pengaturan → Peran & izin, Akun & akses: pindah kode menu ke `pengaturan.*`, endpoint kontrak v0.2.0, wajib MFA per peran/akun, reset MFA, larangan diri sendiri | **Siap dikerjakan** setelah PR dokumen | — |
+| — | PRD v0.10.9 (penyelarasan 1.2a, aturan layar peran/akun), kontrak `openapi.yaml` v0.2.0, paket halaman 1.2c | Selesai | #28 |
+| 1.0g | Istilah umum: ganti kata baku yang jarang dipakai (galat, surel, jangkar, dll.) dengan istilah yang lazim, di kode, kontrak, PRD, dan layar; glosarium di PRD 10.3.3. Catatan: PRD v0.10.11 dipisah ke #39 (menunggu pemilik; sampai itu glosarium = badan tiket ini), kontrak v0.2.1; kolom `akses.pengguna.email`; kode menu `master_data.*`; variabel .env berganti nama (daftar di PR #29); migrasi lama dan ADR 0003 tetap memuat istilah lama sebagai sejarah | Selesai | #29 |
+| **1.2c-be** | Backend Pengaturan → Peran & izin, Akun & akses: pindah kode menu ke `pengaturan.*`, endpoint kontrak v0.2.0, wajib MFA per peran/akun, reset MFA, larangan diri sendiri. Kode lain yang semula `data_induk.*` kini `master_data.*` (1.0g) | **Siap dikerjakan** setelah 1.0g | — |
 | **1.2c-fe** | Frontend halaman Peran & izin, Akun & akses (`masterdata.html`, temuan MD-1…MD-4), navigasi sub-menu di halaman induk modul | **Siap dikerjakan** setelah PR dokumen (paralel dengan 1.2c-be, data tiruan dari kontrak) | — |
 | 1.2d | Persetujuan akses: izin sensitif oleh pemilik data, peran superadmin oleh superadmin lain, permintaan akses dari layar "Akses ditolak", pembuatan/penonaktifan akun | Menunggu 1.2c | — |
+| **1.2e** | Beranda: modul saya, keamanan akun, pencarian menu, aksesibilitas (`home.html`); tanpa angka tiruan | Menunggu 1.2c-fe (be kecil bisa setelah 1.2c-be) | — |
 | 1.5 | Lapis 4–5 hak akses (label sensitivitas, SIP/SPK, MFA aksi sensitif) | Menunggu 1.2 | — |
 | 1.6 | TTE T1: aktivasi PIN, `TtdModal`, kunci Ed25519 | Menunggu 1.2 | — |
 | 1.7 | Notifikasi dasar (PRD 7.53), jenis bawaan pertama: pemberitahuan akun terkunci | Menunggu 1.2 | — |
 | 1.8 | Wizard penyiapan instalasi kosong dan paket referensi (FR-54-08…10) | Menunggu 1.2 | — |
 | 1.10 | SSO (OIDC/SAML) ke penyedia identitas RS/universitas; tombol tampil hanya bila dikonfigurasi | **Terhambat**: perlu data IdP dari RS/USU | — |
-| 1.9 | Gateway integrasi dasar + sandbox BPJS/SATUSEHAT (kriteria keluar fase 1) | Menunggu dokumen resmi | — |
+| 1.9 | Gateway integrasi dasar + sandbox BPJS/SATUSEHAT (kriteria keluar fase 1). Rujukan: `docs/integrasi/catatan-lapangan-bridging.md` (catatan lapangan aplikasi lain, bukan spesifikasi; perlu verifikasi). Catatan: dibangun dengan server tiruan sampai kredensial sandbox RS mitra tersedia | Menunggu dokumen resmi | — |
 
 ## Utang dan keputusan tertunda
 
@@ -59,7 +61,9 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
 - Profil RS di frontend sementara dari variabel Vite (`VITE_RS_NAMA`, `VITE_RS_LOGO`, `VITE_RS_MOTIF`, `VITE_RS_FOTO`, `VITE_RS_UNIT_ADMIN`, `VITE_RS_KONTAK_ADMIN`; `frontend/src/app/profilRs.ts`). Nilai contoh RS USU hanya di `frontend/.env.development`; build produksi tanpa nilai ini tidak menampilkan kartu RS, motif, dan foto gedung. Ganti dengan `inti.profil_rs` lewat API di tiket 1.8.
 - Dari library PRD 10.4, baru axios dan TanStack Query (1.2b) yang dipakai. VeeValidate + Zod dan Tailwind/Reka UI belum dipasang; pasang saat halaman pertama yang membutuhkannya, bukan sekaligus.
 - Hak akses 1.2a yang belum lengkap: `peran_menu.tingkat_akses/urutan_khusus/label_khusus` (PRD 11.2, layar 9.3) belum dibuat, aksi diambil dari `peran_izin`; cakupan `pasien_dirawat` belum dievaluasi (butuh relasi perawatan); `inti.modul_aktif.unit_organisasi_id` belum berkunci tamu dan modul per unit belum dipakai (menunggu `inti.unit_organisasi`); larangan memberi akses ke diri sendiri dikerjakan di 1.2c-be; persetujuan pemilik data untuk izin sensitif dan perubahan peran superadmin di 1.2d (sampai itu ditolak dengan 409 `butuh_persetujuan`/`peran_bawaan_terkunci`, bukan disimpan diam-diam).
-- Nama ikon yang dikenal frontend = kode menu prototipe (`frontend/src/design-system/ikon/ikon.ts`: `beranda`, `pendaftaran`, `igd`, `rawat_jalan`, `rawat_inap`, `kamar_operasi`, `penunjang`, `farmasi`, `rekam_medis`, `kasir`, `casemix`, `mutu`, `sdm`, `logistik`, `penelitian`, `pendidikan`, `integrasi`, `dasbor`, `data_induk`, `pengaturan`). Seeder menu 1.2a memakai nama ini; nama lain tampil sebagai ikon umum.
+- Sesudah 1.0g: worktree yang dibuat sebelum #29 merge (mis. 1.2c-fe) perlu rebase ke `main` dan mengganti `GalatApi`/`galat` → `ApiError`/`error`, `lencana` → `jumlah_tugas`, `tantangan_id` → `challenge_id`, rute `/data-induk` → `/master-data`, ikon `data_induk` → `master_data`; `.env` lokal mengganti variabel yang berganti nama (daftar di PR #29). Berkas anchor audit lokal lama ada di `storage/app/audit/jangkar`: pindahkan isinya ke `storage/app/audit/anchor` bila ingin tetap diverifikasi.
+- Teks yang sengaja masih memuat istilah lama: migrasi yang sudah berjalan (sejarah, maju saja), ADR 0003 (diberi catatan nama baru), `docs/fase0/`, prototipe `docs/html/`, badan tiket lama di backlog, dan bagian "Kerja berkelanjutan" di CLAUDE.md (teks disetujui pemilik repo apa adanya).
+- Nama ikon yang dikenal frontend = kode menu prototipe (`frontend/src/design-system/ikon/ikon.ts`: `beranda`, `pendaftaran`, `igd`, `rawat_jalan`, `rawat_inap`, `kamar_operasi`, `penunjang`, `farmasi`, `rekam_medis`, `kasir`, `casemix`, `mutu`, `sdm`, `logistik`, `penelitian`, `pendidikan`, `integrasi`, `dasbor`, `master_data`, `pengaturan`). Seeder menu 1.2a memakai nama ini; nama lain tampil sebagai ikon umum.
 - Sidebar ringkas 64 px (tablet mendatar) tidak menampilkan sub-menu. Halaman induk setiap modul wajib menampilkan navigasi sub-menunya sendiri (komponen bersama dibuat di 1.2c-fe, wajib dipakai modul berikutnya).
 - Pemilih unit kerja dan lonceng notifikasi di header prototipe belum dibuat: unit kerja menunggu `inti.unit_organisasi` (cakupan penugasan per unit sudah ada sejak 1.2a), notifikasi di tiket 1.7.
 - Tombol, kolom isian, dan pesan galat di halaman masuk masih ditulis per komponen (`LangkahSandi.vue` dan `components/langkah-mfa.css` bergaya sama). Pindahkan ke `frontend/src/design-system/` saat komponen dasar dibuat (DESIGN.md).
@@ -225,6 +229,53 @@ Uji penerimaan:
 Di luar lingkup tiket: isi beranda/kotak kerja (1.7), pencarian pasien global (fase 2), halaman data induk (1.2c).
 ```
 
+## [SIMRS] Platform · 1.0g Istilah umum
+
+```
+Tujuan     : Nama di kode, API, dan layar memakai kata yang dipakai orang sehari-hari di RS dan tim IT, supaya
+             pengembang baru dan pengguna tidak perlu menebak arti kata baku yang jarang dipakai.
+Aturan     : 1. Istilah pelayanan dan administrasi RS tetap bahasa Indonesia (pasien, kunjungan, tagihan, peran,
+                izin, antrean pasien, kata sandi). Itu bahasa pengguna kita.
+             2. Istilah teknis memakai kata yang paling lazim. Bila padanan bakunya jarang dipakai, pakai istilah
+                serapan/Inggris yang umum (error, email, cache, token, log, queue, rate limit).
+             3. Daftar tetap di PRD 10.3.3 (glosarium istilah) dan dirujuk CLAUDE.md. Istilah baru yang ragu →
+                tambahkan ke glosarium lewat PR, jangan diputuskan per berkas.
+             4. Hindari di layar dan kode: galat, surel, daring/luring, peladen, pranala, tembolok, kuki, tetikus,
+                awakutu.
+Glosarium awal (lama → baru):
+  galat (JSON `galat`, GalatApi, PemetaGalat, GalatMfa, GalatIsian, variabel galat) → error
+      (JSON `{"error": {"kode", "pesan", "rincian"}}`; ApiError, ErrorHandler, MfaError, FieldError)
+  surel (kolom akses.pengguna.surel, field API, label) → email
+  tantangan (MFA; `tantangan_id`, TantanganMfa) → challenge (`challenge_id`, MfaChallenge)
+  jangkar (audit; tabel/kolom, AUDIT_JANGKAR_DISK, channel audit_jangkar) → anchor (AUDIT_ANCHOR_DISK, audit_anchor)
+  penyamaran (PenyamarSql, ProsesorPenyamaran, PasangPenyamaran) → masking (SqlMasker, MaskingProcessor, InstallMasking)
+  batas laju (limiter `batas-laju`, CACHE_LIMITER_STORE tetap) → rate limit (`rate-limit`)
+  proksi tepercaya (ProksiTepercaya, PROKSI_TEPERCAYA) → trusted proxy (TrustedProxies, TRUSTED_PROXIES bawaan Laravel)
+  antrean pekerjaan (JenisAntrean, nama queue) → queue (JenisQueue). Kata "antrean" khusus antrean pasien.
+  lencana (field menu `lencana`) → jumlah_tugas (artinya jelas: angka tugas terbuka)
+  data induk (kode menu `data_induk`, rute /data-induk) → master_data, /master-data (label sudah "Master Data")
+  Tetap (sudah lazim): kata sandi/sandi, sesi, kursor, peran, izin, cakupan, berkas, unggah/unduh, dasbor, Segera hadir.
+Pekerjaan  :
+  1. PRD: salin prd-v0.10.10.md (md5 4f8cb9cf7e1a8dab6cd9acf674234998) sebagai dasar, tambah 10.3.3 Glosarium
+     istilah berisi aturan + tabel di atas, ganti istilah lama di teks normatif (10.3.1 format error, 10.3.2
+     challenge_id, audit anchor, dll.), naikkan ke v0.10.11. Sisipkan juga tiket-1.2e-beranda.md ke backlog.
+  2. Kontrak openapi → v0.2.1: skema Galat → Error (kunci `error`), Menu.lencana → jumlah_tugas, kode menu
+     data_induk → master_data. Uji kontrak diperbarui.
+  3. Backend: rename kelas/berkas/config/env; migrasi kolom surel → email (RENAME COLUMN, tanpa kehilangan data);
+     kode menu data_induk → master_data lewat migrasi data yang aman diulang (pola yang sama dengan 1.2c-be);
+     .env.example dan README.
+  4. Frontend: tipe dan variabel galat → error, field lencana → jumlah_tugas, surel → email, rute /master-data;
+     teks layar yang memakai "galat" diganti kalimat biasa ("Terjadi kesalahan…" atau pesan dari server).
+  5. CLAUDE.md: aturan istilah merujuk PRD 10.3.3; .env lokal di folder utama: daftar variabel yang berganti nama
+     ditulis di deskripsi PR agar pemilik repo bisa menyesuaikan.
+Uji penerimaan:
+  - `grep -rniE "galat|surel|jangkar|penyamar|tantangan|lencana|tepercaya"` di backend/app, backend/config,
+    frontend/src, docs/api tidak menemukan apa pun (kecuali kutipan sejarah di ADR).
+  - composer test, analyse, unit, e2e hijau; login + MFA + sidebar tetap berjalan.
+  - Migrasi berjalan di DB lama (1.2a) tanpa kehilangan data; `migrate:rollback` satu langkah juga berjalan.
+Di luar lingkup tiket: mengganti nama modul domain (Akses, Pendaftaran, dll.), istilah klinis.
+```
+
 ## [SIMRS] Akses · 1.2c Paket halaman: Pengaturan → Peran & izin, Akun & akses
 
 Sumber kebenaran: PRD v0.10.9 (9.1, 9.2, 9.3 "Aturan layar…", 10.3.2), kontrak `docs/api/openapi.yaml` v0.2.0.
@@ -378,6 +429,55 @@ Isi        : persetujuan_akses (izin sensitif → pemilik data; peran/penugasan 
              saran jadikan peran (FR-09-15). Menggantikan 409 butuh_persetujuan dan peran_bawaan_terkunci 1.2c.
 Butuh dulu : siapa "pemilik data" per izin sensitif (data induk), notifikasi 1.7 untuk penyetuju.
 ```
+
+## [SIMRS] Platform · 1.2e Beranda
+
+```
+Tujuan     : Setelah masuk, pengguna langsung tahu modul apa yang ia punya, bisa membukanya dalam satu klik atau
+             lewat keyboard, dan melihat informasi keamanan akunnya. Modul yang belum dibangun membuka Segera hadir.
+FR         : PRD 5.1 butir 9–17, 5.4 (AppShell), 5.5 (Beranda wajib berfungsi di <768 px), 9.2.5, 10.4, FR-54-10
+Acuan      : docs/html/home.html. Dipertahankan: salam, kisi modul berkartu (ikon, nama, ringkasan sub-menu),
+             blok Kotak kerja, Pintasan, Ctrl K. Diubah: kisi modul hanya berisi menu milik akun (dari /saya/menu),
+             bukan semua "modul peragaan". Dibuang: angka KPI/tugas tiruan, tombol "Peragaan · lihat sebagai",
+             tautan anjungan/display/halaman masuk (bukan menu kerja).
+Backend (be, kecil):
+  1. Kolom akses.pengguna.masuk_sebelumnya_pada dan masuk_sebelumnya_dari_jaringan_rs (boolean), diisi dari nilai
+     login_terakhir_pada SEBELUM ditimpa saat masuk berhasil. Alasan: login_terakhir_pada sekarang selalu = sesi
+     ini, jadi tidak berguna untuk "apakah ini Anda?".
+  2. GET /api/v1/saya ditambah: peran (nama peran yang berlaku), masuk_sebelumnya_pada,
+     masuk_sebelumnya_dari_jaringan_rs. Endpoint /saya dipindahkan ke docs/api/openapi.yaml (skema Saya) dengan
+     uji kontrak; tidak mengirim surel bila tidak dipakai layar.
+Frontend (fe):
+  1. Salam (pagi/siang/sore/malam dari jam perangkat), nama, peran yang berlaku, tanggal.
+  2. "Modul saya": kartu per menu dari /saya/menu, urutan grup sidebar; ringkasan = 3 label sub-menu pertama
+     + "dan N lainnya". Menu status segera → kartu dengan lencana "Segera hadir · fase N" yang membuka
+     SegeraHadirPage. Klik sub-menu langsung dari kartu (tanpa harus membuka sidebar, penting di tablet 64 px).
+  3. Kotak kerja: keadaan kosong jujur ("Tugas dan pengingat tampil di sini setelah modul notifikasi aktif"),
+     tanpa angka. Komponen disiapkan agar 1.7 tinggal mengisi data.
+  4. Keamanan akun: "Masuk sebelumnya: <waktu>, dari jaringan RS / dari luar jaringan RS", status MFA, dan
+     tautan "Bukan Anda? Hubungi <unit admin>" dari profil RS. Pertama kali masuk → "Ini masuk pertama Anda".
+  5. Pencarian menu Ctrl/Cmd+K (dan tombol di header): cari di sub-menu yang diizinkan saja; panah atas/bawah,
+     Enter, Esc. Kolom cari pasien tetap nonaktif bertanda Segera hadir.
+  6. Informasi umum: kartu profil RS (nama, kontak unit admin/helpdesk dari profilRs) dan pita DEMO bila
+     instalasi demo (FR-54-10). Tanpa pengumuman (butuh tabel dan pemilik konten; tiket 1.7).
+  7. Aksesibilitas: tautan "Lompat ke konten", landmark (header/nav/main), urutan heading h1→h2, fokus terlihat,
+     target sentuh ≥ 44 px di kelas tablet, lencana Segera hadir dibacakan pembaca layar, prefers-reduced-motion,
+     zoom 200 % tanpa gulir horizontal.
+Uji penerimaan:
+  - contoh.dokter dan contoh.admisi melihat kisi modul berbeda sesuai perannya; akun tanpa penugasan hanya melihat
+    Beranda dengan keterangan "Belum ada modul yang diberikan, hubungi <unit admin>".
+  - Kartu Segera hadir membuka SegeraHadirPage; kartu aktif membuka halamannya.
+  - Masuk dua kali: kali kedua menampilkan waktu masuk pertama, bukan waktu sekarang.
+  - Ctrl/Cmd+K hanya menemukan sub-menu yang diizinkan; dapat dipakai penuh dengan keyboard.
+  - e2e 1440/1024/768/390 tanpa gulir horizontal; @axe-core/playwright tanpa pelanggaran serius/kritis di Beranda.
+  - Tidak ada angka tiruan di bundle produksi (pemeriksaan yang sama dengan 1.2c-fe).
+  - Tangkapan layar berdampingan dengan home.html di PR.
+Di luar lingkup tiket: isi kotak kerja dan lonceng (1.7), pemilih unit kerja (menunggu inti.unit_organisasi),
+favorit menu, pencarian pasien (fase 2).
+```
+
+<!-- Catatan untuk tiket 1.8 (wizard penyiapan): langkah 3 kini mencakup lokasi fisik bertingkat (PRD FR-54-11…14)
+     dan kamar/TT dengan atribut standar (FR-08-16…19); impor CSV lokasi wajib. -->
 
 ## [SIMRS] Akses · 1.10 SSO universitas (terhambat)
 

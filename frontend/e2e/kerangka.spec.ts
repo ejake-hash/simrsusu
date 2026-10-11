@@ -8,7 +8,7 @@ import { expect, test as dasar, type APIRequestContext, type BrowserContext, typ
 const SANDI = process.env.E2E_SANDI ?? ''
 const AKUN = { nama: 'contoh.dokter', pegawai: 'Contoh Dokter' }
 
-// Masuk sekali per berkas, lalu cookie sesinya dipakai semua uji: batas laju masuk per nama
+// Masuk sekali per berkas, lalu cookie sesinya dipakai semua uji: rate limit masuk per nama
 // pengguna (10/menit) cepat habis bila tiap uji masuk sendiri.
 let sesi: Awaited<ReturnType<BrowserContext['storageState']>> | undefined
 const test = dasar.extend({ storageState: async ({}, pakai) => pakai(sesi) })

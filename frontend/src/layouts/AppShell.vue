@@ -88,7 +88,7 @@ async function keluar() {
       </div>
 
       <SidebarMenu v-if="menu.data.value" :grup="menu.data.value.grup" :kelas="kelas" @pilih="laciTerbuka = false" />
-      <div v-else-if="menu.isError.value" class="galat-menu" role="alert">
+      <div v-else-if="menu.isError.value" class="error-menu" role="alert">
         <p>Menu gagal dimuat.</p>
         <button type="button" class="tombol" @click="menu.refetch()">Coba lagi</button>
       </div>
@@ -257,12 +257,12 @@ async function keluar() {
   border-radius: 4px;
   background: var(--bg);
 }
-.galat-menu {
+.error-menu {
   flex: 1;
   padding: var(--space-4) 20px;
   color: var(--danger);
 }
-.galat-menu p {
+.error-menu p {
   margin: 0 0 var(--space-2);
 }
 

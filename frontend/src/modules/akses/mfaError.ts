@@ -1,24 +1,24 @@
-import { GalatApi } from '@/shared/api/klien'
+import { ApiError } from '@/shared/api/klien'
 import { formatSisaWaktu } from '@/shared/utils/waktu'
 
 /**
- * Arti galat langkah MFA bagi halaman masuk (PRD 10.3.2). Tantangan yang tidak berlaku dan akun
- * terkunci membuang tantangan di server, jadi pengguna kembali ke langkah sandi dengan pesannya.
+ * Arti error langkah MFA bagi halaman masuk (PRD 10.3.2). Challenge yang tidak berlaku dan akun
+ * terkunci membuang challenge di server, jadi pengguna kembali ke langkah sandi dengan pesannya.
  */
-export type TindakanGalatMfa =
+export type TindakanMfaError =
   | { jenis: 'tampilkan'; pesan: string; kosongkanKode: boolean }
   | { jenis: 'kembali'; pesan: string }
 
-export function tindakanGalatMfa(galat: unknown, unitAdmin: string): TindakanGalatMfa {
-  if (!(galat instanceof GalatApi)) {
+export function tindakanMfaError(error: unknown, unitAdmin: string): TindakanMfaError {
+  if (!(error instanceof ApiError)) {
     return { jenis: 'tampilkan', pesan: `Respons server tidak dikenali. Coba lagi atau hubungi ${unitAdmin}.`, kosongkanKode: false }
   }
 
-  const sisa = galat.cobaLagiDetik === null ? null : formatSisaWaktu(galat.cobaLagiDetik)
-  switch (galat.kode) {
+  const sisa = error.cobaLagiDetik === null ? null : formatSisaWaktu(error.cobaLagiDetik)
+  switch (error.kode) {
     case 'kode_mfa_salah':
       return { jenis: 'tampilkan', pesan: 'Kode salah. Periksa kode terbaru lalu coba lagi.', kosongkanKode: true }
-    case 'tantangan_tidak_berlaku':
+    case 'challenge_tidak_berlaku':
       return { jenis: 'kembali', pesan: 'Waktu verifikasi habis. Silakan masuk lagi.' }
     case 'akun_terkunci':
       return {
@@ -28,8 +28,8 @@ export function tindakanGalatMfa(galat: unknown, unitAdmin: string): TindakanGal
     case 'terlalu_banyak_permintaan':
       return { jenis: 'tampilkan', pesan: `Terlalu banyak percobaan.${sisa ? ` Coba lagi dalam ${sisa}.` : ' Coba lagi nanti.'}`, kosongkanKode: false }
     case 'validasi_gagal':
-      return { jenis: 'tampilkan', pesan: galat.rincian[0]?.pesan ?? galat.message, kosongkanKode: false }
+      return { jenis: 'tampilkan', pesan: error.rincian[0]?.pesan ?? error.message, kosongkanKode: false }
     default:
-      return { jenis: 'tampilkan', pesan: galat.message, kosongkanKode: false }
+      return { jenis: 'tampilkan', pesan: error.message, kosongkanKode: false }
   }
 }

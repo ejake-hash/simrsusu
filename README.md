@@ -14,7 +14,7 @@ RS USU hanya **paket identitas contoh** (logo, nama, warna `--brand-*`/`--accent
 ## Menjalankan lokal
 
 ```bash
-docker compose up -d                 # PostgreSQL 16 (5433) + Valkey sesi/antrean (6379) + Valkey cache (6380)
+docker compose up -d                 # PostgreSQL 16 (5433) + Valkey sesi/queue (6379) + Valkey cache (6380)
 
 cd backend
 composer install && cp .env.example .env && php artisan key:generate
@@ -30,12 +30,12 @@ npm run dev                          # http://localhost:5173, /api diteruskan ke
 
 ## Valkey
 
-Cache, sesi, dan antrean memakai **Valkey** (BSD-3, kompatibel Redis; PRD 10.1). Nama variabel tetap `REDIS_*` bawaan Laravel.
+Cache, sesi, dan queue memakai **Valkey** (BSD-3, kompatibel Redis; PRD 10.1). Nama variabel tetap `REDIS_*` bawaan Laravel.
 Ada dua instans (PRD 14.1.1 butir 6) karena kebijakan memori berlaku per instans:
 
 | Layanan compose | Koneksi Laravel | Isi | `maxmemory-policy` |
 |---|---|---|---|
-| `valkey` (6379) | `default` (`REDIS_HOST`/`REDIS_PORT`) | sesi, antrean, kunci (*lock*) cache | `noeviction`: menolak tulis saat penuh, tidak membuang sesi atau pekerjaan |
+| `valkey` (6379) | `default` (`REDIS_HOST`/`REDIS_PORT`) | sesi, queue, kunci (*lock*) cache | `noeviction`: menolak tulis saat penuh, tidak membuang sesi atau pekerjaan |
 | `valkey-cache` (6380) | `cache` (`REDIS_CACHE_HOST`/`REDIS_CACHE_PORT`) | cache | `allkeys-lru`: membuang kunci lama |
 
 Jangan arahkan keduanya ke satu instans; `InfrastrukturTest` memeriksa kebijakan ini lewat `CONFIG GET`.
@@ -47,11 +47,11 @@ tidak dipakai lagi dan boleh dihapus setelah semua worktree pindah. Worktree yan
 
 | Bagian | Di mana |
 |---|---|
-| Pemeriksaan kesehatan | `GET /up` (proses hidup), `GET /api/v1/siap` (basis data + kedua Valkey; `503` bila salah satu tidak terjangkau). Tanpa autentikasi, berbatas laju per IP |
+| Pemeriksaan kesehatan | `GET /up` (proses hidup), `GET /api/v1/siap` (basis data + kedua Valkey; `503` bila salah satu tidak terjangkau). Tanpa autentikasi, punya rate limit per IP |
 | Batas waktu query | `statement_timeout` per role di `docker/postgres/init/sql/01-role.sql` (`simrs_app` 5 s, `simrs_analitik` 5 min) |
 | Paginasi | `App\Core\Http\Paginasi` (keyset, `?kursor=&batas=`, maks 200) |
-| Antrean per jenis | `App\Core\Antrean\JenisAntrean` + `config/horizon.php`; jalankan `php artisan horizon` (dasbor `/horizon` hanya di `APP_ENV=local`) |
-| Batas laju | `config/batas_laju.php` (semua `api/v1`, per akun) dan `config/autentikasi.php` (masuk) |
+| Queue per jenis | `App\Core\Queue\JenisQueue` + `config/horizon.php`; jalankan `php artisan horizon` (dasbor `/horizon` hanya di `APP_ENV=local`) |
+| Rate limit | `config/rate_limit.php` (semua `api/v1`, per akun) dan `config/autentikasi.php` (masuk) |
 | Uji beban | `backend/tests/beban/` (k6, manual ke lokal/staging) |
 
 Cluster Postgres lokal yang dibuat sebelum batas waktu ini ada: jalankan ulang
@@ -62,7 +62,7 @@ Cluster Postgres lokal yang dibuat sebelum batas waktu ini ada: jalankan ulang
 
 SPA masuk dengan cookie sesi Sanctum (bukan token di `localStorage`):
 `GET /sanctum/csrf-cookie` → `POST /api/v1/autentikasi/masuk` → `GET /api/v1/saya` → `POST /api/v1/autentikasi/keluar`.
-Aturan sandi, penguncian, batas laju, dan batas diam sesi ada di `backend/config/autentikasi.php`;
+Aturan sandi, penguncian, rate limit, dan batas diam sesi ada di `backend/config/autentikasi.php`;
 alasannya di [`docs/adr/`](docs/adr/).
 
 **MFA (PRD 10.3.2).** Respons masuk berbentuk `{status: masuk | perlu_mfa | perlu_daftar_mfa, …}`. MFA wajib untuk akun

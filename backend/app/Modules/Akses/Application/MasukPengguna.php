@@ -16,7 +16,7 @@ use Illuminate\Support\Str;
  * Memeriksa nama pengguna + sandi dengan aturan PRD 14.2:
  * - pesan sama untuk "akun tidak ada" dan "sandi salah";
  * - 5 kali gagal beruntun mengunci 15 menit (disimpan di akses.pengguna.terkunci_sampai);
- * - nama pengguna yang tidak ada juga "terkunci" setelah 5 kali (di store batas laju) dengan sisa waktu
+ * - nama pengguna yang tidak ada juga "terkunci" setelah 5 kali (di store rate limit) dengan sisa waktu
  *   yang sama, supaya status terkunci tidak membocorkan apakah akun ada;
  * - status nonaktif hanya diberitahukan bila sandi benar.
  *
@@ -27,7 +27,7 @@ final class MasukPengguna
 {
     /**
      * Hitungan gagal akun nyata tidak kedaluwarsa (kolom percobaan_gagal). Untuk nama yang tidak
-     * ada, hitungan disimpan di store batas laju selama ini agar tidak tumbuh tanpa batas.
+     * ada, hitungan disimpan di store rate limit selama ini agar tidak tumbuh tanpa batas.
      */
     private const SIMPAN_HITUNGAN_TANPA_AKUN_DETIK = 86400;
 

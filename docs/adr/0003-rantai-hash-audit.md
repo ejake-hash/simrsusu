@@ -1,5 +1,9 @@
 # 0003. Rantai hash audit, partisi bulanan, dan jangkar per jam
 
+> Catatan 11 Okt 2026 (tiket 1.0g, PRD 10.3.3): istilah *jangkar* kini *anchor*. Nama yang berlaku: perintah
+> `audit:ekspor-anchor`, channel log `audit_anchor`, `AUDIT_ANCHOR_DISK`/`AUDIT_ANCHOR_DIREKTORI`/`AUDIT_ANCHOR_LOG`,
+> kelas `BerkasAnchor`. Teks di bawah dibiarkan sebagai catatan keputusan saat itu.
+
 - Status: Diterima
 - Tanggal: 2026-10-11
 - Terkait: PRD 7.57.2 butir d, 11.1, 11.2 (`audit.log_aktivitas`), 14.2; tiket feat/audit-rantai

@@ -64,11 +64,11 @@ class SuperadminPertamaTest extends TestCase
         // Bisa langsung masuk dari luar jaringan RS dengan TOTP, karena MFA sudah terdaftar.
         $this->mulaiSesiSpa();
         $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.10']);
-        $tantangan = $this->minta('POST', '/api/v1/autentikasi/masuk', ['nama_pengguna' => 'admin.satu', 'sandi' => self::SANDI])
-            ->assertOk()->assertJsonPath('status', 'perlu_mfa')->json('tantangan_id');
+        $challenge = $this->minta('POST', '/api/v1/autentikasi/masuk', ['nama_pengguna' => 'admin.satu', 'sandi' => self::SANDI])
+            ->assertOk()->assertJsonPath('status', 'perlu_mfa')->json('challenge_id');
         $rahasia = (string) $pengguna->mfa_rahasia_enkripsi;
         $this->minta('POST', '/api/v1/autentikasi/mfa', [
-            'tantangan_id' => $tantangan,
+            'challenge_id' => $challenge,
             'metode' => 'totp',
             'kode' => Totp::kode($rahasia, Totp::langkah(now()->getTimestamp())),
         ])->assertOk()->assertJsonPath('status', 'masuk');

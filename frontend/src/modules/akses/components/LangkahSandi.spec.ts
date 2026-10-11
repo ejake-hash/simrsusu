@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { GalatApi } from '@/shared/api/klien'
+import { ApiError } from '@/shared/api/klien'
 import { kirimSandi } from '../api'
 import type { Langkah } from '../alurMasuk'
 import LangkahSandi from './LangkahSandi.vue'
@@ -47,9 +47,9 @@ describe('LangkahSandi', () => {
 
     expect(kirimSandi).not.toHaveBeenCalled()
     expect(w.get('#nama-pengguna').attributes('aria-invalid')).toBe('true')
-    expect(w.get('#nama-pengguna').attributes('aria-describedby')).toBe('nama-pengguna-galat')
-    expect(w.get('#nama-pengguna-galat').text()).toBe('Nama pengguna wajib diisi.')
-    expect(w.get('#sandi-galat').text()).toBe('Kata sandi wajib diisi.')
+    expect(w.get('#nama-pengguna').attributes('aria-describedby')).toBe('nama-pengguna-error')
+    expect(w.get('#nama-pengguna-error').text()).toBe('Nama pengguna wajib diisi.')
+    expect(w.get('#sandi-error').text()).toBe('Kata sandi wajib diisi.')
     expect(document.activeElement).toBe(w.get('#nama-pengguna').element)
   })
 
@@ -77,7 +77,7 @@ describe('LangkahSandi', () => {
   })
 
   it('kredensial salah: pesan di dekat form, sandi dikosongkan dan difokus', async () => {
-    vi.mocked(kirimSandi).mockRejectedValue(new GalatApi(401, 'kredensial_salah', 'Nama pengguna atau sandi salah.'))
+    vi.mocked(kirimSandi).mockRejectedValue(new ApiError(401, 'kredensial_salah', 'Nama pengguna atau sandi salah.'))
     const w = pasang()
 
     await isiDanKirim(w)
@@ -92,7 +92,7 @@ describe('LangkahSandi', () => {
   it('akun terkunci: kalimat frontend + satu baris sisa waktu dari server, menghitung mundur', async () => {
     vi.useFakeTimers()
     vi.mocked(kirimSandi).mockRejectedValue(
-      new GalatApi(403, 'akun_terkunci', 'Akun terkunci sementara karena terlalu banyak percobaan gagal. Coba lagi nanti atau hubungi admin.', [], 900),
+      new ApiError(403, 'akun_terkunci', 'Akun terkunci sementara karena terlalu banyak percobaan gagal. Coba lagi nanti atau hubungi admin.', [], 900),
     )
     const w = pasang()
 
@@ -109,10 +109,10 @@ describe('LangkahSandi', () => {
     expect(alert()).toBe('Akun terkunci sementara karena terlalu banyak percobaan gagal. Anda sudah bisa mencoba lagi.')
   })
 
-  it('batas laju 429: kalimat frontend, tanpa "Coba lagi" ganda', async () => {
+  it('rate limit 429: kalimat frontend, tanpa "Coba lagi" ganda', async () => {
     vi.useFakeTimers()
     vi.mocked(kirimSandi).mockRejectedValue(
-      new GalatApi(429, 'terlalu_banyak_permintaan', 'Terlalu banyak permintaan. Coba lagi sebentar lagi.', [], 30),
+      new ApiError(429, 'terlalu_banyak_permintaan', 'Terlalu banyak permintaan. Coba lagi sebentar lagi.', [], 30),
     )
     const w = pasang()
 
@@ -124,7 +124,7 @@ describe('LangkahSandi', () => {
   })
 
   it('akun terkunci tanpa Retry-After: "Coba lagi nanti." dan tombol tetap aktif', async () => {
-    vi.mocked(kirimSandi).mockRejectedValue(new GalatApi(403, 'akun_terkunci', 'Akun terkunci.'))
+    vi.mocked(kirimSandi).mockRejectedValue(new ApiError(403, 'akun_terkunci', 'Akun terkunci.'))
     const w = pasang()
 
     await isiDanKirim(w)
@@ -135,7 +135,7 @@ describe('LangkahSandi', () => {
 
   it('tombol Masuk nonaktif selama hitung mundur, aktif lagi saat habis tanpa muat ulang', async () => {
     vi.useFakeTimers()
-    vi.mocked(kirimSandi).mockRejectedValue(new GalatApi(403, 'akun_terkunci', 'Akun terkunci.', [], 90))
+    vi.mocked(kirimSandi).mockRejectedValue(new ApiError(403, 'akun_terkunci', 'Akun terkunci.', [], 90))
     const w = pasang()
     const tombol = () => w.get('button[type="submit"]')
 
@@ -163,7 +163,7 @@ describe('LangkahSandi', () => {
 
   it('MFA belum terdaftar dari luar jaringan RS: arahkan ke jaringan RS atau admin, tombol tetap aktif', async () => {
     vi.stubEnv('VITE_RS_UNIT_ADMIN', 'Instalasi SIMRS')
-    vi.mocked(kirimSandi).mockRejectedValue(new GalatApi(403, 'mfa_belum_terdaftar', 'Verifikasi dua langkah belum aktif.'))
+    vi.mocked(kirimSandi).mockRejectedValue(new ApiError(403, 'mfa_belum_terdaftar', 'Verifikasi dua langkah belum aktif.'))
     const w = pasang()
 
     await isiDanKirim(w)
@@ -178,7 +178,7 @@ describe('LangkahSandi', () => {
 
   it('konfigurasi belum lengkap (503): instalasi belum siap, hubungi admin', async () => {
     vi.stubEnv('VITE_RS_UNIT_ADMIN', '')
-    vi.mocked(kirimSandi).mockRejectedValue(new GalatApi(503, 'konfigurasi_belum_lengkap', 'SIMRS belum selesai disiapkan.'))
+    vi.mocked(kirimSandi).mockRejectedValue(new ApiError(503, 'konfigurasi_belum_lengkap', 'SIMRS belum selesai disiapkan.'))
     const w = pasang()
 
     await isiDanKirim(w)
@@ -186,15 +186,15 @@ describe('LangkahSandi', () => {
     expect(w.get('[role="alert"]').text()).toBe('SIMRS belum selesai disiapkan sehingga belum bisa dipakai untuk masuk. Hubungi admin SIMRS.')
   })
 
-  it('galat validasi server dipasang ke field-nya', async () => {
+  it('error validasi server dipasang ke field-nya', async () => {
     vi.mocked(kirimSandi).mockRejectedValue(
-      new GalatApi(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom: 'nama_pengguna', pesan: 'Isian terlalu panjang.' }]),
+      new ApiError(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom: 'nama_pengguna', pesan: 'Isian terlalu panjang.' }]),
     )
     const w = pasang()
 
     await isiDanKirim(w)
     await flushPromises()
-    expect(w.get('#nama-pengguna-galat').text()).toBe('Isian terlalu panjang.')
+    expect(w.get('#nama-pengguna-error').text()).toBe('Isian terlalu panjang.')
   })
 
   it('tombol tampilkan sandi mengganti tipe input dan aria-pressed', async () => {
@@ -221,7 +221,7 @@ describe('LangkahSandi', () => {
     expect(pasang().get('.bantuan').text()).toBe('Lupa sandi atau akun terkunci? Hubungi admin SIMRS.')
   })
 
-  it('nama unit dari profil RS dipakai di subjudul, bantuan, dan pesan galat', async () => {
+  it('nama unit dari profil RS dipakai di subjudul, bantuan, dan pesan error', async () => {
     vi.stubEnv('VITE_RS_UNIT_ADMIN', 'Instalasi SIMRS')
     vi.stubEnv('VITE_RS_KONTAK_ADMIN', '')
     vi.mocked(kirimSandi).mockRejectedValue(new Error('bentuk respons aneh'))

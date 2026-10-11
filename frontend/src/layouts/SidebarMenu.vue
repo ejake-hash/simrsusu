@@ -58,8 +58,8 @@ function sembunyikanTip() {
             <Ikon :nama="m.ikon" />
             <span class="label">{{ m.label }}</span>
             <span v-if="m.status === 'segera'" class="segera">Segera<span class="sr-only"> hadir</span></span>
-            <span v-else-if="m.lencana != null" class="lencana">
-              {{ m.lencana }}<span class="sr-only"> tugas terbuka</span>
+            <span v-else-if="m.jumlah_tugas != null" class="jumlah-tugas">
+              {{ m.jumlah_tugas }}<span class="sr-only"> tugas terbuka</span>
             </span>
           </RouterLink>
           <ul v-if="!ringkas && posisi?.menu.kode === m.kode && m.sub_menu.length" class="nav-sub">
@@ -152,7 +152,7 @@ function sembunyikanTip() {
   line-height: 1.3;
 }
 .segera,
-.lencana {
+.jumlah-tugas {
   margin-left: auto;
   flex: none;
   border-radius: 999px;
@@ -166,7 +166,7 @@ function sembunyikanTip() {
   border: 1px solid var(--border);
 }
 .nav-item.aktif .segera,
-.nav-item.aktif .lencana {
+.nav-item.aktif .jumlah-tugas {
   background: var(--surface);
   color: var(--brand-600);
 }
@@ -242,7 +242,7 @@ function sembunyikanTip() {
     padding: 0;
   }
   .nav-item .label,
-  .nav-item .lencana {
+  .nav-item .jumlah-tugas {
     position: absolute;
     width: 1px;
     height: 1px;

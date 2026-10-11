@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
-class ProksiTepercayaTest extends TestCase
+class TrustedProxiesTest extends TestCase
 {
     protected function setUp(): void
     {
@@ -18,21 +18,21 @@ class ProksiTepercayaTest extends TestCase
 
     public function test_tanpa_konfigurasi_header_forwarded_diabaikan(): void
     {
-        config(['jaringan.proksi_tepercaya' => []]);
+        config(['jaringan.trusted_proxies' => []]);
 
         $this->ipDari('10.0.0.1', '203.0.113.7')->assertJson(['ip' => '10.0.0.1']);
     }
 
-    public function test_ip_klien_dari_proksi_tepercaya(): void
+    public function test_ip_klien_dari_trusted_proxies(): void
     {
-        config(['jaringan.proksi_tepercaya' => ['10.0.0.0/24']]);
+        config(['jaringan.trusted_proxies' => ['10.0.0.0/24']]);
 
         $this->ipDari('10.0.0.1', '203.0.113.7')->assertJson(['ip' => '203.0.113.7']);
     }
 
     public function test_header_forwarded_dari_alamat_lain_tidak_dipercaya(): void
     {
-        config(['jaringan.proksi_tepercaya' => ['10.0.0.0/24']]);
+        config(['jaringan.trusted_proxies' => ['10.0.0.0/24']]);
 
         $this->ipDari('198.51.100.9', '203.0.113.7')->assertJson(['ip' => '198.51.100.9']);
     }

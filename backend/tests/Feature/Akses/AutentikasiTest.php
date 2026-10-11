@@ -49,7 +49,7 @@ class AutentikasiTest extends TestCase
         $this->assertAudit('autentikasi.masuk', $pengguna->id);
     }
 
-    public function test_sandi_salah_dan_akun_tidak_ada_mendapat_galat_yang_sama(): void
+    public function test_sandi_salah_dan_akun_tidak_ada_mendapat_error_yang_sama(): void
     {
         $pengguna = $this->buatPengguna();
 
@@ -57,7 +57,7 @@ class AutentikasiTest extends TestCase
         $tidakAda = $this->masuk('tidak.ada.akunnya', self::SANDI);
 
         $sandiSalah->assertUnauthorized()->assertExactJson([
-            'galat' => ['kode' => 'kredensial_salah', 'pesan' => 'Nama pengguna atau sandi salah.', 'rincian' => []],
+            'error' => ['kode' => 'kredensial_salah', 'pesan' => 'Nama pengguna atau sandi salah.', 'rincian' => []],
         ]);
         $this->assertSame($sandiSalah->status(), $tidakAda->status());
         $this->assertSame($sandiSalah->json(), $tidakAda->json());
@@ -105,7 +105,7 @@ class AutentikasiTest extends TestCase
 
         // Sandi benar pun ditolak selama terkunci, dan penguncian tersimpan di DB.
         $this->masuk($pengguna->nama_pengguna, self::SANDI)
-            ->assertForbidden()->assertJsonPath('galat.kode', 'akun_terkunci')
+            ->assertForbidden()->assertJsonPath('error.kode', 'akun_terkunci')
             ->assertHeader('Retry-After', 15 * 60);
         $this->assertTrue($pengguna->refresh()->terkunci());
         $this->assertSame(15 * 60, $pengguna->terkunci_sampai->getTimestamp() - now()->getTimestamp());
@@ -136,7 +136,7 @@ class AutentikasiTest extends TestCase
         $nyata = $this->masuk($pengguna->nama_pengguna, 'apa-saja-panjang');
         $fiktif = $this->masuk('akun.fiktif.sama.sekali', 'apa-saja-panjang');
 
-        $fiktif->assertForbidden()->assertJsonPath('galat.kode', 'akun_terkunci');
+        $fiktif->assertForbidden()->assertJsonPath('error.kode', 'akun_terkunci');
         $this->assertSame($nyata->status(), $fiktif->status());
         $this->assertSame($nyata->getContent(), $fiktif->getContent());
         $this->assertSame(12 * 60, (int) $nyata->headers->get('Retry-After'));
@@ -151,9 +151,9 @@ class AutentikasiTest extends TestCase
         $pengguna = $this->buatPengguna(nonaktif: true);
 
         $this->masuk($pengguna->nama_pengguna, 'bukan-sandi-yang-benar')
-            ->assertUnauthorized()->assertJsonPath('galat.kode', 'kredensial_salah');
+            ->assertUnauthorized()->assertJsonPath('error.kode', 'kredensial_salah');
         $this->masuk($pengguna->nama_pengguna, self::SANDI)
-            ->assertForbidden()->assertJsonPath('galat.kode', 'akun_nonaktif');
+            ->assertForbidden()->assertJsonPath('error.kode', 'akun_nonaktif');
         $this->minta('GET', '/api/v1/saya')->assertUnauthorized();
     }
 
@@ -164,14 +164,14 @@ class AutentikasiTest extends TestCase
 
         $this->minta('POST', '/api/v1/autentikasi/keluar')->assertNoContent();
 
-        $this->minta('GET', '/api/v1/saya')->assertUnauthorized()->assertJsonPath('galat.kode', 'belum_masuk');
+        $this->minta('GET', '/api/v1/saya')->assertUnauthorized()->assertJsonPath('error.kode', 'belum_masuk');
         $this->assertAudit('autentikasi.keluar', $pengguna->id);
     }
 
-    public function test_saya_tanpa_sesi_401_dengan_format_galat(): void
+    public function test_saya_tanpa_sesi_401_dengan_format_error(): void
     {
         $this->minta('GET', '/api/v1/saya')->assertUnauthorized()->assertExactJson([
-            'galat' => ['kode' => 'belum_masuk', 'pesan' => 'Silakan masuk terlebih dahulu.', 'rincian' => []],
+            'error' => ['kode' => 'belum_masuk', 'pesan' => 'Silakan masuk terlebih dahulu.', 'rincian' => []],
         ]);
     }
 
@@ -181,7 +181,7 @@ class AutentikasiTest extends TestCase
         unset($this->kue['XSRF-TOKEN']);
 
         $this->masuk($pengguna->nama_pengguna, self::SANDI)
-            ->assertForbidden()->assertJsonPath('galat.kode', 'csrf_tidak_valid');
+            ->assertForbidden()->assertJsonPath('error.kode', 'csrf_tidak_valid');
         $this->assertNull($pengguna->refresh()->login_terakhir_pada);
     }
 
@@ -192,7 +192,7 @@ class AutentikasiTest extends TestCase
         $this->unencryptedCookies = [];
 
         $this->postJson('/api/v1/autentikasi/masuk', ['nama_pengguna' => $pengguna->nama_pengguna, 'sandi' => self::SANDI])
-            ->assertForbidden()->assertJsonPath('galat.kode', 'asal_tidak_diizinkan');
+            ->assertForbidden()->assertJsonPath('error.kode', 'asal_tidak_diizinkan');
         $this->assertNull($pengguna->refresh()->login_terakhir_pada);
     }
 
@@ -203,8 +203,8 @@ class AutentikasiTest extends TestCase
 
         $pengguna->forceFill(['status' => 'nonaktif'])->save();
 
-        $this->minta('GET', '/api/v1/saya')->assertUnauthorized()->assertJsonPath('galat.kode', 'sesi_dicabut');
-        $this->minta('GET', '/api/v1/saya')->assertUnauthorized()->assertJsonPath('galat.kode', 'belum_masuk');
+        $this->minta('GET', '/api/v1/saya')->assertUnauthorized()->assertJsonPath('error.kode', 'sesi_dicabut');
+        $this->minta('GET', '/api/v1/saya')->assertUnauthorized()->assertJsonPath('error.kode', 'belum_masuk');
     }
 
     public function test_sesi_berakhir_setelah_diam_lima_belas_menit(): void
@@ -216,7 +216,7 @@ class AutentikasiTest extends TestCase
         $this->minta('GET', '/api/v1/saya')->assertOk();
 
         $this->travel(16)->minutes();
-        $this->minta('GET', '/api/v1/saya')->assertUnauthorized()->assertJsonPath('galat.kode', 'sesi_kedaluwarsa');
+        $this->minta('GET', '/api/v1/saya')->assertUnauthorized()->assertJsonPath('error.kode', 'sesi_kedaluwarsa');
     }
 
     public function test_perangkat_terdaftar_mendapat_batas_diam_enam_puluh_menit(): void
@@ -235,25 +235,25 @@ class AutentikasiTest extends TestCase
         $this->minta('GET', '/api/v1/saya')->assertOk();
 
         $this->travel(61)->minutes();
-        $this->minta('GET', '/api/v1/saya')->assertUnauthorized()->assertJsonPath('galat.kode', 'sesi_kedaluwarsa');
+        $this->minta('GET', '/api/v1/saya')->assertUnauthorized()->assertJsonPath('error.kode', 'sesi_kedaluwarsa');
     }
 
-    public function test_batas_laju_per_nama_pengguna(): void
+    public function test_rate_limit_per_nama_pengguna(): void
     {
-        config(['autentikasi.batas_laju.per_nama_pengguna_per_menit' => 2]);
+        config(['autentikasi.rate_limit.per_nama_pengguna_per_menit' => 2]);
 
         $this->masuk('target.batas', 'sandi-salah-satu')->assertUnauthorized();
         $this->masuk('target.batas', 'sandi-salah-dua')->assertUnauthorized();
         $this->masuk('target.batas', 'sandi-salah-tiga')
-            ->assertTooManyRequests()->assertJsonPath('galat.kode', 'terlalu_banyak_permintaan')
+            ->assertTooManyRequests()->assertJsonPath('error.kode', 'terlalu_banyak_permintaan')
             ->assertHeader('Retry-After');
 
         $this->masuk('nama.lain', 'sandi-salah-satu')->assertUnauthorized();
     }
 
-    public function test_batas_laju_per_ip_memakai_ip_klien_di_belakang_proksi(): void
+    public function test_rate_limit_per_ip_memakai_ip_klien_di_belakang_proksi(): void
     {
-        config(['autentikasi.batas_laju.per_ip_per_menit' => 2, 'jaringan.proksi_tepercaya' => ['10.0.0.1']]);
+        config(['autentikasi.rate_limit.per_ip_per_menit' => 2, 'jaringan.trusted_proxies' => ['10.0.0.1']]);
         $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.1']);
 
         $this->headerTambahan = ['X-Forwarded-For' => '203.0.113.7'];
@@ -266,12 +266,12 @@ class AutentikasiTest extends TestCase
         $this->masuk('nama.empat', 'sandi-salah-empat')->assertUnauthorized();
     }
 
-    public function test_validasi_memakai_format_galat(): void
+    public function test_validasi_memakai_format_error(): void
     {
         $this->minta('POST', '/api/v1/autentikasi/masuk', [])
             ->assertUnprocessable()
-            ->assertJsonPath('galat.kode', 'validasi_gagal')
-            ->assertJsonPath('galat.rincian.0.kolom', 'nama_pengguna');
+            ->assertJsonPath('error.kode', 'validasi_gagal')
+            ->assertJsonPath('error.rincian.0.kolom', 'nama_pengguna');
     }
 
     public function test_log_tidak_memuat_sandi(): void

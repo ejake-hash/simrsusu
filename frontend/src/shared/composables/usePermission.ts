@@ -20,7 +20,7 @@ export function usePermission() {
   return { boleh }
 }
 
-/** `v-can="'data_induk.akun.ubah'"`: elemen disembunyikan (atribut hidden) bila izin tidak ada. */
+/** `v-can="'master_data.akun.ubah'"`: elemen disembunyikan (atribut hidden) bila izin tidak ada. */
 const pantauan = new WeakMap<HTMLElement, { kode: Ref<string>; berhenti: () => void }>()
 
 export const vCan: Directive<HTMLElement, string> = {

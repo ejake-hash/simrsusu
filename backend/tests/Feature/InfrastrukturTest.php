@@ -157,8 +157,8 @@ class InfrastrukturTest extends TestCase
         $this->assertStringContainsString('valkey_version', (string) json_encode(Redis::connection()->command('info', ['server'])));
     }
 
-    /** PRD 14.1.1 butir 6: sesi dan antrean di instans yang tidak pernah membuang data. */
-    public function test_sesi_antrean_dan_kunci_cache_di_instans_noeviction(): void
+    /** PRD 14.1.1 butir 6: sesi dan queue di instans yang tidak pernah membuang data. */
+    public function test_sesi_queue_dan_kunci_cache_di_instans_noeviction(): void
     {
         $sesi = app('session')->driver('redis')->getHandler();
         $this->assertInstanceOf(CacheBasedSessionHandler::class, $sesi);
@@ -166,20 +166,20 @@ class InfrastrukturTest extends TestCase
         $this->assertInstanceOf(RedisStore::class, $storeSesi);
         $this->assertSame('noeviction', $this->kebijakanMemori($storeSesi->connection()));
 
-        $antrean = app('queue')->connection('redis');
-        $this->assertInstanceOf(RedisQueue::class, $antrean);
-        $this->assertSame('noeviction', $this->kebijakanMemori($antrean->getConnection()));
+        $queue = app('queue')->connection('redis');
+        $this->assertInstanceOf(RedisQueue::class, $queue);
+        $this->assertSame('noeviction', $this->kebijakanMemori($queue->getConnection()));
 
         // Kunci (lock) cache tidak boleh hilang di tengah jalan, jadi ikut instans noeviction.
         $this->assertSame('noeviction', $this->kebijakanMemori($this->storeCacheRedis()->lockConnection()));
     }
 
     /**
-     * PRD 14.1.1 butir 6–7: penghitung batas laju dan kunci nama fiktif (MasukPengguna) tidak boleh
+     * PRD 14.1.1 butir 6–7: penghitung rate limit dan kunci nama fiktif (MasukPengguna) tidak boleh
      * dibuang saat memori cache penuh. Tes sendiri memakai store `array` (CACHE_LIMITER_STORE di
      * phpunit.xml), jadi yang diperiksa adalah nilai bawaan config/cache.php yang dipakai di luar tes.
      */
-    public function test_penghitung_batas_laju_di_instans_noeviction(): void
+    public function test_penghitung_rate_limit_di_instans_noeviction(): void
     {
         $limiter = $this->tanpaEnv('CACHE_LIMITER_STORE', fn () => (require config_path('cache.php'))['limiter']);
 

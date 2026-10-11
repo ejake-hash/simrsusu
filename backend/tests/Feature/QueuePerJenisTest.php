@@ -2,29 +2,29 @@
 
 namespace Tests\Feature;
 
-use App\Core\Antrean\JenisAntrean;
+use App\Core\Queue\JenisQueue;
 use Illuminate\Contracts\Process\InvokedProcess;
 use Illuminate\Queue\RedisQueue;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Str;
-use Tests\Support\PekerjaanUjiAntrean;
+use Tests\Support\PekerjaanUjiQueue;
 use Tests\TestCase;
 
-/** PRD 14.1.1 butir 4: antrean per jenis dengan pekerja masing-masing. */
-class AntreanPerJenisTest extends TestCase
+/** PRD 14.1.1 butir 4: queue per jenis dengan pekerja masing-masing. */
+class QueuePerJenisTest extends TestCase
 {
     public function test_setiap_jenis_punya_supervisor_sendiri_dengan_batas_waktu_di_bawah_retry_after(): void
     {
         $supervisor = config('horizon.defaults');
 
-        $antrean = collect($supervisor)->pluck('queue')->all();
-        $this->assertSame(array_map(fn (JenisAntrean $j) => [$j->value], JenisAntrean::cases()), $antrean,
-            'Satu supervisor untuk tepat satu jenis antrean; pekerja tidak dipakai bersama.');
+        $queue = collect($supervisor)->pluck('queue')->all();
+        $this->assertSame(array_map(fn (JenisQueue $j) => [$j->value], JenisQueue::cases()), $queue,
+            'Satu supervisor untuk tepat satu jenis queue; pekerja tidak dipakai bersama.');
 
-        foreach (JenisAntrean::cases() as $jenis) {
-            $konfig = $supervisor['antrean-'.$jenis->value];
+        foreach (JenisQueue::cases() as $jenis) {
+            $konfig = $supervisor['queue-'.$jenis->value];
             $this->assertSame($jenis->koneksi(), $konfig['connection']);
             $this->assertSame($jenis->batasWaktu(), $konfig['timeout']);
             $this->assertLessThan(config("queue.connections.{$jenis->koneksi()}.retry_after"), $konfig['timeout'],
@@ -34,16 +34,16 @@ class AntreanPerJenisTest extends TestCase
 
     public function test_integrasi_yang_macet_tidak_menunda_notifikasi(): void
     {
-        $macet = 'uji-antrean:'.Str::uuid().':integrasi';
-        $cepat = 'uji-antrean:'.Str::uuid().':notifikasi';
+        $macet = 'uji-queue:'.Str::uuid().':integrasi';
+        $cepat = 'uji-queue:'.Str::uuid().':notifikasi';
         $pekerja = [];
 
         try {
-            $this->masukkan(JenisAntrean::Integrasi, new PekerjaanUjiAntrean($macet, tahan: true));
-            $this->masukkan(JenisAntrean::Notifikasi, new PekerjaanUjiAntrean($cepat));
+            $this->masukkan(JenisQueue::Integrasi, new PekerjaanUjiQueue($macet, tahan: true));
+            $this->masukkan(JenisQueue::Notifikasi, new PekerjaanUjiQueue($cepat));
 
-            $pekerja[] = $this->jalankanPekerja(JenisAntrean::Integrasi);
-            $pekerja[] = $this->jalankanPekerja(JenisAntrean::Notifikasi);
+            $pekerja[] = $this->jalankanPekerja(JenisQueue::Integrasi);
+            $pekerja[] = $this->jalankanPekerja(JenisQueue::Notifikasi);
 
             $this->assertTrue($this->tunggu(fn () => $this->ada("$macet:mulai") && $this->ada("$cepat:selesai")),
                 'Pekerjaan notifikasi seharusnya selesai selagi integrasi macet. Keluaran pekerja: '
@@ -55,8 +55,8 @@ class AntreanPerJenisTest extends TestCase
                 $proses->signal(SIGTERM);
             }
             $this->tunggu(fn () => collect($pekerja)->every(fn (InvokedProcess $p) => ! $p->running()));
-            foreach ([JenisAntrean::Integrasi, JenisAntrean::Notifikasi] as $jenis) {
-                $this->antrean($jenis)->clear($jenis->value);
+            foreach ([JenisQueue::Integrasi, JenisQueue::Notifikasi] as $jenis) {
+                $this->queue($jenis)->clear($jenis->value);
             }
             Redis::connection()->del(...array_map(fn ($a) => "$a[0]:$a[1]", [
                 [$macet, 'mulai'], [$macet, 'selesai'], [$macet, 'lepas'], [$cepat, 'mulai'], [$cepat, 'selesai'],
@@ -64,23 +64,23 @@ class AntreanPerJenisTest extends TestCase
         }
     }
 
-    private function masukkan(JenisAntrean $jenis, PekerjaanUjiAntrean $pekerjaan): void
+    private function masukkan(JenisQueue $jenis, PekerjaanUjiQueue $pekerjaan): void
     {
-        $this->antrean($jenis)->push($pekerjaan, '', $jenis->value);
+        $this->queue($jenis)->push($pekerjaan, '', $jenis->value);
     }
 
-    private function antrean(JenisAntrean $jenis): RedisQueue
+    private function queue(JenisQueue $jenis): RedisQueue
     {
-        $antrean = Queue::connection($jenis->koneksi());
-        $this->assertInstanceOf(RedisQueue::class, $antrean);
+        $queue = Queue::connection($jenis->koneksi());
+        $this->assertInstanceOf(RedisQueue::class, $queue);
 
-        return $antrean;
+        return $queue;
     }
 
-    /** Sama dengan supervisor Horizon untuk jenis ini: satu antrean, batas waktunya sendiri. */
-    private function jalankanPekerja(JenisAntrean $jenis): InvokedProcess
+    /** Sama dengan supervisor Horizon untuk jenis ini: satu queue, batas waktunya sendiri. */
+    private function jalankanPekerja(JenisQueue $jenis): InvokedProcess
     {
-        $konfig = config('horizon.defaults.antrean-'.$jenis->value);
+        $konfig = config('horizon.defaults.queue-'.$jenis->value);
 
         return Process::path(base_path())->start([
             PHP_BINARY, 'artisan', 'queue:work', $konfig['connection'],

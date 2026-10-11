@@ -24,7 +24,7 @@ class RantaiAuditTest extends TestCase
         parent::setUp();
 
         Storage::fake('local');
-        config(['logging.channels.audit_jangkar.path' => storage_path('framework/testing/audit-jangkar-'.Str::random(8).'.log')]);
+        config(['logging.channels.audit_anchor.path' => storage_path('framework/testing/audit-anchor-'.Str::random(8).'.log')]);
 
         $this->kosongkanAudit();
         // Dijalankan sesudah rollback DatabaseTransactions, supaya TRUNCATE tidak menunggu kunci.
@@ -75,10 +75,10 @@ class RantaiAuditTest extends TestCase
             ->assertFailed();
     }
 
-    public function test_hapus_baris_ekor_hanya_terdeteksi_lewat_jangkar(): void
+    public function test_hapus_baris_ekor_hanya_terdeteksi_lewat_anchor(): void
     {
         $urutan = $this->tulisTerkomit(4);
-        $this->artisan('audit:ekspor-jangkar', ['--sampai' => now()->addMinute()->toIso8601String()])->assertSuccessful();
+        $this->artisan('audit:ekspor-anchor', ['--sampai' => now()->addMinute()->toIso8601String()])->assertSuccessful();
 
         $this->superuser()->delete('DELETE FROM audit.log_aktivitas WHERE urutan = ?', [$urutan[3]]);
 
@@ -140,31 +140,31 @@ class RantaiAuditTest extends TestCase
             ->assertSuccessful();
     }
 
-    public function test_ekspor_jangkar_per_jam_ke_berkas_bulanan_dan_log_terpisah(): void
+    public function test_ekspor_anchor_per_jam_ke_berkas_bulanan_dan_log_terpisah(): void
     {
         $zona = config('audit.zona_waktu');
         $audit = $this->app->make(CatatAktivitas::class);
         $this->travelTo(now($zona)->setDate(2026, 10, 5)->setTime(22, 30));
-        $audit->catat('uji.jangkar');
-        $audit->catat('uji.jangkar');
+        $audit->catat('uji.anchor');
+        $audit->catat('uji.anchor');
         $kepala2200 = DB::table('audit.log_aktivitas')->orderByDesc('urutan')->first();
         $this->travel(1)->hours();
         $audit->catat('uji.jam.berikutnya');
         $kepala2300 = DB::table('audit.log_aktivitas')->orderByDesc('urutan')->first();
 
-        $this->artisan('audit:ekspor-jangkar', ['--sampai' => '2026-10-05 23:00'])->assertSuccessful();
-        $this->artisan('audit:ekspor-jangkar', ['--sampai' => '2026-10-05 23:00'])->expectsOutputToContain('sudah ada')->assertSuccessful();
-        $this->artisan('audit:ekspor-jangkar', ['--sampai' => '2026-10-06 00:00'])->assertSuccessful();
+        $this->artisan('audit:ekspor-anchor', ['--sampai' => '2026-10-05 23:00'])->assertSuccessful();
+        $this->artisan('audit:ekspor-anchor', ['--sampai' => '2026-10-05 23:00'])->expectsOutputToContain('sudah ada')->assertSuccessful();
+        $this->artisan('audit:ekspor-anchor', ['--sampai' => '2026-10-06 00:00'])->assertSuccessful();
 
-        $berkas = Storage::disk('local')->files(config('audit.jangkar.direktori'));
-        $this->assertSame([config('audit.jangkar.direktori').'/jangkar-rantai-2026-10.jsonl'], $berkas);
+        $berkas = Storage::disk('local')->files(config('audit.anchor.direktori'));
+        $this->assertSame([config('audit.anchor.direktori').'/anchor-rantai-2026-10.jsonl'], $berkas);
         $baris = array_map(fn ($b) => json_decode($b, true), array_values(array_filter(explode("\n", Storage::disk('local')->get($berkas[0])))));
         $this->assertCount(2, $baris);
         $this->assertSame(['2026-10-05T23:00:00+07:00', (int) $kepala2200->urutan, $kepala2200->hash_rantai],
             [$baris[0]['batas'], $baris[0]['urutan'], $baris[0]['hash_rantai']]);
         $this->assertSame((int) $kepala2300->urutan, $baris[1]['urutan']);
 
-        $log = file_get_contents(config('logging.channels.audit_jangkar.path'));
+        $log = file_get_contents(config('logging.channels.audit_anchor.path'));
         $this->assertStringContainsString($kepala2200->hash_rantai, $log);
         $this->assertStringContainsString($kepala2300->hash_rantai, $log);
     }
@@ -235,7 +235,7 @@ class RantaiAuditTest extends TestCase
         ));
 
         foreach ([[null, 3], ['2026-10-01', null], ['2026-10-01', -1], ['2026-10-01', 25], ['1990-01-01', 1], ['2099-01-01', 1]] as [$acuan, $bulan]) {
-            $this->assertGalatSql('P0001', fn () => DB::select('SELECT * FROM audit.siapkan_partisi(?::date, ?)', [$acuan, $bulan]));
+            $this->assertErrorSql('P0001', fn () => DB::select('SELECT * FROM audit.siapkan_partisi(?::date, ?)', [$acuan, $bulan]));
         }
     }
 
@@ -253,11 +253,11 @@ class RantaiAuditTest extends TestCase
         }
     }
 
-    private function assertGalatSql(string $kode, callable $perintah): void
+    private function assertErrorSql(string $kode, callable $perintah): void
     {
         try {
             DB::transaction($perintah);
-            $this->fail("Seharusnya galat SQLSTATE {$kode}.");
+            $this->fail("Seharusnya error SQLSTATE {$kode}.");
         } catch (QueryException $e) {
             $this->assertSame($kode, $e->getCode(), $e->getMessage());
         }

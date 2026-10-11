@@ -1,9 +1,9 @@
 <?php
 
-use App\Core\Http\PemetaGalat;
-use App\Core\Http\ProksiTepercaya;
+use App\Core\Http\ErrorHandler;
 use App\Core\Http\SesiSpaStateful;
-use App\Core\Log\PenyamarSql;
+use App\Core\Http\TrustedProxies;
+use App\Core\Log\SqlMasker;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -23,25 +23,25 @@ return Application::configure(basePath: dirname(__DIR__))
         // Pengganti statefulApi(): versi Sanctum memaksa SameSite=Lax.
         $middleware->api(prepend: [SesiSpaStateful::class]);
 
-        // Batas laju per pengguna untuk semua rute api/v1 (PRD 14.1.1 butir 7); limiter di AppServiceProvider.
+        // Rate limit per pengguna untuk semua rute api/v1 (PRD 14.1.1 butir 7); limiter di AppServiceProvider.
         $middleware->throttleApi('api');
 
-        // Proksi tepercaya dari config (PROKSI_TEPERCAYA), bukan nilai tetap di kode.
-        $middleware->replace(TrustProxies::class, ProksiTepercaya::class);
+        // Trusted proxy dari config (TRUSTED_PROXIES), bukan nilai tetap di kode.
+        $middleware->replace(TrustProxies::class, TrustedProxies::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->dontFlash(['sandi', 'sandi_konfirmasi', 'sandi_lama']);
 
-        // Nilai dibuang dari galat basis data sebelum dilaporkan atau dirender (PenyamarSql).
+        // Nilai dibuang dari error basis data sebelum dilaporkan atau dirender (SqlMasker).
         $exceptions->map(function (QueryException $e) {
-            PenyamarSql::samarkanException($e);
+            SqlMasker::samarkanException($e);
 
             return $e;
         });
 
         $exceptions->render(function (Throwable $e, Request $request) {
             if ($request->is('api/*', 'sanctum/*')) {
-                return PemetaGalat::render($e);
+                return ErrorHandler::render($e);
             }
         });
     })->create();

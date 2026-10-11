@@ -2,11 +2,11 @@
 
 namespace App\Modules\Akses\Http\Controllers;
 
-use App\Core\Http\GalatApi;
+use App\Core\Http\ApiError;
 use App\Modules\Akses\Application\AlasanGagalMfa;
 use App\Modules\Akses\Application\GagalMfa;
 use App\Modules\Akses\Application\KebijakanMfa;
-use App\Modules\Akses\Application\TantanganMfa;
+use App\Modules\Akses\Application\MfaChallenge;
 use App\Modules\Akses\Application\VerifikasiMfa;
 use App\Modules\Akses\Domain\Totp;
 use App\Modules\Akses\Http\Requests\MfaRequest;
@@ -18,13 +18,13 @@ use BaconQrCode\Writer;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Langkah 2a–2c kontrak PRD 10.3.2. Selama tantangan berjalan sesi belum masuk; semua endpoint di
- * sini hanya bekerja dengan tantangan yang dibuat langkah sandi di sesi yang sama.
+ * Langkah 2a–2c kontrak PRD 10.3.2. Selama challenge berjalan sesi belum masuk; semua endpoint di
+ * sini hanya bekerja dengan challenge yang dibuat langkah sandi di sesi yang sama.
  */
 final class MfaController
 {
     public function __construct(
-        private readonly TantanganMfa $tantangan,
+        private readonly MfaChallenge $challenge,
         private readonly VerifikasiMfa $mfa,
         private readonly PenyelesaiMasuk $penyelesai,
         private readonly KebijakanMfa $kebijakan,
@@ -33,14 +33,14 @@ final class MfaController
     /** 2a: kode TOTP atau kode cadangan. */
     public function verifikasi(MfaRequest $request): JsonResponse
     {
-        [, $pengguna] = $this->tantanganBerlaku($request, 'mfa');
+        [, $pengguna] = $this->challengeBerlaku($request, 'mfa');
         if (! $pengguna->mfaAktif()) {
             throw $this->tidakBerlaku($request);
         }
 
         $this->jalankan($request, fn () => $this->mfa->verifikasi($pengguna, $request->validated('metode'), $request->validated('kode')));
 
-        $this->tantangan->hapus($request->session());
+        $this->challenge->hapus($request->session());
 
         return response()->json($this->penyelesai->selesaikan($request, $pengguna));
     }
@@ -48,10 +48,10 @@ final class MfaController
     /** 2b: rahasia baru untuk dipindai. Boleh diulang; rahasia terakhir yang dikonfirmasi. */
     public function daftar(MfaRequest $request): JsonResponse
     {
-        [, $pengguna] = $this->tantanganBerlaku($request, 'daftar');
+        [, $pengguna] = $this->challengeBerlaku($request, 'daftar');
 
         $rahasia = Totp::rahasiaBaru();
-        $this->tantangan->simpanRahasiaBaru($request->session(), $rahasia);
+        $this->challenge->simpanRahasiaBaru($request->session(), $rahasia);
         $uri = Totp::uriOtpauth($rahasia, (string) config('autentikasi.mfa.penerbit'), $pengguna->nama_pengguna);
         $qr = (new Writer(new ImageRenderer(new RendererStyle(200, 1), new SvgImageBackEnd)))->writeString($uri);
 
@@ -61,15 +61,15 @@ final class MfaController
     /** 2c: kode dari rahasia baru; berhasil = masuk + 10 kode cadangan (sekali tampil). */
     public function konfirmasiDaftar(MfaRequest $request): JsonResponse
     {
-        [$tantangan, $pengguna] = $this->tantanganBerlaku($request, 'daftar');
-        $rahasia = $this->tantangan->rahasiaBaru($tantangan);
+        [$challenge, $pengguna] = $this->challengeBerlaku($request, 'daftar');
+        $rahasia = $this->challenge->rahasiaBaru($challenge);
         if ($rahasia === null) {
             throw $this->tidakBerlaku($request);
         }
 
         $kodeCadangan = $this->jalankan($request, fn () => $this->mfa->daftarkan($pengguna, $rahasia, $request->validated('kode')));
 
-        $this->tantangan->hapus($request->session());
+        $this->challenge->hapus($request->session());
 
         return $this->tanpaCache(response()->json(
             $this->penyelesai->selesaikan($request, $pengguna) + ['kode_cadangan' => $kodeCadangan],
@@ -79,12 +79,12 @@ final class MfaController
     /**
      * @return array{0: array<string, mixed>, 1: Pengguna}
      */
-    private function tantanganBerlaku(MfaRequest $request, string $jenis): array
+    private function challengeBerlaku(MfaRequest $request, string $jenis): array
     {
         PenyelesaiMasuk::pastikanDariSpa($request);
 
-        $tantangan = $this->tantangan->ambil($request->session(), (string) $request->validated('tantangan_id'), $jenis);
-        $pengguna = $tantangan === null ? null : Pengguna::query()->find($tantangan['pengguna_id']);
+        $challenge = $this->challenge->ambil($request->session(), (string) $request->validated('challenge_id'), $jenis);
+        $pengguna = $challenge === null ? null : Pengguna::query()->find($challenge['pengguna_id']);
 
         // Akun yang dinonaktifkan di tengah langkah, atau pendaftaran yang pindah ke luar jaringan RS:
         // kembali ke langkah sandi, yang memberi tahu alasannya.
@@ -93,7 +93,7 @@ final class MfaController
             throw $this->tidakBerlaku($request);
         }
 
-        return [$tantangan, $pengguna];
+        return [$challenge, $pengguna];
     }
 
     /**
@@ -109,19 +109,19 @@ final class MfaController
         } catch (GagalMfa $e) {
             if ($e->alasan === AlasanGagalMfa::AkunTerkunci) {
                 // Setelah kunci habis, mulai lagi dari sandi.
-                $this->tantangan->hapus($request->session());
-                throw PenyelesaiMasuk::galatTerkunci($e->terkunciSampai);
+                $this->challenge->hapus($request->session());
+                throw PenyelesaiMasuk::errorTerkunci($e->terkunciSampai);
             }
 
-            throw new GalatApi(401, $e->alasan->value, 'Kode verifikasi salah.');
+            throw new ApiError(401, $e->alasan->value, 'Kode verifikasi salah.');
         }
     }
 
-    private function tidakBerlaku(MfaRequest $request): GalatApi
+    private function tidakBerlaku(MfaRequest $request): ApiError
     {
-        $this->tantangan->hapus($request->session());
+        $this->challenge->hapus($request->session());
 
-        return new GalatApi(401, 'tantangan_tidak_berlaku', 'Waktu verifikasi habis atau tidak berlaku. Silakan masuk lagi.');
+        return new ApiError(401, 'challenge_tidak_berlaku', 'Waktu verifikasi habis atau tidak berlaku. Silakan masuk lagi.');
     }
 
     /** Respons memuat rahasia TOTP atau kode cadangan: jangan disimpan cache mana pun. */

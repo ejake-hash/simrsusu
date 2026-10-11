@@ -170,7 +170,7 @@ return [
             'persistent' => env('REDIS_PERSISTENT', false),
         ],
 
-        // Dua instans Valkey (PRD 14.1.1 butir 6). `default`: sesi, antrean, dan kunci cache (noeviction).
+        // Dua instans Valkey (PRD 14.1.1 butir 6). `default`: sesi, queue, dan kunci cache (noeviction).
         'default' => [
             'url' => env('REDIS_URL'),
             'host' => env('REDIS_HOST', '127.0.0.1'),

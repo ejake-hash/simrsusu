@@ -15,7 +15,7 @@ final class MfaRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'tantangan_id' => ['required', 'string', 'max:64'],
+            'challenge_id' => ['required', 'string', 'max:64'],
             'metode' => [$this->routeIs('autentikasi.mfa') ? 'required' : 'prohibited', 'string', 'in:totp,kode_cadangan'],
             'kode' => [$this->routeIs('autentikasi.mfa.daftar') ? 'prohibited' : 'required', 'string', 'max:32'],
         ];
@@ -24,7 +24,7 @@ final class MfaRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'tantangan_id.required' => 'Tantangan verifikasi tidak ada. Silakan masuk lagi.',
+            'challenge_id.required' => 'Sesi verifikasi tidak ditemukan. Silakan masuk lagi.',
             'kode.required' => 'Kode wajib diisi.',
             'metode.in' => 'Metode verifikasi tidak dikenal.',
             '*.string' => 'Isian tidak valid.',

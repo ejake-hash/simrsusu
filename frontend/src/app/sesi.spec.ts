@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ambilSaya } from '@/modules/akses/api'
-import { GalatApi } from '@/shared/api/klien'
+import { ApiError } from '@/shared/api/klien'
 import { useSesiStore } from './sesi'
 
 vi.mock('@/modules/akses/api', () => ({ ambilSaya: vi.fn(), keluar: vi.fn(), kirimSandi: vi.fn() }))
@@ -13,7 +13,7 @@ beforeEach(() => {
 
 describe('useSesiStore.pastikan', () => {
   it('401 = belum masuk, tidak ditanya ulang', async () => {
-    vi.mocked(ambilSaya).mockRejectedValue(new GalatApi(401, 'belum_masuk', 'Silakan masuk terlebih dahulu.'))
+    vi.mocked(ambilSaya).mockRejectedValue(new ApiError(401, 'belum_masuk', 'Silakan masuk terlebih dahulu.'))
     const sesi = useSesiStore()
 
     await sesi.pastikan()
@@ -24,7 +24,7 @@ describe('useSesiStore.pastikan', () => {
   })
 
   it('server tak terjangkau = belum masuk tanpa melempar, dicek lagi berikutnya', async () => {
-    vi.mocked(ambilSaya).mockRejectedValue(new GalatApi(0, 'jaringan', 'Tidak dapat terhubung ke server.'))
+    vi.mocked(ambilSaya).mockRejectedValue(new ApiError(0, 'jaringan', 'Tidak dapat terhubung ke server.'))
     const sesi = useSesiStore()
 
     await expect(sesi.pastikan()).resolves.toBeUndefined()
@@ -38,7 +38,7 @@ describe('useSesiStore.pastikan', () => {
     vi.mocked(ambilSaya).mockResolvedValue({
       id: 'p-1',
       nama_pengguna: 'contoh.admisi',
-      surel: null,
+      email: null,
       login_terakhir_pada: null,
       mfa_aktif: false,
       pegawai: null,

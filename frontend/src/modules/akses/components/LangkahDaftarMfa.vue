@@ -4,7 +4,7 @@ import { profilRsDariEnv } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
 import { konfirmasiDaftarMfa, mintaRahasiaMfa, type RahasiaMfa } from '../api'
 import type { Langkah, LangkahTampil } from '../alurMasuk'
-import { tindakanGalatMfa } from '../galatMfa'
+import { tindakanMfaError } from '../mfaError'
 
 /**
  * Langkah perlu_daftar_mfa (PRD 10.3.2): pindai QR → konfirmasi kode → simpan kode cadangan.
@@ -22,8 +22,8 @@ const { unitAdmin } = profilRsDariEnv()
 const tahap = ref<'memuat' | 'pindai' | 'kode_cadangan'>('memuat')
 const rahasia = ref<RahasiaMfa | null>(null)
 const kode = ref('')
-const galatKode = ref<string | null>(null)
-const galat = ref<string | null>(null)
+const errorKode = ref<string | null>(null)
+const error = ref<string | null>(null)
 const proses = ref(false)
 const kodeCadangan = ref<string[]>([])
 const sudahDisimpan = ref(false)
@@ -32,7 +32,7 @@ const masuk = ref<Langkah | null>(null)
 const inputKode = useTemplateRef<HTMLInputElement>('inputKode')
 const judulCadangan = useTemplateRef<HTMLHeadingElement>('judulCadangan')
 
-const tantanganId = computed(() => (props.langkah.status === 'perlu_daftar_mfa' ? props.langkah.tantangan_id : ''))
+const challengeId = computed(() => (props.langkah.status === 'perlu_daftar_mfa' ? props.langkah.challenge_id : ''))
 // <img> data URI, bukan v-html: skrip di dalam SVG tidak dijalankan di <img>.
 const gambarQr = computed(() => (rahasia.value ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(rahasia.value.qr_svg)}` : ''))
 /** Kunci untuk diketik manual bila QR tidak bisa dipindai, dikelompokkan per 4 karakter. */
@@ -45,14 +45,14 @@ onMounted(muatRahasia)
 
 async function muatRahasia(): Promise<void> {
   tahap.value = 'memuat'
-  galat.value = null
+  error.value = null
   try {
-    rahasia.value = await mintaRahasiaMfa(tantanganId.value)
+    rahasia.value = await mintaRahasiaMfa(challengeId.value)
     tahap.value = 'pindai'
     await nextTick()
     inputKode.value?.focus()
   } catch (e) {
-    tanganiGalat(e)
+    tanganiError(e)
   }
 }
 
@@ -60,13 +60,13 @@ async function konfirmasi(): Promise<void> {
   if (proses.value) return
 
   const isi = kode.value.replace(/\s/g, '')
-  galatKode.value = /^\d{6}$/.test(isi) ? null : 'Masukkan 6 digit dari aplikasi autentikator.'
-  if (galatKode.value) return inputKode.value?.focus()
+  errorKode.value = /^\d{6}$/.test(isi) ? null : 'Masukkan 6 digit dari aplikasi autentikator.'
+  if (errorKode.value) return inputKode.value?.focus()
 
   proses.value = true
-  galat.value = null
+  error.value = null
   try {
-    const hasil = await konfirmasiDaftarMfa(tantanganId.value, isi)
+    const hasil = await konfirmasiDaftarMfa(challengeId.value, isi)
     masuk.value = hasil.langkah
     kodeCadangan.value = hasil.kodeCadangan
     rahasia.value = null
@@ -74,20 +74,20 @@ async function konfirmasi(): Promise<void> {
     await nextTick()
     judulCadangan.value?.focus()
   } catch (e) {
-    tanganiGalat(e)
+    tanganiError(e)
   } finally {
     proses.value = false
   }
 }
 
-function tanganiGalat(e: unknown): void {
-  const tindakan = tindakanGalatMfa(e, unitAdmin)
+function tanganiError(e: unknown): void {
+  const tindakan = tindakanMfaError(e, unitAdmin)
   if (tindakan.jenis === 'kembali') {
     sesi.pesanBerakhir = tindakan.pesan
     emit('kembali')
     return
   }
-  galat.value = tindakan.pesan
+  error.value = tindakan.pesan
   if (tindakan.kosongkanKode) kode.value = ''
   inputKode.value?.focus()
 }
@@ -127,18 +127,18 @@ async function selesai(): Promise<void> {
       kode 6 digit yang muncul.
     </p>
 
-    <div role="alert" class="wadah-galat">
-      <p v-if="galat" class="pesan pesan-galat" data-testid="galat-mfa">
+    <div role="alert" class="wadah-error">
+      <p v-if="error" class="pesan pesan-error" data-testid="error-mfa">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" />
           <path d="M8 4.5v4M8 11h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
         </svg>
-        <span>{{ galat }}</span>
+        <span>{{ error }}</span>
       </p>
     </div>
 
-    <p v-if="tahap === 'memuat' && !galat" class="memuat" role="status">Menyiapkan kode QR…</p>
-    <button v-if="tahap === 'memuat' && galat" type="button" class="tombol-kedua" @click="muatRahasia">Coba lagi</button>
+    <p v-if="tahap === 'memuat' && !error" class="memuat" role="status">Menyiapkan kode QR…</p>
+    <button v-if="tahap === 'memuat' && error" type="button" class="tombol-kedua" @click="muatRahasia">Coba lagi</button>
 
     <template v-if="tahap === 'pindai' && rahasia">
       <div class="qr">
@@ -166,10 +166,10 @@ async function selesai(): Promise<void> {
             autocapitalize="none"
             autocorrect="off"
             spellcheck="false"
-            :aria-invalid="galatKode ? 'true' : undefined"
-            :aria-describedby="galatKode ? 'kode-daftar-mfa-galat' : undefined"
+            :aria-invalid="errorKode ? 'true' : undefined"
+            :aria-describedby="errorKode ? 'kode-daftar-mfa-error' : undefined"
           />
-          <p v-if="galatKode" id="kode-daftar-mfa-galat" class="galat-field">{{ galatKode }}</p>
+          <p v-if="errorKode" id="kode-daftar-mfa-error" class="error-field">{{ errorKode }}</p>
         </div>
 
         <button type="submit" class="tombol-utama" :class="{ proses }" :disabled="proses">

@@ -45,11 +45,11 @@ final class SuperadminPertama
      *
      * @throws RuntimeException bila sudah ada BATAS superadmin aktif
      */
-    public function buat(string $namaPengguna, string $nama, ?string $nip, ?string $surel, string $sandi): array
+    public function buat(string $namaPengguna, string $nama, ?string $nip, ?string $email, string $sandi): array
     {
         $sandiHash = $this->hasher->make($sandi);
 
-        return DB::transaction(function () use ($namaPengguna, $nama, $nip, $surel, $sandiHash) {
+        return DB::transaction(function () use ($namaPengguna, $nama, $nip, $email, $sandiHash) {
             // Dua perintah bersamaan tidak bisa sama-sama lolos hitungan di bawah.
             DB::select("SELECT pg_advisory_xact_lock(hashtext('akses.superadmin_pertama'))");
             if ($this->jumlahAktif() >= self::BATAS) {
@@ -57,7 +57,7 @@ final class SuperadminPertama
             }
 
             $pegawai = Pegawai::query()->create(['nip' => $nip, 'nama' => $nama]);
-            $pengguna = new Pengguna(['pegawai_id' => $pegawai->id, 'nama_pengguna' => $namaPengguna, 'surel' => $surel]);
+            $pengguna = new Pengguna(['pegawai_id' => $pegawai->id, 'nama_pengguna' => $namaPengguna, 'email' => $email]);
             $pengguna->forceFill(['sandi_hash' => $sandiHash, 'status' => 'aktif'])->save();
             PenggunaPeran::query()->create([
                 'pengguna_id' => $pengguna->id,

@@ -2,7 +2,7 @@
 
 namespace App\Providers;
 
-use App\Core\Log\PasangPenyamaran;
+use App\Core\Log\InstallMasking;
 use App\Core\PemeriksaanProduksi;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Schema\Blueprint;
@@ -33,21 +33,21 @@ class AppServiceProvider extends ServiceProvider
         foreach (array_keys(config('logging.channels')) as $channel) {
             config(["logging.channels.{$channel}.tap" => array_values(array_unique([
                 ...(array) config("logging.channels.{$channel}.tap", []),
-                PasangPenyamaran::class,
+                InstallMasking::class,
             ]))]);
         }
 
         $this->loadMigrationsFrom([app_path('Core/Audit/Database/migrations'), app_path('Core/Modul/Database/migrations')]);
         $this->loadRoutesFrom(app_path('Core/Http/routes.php'));
 
-        // throttle:api dipasang ke grup `api` di bootstrap/app.php; nilai di config/batas_laju.php.
+        // throttle:api dipasang ke grup `api` di bootstrap/app.php; nilai di config/rate_limit.php.
         RateLimiter::for('api', fn (Request $request) => self::batasPerPengguna(
-            $request, (int) config('batas_laju.api.per_pengguna_per_menit'), (int) config('batas_laju.api.per_ip_per_menit'),
+            $request, (int) config('rate_limit.api.per_pengguna_per_menit'), (int) config('rate_limit.api.per_ip_per_menit'),
         ));
         RateLimiter::for('api-layar-kerja', fn (Request $request) => self::batasPerPengguna(
-            $request, (int) config('batas_laju.layar_kerja.per_pengguna_per_menit'), (int) config('batas_laju.api.per_ip_per_menit'),
+            $request, (int) config('rate_limit.layar_kerja.per_pengguna_per_menit'), (int) config('rate_limit.api.per_ip_per_menit'),
         ));
-        RateLimiter::for('siap', fn (Request $request) => Limit::perMinute((int) config('batas_laju.siap.per_ip_per_menit'))
+        RateLimiter::for('siap', fn (Request $request) => Limit::perMinute((int) config('rate_limit.siap.per_ip_per_menit'))
             ->by('ip:'.$request->ip()));
 
         // Kolom standar tabel domain (PRD 11.1): dibuat_pada, dibuat_oleh, diubah_pada, diubah_oleh, revisi.

@@ -4,7 +4,7 @@ import { profilRsDariEnv } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
 import { kirimKodeMfa } from '../api'
 import type { Langkah, LangkahTampil, MetodeMfa } from '../alurMasuk'
-import { tindakanGalatMfa } from '../galatMfa'
+import { tindakanMfaError } from '../mfaError'
 
 // Langkah perlu_mfa (PRD 10.3.2): kode TOTP 6 digit, atau kode cadangan bila server menawarkannya.
 const props = defineProps<{
@@ -18,8 +18,8 @@ const { unitAdmin } = profilRsDariEnv()
 const metodeTersedia = computed<MetodeMfa[]>(() => (props.langkah.status === 'perlu_mfa' ? props.langkah.metode : ['totp']))
 const metode = ref<MetodeMfa>('totp')
 const kode = ref('')
-const galatKode = ref<string | null>(null)
-const galat = ref<string | null>(null)
+const errorKode = ref<string | null>(null)
+const error = ref<string | null>(null)
 const proses = ref(false)
 const inputKode = useTemplateRef<HTMLInputElement>('inputKode')
 
@@ -30,8 +30,8 @@ onMounted(() => inputKode.value?.focus())
 async function gantiMetode(): Promise<void> {
   metode.value = cadangan.value ? 'totp' : 'kode_cadangan'
   kode.value = ''
-  galatKode.value = null
-  galat.value = null
+  errorKode.value = null
+  error.value = null
   await nextTick()
   inputKode.value?.focus()
 }
@@ -45,22 +45,22 @@ function validasi(): string | null {
 async function kirim(): Promise<void> {
   if (proses.value || props.langkah.status !== 'perlu_mfa') return
 
-  galatKode.value = validasi()
-  if (galatKode.value) return inputKode.value?.focus()
+  errorKode.value = validasi()
+  if (errorKode.value) return inputKode.value?.focus()
 
   proses.value = true
-  galat.value = null
+  error.value = null
   try {
     const isi = cadangan.value ? kode.value.trim() : kode.value.replace(/\s/g, '')
-    await props.lanjut(await kirimKodeMfa(props.langkah.tantangan_id, metode.value, isi))
+    await props.lanjut(await kirimKodeMfa(props.langkah.challenge_id, metode.value, isi))
   } catch (e) {
-    const tindakan = tindakanGalatMfa(e, unitAdmin)
+    const tindakan = tindakanMfaError(e, unitAdmin)
     if (tindakan.jenis === 'kembali') {
       sesi.pesanBerakhir = tindakan.pesan
       emit('kembali')
       return
     }
-    galat.value = tindakan.pesan
+    error.value = tindakan.pesan
     if (tindakan.kosongkanKode) kode.value = ''
     inputKode.value?.focus()
   } finally {
@@ -84,13 +84,13 @@ async function kirim(): Promise<void> {
       <template v-else>Buka aplikasi autentikator di ponsel Anda, lalu masukkan kode yang tampil untuk akun ini.</template>
     </p>
 
-    <div role="alert" class="wadah-galat">
-      <p v-if="galat" class="pesan pesan-galat" data-testid="galat-mfa">
+    <div role="alert" class="wadah-error">
+      <p v-if="error" class="pesan pesan-error" data-testid="error-mfa">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" />
           <path d="M8 4.5v4M8 11h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
         </svg>
-        <span>{{ galat }}</span>
+        <span>{{ error }}</span>
       </p>
     </div>
 
@@ -110,10 +110,10 @@ async function kirim(): Promise<void> {
           autocapitalize="none"
           autocorrect="off"
           spellcheck="false"
-          :aria-invalid="galatKode ? 'true' : undefined"
-          :aria-describedby="galatKode ? 'kode-mfa-galat' : undefined"
+          :aria-invalid="errorKode ? 'true' : undefined"
+          :aria-describedby="errorKode ? 'kode-mfa-error' : undefined"
         />
-        <p v-if="galatKode" id="kode-mfa-galat" class="galat-field">{{ galatKode }}</p>
+        <p v-if="errorKode" id="kode-mfa-error" class="error-field">{{ errorKode }}</p>
       </div>
 
       <p v-if="metodeTersedia.includes('kode_cadangan')" class="petunjuk">

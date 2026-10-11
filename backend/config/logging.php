@@ -52,10 +52,10 @@ return [
 
     'channels' => [
 
-        // Salinan jangkar rantai audit, terpisah dari log aplikasi (ADR 0003).
-        'audit_jangkar' => [
+        // Salinan anchor rantai audit, terpisah dari log aplikasi (ADR 0003).
+        'audit_anchor' => [
             'driver' => 'single',
-            'path' => env('AUDIT_JANGKAR_LOG', storage_path('logs/audit-jangkar.log')),
+            'path' => env('AUDIT_ANCHOR_LOG', storage_path('logs/audit-anchor.log')),
             'level' => 'info',
             'replace_placeholders' => true,
         ],

@@ -22,9 +22,9 @@ return [
         'durasi_menit' => (int) env('AUTENTIKASI_KUNCI_DURASI_MENIT', 15),
     ],
 
-    // Per IP dihitung dari IP klien; di belakang reverse proxy, isi PROKSI_TEPERCAYA (config/jaringan.php)
+    // Per IP dihitung dari IP klien; di belakang reverse proxy, isi TRUSTED_PROXIES (config/jaringan.php)
     // agar seluruh RS tidak berbagi satu kuota IP proksi.
-    'batas_laju' => [
+    'rate_limit' => [
         'per_ip_per_menit' => (int) env('AUTENTIKASI_BATAS_PER_IP_PER_MENIT', 60),
         'per_nama_pengguna_per_menit' => (int) env('AUTENTIKASI_BATAS_PER_NAMA_PENGGUNA_PER_MENIT', 10),
     ],
@@ -42,7 +42,7 @@ return [
         // dan akun yang belum punya MFA tidak bisa mendaftar dari luar (tiket 1.1c).
         // Kosong = instalasi belum disiapkan: login web ditolak 503 konfigurasi_belum_lengkap.
         'jaringan_rs' => array_values(array_filter(array_map('trim', explode(',', (string) env('AUTENTIKASI_MFA_JARINGAN_RS', ''))))),
-        'tantangan_menit' => (int) env('AUTENTIKASI_MFA_TANTANGAN_MENIT', 5),
+        'challenge_menit' => (int) env('AUTENTIKASI_MFA_CHALLENGE_MENIT', 5),
         // RFC 6238: kode periode sebelum/sesudah ikut diterima untuk selisih jam ponsel.
         'toleransi_periode' => 1,
         // Nama yang tampil di aplikasi autentikator; isi nama RS di produksi.

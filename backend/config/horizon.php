@@ -1,6 +1,6 @@
 <?php
 
-use App\Core\Antrean\JenisAntrean;
+use App\Core\Queue\JenisQueue;
 use Illuminate\Support\Str;
 
 return [
@@ -97,9 +97,9 @@ return [
     |
     */
 
-    // Ambang lama tunggu (detik) per antrean sebelum Horizon memicu LongWaitDetected.
-    'waits' => collect(JenisAntrean::cases())
-        ->mapWithKeys(fn (JenisAntrean $jenis) => [$jenis->koneksi().':'.$jenis->value => 60])
+    // Ambang lama tunggu (detik) per queue sebelum Horizon memicu LongWaitDetected.
+    'waits' => collect(JenisQueue::cases())
+        ->mapWithKeys(fn (JenisQueue $jenis) => [$jenis->koneksi().':'.$jenis->value => 60])
         ->all(),
 
     /*
@@ -198,10 +198,10 @@ return [
     |
     */
 
-    // Satu supervisor per jenis antrean (PRD 14.1.1 butir 4): pekerja tidak dipinjamkan antarjenis,
-    // jadi integrasi yang macet tidak menunda notifikasi. Batas waktu dari JenisAntrean.
-    'defaults' => collect(JenisAntrean::cases())
-        ->mapWithKeys(fn (JenisAntrean $jenis) => ['antrean-'.$jenis->value => [
+    // Satu supervisor per jenis queue (PRD 14.1.1 butir 4): pekerja tidak dipinjamkan antarjenis,
+    // jadi integrasi yang macet tidak menunda notifikasi. Batas waktu dari JenisQueue.
+    'defaults' => collect(JenisQueue::cases())
+        ->mapWithKeys(fn (JenisQueue $jenis) => ['queue-'.$jenis->value => [
             'connection' => $jenis->koneksi(),
             'queue' => [$jenis->value],
             'balance' => 'auto',
@@ -220,11 +220,11 @@ return [
     // Jumlah pekerja maksimum per jenis; sesuaikan dengan beban RS (PRD 14.1.1).
     'environments' => [
         'production' => [
-            'antrean-integrasi' => ['maxProcesses' => 6, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
-            'antrean-notifikasi' => ['maxProcesses' => 3, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
-            'antrean-dokumen' => ['maxProcesses' => 4, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
-            'antrean-laporan' => ['maxProcesses' => 2, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
-            'antrean-bawaan' => ['maxProcesses' => 3, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
+            'queue-integrasi' => ['maxProcesses' => 6, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
+            'queue-notifikasi' => ['maxProcesses' => 3, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
+            'queue-dokumen' => ['maxProcesses' => 4, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
+            'queue-laporan' => ['maxProcesses' => 2, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
+            'queue-bawaan' => ['maxProcesses' => 3, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
         ],
 
         'local' => [],

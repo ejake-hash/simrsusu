@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ambilSaya, keluar as keluarApi, type Pengguna } from '@/modules/akses/api'
-import { GalatApi } from '@/shared/api/klien'
+import { ApiError } from '@/shared/api/klien'
 
 /**
  * Sesi di klien hanya cermin dari cookie sesi server (HttpOnly). Isinya di memori saja: tidak
@@ -15,7 +15,7 @@ export const useSesiStore = defineStore('sesi', () => {
   const pesanBerakhir = ref<string | null>(null)
 
   /**
-   * Cek sesi sekali per muat halaman. Server tak terjangkau atau galat lain = anggap belum masuk
+   * Cek sesi sekali per muat halaman. Server tak terjangkau atau error lain = anggap belum masuk
    * (guard mengarahkan ke /masuk, bukan halaman kosong) dan cek lagi di navigasi berikutnya.
    */
   async function pastikan(): Promise<void> {
@@ -23,9 +23,9 @@ export const useSesiStore = defineStore('sesi', () => {
     try {
       pengguna.value = await ambilSaya()
       sudahDicek.value = true
-    } catch (galat) {
+    } catch (error) {
       pengguna.value = null
-      sudahDicek.value = galat instanceof GalatApi && galat.status === 401
+      sudahDicek.value = error instanceof ApiError && error.status === 401
     }
   }
 
@@ -36,10 +36,10 @@ export const useSesiStore = defineStore('sesi', () => {
   }
 
   /** Dipanggil saat server menjawab 401 di luar langkah masuk. */
-  function akhiri(galat: GalatApi): void {
+  function akhiri(error: ApiError): void {
     pengguna.value = null
     sudahDicek.value = true
-    pesanBerakhir.value = galat.kode === 'belum_masuk' ? null : galat.message
+    pesanBerakhir.value = error.kode === 'belum_masuk' ? null : error.message
   }
 
   async function keluar(): Promise<void> {

@@ -1,17 +1,19 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.2.0
+  version: 0.2.1
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
     backend wajib lulus uji kontrak terhadapnya. Perubahan kontrak lewat PR yang mengubah berkas ini.
-    Konvensi: PRD 10.3.1 (prefiks /api/v1, kata benda Indonesia, kunci snake_case, galat tunggal).
+    Konvensi: PRD 10.3.1 (prefiks /api/v1, kata benda Indonesia, kunci snake_case, satu format error `{"error": {kode, pesan, rincian}}`).
     Endpoint autentikasi dan MFA: PRD 10.3.2 (belum dipindah ke berkas ini).
-    Kode galat umum: belum_masuk (401), akses_ditolak (403), csrf_tidak_valid (403), tidak_ditemukan (404),
+    Kode error umum: belum_masuk (401), akses_ditolak (403), csrf_tidak_valid (403), tidak_ditemukan (404),
     validasi_gagal (422), ukuran_halaman_melebihi_batas (422), kursor_tidak_valid (422), versi_berubah (412),
     if_match_wajib (428), terlalu_banyak_permintaan (429).
     v0.2.0: Pengaturan Sistem → Peran & Izin, Akun & Akses (tiket 1.2c); kode menu data_induk.peran/akun → pengaturan.peran/akun.
+    v0.2.1: istilah umum (tiket 1.0g, PRD 10.3.3): skema dan kunci respons `error`, field menu `jumlah_tugas`,
+    kode menu `master_data`.
 servers:
   - url: /api/v1
 security:
@@ -76,8 +78,8 @@ paths:
                     - pengaturan.peran.lihat
                     - pengaturan.akun.lihat
         '304': { description: Tidak berubah sejak versi di If-None-Match }
-        '401': { $ref: '#/components/responses/Galat' }
-        '429': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
   # ---------------------------------------------------------------------------
   # Pengaturan Sistem → Peran & Izin, Akun & Akses (tiket 1.2c; PRD 9.2–9.3, 10.3.2)
   # Izin: pengaturan.peran.{lihat,input,perbaiki}, pengaturan.akun.{lihat,input,perbaiki}.
@@ -97,8 +99,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PohonMenu' }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
   /peran:
     get:
       operationId: daftarPeran
@@ -120,9 +122,9 @@ paths:
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/PeranRingkas' } }
                   meta: { $ref: '#/components/schemas/MetaKursor' }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
-        '422': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
     post:
       operationId: buatPeran
       summary: Buat peran baru, kosong atau salinan peran lain
@@ -150,10 +152,10 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PeranRinci' } } }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
-        '409': { description: "kode_sudah_dipakai", $ref: '#/components/responses/Galat' }
-        '422': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { description: "kode_sudah_dipakai", $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /peran/{id}:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -168,9 +170,9 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PeranRinci' } } }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
-        '404': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
     patch:
       operationId: ubahPeran
       summary: Ubah nama, uraian, wajib MFA, atau status peran
@@ -203,13 +205,13 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PeranRinci' } } }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
-        '404': { $ref: '#/components/responses/Galat' }
-        '409': { $ref: '#/components/responses/Galat' }
-        '412': { description: "versi_berubah: peran diubah orang lain sejak dibuka", $ref: '#/components/responses/Galat' }
-        '422': { $ref: '#/components/responses/Galat' }
-        '428': { description: "if_match_wajib", $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { description: "versi_berubah: peran diubah orang lain sejak dibuka", $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { description: "if_match_wajib", $ref: '#/components/responses/Error' }
   /peran/{id}/izin:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -259,18 +261,18 @@ paths:
                       ditambah: { type: array, items: { type: string } }
                       dicabut: { type: array, items: { type: string } }
                       akun_terdampak: { type: integer, minimum: 0 }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
-        '404': { $ref: '#/components/responses/Galat' }
-        '409': { $ref: '#/components/responses/Galat' }
-        '412': { $ref: '#/components/responses/Galat' }
-        '422': { $ref: '#/components/responses/Galat' }
-        '428': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
   /akun:
     get:
       operationId: daftarAkun
       summary: Daftar akun (paginasi kursor PRD 14.1.1)
-      description: "Izin: pengaturan.akun.lihat. Tidak mengirim NIP, surel, atau data rahasia."
+      description: "Izin: pengaturan.akun.lihat. Tidak mengirim NIP, email, atau data rahasia."
       parameters:
         - $ref: '#/components/parameters/Kursor'
         - $ref: '#/components/parameters/Batas'
@@ -289,9 +291,9 @@ paths:
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/AkunRingkas' } }
                   meta: { $ref: '#/components/schemas/MetaKursor' }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
-        '422': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /akun/{id}:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -305,9 +307,9 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AkunRinci' } } }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
-        '404': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
   /akun/{id}/menu:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -323,9 +325,9 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/MenuSaya' }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
-        '404': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
   /akun/{id}/penugasan:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -359,11 +361,11 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Penugasan' } } }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
-        '404': { $ref: '#/components/responses/Galat' }
-        '409': { $ref: '#/components/responses/Galat' }
-        '422': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /akun/{id}/penugasan/{penugasanId}/batal:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -383,11 +385,11 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Penugasan' } } }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
-        '404': { $ref: '#/components/responses/Galat' }
-        '409': { $ref: '#/components/responses/Galat' }
-        '422': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /akun/{id}/izin-khusus:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -420,11 +422,11 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/IzinKhusus' } } }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
-        '404': { $ref: '#/components/responses/Galat' }
-        '409': { $ref: '#/components/responses/Galat' }
-        '422': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /akun/{id}/izin-khusus/{izinKhususId}/batal:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -444,11 +446,11 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/IzinKhusus' } } }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
-        '404': { $ref: '#/components/responses/Galat' }
-        '409': { $ref: '#/components/responses/Galat' }
-        '422': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /akun/{id}/wajib-mfa:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -476,10 +478,10 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/StatusMfaAkun' } } }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
-        '404': { $ref: '#/components/responses/Galat' }
-        '422': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /akun/{id}/mfa/reset:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -507,11 +509,11 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/StatusMfaAkun' } } }
-        '401': { $ref: '#/components/responses/Galat' }
-        '403': { $ref: '#/components/responses/Galat' }
-        '404': { $ref: '#/components/responses/Galat' }
-        '409': { $ref: '#/components/responses/Galat' }
-        '422': { $ref: '#/components/responses/Galat' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -544,17 +546,17 @@ components:
       name: karsitara_session
       description: Cookie sesi Sanctum stateful (PRD 10.3.2); nama cookie mengikuti konfigurasi.
   responses:
-    Galat:
-      description: Galat format tunggal (PRD 10.3.1)
+    Error:
+      description: Error format tunggal (PRD 10.3.1)
       content:
         application/json:
-          schema: { $ref: '#/components/schemas/Galat' }
+          schema: { $ref: '#/components/schemas/Error' }
   schemas:
-    Galat:
+    Error:
       type: object
-      required: [galat]
+      required: [error]
       properties:
-        galat:
+        error:
           type: object
           required: [kode, pesan]
           properties:
@@ -586,7 +588,7 @@ components:
         rute: { type: string }
         status: { $ref: '#/components/schemas/StatusMenu' }
         fase: { type: integer, minimum: 0, maximum: 6 }
-        lencana: { type: [integer, 'null'], description: "jumlah tugas terbuka; null bila belum tersedia (tiket 1.7)" }
+        jumlah_tugas: { type: [integer, 'null'], description: "jumlah tugas terbuka; null bila belum tersedia (tiket 1.7)" }
         sub_menu:
           type: array
           items: { $ref: '#/components/schemas/SubMenu' }

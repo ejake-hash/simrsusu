@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { keGalatApi, klien } from '@/shared/api/klien'
+import { keApiError, klien } from '@/shared/api/klien'
 import { langkahDariRespons, type Langkah, type MetodeMfa } from './alurMasuk'
 import type { MenuSaya } from './tipeMenu'
 import type { IsianSandi } from './validasi'
@@ -9,7 +9,7 @@ export type { GrupMenu, Menu, MenuSaya, StatusMenu, SubMenu } from './tipeMenu'
 export interface Pengguna {
   id: string
   nama_pengguna: string
-  surel: string | null
+  email: string | null
   login_terakhir_pada: string | null
   mfa_aktif: boolean
   pegawai: { id: string; nama: string } | null
@@ -25,8 +25,8 @@ export async function kirimSandi(isian: IsianSandi): Promise<Langkah> {
   try {
     // /sanctum ada di luar /api/v1, jadi tidak lewat baseURL klien.
     await axios.get('/sanctum/csrf-cookie', { headers: { Accept: 'application/json' } })
-  } catch (galat) {
-    throw keGalatApi(galat)
+  } catch (error) {
+    throw keApiError(error)
   }
 
   const { data } = await klien.post('/autentikasi/masuk', isian, { tangani401Sendiri: true })
@@ -34,22 +34,22 @@ export async function kirimSandi(isian: IsianSandi): Promise<Langkah> {
 }
 
 /** Langkah 2a: kode TOTP atau kode cadangan. */
-export async function kirimKodeMfa(tantanganId: string, metode: MetodeMfa, kode: string): Promise<Langkah> {
-  const { data } = await klien.post('/autentikasi/mfa', { tantangan_id: tantanganId, metode, kode }, { tangani401Sendiri: true })
+export async function kirimKodeMfa(challengeId: string, metode: MetodeMfa, kode: string): Promise<Langkah> {
+  const { data } = await klien.post('/autentikasi/mfa', { challenge_id: challengeId, metode, kode }, { tangani401Sendiri: true })
   return langkahDariRespons(data)
 }
 
 /** Langkah 2b: rahasia baru (URI otpauth + QR SVG) untuk dipindai. Hanya di memori komponen. */
-export async function mintaRahasiaMfa(tantanganId: string): Promise<RahasiaMfa> {
-  const { data } = await klien.post<RahasiaMfa>('/autentikasi/mfa/daftar', { tantangan_id: tantanganId }, { tangani401Sendiri: true })
+export async function mintaRahasiaMfa(challengeId: string): Promise<RahasiaMfa> {
+  const { data } = await klien.post<RahasiaMfa>('/autentikasi/mfa/daftar', { challenge_id: challengeId }, { tangani401Sendiri: true })
   return data
 }
 
 /** Langkah 2c: konfirmasi pendaftaran; kode cadangan hanya dikirim server sekali di sini. */
-export async function konfirmasiDaftarMfa(tantanganId: string, kode: string): Promise<{ langkah: Langkah; kodeCadangan: string[] }> {
+export async function konfirmasiDaftarMfa(challengeId: string, kode: string): Promise<{ langkah: Langkah; kodeCadangan: string[] }> {
   const { data } = await klien.post<{ kode_cadangan?: unknown }>(
     '/autentikasi/mfa/daftar/konfirmasi',
-    { tantangan_id: tantanganId, kode },
+    { challenge_id: challengeId, kode },
     { tangani401Sendiri: true },
   )
   const kodeCadangan = Array.isArray(data.kode_cadangan) ? data.kode_cadangan.map(String) : []

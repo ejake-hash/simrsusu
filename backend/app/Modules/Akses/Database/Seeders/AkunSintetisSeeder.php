@@ -72,7 +72,7 @@ final class AkunSintetisSeeder extends Seeder
             );
             Pengguna::query()->firstOrNew(['nama_pengguna' => $namaPengguna])->forceFill([
                 'pegawai_id' => $pegawai->id,
-                'surel' => $namaPengguna.'@contoh.invalid',
+                'email' => $namaPengguna.'@contoh.invalid',
                 'sandi_hash' => Hash::make($sandi),
                 'status' => 'aktif',
                 // Keadaan awal yang sama tiap seeding, agar uji e2e "terkunci" dan MFA bisa diulang.

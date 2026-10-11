@@ -6,10 +6,10 @@ use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
- * Galat API dengan kode yang bisa dibaca klien (PRD 10.3.1).
+ * Error API dengan kode yang bisa dibaca klien (PRD 10.3.1).
  * `pesan` untuk pengguna, bahasa Indonesia, dan tidak boleh memuat data pasien.
  */
-final class GalatApi extends HttpException
+final class ApiError extends HttpException
 {
     /** @param  list<array<string, mixed>>  $rincian */
     public function __construct(
@@ -30,6 +30,6 @@ final class GalatApi extends HttpException
     /** @param  list<array<string, mixed>>  $rincian */
     public static function respons(int $status, string $kode, string $pesan, array $rincian = [], array $headers = []): JsonResponse
     {
-        return new JsonResponse(['galat' => compact('kode', 'pesan', 'rincian')], $status, $headers);
+        return new JsonResponse(['error' => compact('kode', 'pesan', 'rincian')], $status, $headers);
     }
 }

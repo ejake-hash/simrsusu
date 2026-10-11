@@ -3,12 +3,12 @@
 namespace App\Modules\Akses\Http\Controllers;
 
 use App\Core\Audit\CatatAktivitas;
-use App\Core\Http\GalatApi;
+use App\Core\Http\ApiError;
 use App\Modules\Akses\Application\AlasanGagalMasuk;
 use App\Modules\Akses\Application\GagalMasuk;
 use App\Modules\Akses\Application\KebijakanMfa;
 use App\Modules\Akses\Application\MasukPengguna;
-use App\Modules\Akses\Application\TantanganMfa;
+use App\Modules\Akses\Application\MfaChallenge;
 use App\Modules\Akses\Application\VerifikasiMfa;
 use App\Modules\Akses\Http\Requests\MasukRequest;
 use Illuminate\Http\JsonResponse;
@@ -25,27 +25,27 @@ final class AutentikasiController
         MasukRequest $request,
         MasukPengguna $masuk,
         KebijakanMfa $kebijakan,
-        TantanganMfa $tantangan,
+        MfaChallenge $challenge,
         VerifikasiMfa $mfa,
         PenyelesaiMasuk $penyelesai,
         CatatAktivitas $audit,
     ): JsonResponse {
         PenyelesaiMasuk::pastikanDariSpa($request);
-        $tantangan->hapus($request->session());
+        $challenge->hapus($request->session());
 
         // Sebelum sandi diperiksa: tanpa daftar jaringan RS tidak ada yang bisa mendaftarkan MFA,
         // jadi instalasi belum boleh dipakai (FR-54-08). Superadmin pertama lewat konsol.
         if (! $kebijakan->jaringanRsDiisi()) {
-            throw new GalatApi(503, 'konfigurasi_belum_lengkap', 'SIMRS belum selesai disiapkan: daftar jaringan RS belum diisi. Hubungi admin.');
+            throw new ApiError(503, 'konfigurasi_belum_lengkap', 'SIMRS belum selesai disiapkan: daftar jaringan RS belum diisi. Hubungi admin.');
         }
 
         try {
             $pengguna = $masuk->jalankan($request->validated('nama_pengguna'), $request->validated('sandi'));
         } catch (GagalMasuk $e) {
             throw match ($e->alasan) {
-                AlasanGagalMasuk::KredensialSalah => new GalatApi(401, $e->alasan->value, 'Nama pengguna atau sandi salah.'),
-                AlasanGagalMasuk::AkunTerkunci => PenyelesaiMasuk::galatTerkunci($e->terkunciSampai),
-                AlasanGagalMasuk::AkunNonaktif => new GalatApi(403, $e->alasan->value, 'Akun tidak aktif. Hubungi admin.'),
+                AlasanGagalMasuk::KredensialSalah => new ApiError(401, $e->alasan->value, 'Nama pengguna atau sandi salah.'),
+                AlasanGagalMasuk::AkunTerkunci => PenyelesaiMasuk::errorTerkunci($e->terkunciSampai),
+                AlasanGagalMasuk::AkunNonaktif => new ApiError(403, $e->alasan->value, 'Akun tidak aktif. Hubungi admin.'),
             };
         }
 
@@ -55,11 +55,11 @@ final class AutentikasiController
 
         // Sesi belum masuk sampai langkah MFA lolos; penghitung gagal juga belum direset.
         if ($pengguna->mfaAktif()) {
-            $t = $tantangan->buat($request->session(), $pengguna, 'mfa');
+            $t = $challenge->buat($request->session(), $pengguna, 'mfa');
 
             return response()->json([
                 'status' => 'perlu_mfa',
-                'tantangan_id' => $t['id'],
+                'challenge_id' => $t['id'],
                 'metode' => $mfa->punyaKodeCadangan($pengguna) ? ['totp', 'kode_cadangan'] : ['totp'],
                 'kedaluwarsa_pada' => $t['kedaluwarsa_pada']->toIso8601String(),
             ]);
@@ -70,14 +70,14 @@ final class AutentikasiController
         if (! $kebijakan->dariJaringanRs($request->ip())) {
             $audit->catat('autentikasi.gagal', $pengguna->id, 'akses.pengguna', $pengguna->id, ['alasan' => 'mfa_belum_terdaftar']);
 
-            throw new GalatApi(403, 'mfa_belum_terdaftar', 'Verifikasi dua langkah belum aktif. Aktifkan dari jaringan RS atau minta admin mereset.');
+            throw new ApiError(403, 'mfa_belum_terdaftar', 'Verifikasi dua langkah belum aktif. Aktifkan dari jaringan RS atau minta admin mereset.');
         }
 
-        $t = $tantangan->buat($request->session(), $pengguna, 'daftar');
+        $t = $challenge->buat($request->session(), $pengguna, 'daftar');
 
         return response()->json([
             'status' => 'perlu_daftar_mfa',
-            'tantangan_id' => $t['id'],
+            'challenge_id' => $t['id'],
             'kedaluwarsa_pada' => $t['kedaluwarsa_pada']->toIso8601String(),
         ]);
     }

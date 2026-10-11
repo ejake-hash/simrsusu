@@ -23,7 +23,7 @@ final class BuatSuperadminPertama extends Command
         {--nama-pengguna= : Nama pengguna untuk masuk}
         {--nama= : Nama lengkap pegawai (orang, bukan akun bersama)}
         {--nip= : NIP pegawai (opsional)}
-        {--surel= : Surel (opsional)}';
+        {--email= : Email (opsional)}';
 
     protected $description = 'Membuat akun superadmin bernama dengan MFA untuk instalasi baru (paling banyak 2)';
 
@@ -37,7 +37,7 @@ final class BuatSuperadminPertama extends Command
             'nama_pengguna' => $this->option('nama-pengguna') ?? $this->ask('Nama pengguna'),
             'nama' => $this->option('nama') ?? $this->ask('Nama lengkap pegawai'),
             'nip' => $this->option('nip') ?: null,
-            'surel' => $this->option('surel') ?: null,
+            'email' => $this->option('email') ?: null,
             'sandi' => $this->secret('Kata sandi'),
             'sandi_confirmation' => $this->secret('Ulangi kata sandi'),
         ];
@@ -46,7 +46,7 @@ final class BuatSuperadminPertama extends Command
             'nama_pengguna' => ['required', 'string', 'max:150', 'regex:/^[a-z0-9._-]+$/i'],
             'nama' => ['required', 'string', 'max:200'],
             'nip' => ['nullable', 'string', 'max:50', Rule::unique('sdm.pegawai', 'nip')],
-            'surel' => ['nullable', 'email', 'max:200'],
+            'email' => ['nullable', 'email', 'max:200'],
             'sandi' => ['required', 'string', 'max:1024', 'confirmed', Password::defaults()],
         ], [
             'nama_pengguna.regex' => 'Nama pengguna hanya huruf, angka, titik, garis bawah, dan tanda hubung.',
@@ -70,7 +70,7 @@ final class BuatSuperadminPertama extends Command
         }
 
         try {
-            $hasil = $superadmin->buat($isian['nama_pengguna'], $isian['nama'], $isian['nip'], $isian['surel'], $isian['sandi']);
+            $hasil = $superadmin->buat($isian['nama_pengguna'], $isian['nama'], $isian['nip'], $isian['email'], $isian['sandi']);
         } catch (RuntimeException) {
             return $this->tolakSudahCukup();
         }

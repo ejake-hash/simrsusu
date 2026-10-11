@@ -2,7 +2,7 @@
 
 namespace App\Core\Audit\Console;
 
-use App\Core\Audit\BerkasJangkar;
+use App\Core\Audit\BerkasAnchor;
 use App\Core\Audit\RantaiAudit;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
@@ -13,9 +13,9 @@ final class VerifikasiRantai extends Command
         {--dari= : Tanggal awal (Y-m-d, zona config audit.zona_waktu)}
         {--sampai= : Tanggal akhir, ikut diperiksa (Y-m-d)}';
 
-    protected $description = 'Memeriksa rantai hash audit.log_aktivitas dan jangkar per jam; melaporkan baris pertama yang putus';
+    protected $description = 'Memeriksa rantai hash audit.log_aktivitas dan anchor per jam; melaporkan baris pertama yang putus';
 
-    public function handle(RantaiAudit $rantai, BerkasJangkar $berkas): int
+    public function handle(RantaiAudit $rantai, BerkasAnchor $berkas): int
     {
         $zona = config('audit.zona_waktu');
         $dari = $this->option('dari') ? CarbonImmutable::parse($this->option('dari'), $zona)->startOfDay() : null;
@@ -25,7 +25,7 @@ final class VerifikasiRantai extends Command
         if ($batas === null) {
             $this->info('Tidak ada baris audit pada rentang ini.');
 
-            return $this->periksaJangkar($rantai, $berkas, null, $sampai === null) ? self::SUCCESS : self::FAILURE;
+            return $this->periksaAnchor($rantai, $berkas, null, $sampai === null) ? self::SUCCESS : self::FAILURE;
         }
 
         [$awal, $akhir] = $batas;
@@ -39,20 +39,20 @@ final class VerifikasiRantai extends Command
 
         $this->info("Rantai utuh: {$rantai->jumlahBaris($awal, $akhir)} baris, urutan {$awal}–{$akhir}.");
 
-        return $this->periksaJangkar($rantai, $berkas, $batas, $sampai === null) ? self::SUCCESS : self::FAILURE;
+        return $this->periksaAnchor($rantai, $berkas, $batas, $sampai === null) ? self::SUCCESS : self::FAILURE;
     }
 
     /**
-     * Jangkar menangkap hal yang tidak terlihat dari rantai saja: baris ekor yang dihapus atau
+     * Anchor menangkap hal yang tidak terlihat dari rantai saja: baris ekor yang dihapus atau
      * rantai yang dihitung ulang seluruhnya.
      *
      * @param  array{0: int, 1: int}|null  $batas
      */
-    private function periksaJangkar(RantaiAudit $rantai, BerkasJangkar $berkas, ?array $batas, bool $sampaiEkor): bool
+    private function periksaAnchor(RantaiAudit $rantai, BerkasAnchor $berkas, ?array $batas, bool $sampaiEkor): bool
     {
         $diperiksa = 0;
-        foreach ($berkas->semua() as $jangkar) {
-            $urutan = (int) $jangkar['urutan'];
+        foreach ($berkas->semua() as $anchor) {
+            $urutan = (int) $anchor['urutan'];
             if ($batas !== null && ($urutan < $batas[0] || (! $sampaiEkor && $urutan > $batas[1]))) {
                 continue;
             }
@@ -61,15 +61,15 @@ final class VerifikasiRantai extends Command
             }
 
             $baris = $rantai->barisDenganUrutan($urutan);
-            if ($baris === null || $baris->id !== $jangkar['id'] || trim($baris->hash_rantai) !== $jangkar['hash_rantai']) {
-                $this->error("Jangkar {$jangkar['batas']} TIDAK COCOK: urutan {$urutan} ".($baris === null ? 'hilang' : 'berbeda').'.');
+            if ($baris === null || $baris->id !== $anchor['id'] || trim($baris->hash_rantai) !== $anchor['hash_rantai']) {
+                $this->error("Anchor {$anchor['batas']} TIDAK COCOK: urutan {$urutan} ".($baris === null ? 'hilang' : 'berbeda').'.');
 
                 return false;
             }
             $diperiksa++;
         }
 
-        $this->info("Jangkar cocok: {$diperiksa}.");
+        $this->info("Anchor cocok: {$diperiksa}.");
 
         return true;
     }

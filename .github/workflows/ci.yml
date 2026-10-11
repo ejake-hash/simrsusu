@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # Valkey dari docker-compose.yml (sesi/antrean noeviction :6379, cache allkeys-lru :6380), sama dengan lokal.
+      # Valkey dari docker-compose.yml (sesi/queue noeviction :6379, cache allkeys-lru :6380), sama dengan lokal.
       # Bukan `services:` karena kontainer layanan Actions tidak bisa diberi argumen valkey-server.
       - name: Jalankan Valkey
         working-directory: .
@@ -119,11 +119,11 @@ jobs:
       E2E_MFA_RAHASIA: KRSXG5CTMVRXEZLUKRSXG5CTMVRXEZLU
       # Proksi Vite (127.0.0.1) dipercaya agar e2e bisa meniru akses dari luar jaringan RS lewat
       # X-Forwarded-For (tiket 1.1c). Variabel lingkungan mengalahkan .env.
-      PROKSI_TEPERCAYA: 127.0.0.1
+      TRUSTED_PROXIES: 127.0.0.1
     steps:
       - uses: actions/checkout@v5
 
-      # Valkey dari docker-compose.yml (sesi/antrean noeviction :6379, cache allkeys-lru :6380), sama dengan lokal.
+      # Valkey dari docker-compose.yml (sesi/queue noeviction :6379, cache allkeys-lru :6380), sama dengan lokal.
       # Bukan `services:` karena kontainer layanan Actions tidak bisa diberi argumen valkey-server.
       - name: Jalankan Valkey
         working-directory: .

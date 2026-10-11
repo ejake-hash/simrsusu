@@ -1,21 +1,21 @@
 import axios, { AxiosError } from 'axios'
 
-/** Galat API dalam format tunggal PRD 10.3.1: {"galat": {"kode", "pesan", "rincian"}}. */
-export interface RincianGalat {
+/** Error API dalam format tunggal PRD 10.3.1: {"error": {"kode", "pesan", "rincian"}}. */
+export interface RincianError {
   kolom?: string
   pesan?: string
 }
 
-export class GalatApi extends Error {
+export class ApiError extends Error {
   readonly status: number
   readonly kode: string
-  readonly rincian: RincianGalat[]
+  readonly rincian: RincianError[]
   /** Dari header Retry-After (detik): akun_terkunci dan 429. */
   readonly cobaLagiDetik: number | null
 
-  constructor(status: number, kode: string, pesan: string, rincian: RincianGalat[] = [], cobaLagiDetik: number | null = null) {
+  constructor(status: number, kode: string, pesan: string, rincian: RincianError[] = [], cobaLagiDetik: number | null = null) {
     super(pesan)
-    this.name = 'GalatApi'
+    this.name = 'ApiError'
     this.status = status
     this.kode = kode
     this.rincian = rincian
@@ -37,33 +37,33 @@ export const klien = axios.create({
   headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
 })
 
-let penangan401: ((galat: GalatApi) => void) | null = null
+let penangan401: ((error: ApiError) => void) | null = null
 
 /** Dipasang sekali di main.ts: 401 di mana pun mengakhiri sesi di klien. */
-export function aturPenangan401(penangan: (galat: GalatApi) => void): void {
+export function aturPenangan401(penangan: (error: ApiError) => void): void {
   penangan401 = penangan
 }
 
-klien.interceptors.response.use(undefined, (galat: unknown) => {
-  const hasil = keGalatApi(galat)
-  const config = galat instanceof AxiosError ? galat.config : undefined
+klien.interceptors.response.use(undefined, (error: unknown) => {
+  const hasil = keApiError(error)
+  const config = error instanceof AxiosError ? error.config : undefined
   if (hasil.status === 401 && !config?.tangani401Sendiri) {
     penangan401?.(hasil)
   }
   return Promise.reject(hasil)
 })
 
-export function keGalatApi(galat: unknown): GalatApi {
-  if (galat instanceof GalatApi) return galat
-  if (!(galat instanceof AxiosError) || !galat.response) {
-    return new GalatApi(0, 'jaringan', 'Tidak dapat terhubung ke server. Periksa jaringan lalu coba lagi.')
+export function keApiError(error: unknown): ApiError {
+  if (error instanceof ApiError) return error
+  if (!(error instanceof AxiosError) || !error.response) {
+    return new ApiError(0, 'jaringan', 'Tidak dapat terhubung ke server. Periksa jaringan lalu coba lagi.')
   }
 
-  const { status, data, headers } = galat.response
-  const isi = (data as { galat?: { kode?: string; pesan?: string; rincian?: RincianGalat[] } } | null)?.galat
+  const { status, data, headers } = error.response
+  const isi = (data as { error?: { kode?: string; pesan?: string; rincian?: RincianError[] } } | null)?.error
   const cobaLagi = Number.parseInt(String(headers['retry-after'] ?? ''), 10)
 
-  return new GalatApi(
+  return new ApiError(
     status,
     isi?.kode ?? 'kesalahan_server',
     isi?.pesan ?? 'Terjadi kesalahan pada server.',
