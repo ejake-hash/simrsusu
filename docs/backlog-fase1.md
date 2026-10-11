@@ -20,7 +20,10 @@
 | 1.0d | Ganti Redis ke Valkey: dua instans (cache `allkeys-lru`, sesi+antrean `noeviction`), compose, CI, dokumentasi. Catatan: `valkey/valkey:9.1.2-alpine`; CI menjalankan Valkey lewat `docker compose` (kontainer `services:` tidak bisa diberi argumen); skrip install esbuild/fsevents ditolak lewat `allowScripts` | Selesai | #21 |
 | 1.0e | Fondasi ketahanan beban (PRD 14.1.1): batas waktu per role, paginasi berbatas, antrean per jenis, batas laju per pengguna, `/siap`, kerangka k6. Catatan: paginasi tidak memakai `cursorPaginate()` (mikrodetik hilang); Horizon 5, dasbor ditolak di luar local sampai 1.2; batas laju bawaan 120/menit per akun, layar kerja 600 | Selesai | #23 |
 | 1.0c | Nama modul bahasa Indonesia (backend dan frontend). Catatan: panel Spek dev di `docs/html` masih menyebut nama lama (di luar lingkup) | Selesai | #16 |
-| 1.2 | Menu, peran, izin, `AccessEvaluator` lapis 1–3, `GET /api/v1/saya/menu` | Menunggu 1.1b | — |
+| **1.0f** | Antrean setelah commit, penghitung batas laju di instans `noeviction`, aturan bersih-bersih tiket di CLAUDE.md | **Siap dikerjakan** (Sesi 1) | — |
+| **1.2a** | Backend akses: tabel menu/peran/izin/penugasan, seeder menu dari prototipe, `AccessEvaluator` lapis 1–3, `GET /api/v1/saya/menu`, superadmin sementara → peran | **Siap** setelah 1.0f (Sesi 1) | — |
+| **1.2b** | Frontend kerangka aplikasi: `AppShell` + `SidebarMenu` dinamis (kontrak `docs/api/openapi.yaml`), `SegeraHadirPage`, responsif PRD 5.5 | **Siap dikerjakan** (Sesi 2, paralel dengan 1.0f/1.2a) | — |
+| 1.2c | Halaman Data Induk → Peran & menu, Akun & akses (`masterdata.html`), termasuk wajib MFA per peran/akun dan reset MFA | Menunggu 1.2a dan 1.2b; paket halaman menyusul | — |
 | 1.5 | Lapis 4–5 hak akses (label sensitivitas, SIP/SPK, MFA aksi sensitif) | Menunggu 1.2 | — |
 | 1.6 | TTE T1: aktivasi PIN, `TtdModal`, kunci Ed25519 | Menunggu 1.2 | — |
 | 1.7 | Notifikasi dasar (PRD 7.53), jenis bawaan pertama: pemberitahuan akun terkunci | Menunggu 1.2 | — |
@@ -130,6 +133,90 @@ Uji penerimaan:
   - Skrip k6 berjalan lokal dan menghasilkan ringkasan P95.
 Di luar lingkup tiket: circuit breaker per sistem luar (tiket 1.9), pemantauan dan peringatan produksi,
 Octane dan PgBouncer di produksi (tiket infrastruktur).
+```
+
+## [SIMRS] Platform · 1.0f Pagar transaksi dan batas laju
+
+```
+Tujuan     : Pekerjaan antrean tidak jalan untuk data yang belum tersimpan, dan batas laju tidak hilang
+             saat memori cache penuh. Tiket kecil, wajib sebelum 1.2a (modul pertama yang menulis data bisnis).
+FR         : PRD 14.1.1 butir 4, 6, 7
+Pekerjaan  :
+  1. config/queue.php: after_commit = true untuk koneksi antrean aplikasi. Tes: pekerjaan yang dikirim di
+     dalam transaksi yang di-rollback tidak pernah dijalankan; yang di-commit dijalankan.
+  2. Penghitung RateLimiter (batas laju dan kunci nama pengguna fiktif) disimpan di store berbasis instans
+     `valkey` (noeviction), bukan `valkey-cache`. Tes: store limiter menunjuk instans dengan
+     maxmemory-policy noeviction.
+  3. CLAUDE.md, bagian "Kerja paralel", aturan baru "Tiket selesai = sudah bersih":
+     setelah PR merge dan CI main hijau → git worktree remove <jalur lengkap>; git branch -D <branch> dan
+     hapus branch remote; DROP DATABASE tes/e2e milik tiket; flushdb Redis/Valkey DB milik tiket;
+     docker compose -p <proyek> down untuk stack tambahan; laporan akhir menyertakan `git worktree list`
+     (hanya folder utama) dan daftar database yang tersisa.
+Uji penerimaan: dua tes di atas lulus dan uji balik (after_commit=false / limiter di cache) membuat tes gagal;
+  composer test, analyse, e2e hijau.
+Di luar lingkup tiket: modul baru, frontend.
+```
+
+## [SIMRS] Akses · 1.2a Backend akses: menu, peran, izin, AccessEvaluator
+
+```
+Tujuan     : Server menentukan menu, bagian, dan aksi yang boleh untuk tiap akun (tolak kecuali diberikan),
+             dan menyediakan menu efektif untuk sidebar.
+FR         : FR-09-01…11, FR-54-04, PRD 9.2.1–9.2.5 (lapis 1–3), 9.2.4, 10.3.2 (aturan MFA), 3.4 (modul aktif)
+Kontrak    : docs/api/openapi.yaml → GET /api/v1/saya/menu (bentuk respons wajib sama; uji kontrak)
+Tabel      : akses.menu, akses.peran, akses.izin, akses.peran_izin, akses.peran_menu, akses.pengguna_peran,
+             akses.pengguna_izin_khusus (PRD 11.1); kolom akses.peran.wajib_mfa (boolean); inti.modul_aktif
+Pekerjaan  :
+  1. Migrasi tabel di atas (UUIDv7, *_pada, tanpa SoftDeletes, pembatalan lewat status).
+  2. Seeder menu dari sidebar prototipe docs/html: grup Pelayanan / Pendapatan / Tata Kelola, semua menu dan
+     sub-menunya (kode Indonesia stabil, mis. igd.papan), fase dari PRD D.3. Modul aktif awal: beranda, data_induk.
+  3. AccessEvaluator lapis 1 (menu/bagian), 2 (aksi), 3 (cakupan data) dengan rumus PRD 9.2.5:
+     cabut per akun selalu menang; tanpa pemberian = ditolak. Cache per akun di Valkey cache, dihapus saat
+     peran/penugasan/izin khusus berubah.
+  4. GET /api/v1/saya/menu sesuai kontrak, ETag dari `versi`; status "segera" hanya bila
+     config menu.tampilkan_segera_hadir = true (bawaan true di local, false di production).
+  5. Peran bawaan sistem: superadmin (wajib_mfa, tidak bisa membuka RM/rupiah bawaan, PRD 9.2.4) dan peran
+     contoh untuk akun sintetis (admisi, perawat, dokter). Akun yang dibuat akses:superadmin-pertama dipindah ke
+     peran superadmin; penanda audit sementara tidak dipakai lagi.
+  6. Kebijakan MFA: wajib bila peran mana pun yang aktif wajib_mfa ATAU pengguna.wajib_mfa ATAU akses dari luar
+     jaringan RS. Tiga hal yang TIDAK bisa dimatikan admin: superadmin, peran sensitif, akses dari luar jaringan RS.
+Uji penerimaan:
+  - Akun tanpa penugasan → /saya/menu hanya Beranda; endpoint data induk 403.
+  - Peran memberi sub-menu, akun dicabut satu bagian → bagian itu tidak ada di menu/izin dan API 403 (cabut menang).
+  - Penugasan kedaluwarsa (berlaku_sampai lewat) → akses hilang tanpa tindakan admin.
+  - production: tidak ada item status "segera" di respons; local: ada.
+  - Respons /saya/menu lulus validasi skema openapi.yaml.
+  - Superadmin dari akses:superadmin-pertama punya peran superadmin dan wajib MFA.
+  - Mengubah peran menghapus cache menu akun terkait (versi berubah).
+Di luar lingkup tiket: halaman pengelolaan peran/akun (1.2c), lapis 4–5 (1.5), Lihat sebagai, admin delegasi,
+persetujuan pemilik data untuk izin sensitif (tiket lanjutan).
+```
+
+## [SIMRS] Platform · 1.2b Kerangka aplikasi: AppShell, sidebar dinamis, Segera hadir
+
+```
+Tujuan     : Setelah masuk, pengguna melihat kerangka aplikasi seperti prototipe (sidebar, header, area kerja)
+             dengan menu dari server, dan menu modul yang belum ada membuka halaman Segera hadir.
+FR         : PRD 5.2, 5.4 (AppShell, SidebarMenu, PermissionGate/v-can), 5.5 (responsif), 10.4, 9.2.5
+Kontrak    : docs/api/openapi.yaml → GET /api/v1/saya/menu. Sampai 1.2a merge, pakai data tiruan yang
+             dibuat dari contoh di kontrak (MSW atau modul tiruan di mode dev/test saja).
+Acuan      : sidebar dan header di docs/html/home.html (wajib: grup, label, ikon, menu aktif, kartu RS, kolom
+             cari pasien sebagai placeholder nonaktif bertanda "segera"; dibuang: angka lencana palsu)
+Pekerjaan  :
+  1. AppShell + SidebarMenu: dirender dari /saya/menu (TanStack Query, ETag); menu aktif mengikuti rute;
+     lencana hanya bila `lencana` bukan null.
+  2. Rute dinamis dari menu: item status "segera" → SegeraHadirPage (nama menu, fase rencana, tombol Kembali ke
+     Beranda) dan penanda "Segera hadir" di sidebar.
+  3. v-can / PermissionGate dari daftar `izin`.
+  4. Responsif PRD 5.5: ≥1280 sidebar 248 px; 1024–1279 sidebar ikon 64 px + tooltip; 768–1023 menu laci;
+     <768 menu laci, hanya Beranda/notifikasi/akun. Target sentuh ≥ 44 px di kelas tablet.
+  5. Pasang TanStack Query (pertama kali dipakai) dan ikon design-system yang dibutuhkan; tanpa HEX di komponen.
+Uji penerimaan:
+  - Unit: menu dari respons tiruan dirender per grup; item "segera" membuka SegeraHadirPage; v-can menyembunyikan.
+  - e2e di 1440, 1024, 768, 390 px: sidebar sesuai kelas layar; tidak ada gulir horizontal halaman.
+  - Setelah 1.2a merge: e2e ke backend asli dengan contoh.dokter (menu sesuai perannya).
+  - Tangkapan layar berdampingan dengan docs/html/home.html (sidebar dan header) di PR.
+Di luar lingkup tiket: isi beranda/kotak kerja (1.7), pencarian pasien global (fase 2), halaman data induk (1.2c).
 ```
 
 ## [SIMRS] Akses · 1.10 SSO universitas (terhambat)
