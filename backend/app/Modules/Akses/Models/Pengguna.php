@@ -15,6 +15,12 @@ use Illuminate\Support\Carbon;
  * @property string $sandi_hash
  * @property string $status
  * @property Carbon|null $terkunci_sampai
+ * @property int $percobaan_gagal
+ * @property Carbon|null $login_terakhir_pada
+ * @property string|null $surel
+ * @property string|null $mfa_rahasia_enkripsi sudah didekripsi oleh cast `encrypted`
+ * @property Carbon|null $mfa_aktif_pada
+ * @property bool $wajib_mfa
  */
 final class Pengguna extends Authenticatable
 {
@@ -35,7 +41,7 @@ final class Pengguna extends Authenticatable
     // sandi_hash, status, dan kolom penguncian hanya diisi lewat forceFill di kode akses.
     protected $fillable = ['pegawai_id', 'nama_pengguna', 'surel'];
 
-    protected $hidden = ['sandi_hash'];
+    protected $hidden = ['sandi_hash', 'mfa_rahasia_enkripsi'];
 
     protected function casts(): array
     {
@@ -43,12 +49,21 @@ final class Pengguna extends Authenticatable
             'login_terakhir_pada' => 'datetime',
             'terkunci_sampai' => 'datetime',
             'percobaan_gagal' => 'integer',
+            'mfa_rahasia_enkripsi' => 'encrypted',
+            'mfa_aktif_pada' => 'datetime',
+            'mfa_langkah_terakhir' => 'integer',
+            'wajib_mfa' => 'boolean',
         ];
     }
 
     public function aktif(): bool
     {
         return $this->status === 'aktif';
+    }
+
+    public function mfaAktif(): bool
+    {
+        return $this->mfa_aktif_pada !== null && $this->mfa_rahasia_enkripsi !== null;
     }
 
     public function terkunci(): bool

@@ -9,7 +9,6 @@ use Illuminate\Cache\RateLimiter;
 use Illuminate\Contracts\Hashing\Hasher;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -19,6 +18,9 @@ use Illuminate\Support\Str;
  * - nama pengguna yang tidak ada juga "terkunci" setelah 5 kali (di cache) dengan sisa waktu
  *   yang sama, supaya status terkunci tidak membocorkan apakah akun ada;
  * - status nonaktif hanya diberitahukan bila sandi benar.
+ *
+ * jalankan() hanya memverifikasi sandi. Penghitung gagal direset dan `autentikasi.masuk` dicatat di
+ * selesaikan(), sesudah langkah MFA bila ada (PRD 10.3.2).
  */
 final class MasukPengguna
 {
@@ -32,6 +34,7 @@ final class MasukPengguna
         private readonly Hasher $hasher,
         private readonly RateLimiter $pembatas,
         private readonly CatatAktivitas $audit,
+        private readonly PenghitungGagal $penghitung,
     ) {}
 
     /** @throws GagalMasuk */
@@ -55,10 +58,8 @@ final class MasukPengguna
         if ($pengguna === null || ! $cocok) {
             if ($pengguna === null) {
                 $this->catatGagalTanpaAkun($kunciTanpaAkun);
-            } elseif ($this->catatGagalDanKunci($pengguna)) {
-                $this->audit->catat('autentikasi.terkunci', $pengguna->id, 'akses.pengguna', $pengguna->id, [
-                    'terkunci_sampai' => $pengguna->terkunci_sampai?->toIso8601String(),
-                ]);
+            } else {
+                $this->penghitung->catat($pengguna);
             }
             $this->gagal($pengguna, AlasanGagalMasuk::KredensialSalah);
         }
@@ -68,8 +69,15 @@ final class MasukPengguna
         }
 
         if ($this->hasher->needsRehash($pengguna->sandi_hash)) {
-            $pengguna->sandi_hash = $this->hasher->make($sandi);
+            $pengguna->forceFill(['sandi_hash' => $this->hasher->make($sandi)])->save();
         }
+
+        return $pengguna;
+    }
+
+    /** Semua langkah (sandi, lalu MFA bila wajib) sudah lolos. */
+    public function selesaikan(Pengguna $pengguna): void
+    {
         $pengguna->forceFill([
             'percobaan_gagal' => 0,
             'terkunci_sampai' => null,
@@ -77,8 +85,6 @@ final class MasukPengguna
         ])->save();
 
         $this->audit->catat('autentikasi.masuk', $pengguna->id, 'akses.pengguna', $pengguna->id);
-
-        return $pengguna;
     }
 
     /** @return never */
@@ -112,28 +118,6 @@ final class MasukPengguna
         $sampai = Cache::get($kunci.':terkunci-sampai');
 
         return is_int($sampai) && $sampai > now()->getTimestamp() ? Carbon::createFromTimestamp($sampai) : null;
-    }
-
-    /**
-     * Menambah hitungan gagal secara atomik dan mengunci bila mencapai batas. Akun yang sedang
-     * terkunci sudah ditolak sebelumnya, jadi terkunci() sesudah ini berarti baru saja terkunci.
-     */
-    private function catatGagalDanKunci(Pengguna $pengguna): bool
-    {
-        DB::update(
-            'UPDATE akses.pengguna
-                SET percobaan_gagal = CASE WHEN percobaan_gagal + 1 >= ? THEN 0 ELSE percobaan_gagal + 1 END,
-                    terkunci_sampai = CASE WHEN percobaan_gagal + 1 >= ? THEN CAST(? AS timestamptz) ELSE terkunci_sampai END
-              WHERE id = ?',
-            [
-                $this->maksGagal(),
-                $this->maksGagal(),
-                now()->addMinutes($this->durasiKunciMenit())->toIso8601String(),
-                $pengguna->id,
-            ],
-        );
-
-        return $pengguna->refresh()->terkunci();
     }
 
     private function hashTiruan(): string

@@ -6,7 +6,7 @@ import { GalatApi } from '@/shared/api/klien'
 import { ambilSaya, kirimSandi } from '../api'
 import MasukPage from './MasukPage.vue'
 
-vi.mock('../api', () => ({ kirimSandi: vi.fn(), ambilSaya: vi.fn(), keluar: vi.fn() }))
+vi.mock('../api', () => ({ kirimSandi: vi.fn(), ambilSaya: vi.fn(), keluar: vi.fn(), kirimKodeMfa: vi.fn(), mintaRahasiaMfa: vi.fn(), konfirmasiDaftarMfa: vi.fn() }))
 
 async function pasang(kembali?: string) {
   const router = createRouter({
@@ -37,6 +37,7 @@ beforeEach(() => {
     nama_pengguna: 'contoh.dokter',
     surel: null,
     login_terakhir_pada: null,
+    mfa_aktif: false,
     pegawai: { id: 'g-1', nama: 'Contoh Dokter' },
   })
 })
@@ -70,11 +71,11 @@ describe('MasukPage (mesin status PRD 10.3.2)', () => {
     const { w, router } = await pasang()
 
     await kirim(w)
-    expect(w.get('h1').text()).toBe('Verifikasi dua langkah diperlukan')
+    expect(w.get('h1').text()).toBe('Masukkan kode 6 digit')
     expect(ambilSaya).not.toHaveBeenCalled()
     expect(router.currentRoute.value.name).toBe('masuk')
 
-    await w.get('button').trigger('click')
+    await w.get('button.kembali').trigger('click')
     expect(w.get('h1').text()).toBe('Masuk ke akun Anda')
     expect((w.get('#nama-pengguna').element as HTMLInputElement).value).toBe('')
   })

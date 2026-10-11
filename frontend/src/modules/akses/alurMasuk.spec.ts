@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { langkahDariRespons, tujuanSetelahMasuk } from './alurMasuk'
 
 describe('langkahDariRespons (PRD 10.3.2)', () => {
-  it('respons tanpa status (bentuk lama {data}) berarti masuk', () => {
-    expect(langkahDariRespons({ data: { id: 'x' } })).toEqual({ status: 'masuk' })
+  it('respons tanpa status (bentuk lama {data}) ditolak sejak tiket 1.1b', () => {
+    expect(() => langkahDariRespons({ data: { id: 'x' } })).toThrow()
   })
 
   it('status masuk', () => {

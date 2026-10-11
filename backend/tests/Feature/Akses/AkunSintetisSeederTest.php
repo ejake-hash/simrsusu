@@ -28,12 +28,19 @@ class AkunSintetisSeederTest extends TestCase
 
         $akun = Pengguna::query()->where('nama_pengguna', 'like', 'contoh.%')->get();
         $this->assertEqualsCanonicalizing(
-            ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci'],
+            ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci', 'contoh.mfa', 'contoh.mfa.baru'],
             $akun->pluck('nama_pengguna')->all(),
         );
         foreach ($akun as $pengguna) {
             $this->assertSame('argon2id', password_get_info($pengguna->sandi_hash)['algoName']);
         }
+
+        // contoh.mfa: wajib MFA dengan rahasia sintetis; contoh.mfa.baru: wajib tetapi belum terdaftar.
+        $mfa = $akun->firstWhere('nama_pengguna', 'contoh.mfa');
+        $baru = $akun->firstWhere('nama_pengguna', 'contoh.mfa.baru');
+        $this->assertTrue($mfa->wajib_mfa && $mfa->mfaAktif());
+        $this->assertTrue($baru->wajib_mfa && ! $baru->mfaAktif());
+        $this->assertFalse($akun->firstWhere('nama_pengguna', 'contoh.admisi')->wajib_mfa);
     }
 
     public function test_seeding_ulang_membuka_kunci_akun_sintetis(): void
