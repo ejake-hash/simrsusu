@@ -89,20 +89,76 @@ describe('LangkahSandi', () => {
     expect(document.activeElement).toBe(w.get('#sandi').element)
   })
 
-  it('akun terkunci menampilkan sisa waktu dari server dan menghitung mundur', async () => {
+  it('akun terkunci: kalimat frontend + satu baris sisa waktu dari server, menghitung mundur', async () => {
     vi.useFakeTimers()
-    vi.mocked(kirimSandi).mockRejectedValue(new GalatApi(403, 'akun_terkunci', 'Akun terkunci sementara.', [], 900))
+    vi.mocked(kirimSandi).mockRejectedValue(
+      new GalatApi(403, 'akun_terkunci', 'Akun terkunci sementara karena terlalu banyak percobaan gagal. Coba lagi nanti atau hubungi admin.', [], 900),
+    )
     const w = pasang()
 
     await isiDanKirim(w)
     await flushPromises()
-    expect(w.get('[role="alert"]').text()).toContain('Akun terkunci sementara. Coba lagi dalam 15 menit.')
+    const alert = () => w.get('[role="alert"]').text()
+    expect(alert()).toBe('Akun terkunci sementara karena terlalu banyak percobaan gagal. Coba lagi dalam 15 menit.')
+    expect(w.get('#baris-tunggu').text()).toBe('Coba lagi dalam 15 menit.')
 
     await vi.advanceTimersByTimeAsync(6 * 60 * 1000)
-    expect(w.get('[role="alert"]').text()).toContain('Coba lagi dalam 9 menit.')
+    expect(alert()).toContain('Coba lagi dalam 9 menit.')
 
     await vi.advanceTimersByTimeAsync(9 * 60 * 1000)
-    expect(w.get('[role="alert"]').text()).toContain('Anda sudah bisa mencoba lagi.')
+    expect(alert()).toBe('Akun terkunci sementara karena terlalu banyak percobaan gagal. Anda sudah bisa mencoba lagi.')
+  })
+
+  it('batas laju 429: kalimat frontend, tanpa "Coba lagi" ganda', async () => {
+    vi.useFakeTimers()
+    vi.mocked(kirimSandi).mockRejectedValue(
+      new GalatApi(429, 'terlalu_banyak_permintaan', 'Terlalu banyak permintaan. Coba lagi sebentar lagi.', [], 30),
+    )
+    const w = pasang()
+
+    await isiDanKirim(w)
+    await flushPromises()
+    const teks = w.get('[role="alert"]').text()
+    expect(teks).toBe('Terlalu banyak percobaan masuk. Coba lagi dalam kurang dari 1 menit.')
+    expect(teks.match(/Coba lagi/g)).toHaveLength(1)
+  })
+
+  it('akun terkunci tanpa Retry-After: "Coba lagi nanti." dan tombol tetap aktif', async () => {
+    vi.mocked(kirimSandi).mockRejectedValue(new GalatApi(403, 'akun_terkunci', 'Akun terkunci.'))
+    const w = pasang()
+
+    await isiDanKirim(w)
+    await flushPromises()
+    expect(w.get('[role="alert"]').text()).toBe('Akun terkunci sementara karena terlalu banyak percobaan gagal. Coba lagi nanti.')
+    expect(w.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('tombol Masuk nonaktif selama hitung mundur, aktif lagi saat habis tanpa muat ulang', async () => {
+    vi.useFakeTimers()
+    vi.mocked(kirimSandi).mockRejectedValue(new GalatApi(403, 'akun_terkunci', 'Akun terkunci.', [], 90))
+    const w = pasang()
+    const tombol = () => w.get('button[type="submit"]')
+
+    await isiDanKirim(w)
+    await flushPromises()
+    expect(tombol().attributes('disabled')).toBeDefined()
+    expect(tombol().attributes('aria-describedby')).toBe('baris-tunggu')
+    expect(tombol().text()).toBe('Masuk')
+
+    // Enter selama hitung mundur tidak mengirim.
+    await w.get('form').trigger('submit')
+    expect(kirimSandi).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(60 * 1000)
+    expect(tombol().attributes('disabled')).toBeDefined()
+
+    await vi.advanceTimersByTimeAsync(31 * 1000)
+    expect(tombol().attributes('disabled')).toBeUndefined()
+    expect(tombol().attributes('aria-describedby')).toBeUndefined()
+
+    vi.mocked(kirimSandi).mockResolvedValue({ status: 'masuk' })
+    await w.get('form').trigger('submit')
+    expect(kirimSandi).toHaveBeenCalledTimes(2)
   })
 
   it('galat validasi server dipasang ke field-nya', async () => {
@@ -138,6 +194,26 @@ describe('LangkahSandi', () => {
   it('teks bantuan tanpa kontak bila profil RS tidak mengisinya', () => {
     vi.stubEnv('VITE_RS_KONTAK_ADMIN', '')
     expect(pasang().get('.bantuan').text()).toBe('Lupa sandi atau akun terkunci? Hubungi admin SIMRS.')
+  })
+
+  it('nama unit dari profil RS dipakai di subjudul, bantuan, dan pesan galat', async () => {
+    vi.stubEnv('VITE_RS_UNIT_ADMIN', 'Instalasi SIMRS')
+    vi.stubEnv('VITE_RS_KONTAK_ADMIN', '')
+    vi.mocked(kirimSandi).mockRejectedValue(new Error('bentuk respons aneh'))
+    const w = pasang()
+
+    expect(w.get('.lead').text()).toBe('Gunakan nama pengguna yang diberikan Instalasi SIMRS.')
+    expect(w.get('.bantuan').text()).toBe('Lupa sandi atau akun terkunci? Hubungi Instalasi SIMRS.')
+
+    await isiDanKirim(w)
+    await flushPromises()
+    expect(w.get('[role="alert"]').text()).toBe('Respons server tidak dikenali. Coba lagi atau hubungi Instalasi SIMRS.')
+    expect(w.text()).not.toContain('Unit TI')
+  })
+
+  it('tanpa VITE_RS_UNIT_ADMIN memakai "admin SIMRS"', () => {
+    vi.stubEnv('VITE_RS_UNIT_ADMIN', '')
+    expect(pasang().get('.lead').text()).toBe('Gunakan nama pengguna yang diberikan admin SIMRS.')
   })
 
   it('peringatan Caps Lock muncul saat aktif dan hilang saat blur', async () => {

@@ -14,15 +14,19 @@ export const useSesiStore = defineStore('sesi', () => {
   /** Pesan dari server saat sesi berakhir (mis. sesi_kedaluwarsa), ditampilkan di halaman masuk. */
   const pesanBerakhir = ref<string | null>(null)
 
+  /**
+   * Cek sesi sekali per muat halaman. Server tak terjangkau atau galat lain = anggap belum masuk
+   * (guard mengarahkan ke /masuk, bukan halaman kosong) dan cek lagi di navigasi berikutnya.
+   */
   async function pastikan(): Promise<void> {
     if (sudahDicek.value) return
     try {
       pengguna.value = await ambilSaya()
+      sudahDicek.value = true
     } catch (galat) {
-      if (!(galat instanceof GalatApi) || galat.status !== 401) throw galat
       pengguna.value = null
+      sudahDicek.value = galat instanceof GalatApi && galat.status === 401
     }
-    sudahDicek.value = true
   }
 
   async function muatSetelahMasuk(): Promise<void> {

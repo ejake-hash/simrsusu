@@ -41,11 +41,31 @@ function kembali(): void {
 </script>
 
 <template>
-  <component
-    :is="KOMPONEN_LANGKAH[langkah.status]"
-    :key="`${langkah.status}-${putaran}`"
-    :langkah="langkah"
-    :lanjut="lanjut"
-    @kembali="kembali"
-  />
+  <Transition name="langkah" mode="out-in">
+    <component
+      :is="KOMPONEN_LANGKAH[langkah.status]"
+      :key="`${langkah.status}-${putaran}`"
+      :langkah="langkah"
+      :lanjut="lanjut"
+      @kembali="kembali"
+    />
+  </Transition>
 </template>
+
+<style scoped>
+/* Seperti prototipe: langkah baru muncul pelan dari bawah; tanpa animasi bila diminta sistem. */
+.langkah-enter-active {
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+.langkah-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .langkah-enter-active {
+    transition: none;
+  }
+}
+</style>
