@@ -12,7 +12,7 @@ import { uid } from '@/modules/akses/tiruan/dataPengaturan'
 import { pasangTiruan } from '@/modules/akses/tiruan/pasangTiruan'
 import { penggunaTiruan } from '@/modules/akses/tiruan/pengguna'
 import { buatServerGabungan } from '@/modules/akses/tiruan/serverGabungan'
-import { ID_SUPERADMIN } from '@/modules/akses/tiruan/serverTiruan'
+import { ID_SUPERADMIN, type ResponsTiruan } from '@/modules/akses/tiruan/serverTiruan'
 import { klien } from '@/shared/api/klien'
 import { aturIzin, vCan } from '@/shared/composables/usePermission'
 import PemilihUnit from './components/PemilihUnit.vue'
@@ -256,7 +256,7 @@ describe('Penugasan cakupan unit', () => {
     await tenang()
     await klik(document.querySelector<HTMLButtonElement>('button[form="form-penugasan"]')!)
     expect(document.body.textContent).not.toContain('Pilih unit kerja.')
-    const akun = server.tangani({ metode: 'GET', jalur: `/akun/${akunId}`, kueri: new URLSearchParams(), header: {}, isi: null })!.isi as {
+    const akun = (server.tangani({ metode: 'GET', jalur: `/akun/${akunId}`, kueri: new URLSearchParams(), header: {}, isi: null }) as ResponsTiruan).isi as {
       data: { penugasan: { cakupan_jenis: string; cakupan_label?: string | null }[] }
     }
     expect(akun.data.penugasan.find((p) => p.cakupan_jenis === 'unit')?.cakupan_label).toBe('IRNA-BEDAH · Bangsal Bedah')

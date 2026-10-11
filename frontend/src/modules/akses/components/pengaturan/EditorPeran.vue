@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
+import Tombol from '@/design-system/components/Tombol.vue'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
@@ -120,10 +121,14 @@ const formSimpan = ref<InstanceType<typeof DialogSimpanIzin> | null>(null)
  * tidak lagi menunggu harus dilepas dari suntingan — bila tidak, izin itu terkirim lagi dan diam-diam diajukan ulang.
  * Versi berbeda (mis. disetujui orang lain) = bentrok seperti 412.
  */
+const memeriksa = ref(false)
 async function bukaSimpan() {
+  if (memeriksa.value) return
   errorDialog.value = null
+  peringatan.value = null
   const lama = dasar.value
   if (lama) {
+    memeriksa.value = true
     try {
       const segar = await ambilPeran(props.peranId)
       if (segar.peran.versi !== lama.peran.versi) {
@@ -143,6 +148,8 @@ async function bukaSimpan() {
       }
     } catch {
       // Gagal memeriksa: tetap lanjut; server tetap memeriksa versi (412) saat simpan.
+    } finally {
+      memeriksa.value = false
     }
   }
   dialogSimpan.value = true
@@ -310,7 +317,7 @@ function infoSelesai(hasil: PeranBerversi) {
           <span id="ket-ubah-info" class="sr-only">{{ adaPerubahan ? 'Simpan atau batalkan perubahan matriks dulu.' : '' }}</span>
           <template v-if="!bacaSaja">
             <button type="button" class="tombol" :disabled="!adaPerubahan" @click="batalkan">Batalkan</button>
-            <button type="button" class="tombol tombol-utama" :disabled="!adaPerubahan" @click="bukaSimpan">Simpan perubahan</button>
+            <Tombol varian="utama" :disabled="!adaPerubahan" :sibuk="memeriksa" @click="bukaSimpan">{{ memeriksa ? 'Memeriksa…' : 'Simpan perubahan' }}</Tombol>
           </template>
         </div>
       </div>
