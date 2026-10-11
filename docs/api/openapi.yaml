@@ -3063,8 +3063,10 @@ paths:
       summary: Verifikasi ulang semua tanda tangan sebuah objek (integritas isi + keaslian tanda tangan)
       description: |
         Hanya akun yang boleh melihat objek itu (persetujuan_akses: aturan /persetujuan-akses/{id}); selain itu 404.
-        Isi kanonik dihitung ulang dari objek saat ini. Urutan pemeriksaan: isi dulu (`isi_berubah` bila hash berbeda dari
-        saat ditandatangani), lalu tanda tangan (`tanda_tangan_tidak_sah` bila tidak cocok dengan kunci publik yang dipakai).
+        Urutan pemeriksaan: keaslian dulu (`tanda_tangan_tidak_sah` bila tanda tangan tidak cocok dengan hash tersimpan dan
+        kunci publik yang dipakai, mis. baris palsu), lalu isi (`isi_berubah` bila hash isi kanonik objek saat ini berbeda
+        dari saat ditandatangani). Waktu di isi kanonik selalu UTC dengan presisi mikrodetik (tidak bergantung zona waktu
+        instalasi).
         Bukan endpoint daftar: paling banyak satu baris per penanda tangan objek itu, urut `ditandatangani_pada`.
         Hasil kosong = belum ada tanda tangan.
       responses:
