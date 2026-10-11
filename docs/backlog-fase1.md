@@ -32,7 +32,7 @@
 | 1.8a-be / 1.8a-fe | Profil RS dan paket identitas, unit organisasi, KSM (ganti `VITE_RS_*`) | be: Selesai (kontrak #37, backend #38). Catatan: profil di `App\Core\ProfilRs`, unit/KSM di modul `MasterData`, lapis 3 cakupan `unit` = subpohon, berkas lewat disk `IDENTITAS_DISK`, akun e2e `contoh.data.induk`; fe: **Dikerjakan sesi 2** (#42). Catatan fe: profil dari `GET /profil-rs` (tanpa `VITE_RS_*`), tema dari dua warna paket identitas (`app/tema.ts`), pohon unit muat-lambat, cakupan penugasan `unit`, pemilih unit kerja di header | — |
 | 1.8b-be / 1.8b-fe | Lokasi fisik bertingkat, bangsal/kamar/TT, kelas rawat, poliklinik, impor CSV | be: **Dikerjakan sesi 1** (kontrak #44; branch `feat/lokasi-be`: lokasi/bangsal/kamar/TT/kelas/poliklinik/kapasitas dan impor CSV). Catatan: tabel di skema `inti`, izin `master_data.organisasi.*` cakupan `rs`, tugas harian `master-data:rekam-kapasitas-tt`; fe: siap (kontrak #44) | #44 |
 | 1.8c-be / 1.8c-fe | Usulan perubahan data induk berjenjang (mesin generik), dipakai pertama oleh TT | Siap setelah 1.7 | — |
-| 1.8d-be / 1.8d-fe | Pegawai, izin praktik (STR/SIP/SPK), RKK minimal, akun dibuat dari pegawai | be: **Dikerjakan sesi 1** (kontrak dulu, branch `docs/kontrak-1.8d`); fe: siap setelah kontrak | — |
+| 1.8d-be / 1.8d-fe | Pegawai, izin praktik (STR/SIP/SPK), RKK minimal, akun dibuat dari pegawai | be: Selesai (kontrak #48, backend #50). Catatan: NIK utuh hanya `?tampilkan_nik=true` + izin bagian `sdm.pegawai.identitas.lihat` (sensitif, pemilik data ditetapkan RS); pegawai keluar → akun nonaktif lewat kejadian `PegawaiKeluar`; tugas harian `sdm:proses-pegawai-keluar`; 403 `wajib_ganti_sandi`; fe: siap (kontrak #48 + penyesuaian di #50) | #48, #50 |
 | 1.8e-be | Pemuat paket referensi (`inti.paket_referensi`) | Siap setelah 1.8a | — |
 | 1.8f-be / 1.8f-fe | Wizard penyiapan instalasi kosong (FR-54-08) | Siap setelah 1.8a–e | — |
 | 1.7-be / 1.7-fe | Notifikasi, kotak kerja, jenis tugas, eskalasi 3 tingkat | Siap setelah 1.8a, 1.8d, 1.2d | — |
@@ -150,6 +150,15 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   pertama dibuat (injeksi formula); nomor baris kesalahan impor = nomor rekaman CSV (berbeda bila sel memuat baris baru).
 - PRD menyusul (1.8d): 10.3.2 belum menyebut 403 `wajib_ganti_sandi` sesudah masuk dengan sandi awal, dan 9.1 belum
   memuat bagian `sdm.pegawai.identitas`; aturannya ada di badan tiket 1.8d, PRD diperbarui di PR [Perlu pemilik] terpisah.
+- Utang 1.8d: layar persetujuan K4 belum memperingatkan bila superadmin diberikan ke akun pegawai `akan_keluar`; dokumen
+  izin praktik yang sudah tertulis ke disk bisa tertinggal bila transaksi gagal sesudahnya (jalur privat, tanpa rujukan);
+  modul SDM membaca `akses.pengguna`/`inti.unit_organisasi` langsung untuk daftar pegawai (belum lewat antarmuka modul);
+  APP_KEY dirotasi = sidik NIK dihitung ulang (perintah belum ada). Usulan sesi 2: path terpisah `GET /pegawai/{id}/nik`
+  (di luar API tiket; kini `?tampilkan_nik=true`).
+- Utang tes 1.8d (kode sudah ditinjau benar, tesnya belum): 429 sesudah `sandi_lama_salah` berulang, IDOR dokumen izin
+  praktik antarpegawai, `berkas_terlalu_besar`, NIK tidak muncul di log aplikasi. Runbook: `upload_max_filesize` dan
+  `post_max_size` PHP ≥ 6 MB agar batas dokumen 5 MB (dan impor 2 MB) tercapai sebelum batas PHP. Indeks
+  `sdm.pegawai (dibuat_pada, id)` bila daftar pegawai membesar.
 - **[Perlu pemilik] Usulan (1.8d):** reset sandi oleh admin (sandi awal baru sekali tampil, wajib ganti) dan masa berlaku
   sandi awal; di luar API tiket 1.8d. Sampai itu sandi awal yang hilang tidak bisa dipulihkan.
 - **[Perlu pemilik] Usulan (1.8b):** daftar periksa baku atribut kamar (FR-08-19) sebagai data induk dengan endpoint

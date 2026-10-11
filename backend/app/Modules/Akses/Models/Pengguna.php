@@ -25,6 +25,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $mfa_aktif_pada
  * @property bool $wajib_mfa
  * @property Carbon|null $sesi_dicabut_pada sesi yang dimulai sebelumnya diakhiri (ADR 0002)
+ * @property bool $wajib_ganti_sandi akun dari pegawai dengan sandi awal (tiket 1.8d)
+ * @property Carbon|null $sandi_diubah_pada
  * @property Carbon $dibuat_pada
  */
 final class Pengguna extends Authenticatable
@@ -62,6 +64,8 @@ final class Pengguna extends Authenticatable
             'mfa_langkah_terakhir' => 'integer',
             'wajib_mfa' => 'boolean',
             'sesi_dicabut_pada' => 'datetime',
+            'wajib_ganti_sandi' => 'boolean',
+            'sandi_diubah_pada' => 'datetime',
         ];
     }
 

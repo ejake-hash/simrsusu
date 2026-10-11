@@ -2,6 +2,7 @@
 
 use App\Modules\Akses\Http\Controllers\AksesAkunController;
 use App\Modules\Akses\Http\Controllers\AkunController;
+use App\Modules\Akses\Http\Controllers\AkunPegawaiController;
 use App\Modules\Akses\Http\Controllers\AutentikasiController;
 use App\Modules\Akses\Http\Controllers\IzinController;
 use App\Modules\Akses\Http\Controllers\MenuController;
@@ -10,6 +11,7 @@ use App\Modules\Akses\Http\Controllers\MfaController;
 use App\Modules\Akses\Http\Controllers\PeranController;
 use App\Modules\Akses\Http\Controllers\PermintaanAksesController;
 use App\Modules\Akses\Http\Controllers\PersetujuanAksesController;
+use App\Modules\Akses\Http\Controllers\SandiController;
 use App\Modules\Akses\Http\Controllers\SayaController;
 use App\Modules\Akses\Http\Middleware\SesiPengguna;
 use Illuminate\Support\Facades\Route;
@@ -53,6 +55,11 @@ Route::prefix('api/v1')->middleware('api')->whereUuid(['peran', 'akun', 'penugas
         Route::post('akun/{akun}/izin-khusus/{izinKhususId}/batal', [AksesAkunController::class, 'batalkanIzinKhusus'])->middleware('can:pengaturan.akun.perbaiki');
         Route::put('akun/{akun}/wajib-mfa', [AksesAkunController::class, 'aturWajibMfa'])->middleware('can:pengaturan.akun.perbaiki');
         Route::post('akun/{akun}/mfa/reset', [AksesAkunController::class, 'resetMfa'])->middleware('can:pengaturan.akun.perbaiki');
+        // Akun dari pegawai, nonaktif/aktifkan, ganti sandi (tiket 1.8d).
+        Route::post('akun/{akun}/nonaktifkan', [AksesAkunController::class, 'nonaktifkan'])->middleware('can:pengaturan.akun.perbaiki');
+        Route::post('akun/{akun}/aktifkan', [AksesAkunController::class, 'aktifkan'])->middleware('can:pengaturan.akun.perbaiki');
+        Route::post('pegawai/{pegawai}/akun', AkunPegawaiController::class)->whereUuid('pegawai')->middleware('can:pengaturan.akun.input');
+        Route::post('saya/sandi', SandiController::class);
 
         // Persetujuan dan permintaan akses (tiket 1.2d). /persetujuan-akses tanpa izin: hanya data yang relevan
         // bagi akun itu (pengaju, penerima, pemegang peran penyetuju); aturan keputusan di AlurPersetujuan.

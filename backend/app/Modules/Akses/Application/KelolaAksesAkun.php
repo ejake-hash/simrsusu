@@ -13,6 +13,7 @@ use App\Modules\Akses\Models\PenggunaIzinKhusus;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\Peran;
 use App\Modules\Akses\Models\PersetujuanAkses;
+use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -261,6 +262,49 @@ final class KelolaAksesAkun
             $this->audit->catat('akses.mfa_direset', $penyunting->id, 'akses.pengguna', $akun->id, [
                 'alasan' => $alasan, 'dasar' => $dasar, 'sesi_diputus' => true,
             ]);
+
+            return $akun;
+        });
+    }
+
+    /** Nonaktifkan akun (alasan wajib); sesinya diputus. Akun pemegang superadmin hanya lewat K4 (tiket 1.8d). */
+    public function nonaktifkan(Pengguna $penyunting, Pengguna $akun, string $alasan): Pengguna
+    {
+        return $this->ubahStatus($penyunting, $akun, 'nonaktif', $alasan);
+    }
+
+    /** Aktifkan kembali akun; ditolak bila pegawainya sudah keluar atau akunnya memegang superadmin (tiket 1.8d). */
+    public function aktifkan(Pengguna $penyunting, Pengguna $akun, string $alasan): Pengguna
+    {
+        return $this->ubahStatus($penyunting, $akun, 'aktif', $alasan);
+    }
+
+    private function ubahStatus(Pengguna $penyunting, Pengguna $akun, string $status, string $alasan): Pengguna
+    {
+        $this->penjaga->pastikanBolehMengubahAkun($penyunting, $akun);
+
+        return DB::transaction(function () use ($penyunting, $akun, $status, $alasan) {
+            $akun = Pengguna::query()->whereKey($akun->id)->lockForUpdate()->firstOrFail();
+            if ($akun->status === $status) {
+                throw new ApiError(409, $status === 'aktif' ? 'sudah_aktif' : 'sudah_nonaktif', 'Akun ini sudah '.$status.'.');
+            }
+            // Menonaktifkan atau mengaktifkan superadmin = mengubah jumlah superadmin tanpa persetujuan superadmin lain (K4).
+            if ($this->penjaga->superadmin($akun, termasukMasaDepan: true)) {
+                throw new ApiError(409, 'superadmin_aktif', 'Akun ini memegang peran superadmin. Akhiri penugasan superadminnya lebih dulu lewat persetujuan superadmin lain.');
+            }
+            if ($status === 'aktif') {
+                $pegawai = Pegawai::query()->find($akun->pegawai_id);
+                if ($pegawai === null || $pegawai->status !== 'aktif' || $pegawai->statusKepegawaian() === 'keluar') {
+                    throw new ApiError(409, 'pegawai_keluar', 'Pegawai pemilik akun ini sudah keluar. Batalkan dulu tanggal keluarnya di data pegawai.');
+                }
+            }
+
+            $akun->forceFill(['status' => $status, 'diubah_oleh' => $penyunting->id])->save();
+            if ($status === 'nonaktif') {
+                $akun->cabutSesi();
+            }
+            $this->audit->catat($status === 'aktif' ? 'akses.akun_diaktifkan' : 'akses.akun_dinonaktifkan', $penyunting->id, 'akses.pengguna', $akun->id,
+                ['alasan' => $alasan, 'sesi_diputus' => $status === 'nonaktif']);
 
             return $akun;
         });

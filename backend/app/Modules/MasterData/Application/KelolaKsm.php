@@ -43,17 +43,20 @@ final class KelolaKsm
                 throw new ApiError(412, 'versi_berubah', 'KSM ini diubah orang lain sejak Anda membukanya. Muat ulang untuk melihat perubahan terbaru.');
             }
             $ksm->refresh();
-            $sebelum = $ksm->only(['kode', 'nama', 'status']);
+            $sebelum = $ksm->only(['kode', 'nama', 'status', 'ketua_pegawai_id']);
 
             if (($isi['status'] ?? null) === 'nonaktif' && $ksm->status === 'aktif'
                 && ($jumlah = $this->pemakaian->jumlahPenugasan('ksm', $ksm->id)) > 0) {
                 throw new ApiError(409, 'ksm_masih_dipakai', "KSM masih menjadi cakupan {$jumlah} penugasan.", [['jumlah_penugasan' => $jumlah]]);
             }
 
-            $ksm->fill(array_intersect_key($isi, array_flip(['kode', 'nama', 'status'])));
+            if (($isi['ketua_pegawai_id'] ?? null) !== null) {
+                PegawaiPimpinan::pastikan($isi['ketua_pegawai_id'], 'ketua_pegawai_id');
+            }
+            $ksm->fill(array_intersect_key($isi, array_flip(['kode', 'nama', 'status', 'ketua_pegawai_id'])));
             $ksm->forceFill(['diubah_oleh' => $penyunting->id])->save();
             $this->audit->catat('master_data.ksm_diubah', $penyunting->id, 'inti.ksm', $ksm->id,
-                [...$ksm->only(['kode', 'nama', 'status']), 'dasar_perubahan' => $isi['dasar_perubahan']], $sebelum);
+                [...$ksm->only(['kode', 'nama', 'status', 'ketua_pegawai_id']), 'dasar_perubahan' => $isi['dasar_perubahan']], $sebelum);
 
             return $ksm;
         }));

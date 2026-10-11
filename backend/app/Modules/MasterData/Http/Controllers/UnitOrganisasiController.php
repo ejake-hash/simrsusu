@@ -99,6 +99,7 @@ final class UnitOrganisasiController
             'nama' => ['sometimes', 'string', 'min:2', 'max:150'],
             'jenis' => ['sometimes', Rule::in(UnitOrganisasi::JENIS)],
             'status' => ['sometimes', Rule::in(['aktif', 'nonaktif'])],
+            'kepala_pegawai_id' => ['sometimes', 'nullable', 'uuid'],
             'berlaku_dari' => ['sometimes', 'date_format:Y-m-d'],
             'dasar_perubahan' => ['required', 'string', 'min:3', 'max:200'],
         ]);

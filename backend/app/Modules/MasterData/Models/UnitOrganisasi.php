@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
  * @property string $jenis instalasi | bidang | bagian | ruang | poli | depo
  * @property string $status aktif | nonaktif
  * @property Carbon $berlaku_dari
+ * @property string|null $kepala_pegawai_id
  * @property int $revisi
  * @property Carbon $diubah_pada
  */
@@ -29,7 +30,7 @@ final class UnitOrganisasi extends Model
 
     protected $table = 'inti.unit_organisasi';
 
-    protected $fillable = ['induk_id', 'kode', 'nama', 'jenis', 'status', 'berlaku_dari'];
+    protected $fillable = ['induk_id', 'kode', 'nama', 'jenis', 'status', 'berlaku_dari', 'kepala_pegawai_id'];
 
     protected $attributes = ['status' => 'aktif', 'revisi' => 0];
 

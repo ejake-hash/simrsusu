@@ -4,7 +4,6 @@ namespace Tests\Support;
 
 use Illuminate\Testing\TestResponse;
 use Opis\JsonSchema\Validator;
-use Symfony\Component\Yaml\Yaml;
 
 /**
  * Uji kontrak: respons dicocokkan dengan skema docs/api/openapi.yaml untuk path, metode, dan status
@@ -12,13 +11,6 @@ use Symfony\Component\Yaml\Yaml;
  */
 trait KontrakApi
 {
-    private const URI_KONTRAK = 'https://kontrak.karsitara.invalid/openapi.json';
-
-    /** @var array<string, mixed>|null */
-    private static ?array $kontrak = null;
-
-    private static ?Validator $validatorKontrak = null;
-
     /** @param  string  $path  path kontrak tanpa /api/v1, mis. /peran/{id}/izin */
     protected function assertSesuaiKontrak(TestResponse $respons, string $metode, string $path): TestResponse
     {
@@ -40,7 +32,7 @@ trait KontrakApi
 
         $hasil = $this->validatorKontrak()->validate(
             json_decode((string) $respons->getContent()),
-            self::URI_KONTRAK.'#'.$penunjuk.'/content/application~1json/schema',
+            MuatanKontrak::URI.'#'.$penunjuk.'/content/application~1json/schema',
         );
         $galat = $hasil->error();
         $this->assertTrue($hasil->isValid(), "$metode $path $status tidak sesuai kontrak: "
@@ -53,18 +45,12 @@ trait KontrakApi
     /** @return array<string, mixed> */
     private function kontrak(): array
     {
-        return self::$kontrak ??= Yaml::parseFile(base_path('../docs/api/openapi.yaml'));
+        return MuatanKontrak::kontrak();
     }
 
     private function validatorKontrak(): Validator
     {
-        if (self::$validatorKontrak === null) {
-            self::$validatorKontrak = new Validator;
-            self::$validatorKontrak->setMaxErrors(1);
-            self::$validatorKontrak->resolver()?->registerRaw(json_decode((string) json_encode($this->kontrak())), self::URI_KONTRAK);
-        }
-
-        return self::$validatorKontrak;
+        return MuatanKontrak::validator();
     }
 
     private function escapePointer(string $bagian): string

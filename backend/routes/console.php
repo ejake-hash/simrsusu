@@ -17,3 +17,6 @@ Schedule::command('akses:kedaluwarsakan-persetujuan')->dailyAt('01:00')->timezon
 
 // Kapasitas TT harian per bangsal dan kelas, penyebut BOR/BTO/TOI (tiket 1.8b, FR-08-18).
 Schedule::command('master-data:rekam-kapasitas-tt')->dailyAt('00:05')->timezone(config('instalasi.zona_waktu'))->onOneServer();
+
+// Pegawai yang tanggal keluarnya tercapai: akun nonaktif, sesi diputus (tiket 1.8d, PRD 9.2.6).
+Schedule::command('sdm:proses-pegawai-keluar')->dailyAt('00:10')->timezone(config('instalasi.zona_waktu'))->onOneServer();
