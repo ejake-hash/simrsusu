@@ -13,6 +13,9 @@ test.beforeAll(() => {
   if (!SANDI) throw new Error('Set E2E_SANDI sama dengan AKUN_SINTETIS_SANDI saat seeding.')
 })
 
+/** Judul beranda menyebut nama pegawai; header menyembunyikan nama di layar sempit. */
+const sapaan = (page: Page, pegawai: string) => page.getByRole('heading', { level: 1, name: `Selamat datang, ${pegawai}` })
+
 async function isiLewatKeyboard(page: Page, nama: string, sandi: string) {
   await expect(page.getByLabel('Nama pengguna')).toBeFocused()
   await page.keyboard.type(nama)
@@ -30,13 +33,13 @@ test('rute terlindung → masuk lewat keyboard → kembali ke beranda tanpa jeja
   await isiLewatKeyboard(page, AKUN.sukses.nama, SANDI)
 
   await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByText(AKUN.sukses.pegawai)).toBeVisible()
+  await expect(sapaan(page, AKUN.sukses.pegawai)).toBeVisible()
   const storage = await page.evaluate(() => [localStorage.length, sessionStorage.length])
   expect(storage).toEqual([0, 0])
 
   // Muat ulang: sesi dari cookie server, bukan dari storage.
   await page.reload()
-  await expect(page.getByText(AKUN.sukses.pegawai)).toBeVisible()
+  await expect(sapaan(page, AKUN.sukses.pegawai)).toBeVisible()
 
   await page.getByRole('button', { name: 'Keluar' }).click()
   await expect(page).toHaveURL(/\/masuk$/)
@@ -56,7 +59,7 @@ test('sandi salah: pesan di dekat form, lalu sandi benar berhasil', async ({ pag
   // Berhasil masuk juga mengembalikan hitungan gagal akun ini ke nol.
   await page.keyboard.type(SANDI)
   await page.keyboard.press('Enter')
-  await expect(page.getByText(AKUN.salah.pegawai)).toBeVisible()
+  await expect(sapaan(page, AKUN.salah.pegawai)).toBeVisible()
 })
 
 test('lima kali salah: akun terkunci dengan sisa waktu dari server', async ({ page }, info) => {
