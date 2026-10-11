@@ -65,7 +65,7 @@ function sembunyikanTip() {
             <Ikon :nama="m.ikon" />
             <span class="label">{{ m.label }}</span>
             <span v-if="m.status === 'segera'" class="segera">Segera<span class="sr-only"> hadir</span></span>
-            <span v-else-if="m.jumlah_tugas != null" class="jumlah-tugas">
+            <span v-else-if="m.jumlah_tugas" class="jumlah-tugas">
               {{ m.jumlah_tugas }}<span class="sr-only"> tugas terbuka</span>
             </span>
           </component>

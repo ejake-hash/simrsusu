@@ -65,8 +65,7 @@ test('akun tanpa penugasan hanya melihat Beranda dengan keterangan siapa yang di
   await bukaBeranda(page, 'Contoh Akun Tanpa Peran')
   await expect(modulSaya(page).getByText(/Belum ada modul yang diberikan, hubungi \S/)).toBeVisible()
   await expect(modulSaya(page).getByRole('article')).toHaveCount(0)
-  // Beranda membawa lencana jumlah tugas (0 untuk akun ini) sejak 1.7.
-  await expect(page.getByRole('navigation', { name: 'Menu utama' }).getByRole('link')).toHaveText([/^Beranda/])
+  await expect(page.getByRole('navigation', { name: 'Menu utama' }).getByRole('link')).toHaveText(['Beranda'])
 })
 
 test('masuk dua kali: kali kedua menampilkan waktu masuk sebelumnya, bukan waktu sekarang', async ({ browser, playwright }, info) => {

@@ -220,8 +220,22 @@ class KotakKerjaTest extends TestCase
         $this->minta('GET', '/api/v1/saya/tugas?tab=saya')->assertUnauthorized()->assertJsonPath('error.kode', 'sesi_kedaluwarsa');
         $this->headerTambahan = [];
 
-        // Preferensi: kritis tidak bisa dimatikan; email tanpa alamat tidak tersedia.
+        // semua-dibaca dengan `sampai` = dibuat_pada terbaru yang tampil (mikrodetik): yang itu ikut, yang datang sesudahnya tidak.
         $this->masukSebagai($akun);
+        $notif = fn (string $judul, string $waktu) => DB::table('notifikasi.notifikasi')->insertGetId([
+            'id' => (string) Str::uuid7(), 'pengguna_id' => $akun->id, 'jenis' => 'UJI', 'judul' => $judul, 'isi' => $judul, 'prioritas' => 'biasa',
+            'dibuat_pada' => $waktu]);
+        $notif('Pertama', now()->format('Y-m-d H:i:s').'.734000+00');
+        $sampai = $this->minta('GET', '/api/v1/saya/notifikasi')->assertOk()->json('data.0.dibuat_pada');
+        $this->assertStringContainsString('.734000', $sampai);
+        $susulan = $notif('Susulan', now()->format('Y-m-d H:i:s').'.900000+00');
+        $this->minta('POST', '/api/v1/saya/notifikasi/semua-dibaca', ['sampai' => $sampai])->assertOk()->assertJsonPath('data.jumlah', 1);
+        $this->assertNull(DB::table('notifikasi.notifikasi')->where('id', $susulan)->value('dibaca_pada'));
+        $this->headerTambahan = ['If-None-Match' => 'W/'.$this->minta('GET', '/api/v1/saya/notifikasi')->headers->get('ETag')];
+        $this->minta('GET', '/api/v1/saya/notifikasi')->assertStatus(304);
+        $this->headerTambahan = [];
+
+        // Preferensi: kritis tidak bisa dimatikan; email tanpa alamat tidak tersedia.
         $pref = $this->minta('GET', '/api/v1/saya/preferensi-notifikasi')->assertOk()->assertJsonPath('data.0.jenis', 'AKUN_TERKUNCI')
             ->assertJsonPath('data.0.email.dapat_diubah', false);
         $this->assertSesuaiKontrak($pref, 'GET', '/saya/preferensi-notifikasi');

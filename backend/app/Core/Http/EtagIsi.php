@@ -17,7 +17,9 @@ final class EtagIsi
         $etag = '"'.sha1((string) $respons->getContent()).'"';
         $respons->headers->set('ETag', $etag);
         $respons->setPrivate();
-        if (in_array($etag, $request->getETags(), true)) {
+        // Proksi yang mengompres respons mengubah ETag kuat menjadi W/"…": bandingkan tanpa awalan itu.
+        $diminta = array_map(fn (string $e) => str_starts_with($e, 'W/') ? substr($e, 2) : $e, $request->getETags());
+        if (in_array($etag, $diminta, true)) {
             $kosong = new Response('', 304);
             $kosong->headers->set('ETag', $etag);
             $kosong->setPrivate();

@@ -12,7 +12,6 @@ use App\Modules\Sdm\Events\IzinPraktikDibatalkan;
 use App\Modules\Sdm\Events\IzinPraktikDicatat;
 use App\Modules\Sdm\Models\IzinPraktik;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -79,7 +78,10 @@ final class PendengarKejadian
      */
     public function akunTerkunci(AkunTerkunci $e): void
     {
-        if (! Cache::add('notifikasi:akun_terkunci:'.$e->penggunaId, 1, 3600)) {
+        // Dari tabel (bukan cache LRU): batas tidak jebol bila kunci cache tergusur, dan ikut transaksi pemanggil.
+        $baruSaja = DB::table('notifikasi.notifikasi')->where('pengguna_id', $e->penggunaId)->where('jenis', self::AKUN_TERKUNCI)
+            ->where('dibuat_pada', '>', now()->subHour()->format('Y-m-d H:i:s.uP'))->exists();
+        if ($baruSaja) {
             return;
         }
         $sampai = Carbon::parse($e->terkunciSampai)->setTimezone((string) config('instalasi.zona_waktu'))->format('H:i');

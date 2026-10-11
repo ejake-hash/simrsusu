@@ -19,7 +19,8 @@ final class NotifikasiResource
     /** @return array<string, mixed> */
     public static function notifikasi(Notifikasi|\stdClass $n): array
     {
-        $waktu = fn ($w) => $w === null ? null : Carbon::parse($w)->toIso8601String();
+        // Mikrodetik dipertahankan: klien mengirim balik dibuat_pada terbaru sebagai `sampai` di semua-dibaca.
+        $waktu = fn ($w) => $w === null ? null : Carbon::parse($w)->format('Y-m-d\\TH:i:s.uP');
 
         return [
             'id' => $n->id, 'jenis' => $n->jenis, 'judul' => $n->judul, 'isi' => $n->isi, 'tautan' => $n->tautan,
