@@ -9,6 +9,12 @@ npm run build
 npm run test:unit  # Vitest
 ```
 
+Skrip install dependensi diblokir kecuali tercatat di `allowScripts` (`package.json`, npm ≥ 11.19). `esbuild` dan
+`fsevents` sengaja ditolak (`false`): biner esbuild sudah datang dari paket opsional `@esbuild/<platform>`
+(skrip `postinstall`-nya hanya memeriksa ulang, atau mengunduh biner dari jaringan bila paket itu tidak ada), dan
+fsevents terpasang dengan `fsevents.node` siap pakai. Paket baru yang meminta skrip install: tinjau dulu
+(`npm install-scripts ls`), lalu `approve` atau `deny`.
+
 ## E2E (Playwright)
 
 Hanya ke lokal/CI dengan akun sintetis, atau staging. Jangan pernah dengan data pasien asli.

@@ -8,7 +8,7 @@
 
 ## Stack (tetap)
 - Backend: **PHP 8.3+** (CI memakai 8.4), **Laravel 12**, modular monolith di `backend/app/Modules/*` (PRD 10.3).
-- Database: **PostgreSQL 16**, satu database `simrs`, skema per domain (PRD 11.1). Redis 7 untuk cache, sesi, antrean.
+- Database: **PostgreSQL 16**, satu database `simrs`, skema per domain (PRD 11.1). **Valkey** (kompatibel Redis, variabel `REDIS_*`) dua instans: `valkey` untuk sesi + antrean (`noeviction`), `valkey-cache` untuk cache (`allkeys-lru`) (PRD 14.1.1 butir 6).
 - Frontend: **Vue 3 + TypeScript + Vite** (SPA, Vue Router, Pinia) di `frontend/` (PRD 10.4). **Bukan** Blade, Livewire, atau Inertia.
 - Token desain: `frontend/src/design-system/tokens.css` (dari PRD 5.3). Jangan menulis warna HEX langsung di komponen. Lihat @DESIGN.md.
 - **Nama modul bahasa Indonesia** (PRD 10.3, 10.4): backend PascalCase (`app/Modules/RawatJalan`), frontend kebab-case (`src/modules/rawat-jalan`). Nama lapisan teknis tetap: `Core`, `Shared`, `Domain`, `Application`, `Infrastructure`, `Http`, `Models`, `Database`.
@@ -17,7 +17,7 @@
 Beberapa sesi (orang atau agen) bisa bekerja bersamaan di mesin yang sama. Aturannya:
 
 1. **Folder utama `SIMRS-USU` dipakai satu sesi saja.** Sesi lain wajib memakai worktree sendiri:
-   `git worktree add ../SIMRS-USU-<tiket> <branch>` (worktree butuh `composer install`, `npm ci`, dan `.env` sendiri; jangan salin `.env` worktree lain).
+   `git worktree add ../SIMRS-USU-<tiket> <branch>` (worktree butuh `composer install`, `npm ci`, dan `.env` sendiri; jangan salin `.env` worktree lain). Di `.env` itu pakai nomor DB Valkey sendiri (`REDIS_DB`, `REDIS_CACHE_DB`) dan port `php artisan serve` sendiri.
 2. **Setiap worktree backend memakai database tes sendiri `simrs_test_<tiket>`**, dibuat dari skrip yang sama dengan CI:
    ```bash
    export PGHOST=127.0.0.1 PGPORT=5433 PGUSER=postgres PGPASSWORD=postgres

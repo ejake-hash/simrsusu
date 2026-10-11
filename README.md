@@ -9,12 +9,12 @@ RS USU hanya **paket identitas contoh** (logo, nama, warna `--brand-*`/`--accent
 | `frontend/` | Vue 3 + TypeScript + Vite (PRD 10.4) |
 | `docs/` | `prd.md`, prototipe HTML, dan logo asli paket contoh RS USU (`brand/`) |
 | `docker/` | skrip init PostgreSQL: role, database, skema domain PRD 11.1 |
-| `.github/workflows/` | CI: tes backend (Postgres 16 + Redis) dan build frontend |
+| `.github/workflows/` | CI: tes backend (Postgres 16 + Valkey), build frontend, e2e |
 
 ## Menjalankan lokal
 
 ```bash
-docker compose up -d                 # PostgreSQL 16 (port 5433) + Redis 7
+docker compose up -d                 # PostgreSQL 16 (5433) + Valkey sesi/antrean (6379) + Valkey cache (6380)
 
 cd backend
 composer install && cp .env.example .env && php artisan key:generate
@@ -27,6 +27,21 @@ cd ../frontend
 npm install
 npm run dev                          # http://localhost:5173, /api diteruskan ke backend
 ```
+
+## Valkey
+
+Cache, sesi, dan antrean memakai **Valkey** (BSD-3, kompatibel Redis; PRD 10.1). Nama variabel tetap `REDIS_*` bawaan Laravel.
+Ada dua instans (PRD 14.1.1 butir 6) karena kebijakan memori berlaku per instans:
+
+| Layanan compose | Koneksi Laravel | Isi | `maxmemory-policy` |
+|---|---|---|---|
+| `valkey` (6379) | `default` (`REDIS_HOST`/`REDIS_PORT`) | sesi, antrean, kunci (*lock*) cache | `noeviction`: menolak tulis saat penuh, tidak membuang sesi atau pekerjaan |
+| `valkey-cache` (6380) | `cache` (`REDIS_CACHE_HOST`/`REDIS_CACHE_PORT`) | cache | `allkeys-lru`: membuang kunci lama |
+
+Jangan arahkan keduanya ke satu instans; `InfrastrukturTest` memeriksa kebijakan ini lewat `CONFIG GET`.
+Pindah dari compose lama (layanan `redis`): `docker compose up -d --remove-orphans`. Volume lama `simrs-usu_redis-data`
+tidak dipakai lagi dan boleh dihapus setelah semua worktree pindah. Worktree yang perlu instans sendiri:
+`VALKEY_PORT=… VALKEY_CACHE_PORT=… docker compose -p simrs-usu-<tiket> up -d valkey valkey-cache`.
 
 ## Autentikasi
 
