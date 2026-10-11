@@ -86,6 +86,7 @@ Endpoint di luar tiket = "[Perlu pemilik]". Sesi 2 memakai data tiruan dari kont
 | K10 | TTE fase 1 | T1 (PIN + Ed25519) penuh. T2/PSrE: antarmuka adapter + simulator saja; penyedia dipilih saat kontrak PSrE | PRD 7.57.3: API PSrE belum diverifikasi |
 | K11 | MFA ulang untuk aksi sensitif | Izin `butuh_mfa` meminta TOTP bila verifikasi MFA terakhir di sesi > 15 menit | Lapis 5 (9.2.2); angka di konfigurasi |
 | K12 | Akses darurat (break-glass) | Ditunda ke fase 2 bersama RME (FR-26-12), karena butuh data pasien | Tidak ada data pasien di fase 1 |
+| K13 | Penyetuju izin pengelola akses | Izin `pengaturan.peran.*` dan `pengaturan.akun.*` aksi input/perbaiki (sensitif sejak 1.2c, `MenuBawaan::IZIN_SENSITIF`): penyetujunya **superadmin selain pengaju**. Dipasang sebagai data awal di 1.2d | Ketentuan pemilik produk 11 Okt 2026; kuasa setara superadmin hanya diberikan dengan kontrol ganda (PRD 9.2.4) |
 
 Bila pemilik produk mengubah keputusan, perubahan ditulis ke tabel ini lewat PR dan tiket terkait disesuaikan.
 
@@ -499,12 +500,17 @@ Pekerjaan  :
      4. Saran jadikan peran bila pengecualian yang sama dipakai ≥ 5 akun (FR-09-15): endpoint saran di daftar akun.
      5. Setiap keputusan: audit + hapus cache menu akun terdampak. Notifikasi ke penyetuju lewat 1.7 (sebelum 1.7
         ada: hanya tampil di antrean).
+     6. Data awal (K13): penyetuju izin pengelola akses (`pengaturan.peran.*`, `pengaturan.akun.*` aksi input/perbaiki)
+        = peran superadmin, dengan pengaju tidak boleh menyetujui sendiri (butir be 2). Dipasang lewat migrasi/MenuBawaan,
+        aman diulang, tidak menimpa penyetuju yang sudah diubah admin.
   fe 1. Layar Pengaturan → Persetujuan (tab "Perlu saya putuskan" / "Yang saya ajukan"), kartu rinci: siapa, apa,
         dasar, dampak (akun terdampak), tombol Setujui/Tolak hanya untuk penyetuju yang ditunjuk (MD-4).
      2. Halaman "Akses ditolak" (403 dari rute/halaman) dengan tombol "Minta akses" (satu klik + alasan).
      3. Di editor peran dan akun 1.2c: izin sensitif yang ditambah tampil "Menunggu persetujuan <peran>" alih-alih error.
 Uji penerimaan:
   - Izin sensitif tanpa penyetuju → tidak bisa dipilih (422 penyetuju_belum_ditetapkan).
+  - Data awal K13: superadmin A menambah `pengaturan.akun.perbaiki` ke peran X → menunggu; superadmin B menyetujui → berlaku;
+    A tidak bisa menyetujui permintaannya sendiri.
   - Pengaju menyetujui sendiri → 403; penyetuju lain → berlaku, akun terdampak melihat menu baru.
   - Superadmin A menugaskan peran superadmin ke akun C → menunggu; superadmin B menyetujui → berlaku; A tidak bisa.
   - Permintaan kedaluwarsa setelah 7 hari tanpa keputusan (uji dengan waktu dimajukan).
