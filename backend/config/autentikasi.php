@@ -55,5 +55,7 @@ return [
     'akun_sintetis_mfa_rahasia' => env('AKUN_SINTETIS_MFA_RAHASIA'),
     // Rahasia TOTP sintetis akun contoh.superadmin (tiket 1.2c, e2e Pengaturan); kosong = acak, dicetak sekali.
     'akun_sintetis_superadmin_mfa_rahasia' => env('AKUN_SINTETIS_SUPERADMIN_MFA_RAHASIA'),
+    // Superadmin sintetis kedua (tiket 1.2d, e2e kontrol ganda); kosong = acak, dicetak sekali.
+    'akun_sintetis_superadmin_dua_mfa_rahasia' => env('AKUN_SINTETIS_SUPERADMIN_DUA_MFA_RAHASIA'),
 
 ];

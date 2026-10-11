@@ -38,6 +38,8 @@ final class AkunSintetisSeeder extends Seeder
         'contoh.mfa.baru' => 'Contoh Akun MFA Baru',
         // Superadmin sintetis untuk e2e Pengaturan (tiket 1.2c), MFA aktif dengan rahasia yang diketahui e2e.
         'contoh.superadmin' => 'Contoh Superadmin',
+        // Superadmin kedua (tiket 1.2d): e2e kontrol ganda "superadmin A mengajukan, superadmin B menyetujui".
+        'contoh.superadmin.dua' => 'Contoh Superadmin Dua',
         // Tanpa penugasan dan tanpa wajib MFA: Beranda "belum ada modul" (tiket 1.2e). Seeding ulang
         // mengakhiri penugasan yang sempat dibuat uji lain.
         self::TANPA_PERAN => 'Contoh Akun Tanpa Peran',
@@ -71,7 +73,8 @@ final class AkunSintetisSeeder extends Seeder
 
         [$rahasiaMfa, $rahasiaMfaAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_mfa_rahasia');
         [$rahasiaSuperadmin, $rahasiaSuperadminAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_superadmin_mfa_rahasia');
-        $rahasia = ['contoh.mfa' => $rahasiaMfa, 'contoh.superadmin' => $rahasiaSuperadmin];
+        [$rahasiaSuperadminDua, $rahasiaSuperadminDuaAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_superadmin_dua_mfa_rahasia');
+        $rahasia = ['contoh.mfa' => $rahasiaMfa, 'contoh.superadmin' => $rahasiaSuperadmin, 'contoh.superadmin.dua' => $rahasiaSuperadminDua];
 
         $urutan = 0;
         foreach (self::AKUN as $namaPengguna => $nama) {
@@ -104,12 +107,14 @@ final class AkunSintetisSeeder extends Seeder
         $this->pasangPeranContoh();
         $this->kosongkanAkses(self::TANPA_PERAN);
         $this->tugaskan('contoh.superadmin', Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->firstOrFail());
+        $this->tugaskan('contoh.superadmin.dua', Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->firstOrFail());
 
         $this->command?->info('Akun sintetis: '.implode(', ', array_keys(self::AKUN)).'.');
         $sekaliTampil = array_filter([
             $dibuatAcak ? "Sandi acak (hanya ditampilkan sekali): {$sandi}" : null,
             $rahasiaMfaAcak ? "Rahasia TOTP contoh.mfa (hanya ditampilkan sekali): {$rahasiaMfa}" : null,
             $rahasiaSuperadminAcak ? "Rahasia TOTP contoh.superadmin (hanya ditampilkan sekali): {$rahasiaSuperadmin}" : null,
+            $rahasiaSuperadminDuaAcak ? "Rahasia TOTP contoh.superadmin.dua (hanya ditampilkan sekali): {$rahasiaSuperadminDua}" : null,
         ]);
         foreach ($sekaliTampil as $pesan) {
             $this->command?->warn($pesan);
