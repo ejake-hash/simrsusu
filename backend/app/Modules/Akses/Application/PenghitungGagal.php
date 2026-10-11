@@ -3,6 +3,7 @@
 namespace App\Modules\Akses\Application;
 
 use App\Core\Audit\CatatAktivitas;
+use App\Modules\Akses\Events\AkunTerkunci;
 use App\Modules\Akses\Models\Pengguna;
 use Illuminate\Support\Facades\DB;
 
@@ -30,6 +31,7 @@ final class PenghitungGagal
         );
 
         if ($pengguna->refresh()->terkunci()) {
+            AkunTerkunci::dispatch($pengguna->id, (string) $pengguna->terkunci_sampai?->toIso8601String());
             $this->audit->catat('autentikasi.terkunci', $pengguna->id, 'akses.pengguna', $pengguna->id, [
                 'terkunci_sampai' => $pengguna->terkunci_sampai?->toIso8601String(),
             ]);

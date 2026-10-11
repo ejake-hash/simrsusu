@@ -258,7 +258,7 @@ class HakAksesMenuTest extends TestCase
 
         $this->assertTrue($hasil->isValid(), (string) json_encode($hasil->error()?->args()).' '.$hasil->error()?->message());
         $respons->assertJsonPath('data.grup.0.kode', 'utama')->assertJsonPath('data.grup.0.label', null)
-            ->assertJsonPath('data.grup.0.menu.0.jumlah_tugas', null);
+            ->assertJsonPath('data.grup.0.menu.0.jumlah_tugas', 0);
     }
 
     public function test_peran_mewajibkan_mfa_dan_superadmin_tidak_bisa_dibebaskan(): void

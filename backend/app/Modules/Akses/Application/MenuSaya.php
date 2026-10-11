@@ -15,7 +15,10 @@ use Illuminate\Support\Facades\DB;
  */
 final class MenuSaya
 {
-    public function __construct(private readonly AccessEvaluator $evaluator) {}
+    public function __construct(
+        private readonly AccessEvaluator $evaluator,
+        private readonly ?JumlahTugasSaya $jumlahTugas = null,
+    ) {}
 
     /**
      * @return array{versi: string, grup: list<array<string, mixed>>, izin: list<string>}
@@ -54,7 +57,8 @@ final class MenuSaya
                 if ($statusMenu !== null) {
                     $daftarMenu[] = [
                         'kode' => $m->kode, 'label' => $m->label, 'ikon' => $m->ikon, 'rute' => $m->rute,
-                        'status' => $statusMenu, 'fase' => $m->fase, 'jumlah_tugas' => null, 'sub_menu' => $subMenu,
+                        'status' => $statusMenu, 'fase' => $m->fase, 'jumlah_tugas' => $m->kode === 'beranda' ? $this->jumlahTugas?->untuk($pengguna) : null,
+                        'sub_menu' => $subMenu,
                     ];
                 }
             }

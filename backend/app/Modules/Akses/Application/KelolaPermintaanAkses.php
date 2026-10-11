@@ -4,6 +4,8 @@ namespace App\Modules\Akses\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
+use App\Modules\Akses\Events\PermintaanAksesDibuat;
+use App\Modules\Akses\Events\PermintaanAksesDitutup;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
@@ -52,6 +54,7 @@ final class KelolaPermintaanAkses
                 'dibuat_oleh' => $pengguna->id, 'diubah_oleh' => $pengguna->id,
             ]);
             $permintaan->save();
+            PermintaanAksesDibuat::dispatch($permintaan->id, $permintaan->nomor);
             $this->audit->catat('akses.permintaan_dibuat', $pengguna->id, 'akses.permintaan_akses', $permintaan->id, [
                 'nomor' => $permintaan->nomor, 'sasaran' => $sasaranKode, 'alasan' => $alasan,
             ]);
@@ -70,6 +73,7 @@ final class KelolaPermintaanAkses
             $this->pastikanMenunggu($permintaan);
             $permintaan->forceFill(['status' => 'ditolak', 'diputuskan_oleh' => $penyunting->id, 'diputuskan_pada' => now(),
                 'catatan_keputusan' => $alasan, 'diubah_oleh' => $penyunting->id])->save();
+            PermintaanAksesDitutup::dispatch($permintaan->id, 'ditolak');
             $this->audit->catat('akses.permintaan_ditolak', $penyunting->id, 'akses.permintaan_akses', $permintaan->id, [
                 'nomor' => $permintaan->nomor, 'alasan' => $alasan,
             ]);
@@ -96,6 +100,7 @@ final class KelolaPermintaanAkses
         $this->penjaga->pastikanBolehMengubahAkun($penyunting, $akun);
         $permintaan->forceFill(['status' => 'ditindaklanjuti', 'diputuskan_oleh' => $penyunting->id, 'diputuskan_pada' => now(),
             'diubah_oleh' => $penyunting->id])->save();
+        PermintaanAksesDitutup::dispatch($permintaan->id, 'ditindaklanjuti');
         $this->audit->catat('akses.permintaan_ditindaklanjuti', $penyunting->id, 'akses.permintaan_akses', $permintaan->id, ['nomor' => $permintaan->nomor]);
     }
 

@@ -30,7 +30,8 @@ info:
     bagian identitas), /pegawai/{id}/izin-praktik, /kewenangan-klinis, /akun; /akun/{id}/nonaktifkan dan /aktifkan;
     /saya/sandi dan Saya.wajib_ganti_sandi; kepala unit dan ketua KSM dari pegawai.
     v0.7.0: Notifikasi, kotak kerja, eskalasi (tiket 1.7): /saya/notifikasi (ETag/304), /saya/tugas, /tugas/{id},
-    /jenis-tugas (tanpa POST), /saya/preferensi-notifikasi.
+    /jenis-tugas (tanpa POST), /saya/preferensi-notifikasi; header X-Permintaan-Latar untuk polling (tidak memperbarui
+    waktu aktif sesi).
 servers:
   - url: /api/v1
 security:
