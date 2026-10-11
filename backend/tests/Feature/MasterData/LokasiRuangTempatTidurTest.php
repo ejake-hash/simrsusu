@@ -76,6 +76,17 @@ class LokasiRuangTempatTidurTest extends TestCase
             ->assertStatus(422)->assertJsonPath('error.kode', 'tanggal_tidak_valid');
         $patch($gedung, ['status' => 'ditutup'])->assertStatus(409)->assertJsonPath('error.kode', 'lokasi_masih_dipakai')
             ->assertJsonPath('error.rincian.0.jumlah_anak_aktif', 2);
+        // Renovasi boleh walau anaknya aktif (tanpa TT/poliklinik); anak tertutup tidak bisa dibuka di bawah induk tertutup.
+        $patch($gedung, ['status' => 'renovasi'])->assertOk()->assertJsonPath('data.status', 'renovasi');
+        $buat($gedung->json('data.id'), 'lantai', '5')->assertCreated();
+        $patch($sayap, ['status' => 'ditutup'])->assertOk();
+        $patch($lantai, ['status' => 'ditutup'])->assertOk();
+        $lantai5 = $this->minta('GET', '/api/v1/lokasi?cari=B-5')->json('data.0');
+        $this->mintaDenganVersi('PATCH', '/api/v1/lokasi/'.$lantai5['id'], $lantai5['versi'], ['status' => 'ditutup', 'dasar_perubahan' => self::DASAR])->assertOk();
+        $patch($gedung, ['status' => 'ditutup'])->assertOk();
+        $patch($lantai, ['status' => 'aktif'])->assertStatus(422)->assertJsonPath('error.kode', 'induk_tidak_aktif');
+        $patch($gedung, ['status' => 'aktif'])->assertOk();
+        $patch($lantai, ['status' => 'aktif'])->assertOk();
     }
 
     public function test_bangsal_kamar_tt_dan_kode_tt_tidak_dipakai_ulang(): void
@@ -117,8 +128,15 @@ class LokasiRuangTempatTidurTest extends TestCase
         $this->mintaDenganVersi('PATCH', "/api/v1/kelas-rawat/$kelas", '0', ['status' => 'nonaktif', 'dasar_perubahan' => self::DASAR])
             ->assertStatus(409)->assertJsonPath('error.kode', 'kelas_masih_dipakai');
         $this->assertSesuaiKontrak($this->minta('GET', "/api/v1/bangsal/$bangsal")->assertOk()
-            ->assertJsonPath('data.jumlah_kamar', 1)->assertJsonPath('data.ringkasan_tt.0.tersedia', 2)
-            ->assertJsonPath('data.ringkasan_tt.0.ditutup', 1), 'GET', '/bangsal/{id}');
+            ->assertJsonPath('data.jumlah_kamar', 1)->assertJsonPath('data.ringkasan_tt.0.jumlah_tersedia', 2)
+            ->assertJsonPath('data.ringkasan_tt.0.ditutup', 1)->assertJsonPath('data.ringkasan_tt.0.belum_berlaku', 0), 'GET', '/bangsal/{id}');
+
+        // Kode TT tetap dicari walau ruangnya dipindah ke lantai lain.
+        $ruangRinci = $this->minta('GET', "/api/v1/lokasi/$ruang")->json('data');
+        $lantai4 = $this->lokasi($ruangRinci['jalur'][0]['id'], 'lantai', '4', 'Lantai 4');
+        $this->mintaDenganVersi('PATCH', "/api/v1/lokasi/$ruang", $ruangRinci['versi'], ['induk_id' => $lantai4->json('data.id'), 'dasar_perubahan' => self::DASAR])
+            ->assertOk()->assertJsonPath('data.kode_lengkap', 'B-4-304');
+        $this->minta('GET', '/api/v1/lokasi?cari=B-3-304-2')->assertOk()->assertJsonPath('data.0.kode_lengkap', 'B-4-304-2');
     }
 
     public function test_tutup_tt_besok_hari_ini_masih_dihitung_dan_rekaman_hari_lewat_tetap(): void
@@ -171,6 +189,8 @@ class LokasiRuangTempatTidurTest extends TestCase
         $poli = $this->minta('POST', '/api/v1/poliklinik', [...$isi, 'lokasi_id' => $ruangPoli->json('data.id')])->assertCreated()
             ->assertJsonPath('data.lokasi.kode_lengkap', 'A-1-101')->assertJsonPath('data.unit.kode', 'IRNA');
         $this->assertSesuaiKontrak($poli, 'POST', '/poliklinik');
+        $this->assertSesuaiKontrak($this->minta('GET', '/api/v1/poliklinik?lokasi_id='.$gedung->json('data.id'))->assertOk()
+            ->assertJsonCount(1, 'data'), 'GET', '/poliklinik');
 
         // Ruang yang dipakai poliklinik aktif tidak bisa ditutup.
         $this->mintaDenganVersi('PATCH', '/api/v1/lokasi/'.$ruangPoli->json('data.id'), $ruangPoli->json('data.versi'), [

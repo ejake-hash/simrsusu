@@ -77,14 +77,17 @@ final class ImporLokasi
         $aliran = fopen('php://memory', 'r+');
         fwrite($aliran, $isi);
         rewind($aliran);
-        $judul = fgetcsv($aliran, escape: '');
+        // Excel ber-locale Indonesia menyimpan CSV dengan pemisah titik koma.
+        $barisPertama = strtok($isi, "\n");
+        $pemisah = is_string($barisPertama) && str_contains($barisPertama, ';') && ! str_contains($barisPertama, ',') ? ';' : ',';
+        $judul = fgetcsv($aliran, separator: $pemisah, escape: '');
         if ($judul === false || array_map(fn ($k) => trim((string) $k), $judul) !== self::KOLOM) {
             fclose($aliran);
             throw $this->berkasTidakValid('Judul kolom harus: '.implode(',', self::KOLOM).'.');
         }
         $baris = [];
         $nomor = 1;
-        while (($kolom = fgetcsv($aliran, escape: '')) !== false) {
+        while (($kolom = fgetcsv($aliran, separator: $pemisah, escape: '')) !== false) {
             $nomor++;
             if ($kolom === [null]) {
                 continue;

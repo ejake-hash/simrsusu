@@ -6,6 +6,7 @@ use App\Core\Database\Like;
 use App\Core\Http\IfMatch;
 use App\Core\Http\Paginasi;
 use App\Modules\MasterData\Application\KelolaRawatInap;
+use App\Modules\MasterData\Application\PohonLokasi;
 use App\Modules\MasterData\Http\Resources\LokasiResource;
 use App\Modules\MasterData\Models\Poliklinik;
 use Illuminate\Http\JsonResponse;
@@ -19,11 +20,16 @@ final class PoliklinikController
 
     public function __construct(private readonly LokasiResource $resource) {}
 
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, PohonLokasi $pohon): JsonResponse
     {
         $this->izin('lihat');
-        $filter = $request->validate(['cari' => ['nullable', 'string', 'max:100'], 'status' => ['nullable', Rule::in(['aktif', 'nonaktif'])]]);
+        $filter = $request->validate([
+            'cari' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', Rule::in(['aktif', 'nonaktif'])],
+            'lokasi_id' => ['nullable', 'uuid'],
+        ]);
         $query = Poliklinik::query()
+            ->when($filter['lokasi_id'] ?? null, fn ($q, $id) => $q->whereIn('lokasi_id', $pohon->subpohon($id)))
             ->when($filter['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->when($filter['cari'] ?? null, fn ($q, $cari) => $q->where(fn ($q) => $q
                 ->whereRaw('kode ILIKE ?', [Like::memuat($cari)])->orWhereRaw('nama ILIKE ?', [Like::memuat($cari)])));

@@ -81,12 +81,13 @@ final class LokasiResource
         $hariIni = SuntinganBerversi::hariIni();
         $ringkas = $id === [] ? collect() : DB::table('inti.tempat_tidur AS tt')->join('inti.kamar AS k', 'k.id', '=', 'tt.kamar_id')
             ->whereIn('k.bangsal_id', $id)->groupBy('k.bangsal_id', 'tt.kelas_rawat_id')
+            // Kelompok saling lepas: dihitung hari ini (tersedia + ekstra), belum berlaku, ditutup; akan_ditutup ⊂ dihitung.
             ->selectRaw('k.bangsal_id, tt.kelas_rawat_id,
-                count(*) FILTER (WHERE tt.berlaku_dari <= ?::date AND tt.berlaku_sampai IS NULL AND NOT tt.ekstra) AS tersedia_tetap,
-                count(*) FILTER (WHERE tt.berlaku_dari <= ?::date AND tt.berlaku_sampai >= ?::date AND NOT tt.ekstra) AS tersedia_akan_tutup,
+                count(*) FILTER (WHERE tt.berlaku_dari <= ?::date AND (tt.berlaku_sampai IS NULL OR tt.berlaku_sampai >= ?::date) AND NOT tt.ekstra) AS tersedia,
                 count(*) FILTER (WHERE tt.berlaku_dari <= ?::date AND (tt.berlaku_sampai IS NULL OR tt.berlaku_sampai >= ?::date) AND tt.ekstra) AS ekstra,
-                count(*) FILTER (WHERE tt.berlaku_sampai >= ?::date) AS akan_ditutup,
-                count(*) FILTER (WHERE tt.berlaku_sampai < ?::date) AS ditutup', array_fill(0, 7, $hariIni))
+                count(*) FILTER (WHERE tt.berlaku_dari <= ?::date AND tt.berlaku_sampai >= ?::date) AS akan_ditutup,
+                count(*) FILTER (WHERE tt.berlaku_dari > ?::date AND (tt.berlaku_sampai IS NULL OR tt.berlaku_sampai >= ?::date)) AS belum_berlaku,
+                count(*) FILTER (WHERE tt.berlaku_sampai < ?::date) AS ditutup', array_fill(0, 9, $hariIni))
             ->get()->groupBy('bangsal_id');
         $kelas = $this->kelasRingkas($ringkas->flatten(1)->pluck('kelas_rawat_id')->unique()->values()->all());
 
@@ -100,9 +101,10 @@ final class LokasiResource
             'ringkasan_tt' => ($ringkas[$b->id] ?? collect())->sortBy(fn ($r) => $kelas[$r->kelas_rawat_id]['kode'] ?? '')
                 ->map(fn ($r) => [
                     'kelas_rawat' => $kelas[$r->kelas_rawat_id],
-                    'tersedia' => (int) $r->tersedia_tetap + (int) $r->tersedia_akan_tutup,
-                    'ekstra' => (int) $r->ekstra,
+                    'jumlah_tersedia' => (int) $r->tersedia,
+                    'jumlah_ekstra' => (int) $r->ekstra,
                     'akan_ditutup' => (int) $r->akan_ditutup,
+                    'belum_berlaku' => (int) $r->belum_berlaku,
                     'ditutup' => (int) $r->ditutup,
                 ])->values()->all(),
             'versi' => (string) $b->revisi,

@@ -86,7 +86,10 @@ final class KelolaLokasi
                     ]);
                 }
                 if ($isi['status'] !== 'aktif') {
-                    $this->pastikanTidakDipakai($lokasi);
+                    $this->pastikanTidakDipakai($lokasi, $isi['status'] === 'ditutup');
+                }
+                if ($lokasi->status === 'ditutup' && $induk !== null && ! $pindah) {
+                    $this->pastikanInduk($induk, $lokasi->jenis);
                 }
                 $lokasi->status_berlaku_dari = $tanggal;
             }
@@ -136,11 +139,12 @@ final class KelolaLokasi
         return $unitId;
     }
 
-    private function pastikanTidakDipakai(Lokasi $lokasi): void
+    /** Renovasi: tanpa TT yang belum ditutup dan poliklinik aktif. Ditutup: ditambah semua turunan non-TT sudah ditutup. */
+    private function pastikanTidakDipakai(Lokasi $lokasi, bool $tutup): void
     {
         $subpohon = $this->pohon->subpohon($lokasi->id);
         $rincian = [
-            'jumlah_anak_aktif' => Lokasi::query()->whereIn('id', $subpohon)->where('id', '!=', $lokasi->id)
+            'jumlah_anak_aktif' => ! $tutup ? 0 : Lokasi::query()->whereIn('id', $subpohon)->where('id', '!=', $lokasi->id)
                 ->where('jenis', '!=', 'tempat_tidur')->where('status', '!=', 'ditutup')->count(),
             'jumlah_tempat_tidur' => DB::table('inti.tempat_tidur')->whereIn('lokasi_id', $subpohon)
                 ->where(fn ($q) => $q->whereNull('berlaku_sampai')->orWhere('berlaku_sampai', '>=', SuntinganBerversi::hariIni()))->count(),

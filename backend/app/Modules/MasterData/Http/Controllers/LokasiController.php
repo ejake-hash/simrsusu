@@ -9,6 +9,7 @@ use App\Modules\MasterData\Application\KelolaLokasi;
 use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Http\Resources\LokasiResource;
 use App\Modules\MasterData\Models\Lokasi;
+use App\Modules\MasterData\Models\TempatTidur;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,7 +38,9 @@ final class LokasiController
             ->when($filter['jenis'] ?? null, fn ($q, $jenis) => $q->where('jenis', $jenis))
             ->when($filter['status'] ?? null, fn ($q, $status) => $this->saringStatus($q, $status))
             ->when($filter['cari'] ?? null, fn ($q, $cari) => $q->where(fn ($q) => $q
-                ->whereRaw('kode_lengkap ILIKE ?', [Like::memuat($cari)])->orWhereRaw('nama ILIKE ?', [Like::memuat($cari)])));
+                ->whereRaw('kode_lengkap ILIKE ?', [Like::memuat($cari)])->orWhereRaw('nama ILIKE ?', [Like::memuat($cari)])
+                // Kode TT tetap walau ruangnya dipindah, jadi bisa berbeda dari kode_lengkap node-nya.
+                ->orWhereIn('id', TempatTidur::query()->whereRaw('kode ILIKE ?', [Like::memuat($cari)])->select('lokasi_id'))));
 
         return Paginasi::respons($query, $request, 'kode_lengkap', arah: 'asc', bentuk: fn ($baris) => $this->resource->lokasi($baris));
     }

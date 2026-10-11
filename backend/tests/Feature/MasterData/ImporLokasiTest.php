@@ -100,8 +100,10 @@ class ImporLokasiTest extends TestCase
         $this->impor("jenis,kode\ngedung,B\n", 'pratinjau')->assertStatus(422)->assertJsonPath('error.kode', 'berkas_tidak_valid');
         $this->impor(self::JUDUL."\ngedung,B,,Gedung \xC3\x28,,,,,,\n", 'pratinjau')->assertStatus(422)->assertJsonPath('error.kode', 'berkas_tidak_valid');
         $this->impor(self::JUDUL."\n".str_repeat("gedung,B,,Gedung B,,,,,,\n", 5001), 'pratinjau')->assertStatus(422)->assertJsonPath('error.kode', 'berkas_tidak_valid');
-        // Penanda BOM dari Excel diterima.
+        // Penanda BOM dan pemisah titik koma dari Excel ber-locale Indonesia diterima.
         $this->impor("\xEF\xBB\xBF".self::JUDUL."\ngedung,B,,Gedung B,,,,,,\n", 'pratinjau')->assertOk()->assertJsonPath('data.jumlah_salah', 0);
+        $this->impor(str_replace(',', ';', self::JUDUL)."\ngedung;B;;Gedung B;;;;;;\n", 'pratinjau')->assertOk()
+            ->assertJsonPath('data.jumlah_salah', 0)->assertJsonPath('data.per_jenis.gedung', 1);
     }
 
     private function impor(string $csv, string $mode): TestResponse
