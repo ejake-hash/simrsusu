@@ -633,7 +633,7 @@ components:
         masuk_sebelumnya_pada:
           type: [string, 'null']
           format: date-time
-          description: "Masuk berhasil sebelum sesi ini (\"apakah ini Anda?\"). null = tidak ada catatan: masuk pertama, atau sesi ini dimulai sebelum fitur ini ada (terisi pada masuk berikutnya)."
+          description: "Masuk berhasil terakhir selain sesi ini (\"apakah ini Anda?\"): masuk lain sesudah sesi ini dimulai bila ada, kalau tidak masuk sebelum sesi ini. null = tidak ada catatan: masuk pertama, atau sesi dimulai sebelum fitur ini ada."
         masuk_sebelumnya_dari_jaringan_rs:
           type: [boolean, 'null']
           description: "Apakah masuk sebelumnya dari jaringan RS (AUTENTIKASI_MFA_JARINGAN_RS). null = tidak diketahui: masuk pertama, atau masuk sebelumnya terjadi sebelum fitur ini ada."
