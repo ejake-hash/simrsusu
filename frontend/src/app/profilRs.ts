@@ -8,9 +8,13 @@ export interface ProfilRs {
   logo: string | null
   /** Motif grafis di panel merek halaman masuk (PRD 5.3.2 aturan 4); bukan untuk layar kerja. */
   motif: string | null
-  /** Kontak admin SIMRS untuk lupa sandi/akun terkunci, mis. "ext. 1234". */
+  /** Unit yang mengelola akun, dipakai di teks halaman masuk; bawaan "admin SIMRS". */
+  unitAdmin: string
+  /** Kontak unit itu untuk lupa sandi/akun terkunci, mis. "ext. 1234". */
   kontakAdmin: string | null
 }
+
+const UNIT_ADMIN_BAWAAN = 'admin SIMRS'
 
 export function profilRsDariEnv(env: Record<string, string | undefined> = import.meta.env): ProfilRs {
   const isi = (nilai: string | undefined) => nilai?.trim() || null
@@ -18,6 +22,7 @@ export function profilRsDariEnv(env: Record<string, string | undefined> = import
     nama: isi(env.VITE_RS_NAMA),
     logo: isi(env.VITE_RS_LOGO),
     motif: isi(env.VITE_RS_MOTIF),
+    unitAdmin: isi(env.VITE_RS_UNIT_ADMIN) ?? UNIT_ADMIN_BAWAAN,
     kontakAdmin: isi(env.VITE_RS_KONTAK_ADMIN),
   }
 }

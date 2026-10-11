@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, useTemplateRef } from 'vue'
+import { profilRsDariEnv } from '@/app/profilRs'
 import type { Langkah, LangkahTampil } from '../alurMasuk'
 
 // Pengganti sementara langkah perlu_mfa dan perlu_daftar_mfa sampai tiket 1.1b. Sesi di server
@@ -9,6 +10,7 @@ defineProps<{
   lanjut: (langkah: Langkah) => Promise<void>
 }>()
 const emit = defineEmits<{ kembali: [] }>()
+const { unitAdmin } = profilRsDariEnv()
 
 const judul = useTemplateRef<HTMLHeadingElement>('judul')
 onMounted(() => judul.value?.focus())
@@ -18,8 +20,8 @@ onMounted(() => judul.value?.focus())
   <section aria-labelledby="judul-mfa">
     <h1 id="judul-mfa" ref="judul" tabindex="-1">Verifikasi dua langkah diperlukan</h1>
     <p class="lead">
-      Akun ini wajib memakai verifikasi dua langkah, tetapi versi aplikasi ini belum mendukungnya. Hubungi Unit TI untuk
-      masuk.
+      Akun ini wajib memakai verifikasi dua langkah, tetapi versi aplikasi ini belum mendukungnya. Hubungi
+      {{ unitAdmin }} untuk masuk.
     </p>
     <button type="button" class="tombol-kedua" @click="emit('kembali')">Kembali ke halaman masuk</button>
   </section>

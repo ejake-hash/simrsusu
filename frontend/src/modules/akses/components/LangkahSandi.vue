@@ -16,29 +16,52 @@ const props = defineProps<{
 defineEmits<{ kembali: [] }>()
 
 const sesi = useSesiStore()
-const { kontakAdmin } = profilRsDariEnv()
+const { kontakAdmin, unitAdmin } = profilRsDariEnv()
 const isian = reactive<IsianSandi>({ nama_pengguna: '', sandi: '' })
 const galatIsian = ref<GalatIsian>({})
-const galat = ref<{ pesan: string; cobaLagiSampai: number | null } | null>(null)
+/** tunggu = galat kunci/batas laju: punya baris "Coba lagi …" sendiri dan menahan tombol Masuk. */
+const galat = ref<{ pesan: string; tunggu: boolean; cobaLagiSampai: number | null } | null>(null)
 const proses = ref(false)
 const tampilkanSandi = ref(false)
 const capsLock = ref(false)
 const inputNama = useTemplateRef<HTMLInputElement>('inputNama')
 const inputSandi = useTemplateRef<HTMLInputElement>('inputSandi')
 
-// Hitung mundur kunci akun / batas laju dari Retry-After server.
+// Kalimat milik frontend: pesan server untuk kode ini sudah memuat "Coba lagi …", sedangkan sisa
+// waktunya ditulis sekali di baris sendiri.
+const PESAN_TUNGGU: Record<string, string> = {
+  akun_terkunci: 'Akun terkunci sementara karena terlalu banyak percobaan gagal.',
+  terlalu_banyak_permintaan: 'Terlalu banyak percobaan masuk.',
+}
+
+// Hitung mundur dari Retry-After server; tombol Masuk nonaktif sampai habis.
 const sekarang = ref(Date.now())
 let detak: ReturnType<typeof setInterval> | undefined
 const sisaWaktu = computed(() => {
   const sampai = galat.value?.cobaLagiSampai
-  return sampai == null ? undefined : formatSisaWaktu(Math.ceil((sampai - sekarang.value) / 1000))
+  return sampai == null ? null : formatSisaWaktu(Math.ceil((sampai - sekarang.value) / 1000))
 })
+const menunggu = computed(() => sisaWaktu.value !== null)
+const barisTunggu = computed(() => {
+  if (!galat.value?.tunggu) return null
+  if (galat.value.cobaLagiSampai === null) return 'Coba lagi nanti.'
+  return sisaWaktu.value ? `Coba lagi dalam ${sisaWaktu.value}.` : 'Anda sudah bisa mencoba lagi.'
+})
+
+function mulaiHitungMundur(sampai: number): void {
+  clearInterval(detak)
+  sekarang.value = Date.now()
+  detak = setInterval(() => {
+    sekarang.value = Date.now()
+    if (sekarang.value >= sampai) clearInterval(detak)
+  }, 1000)
+}
 
 onMounted(() => inputNama.value?.focus())
 onBeforeUnmount(() => clearInterval(detak))
 
 async function kirim(): Promise<void> {
-  if (proses.value) return
+  if (proses.value || menunggu.value) return
 
   galatIsian.value = validasiIsianSandi(isian)
   if (galatIsian.value.nama_pengguna) return inputNama.value?.focus()
@@ -57,7 +80,11 @@ async function kirim(): Promise<void> {
 
 function tampilkanGalat(e: unknown): void {
   if (!(e instanceof GalatApi)) {
-    galat.value = { pesan: 'Respons server tidak dikenali. Coba lagi atau hubungi Unit TI.', cobaLagiSampai: null }
+    galat.value = {
+      pesan: `Respons server tidak dikenali. Coba lagi atau hubungi ${unitAdmin}.`,
+      tunggu: false,
+      cobaLagiSampai: null,
+    }
     return
   }
 
@@ -67,16 +94,10 @@ function tampilkanGalat(e: unknown): void {
     }
   }
 
-  galat.value = {
-    // Pesan 429 bawaan server sudah berisi "Coba lagi sebentar lagi."; sisa waktunya ditulis di bawah.
-    pesan: e.kode === 'terlalu_banyak_permintaan' && e.cobaLagiDetik !== null ? 'Terlalu banyak percobaan masuk.' : e.message,
-    cobaLagiSampai: e.cobaLagiDetik === null ? null : Date.now() + e.cobaLagiDetik * 1000,
-  }
-  if (e.cobaLagiDetik !== null) {
-    clearInterval(detak)
-    sekarang.value = Date.now()
-    detak = setInterval(() => (sekarang.value = Date.now()), 1000)
-  }
+  const tunggu = e.kode in PESAN_TUNGGU
+  const cobaLagiSampai = tunggu && e.cobaLagiDetik !== null ? Date.now() + e.cobaLagiDetik * 1000 : null
+  galat.value = { pesan: PESAN_TUNGGU[e.kode] ?? e.message, tunggu, cobaLagiSampai }
+  if (cobaLagiSampai !== null) mulaiHitungMundur(cobaLagiSampai)
 
   if (e.kode === 'kredensial_salah') {
     isian.sandi = ''
@@ -98,7 +119,7 @@ function ubahTampilanSandi(): void {
   <section aria-labelledby="judul-masuk">
     <p class="label-atas">SIMRS · Rumah Sakit Pendidikan</p>
     <h1 id="judul-masuk">Masuk ke akun Anda</h1>
-    <p class="lead">Gunakan nama pengguna yang diberikan Unit TI.</p>
+    <p class="lead">Gunakan nama pengguna yang diberikan {{ unitAdmin }}.</p>
 
     <p v-if="sesi.pesanBerakhir && !galat" class="pesan pesan-info" role="status">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -117,9 +138,7 @@ function ubahTampilanSandi(): void {
         </svg>
         <span>
           {{ galat.pesan }}
-          <span v-if="sisaWaktu !== undefined" aria-live="off">
-            {{ sisaWaktu ? `Coba lagi dalam ${sisaWaktu}.` : 'Anda sudah bisa mencoba lagi.' }}
-          </span>
+          <span v-if="barisTunggu" id="baris-tunggu" class="baris-tunggu" aria-live="off">{{ barisTunggu }}</span>
         </span>
       </p>
     </div>
@@ -192,14 +211,20 @@ function ubahTampilanSandi(): void {
         </div>
       </div>
 
-      <button type="submit" class="tombol-utama" :disabled="proses">
+      <button
+        type="submit"
+        class="tombol-utama"
+        :class="{ menunggu }"
+        :disabled="proses || menunggu"
+        :aria-describedby="menunggu ? 'baris-tunggu' : undefined"
+      >
         <span v-if="proses" class="spinner" aria-hidden="true"></span>
         <span>{{ proses ? 'Memproses…' : 'Masuk' }}</span>
       </button>
     </form>
 
     <p class="bantuan">
-      Lupa sandi atau akun terkunci? Hubungi admin SIMRS<template v-if="kontakAdmin">
+      Lupa sandi atau akun terkunci? Hubungi {{ unitAdmin }}<template v-if="kontakAdmin">
         di <span class="kontak">{{ kontakAdmin }}</span></template>.
     </p>
   </section>
@@ -338,6 +363,9 @@ input[aria-invalid='true'] {
   text-align: center;
 }
 
+.baris-tunggu {
+  display: block;
+}
 .kontak {
   white-space: nowrap;
 }
@@ -369,6 +397,13 @@ input[aria-invalid='true'] {
 .tombol-utama:disabled {
   background: var(--brand-700);
   cursor: progress;
+}
+/* Tertahan hitung mundur: tampak nonaktif, bukan sedang memproses. */
+.tombol-utama.menunggu:disabled {
+  border: 1px solid var(--border-input);
+  background: var(--bg);
+  color: var(--muted);
+  cursor: not-allowed;
 }
 .spinner {
   width: 16px;
