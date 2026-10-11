@@ -2538,13 +2538,24 @@ paths:
   # Notifikasi, kotak kerja, eskalasi (tiket 1.7; PRD 7.53 FR-53-01…09, 11.2 inti.jenis_tugas/tugas/tugas_kejadian,
   # notifikasi.notifikasi; keputusan K1, K2).
   # - /saya/* tanpa izin khusus: hanya data akun yang sedang masuk. Polling 30 detik dengan If-None-Match (K1; 304 bila
-  #   tidak berubah). Isi notifikasi tidak memuat data pasien di email/pesan singkat; in-app memuat tautan ke layar.
+  #   tidak berubah) dan header `X-Permintaan-Latar: 1`: permintaan berpenanda itu tidak memperbarui waktu aktif sesi,
+  #   sehingga sesi di komputer bersama tetap berakhir sesudah batas diam (PRD 14.2, ADR 0002). Klien hanya memasang header
+  #   itu pada polling otomatis, bukan pada tindakan pengguna. Isi notifikasi tidak memuat data pasien di email/pesan singkat; in-app memuat tautan ke layar.
   # - Tugas dibuat dan diselesaikan oleh kejadian domain (bukan tombol manual): mis. persetujuan akses diputuskan menutup
   #   tugas "persetujuan menunggu". Tugas punya tautan ke layar penyelesaian (rute SPA).
-  # - Eskalasi 3 tingkat (FR-53-03), waktunya dari jenis tugas (FR-53-04, diubah RS di layar, bukan kode):
-  #   tingkat 1 pengingat ke pelaksana sebelum tenggat; tingkat 2 teguran ke kepala unit pelaksana saat tenggat lewat;
-  #   tingkat 3 eskalasi ke kepala unit induk (kepala bidang) + penanda dasbor Direktur. Kepala unit dari
-  #   `inti.unit_organisasi.kepala_pegawai_id` (1.8d); bila tidak ada, tingkat tetap naik dan riwayat mencatat "tanpa penerima".
+  # - Eskalasi 3 tingkat (FR-53-03), waktu dan unit tujuannya dari jenis tugas (FR-53-04, diubah RS di layar, bukan kode):
+  #   tingkat 1 pengingat ke pelaksana sebelum tenggat (bila waktunya sudah lewat saat tugas dibuat, dikirim saat dibuat);
+  #   tingkat 2 teguran ke kepala unit tugas (unit pelaksana/objek), atau kepala `unit_teguran` jenisnya bila tugas tanpa unit;
+  #   tingkat 3 eskalasi ke kepala `unit_eskalasi` jenisnya, atau kepala unit induk dari unit tingkat 2 (kepala bidang),
+  #   + penanda dasbor Direktur. Kepala unit dari `inti.unit_organisasi.kepala_pegawai_id` (1.8d); bila tidak ada, tingkat
+  #   tetap naik dan riwayat mencatat penerima kosong.
+  # - Tab kotak kerja saling lepas (lencana tidak terhitung ganda): `saya` = tugas terbuka akun ini tingkat 0–1;
+  #   `dieskalasi` = tugas terbuka akun ini tingkat 2–3 (sudah ditegur/dieskalasi, sesuai prototipe "Teguran & eskalasi");
+  #   `unit` = tugas terbuka bukan milik akun ini di unit yang dikepalainya (termasuk turunan) atau yang eskalasinya dikirim
+  #   ke akun ini; `selesai` = tugas akun ini dan unitnya yang selesai bulan ini. Tugas di tab mana pun bisa dibuka di
+  #   /tugas/{id}.
+  # - Pemberitahuan AKUN_TERKUNCI (issue #11) bukan jenis tugas (tidak ada di /jenis-tugas): selalu kritis, email paling
+  #   banyak satu per jam per akun agar penguncian sengaja tidak membanjiri kotak masuk.
   # - Kanal (K2): in-app selalu; email (antrean `notifikasi`) bila akun punya email dan preferensinya menyala; WA/SMS
   #   lewat adapter dengan driver `log` di fase 1. Notifikasi kritis tidak bisa dimatikan preferensi (FR-53-09).
   # ---------------------------------------------------------------------------
@@ -2554,13 +2565,14 @@ paths:
       summary: Notifikasi akun yang sedang masuk (paginasi kursor, terbaru dulu) beserta jumlah belum dibaca
       description: |
         `status=belum_dibaca` untuk lonceng/daftar "belum dibaca dulu" (tab pertama), `semua` (bawaan) untuk riwayat.
-        `meta.jumlah_belum_dibaca` untuk angka lonceng. ETag berubah bila ada notifikasi baru atau status baca berubah;
+        `meta.jumlah_belum_dibaca` untuk angka lonceng. ETag = sidik isi respons: berubah bila ada notifikasi baru atau status baca berubah;
         If-None-Match yang sama → 304 tanpa isi (polling 30 detik).
       parameters:
         - $ref: '#/components/parameters/Kursor'
         - $ref: '#/components/parameters/Batas'
         - { in: query, name: status, schema: { type: string, enum: [belum_dibaca, semua] } }
         - { in: header, name: If-None-Match, schema: { type: string } }
+        - { in: header, name: X-Permintaan-Latar, schema: { type: string, enum: ['1'] }, description: "Polling otomatis: tidak memperbarui waktu aktif sesi" }
       responses:
         '200':
           description: Satu halaman notifikasi
@@ -2601,6 +2613,15 @@ paths:
     post:
       operationId: tandaiSemuaNotifikasiDibaca
       summary: Tandai semua notifikasi akun ini dibaca
+      description: "`sampai` (opsional) = waktu notifikasi terbaru yang sudah ditampilkan; yang tiba sesudahnya tetap belum dibaca. Notifikasi berprioritas kritis tidak ikut ditandai (dibuka satu per satu, PRD 5.1 butir 12)."
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sampai: { type: [string, 'null'], format: date-time }
       responses:
         '200':
           description: Jumlah yang ditandai
@@ -2617,8 +2638,9 @@ paths:
       operationId: preferensiNotifikasiSaya
       summary: Preferensi kanal notifikasi per jenis
       description: |
-        Satu baris per jenis notifikasi yang bisa diterima akun (jenis tugas aktif + jenis akun). In-app selalu menyala.
-        `dapat_diubah = false` untuk jenis kritis (FR-53-09) dan untuk kanal yang belum tersedia di instalasi.
+        Satu baris per jenis notifikasi yang bisa diterima akun (jenis tugas aktif + AKUN_TERKUNCI). In-app selalu menyala.
+        Per kanal: `dapat_diubah = false` untuk jenis kritis (FR-53-09), kanal yang belum tersedia di instalasi (pesan singkat
+        di fase 1 hanya driver log), atau email bila akun tidak punya alamat email.
       responses:
         '200':
           description: Preferensi
@@ -2634,8 +2656,9 @@ paths:
       operationId: aturPreferensiNotifikasiSaya
       summary: Ganti preferensi kanal (email, pesan singkat) per jenis
       description: |
-        Mengganti nilai yang dikirim saja; jenis yang tidak dikirim tidak berubah. 422 `jenis_tidak_dikenal`;
-        422 `notifikasi_kritis` bila mencoba mematikan kanal untuk jenis kritis. Audit `notifikasi.preferensi_diubah`.
+        Mengganti nilai yang dikirim saja; jenis/kanal yang tidak dikirim tidak berubah. 422 `jenis_tidak_dikenal`;
+        422 `notifikasi_kritis` bila mencoba mematikan kanal untuk jenis kritis; 422 `kanal_tidak_tersedia` bila mengubah kanal
+        yang `dapat_diubah = false` karena belum tersedia. Audit `notifikasi.preferensi_diubah`.
       requestBody:
         required: true
         content:
@@ -2671,19 +2694,16 @@ paths:
       operationId: kotakKerjaSaya
       summary: Kotak kerja (paginasi kursor)
       description: |
-        Tanpa izin khusus (tugas yang terkait akun ini).
-        - `tab=saya`: tugas terbuka yang pelaksananya akun ini, atau peran/unit yang dipegang akun ini (penugasan berlaku).
-          Urut tenggat terdekat dulu.
-        - `tab=unit`: tugas terbuka yang pelaksananya unit yang dikepalai akun ini (kepala unit, termasuk turunannya),
-          selain yang sudah di tab saya. Urut tenggat terdekat dulu.
-        - `tab=dieskalasi`: tugas terbuka tingkat 2–3 yang eskalasinya dikirim ke akun ini. Urut tenggat.
-        - `tab=selesai`: tugas yang diselesaikan bulan ini (zona RS) dari tab saya/unit. Urut selesai terbaru dulu.
-        `meta.jumlah` per tab untuk lencana (dihitung server, bukan dari halaman).
+        Tanpa izin khusus (tugas yang terkait akun ini). Arti tab di blok aturan di atas (saling lepas). "Milik akun ini" =
+        pelaksananya akun ini, atau peran/unit yang dipegang akun ini lewat penugasan berlaku. Tab saya/dieskalasi/unit urut
+        tenggat terdekat dulu; selesai urut selesai terbaru dulu. `meta.jumlah` per tab untuk lencana (dihitung server).
+        ETag = sidik isi respons (termasuk `terlambat` dan jumlah), jadi 304 hanya bila isinya benar-benar sama.
       parameters:
         - $ref: '#/components/parameters/Kursor'
         - $ref: '#/components/parameters/Batas'
         - { in: query, name: tab, required: true, schema: { type: string, enum: [saya, unit, dieskalasi, selesai] } }
         - { in: header, name: If-None-Match, schema: { type: string } }
+        - { in: header, name: X-Permintaan-Latar, schema: { type: string, enum: ['1'] }, description: "Polling otomatis: tidak memperbarui waktu aktif sesi" }
       responses:
         '200':
           description: Satu halaman tugas
@@ -2718,7 +2738,7 @@ paths:
     get:
       operationId: rinciTugas
       summary: Rincian tugas beserta riwayat (dibuat, pengingat, teguran, eskalasi, selesai)
-      description: "Hanya akun yang terkait (pelaksana, kepala unit pelaksana, atau penerima eskalasi); selain itu 404."
+      description: "Hanya akun yang melihatnya di salah satu tab /saya/tugas (pemilik, kepala unit tugas atau unit induknya, penerima eskalasi); selain itu 404."
       responses:
         '200':
           description: Rincian tugas
@@ -2772,11 +2792,10 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
     patch:
       operationId: ubahJenisTugas
-      summary: Ubah tenggat, waktu eskalasi, kritis, atau aktif
+      summary: Ubah nama, tenggat, waktu dan unit eskalasi, kritis, atau aktif
       description: |
         Izin: master_data.jenis_tugas.perbaiki. Wajib If-Match. Berlaku untuk tugas yang dibuat sesudahnya; tugas terbuka
-        memakai aturan saat dibuat. 422 `eskalasi_tidak_urut` bila menit tingkat 1 ≥ 0 (pengingat harus sebelum tenggat) atau
-        menit tingkat 3 < tingkat 2. Menonaktifkan jenis = kejadian domain tidak lagi membuat tugas jenis itu (tugas
+        memakai aturan saat dibuat. 422 `eskalasi_tidak_urut` bila menit tingkat 3 < tingkat 2; 422 `unit_tidak_valid`. Menonaktifkan jenis = kejadian domain tidak lagi membuat tugas jenis itu (tugas
         terbuka tetap berjalan). Audit `notifikasi.jenis_tugas_diubah`.
       parameters:
         - $ref: '#/components/parameters/IfMatch'
@@ -2790,7 +2809,9 @@ paths:
               minProperties: 2
               properties:
                 nama: { type: string, minLength: 3, maxLength: 150 }
-                batas_menit: { type: integer, minimum: 1, maximum: 525600, description: "Tenggat sejak tugas dibuat" }
+                batas_menit: { type: integer, minimum: 1, maximum: 525600, description: "Lihat JenisTugas.tenggat_dari" }
+                unit_teguran_id: { type: [string, 'null'], format: uuid }
+                unit_eskalasi_id: { type: [string, 'null'], format: uuid }
                 eskalasi: { $ref: '#/components/schemas/AturanEskalasi' }
                 kritis: { type: boolean }
                 aktif: { type: boolean }
@@ -3418,17 +3439,22 @@ components:
         tugas_id: { type: [string, 'null'], format: uuid }
         dibaca_pada: { type: [string, 'null'], format: date-time }
         dibuat_pada: { type: string, format: date-time }
+    KanalPreferensi:
+      type: object
+      required: [aktif, dapat_diubah]
+      properties:
+        aktif: { type: boolean }
+        dapat_diubah: { type: boolean }
     PreferensiNotifikasi:
       type: object
-      required: [jenis, nama, kritis, in_app, email, pesan_singkat, dapat_diubah]
+      required: [jenis, nama, kritis, in_app, email, pesan_singkat]
       properties:
         jenis: { type: string }
         nama: { type: string }
         kritis: { type: boolean }
         in_app: { type: boolean, const: true }
-        email: { type: boolean }
-        pesan_singkat: { type: boolean }
-        dapat_diubah: { type: boolean, description: "false untuk jenis kritis" }
+        email: { $ref: '#/components/schemas/KanalPreferensi' }
+        pesan_singkat: { $ref: '#/components/schemas/KanalPreferensi' }
     PelaksanaTugas:
       type: object
       required: [jenis, id, nama]
@@ -3475,7 +3501,10 @@ components:
                   jenis: { type: string, enum: [dibuat, pengingat, teguran, eskalasi, selesai, batal] }
                   tingkat: { type: integer, minimum: 0, maximum: 3 }
                   terjadi_pada: { type: string, format: date-time }
-                  penerima: { type: array, items: { $ref: '#/components/schemas/Pelaku' } }
+                  penerima:
+                    type: array
+                    description: "Kosong = tanpa penerima (mis. kepala unit belum ditetapkan)"
+                    items: { type: object, required: [id, nama], properties: { id: { type: string, format: uuid }, nama: { type: string } } }
                   kanal: { type: array, items: { type: string, enum: [in_app, email, pesan_singkat] } }
                   catatan: { type: [string, 'null'], description: "Mis. tanpa penerima (kepala unit belum ditetapkan), atau kejadian penyelesai" }
     AturanEskalasi:
@@ -3488,14 +3517,21 @@ components:
         eskalasi_menit: { type: integer, minimum: 0, maximum: 525600, description: "Tingkat 3 ke kepala bidang + dasbor Direktur" }
     JenisTugas:
       type: object
-      required: [id, kode, nama, uraian, modul, batas_menit, eskalasi, kritis, aktif, versi, diubah_pada]
+      required: [id, kode, nama, uraian, modul, tenggat_dari, batas_menit, unit_teguran, unit_eskalasi, eskalasi, kritis, aktif, versi, diubah_pada]
       properties:
         id: { type: string, format: uuid }
         kode: { type: string, examples: ['PERSETUJUAN_AKSES_MENUNGGU'] }
         nama: { type: string }
         uraian: { type: [string, 'null'] }
         modul: { type: string, description: "Modul pembuat tugas, mis. akses, sdm" }
+        tenggat_dari: { type: string, enum: [dibuat, objek], description: "dibuat = tenggat = dibuat + batas_menit; objek = tenggat dari tanggal objek (mis. izin praktik berakhir) dan tugas dibuat batas_menit sebelum itu" }
         batas_menit: { type: integer, minimum: 1 }
+        unit_teguran:
+          description: "Unit tujuan teguran (tingkat 2) bila tugas tanpa unit; null = hanya unit tugas"
+          oneOf: [{ $ref: '#/components/schemas/RingkasUnit' }, { type: 'null' }]
+        unit_eskalasi:
+          description: "Unit tujuan eskalasi (tingkat 3); null = unit induk dari unit tingkat 2"
+          oneOf: [{ $ref: '#/components/schemas/RingkasUnit' }, { type: 'null' }]
         eskalasi: { $ref: '#/components/schemas/AturanEskalasi' }
         kritis: { type: boolean, description: "Notifikasinya tidak bisa dimatikan preferensi" }
         aktif: { type: boolean }
@@ -3611,7 +3647,7 @@ components:
         rute: { type: string }
         status: { $ref: '#/components/schemas/StatusMenu' }
         fase: { type: integer, minimum: 0, maximum: 6 }
-        jumlah_tugas: { type: [integer, 'null'], description: "jumlah tugas terbuka; null bila belum tersedia (tiket 1.7)" }
+        jumlah_tugas: { type: [integer, 'null'], description: "Sejak 1.7: menu beranda = jumlah tab saya + dieskalasi di /saya/tugas (tugas terbuka milik akun); menu lain null" }
         sub_menu:
           type: array
           items: { $ref: '#/components/schemas/SubMenu' }

@@ -833,7 +833,7 @@ Uji penerimaan:
   - 10.000 notifikasi untuk satu akun: daftar tetap paginasi kursor, P95 < 200 ms; polling dengan ETag menjawab 304.
 Aturan rinci (kontrak v0.7.0):
   - Tabel mengikuti PRD 11.2: `inti.jenis_tugas`, `inti.tugas`, `inti.tugas_kejadian` (bukan skema `tugas` seperti tertulis
-    di atas), `notifikasi.notifikasi` (partisi bulanan, pola audit) dan `notifikasi.preferensi`.
+    di atas), `notifikasi.notifikasi` (partisi bulanan) dan `notifikasi.preferensi`.
   - Layar Jenis tugas = sub-menu PRD 9.1 "Jenis Tugas, Tenggat & Eskalasi" (`master_data.jenis_tugas`), cakupan `rs`.
     Tidak ada POST: jenis dipasang migrasi modul pembuatnya; RS mengubah tenggat, waktu eskalasi, kritis, aktif.
   - Kotak kerja dan notifikasi (`/saya/*`) tanpa izin khusus. Tab unit = unit yang dikepalai akun (kepala_pegawai_id,
@@ -843,7 +843,12 @@ Aturan rinci (kontrak v0.7.0):
     PERMINTAAN_AKSES (pelaksana peran pemegang pengaturan.akun.perbaiki; tenggat 2 hari; selesai saat ditindaklanjuti/ditolak),
     IZIN_PRAKTIK_BERAKHIR (dibuat 30 hari sebelum berakhir — FR-53-05; pelaksana akun pegawai itu; tenggat = tanggal
     berakhir; selesai saat izin pengganti dicatat), dan pemberitahuan AKUN_TERKUNCI (notifikasi saja, kritis, ke pemilik
-    akun — issue #11). USULAN_DATA_INDUK dipasang 1.8c.
+    akun — issue #11). USULAN_DATA_INDUK dipasang 1.8c. Angka awal eskalasi semua jenis: pengingat 4 jam sebelum tenggat
+    (izin praktik: 7 hari), teguran saat tenggat lewat, eskalasi 1 hari sesudah tenggat; unit teguran/eskalasi kosong
+    (diisi RS di layar).
+  - `notifikasi.notifikasi` berpartisi bulanan seperti audit, tetapi bukan append-only: `dibaca_pada` di-UPDATE.
+  - Polling memakai header `X-Permintaan-Latar: 1` yang tidak memperbarui waktu aktif sesi (SesiPengguna).
+  - Utang fase 2: tugas yang memuat pasien wajib lolos AccessEvaluator lapis 4 sebelum tampil di kotak kerja.
 Di luar lingkup tiket: WebSocket/Reverb (fase 2), push mobile, kinerja tindak lanjut unit FR-53-08 (fase 4 dasbor).
 ```
 
