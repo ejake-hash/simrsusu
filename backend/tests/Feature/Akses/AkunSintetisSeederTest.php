@@ -34,7 +34,7 @@ class AkunSintetisSeederTest extends TestCase
 
         $akun = Pengguna::query()->where('nama_pengguna', 'like', 'contoh.%')->get();
         $this->assertEqualsCanonicalizing(
-            ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci', 'contoh.mfa', 'contoh.mfa.baru', 'contoh.superadmin', 'contoh.tanpa.peran', 'contoh.data.induk'],
+            ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci', 'contoh.mfa', 'contoh.mfa.baru', 'contoh.superadmin', 'contoh.superadmin.dua', 'contoh.tanpa.peran', 'contoh.data.induk'],
             $akun->pluck('nama_pengguna')->all(),
         );
         foreach ($akun as $pengguna) {
@@ -54,6 +54,7 @@ class AkunSintetisSeederTest extends TestCase
         config([
             'autentikasi.akun_sintetis_sandi' => 'kuda-lumping-biru-29',
             'autentikasi.akun_sintetis_superadmin_mfa_rahasia' => 'MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U',
+            'autentikasi.akun_sintetis_superadmin_dua_mfa_rahasia' => 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
         ]);
         $this->seed(AkunSintetisSeeder::class);
         $evaluator = app(AccessEvaluator::class);
@@ -63,6 +64,9 @@ class AkunSintetisSeederTest extends TestCase
         $this->assertTrue($superadmin->mfaAktif());
         $this->assertSame('MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U', $superadmin->mfa_rahasia_enkripsi);
         $this->assertTrue($evaluator->boleh($superadmin, 'pengaturan.akun.perbaiki'));
+        $superadminDua = $akun('contoh.superadmin.dua');
+        $this->assertSame('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', $superadminDua->mfa_rahasia_enkripsi);
+        $this->assertTrue($evaluator->boleh($superadminDua, 'pengaturan.akun.perbaiki'));
 
         // Izin yang dicabut dari peran contoh lewat layar (status batal) aktif lagi saat seeding ulang.
         $peranDokter = PenggunaPeran::query()->where('pengguna_id', $akun('contoh.dokter')->id)->value('peran_id');
