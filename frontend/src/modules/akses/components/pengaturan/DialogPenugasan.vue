@@ -9,11 +9,13 @@ import { skemaZod } from '@/design-system/form/skemaZod'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import { tanggalKeIso } from '@/shared/utils/waktu'
 import { tugaskanPeran } from '../../apiPengaturan'
+import PemilihUnit from '@/modules/organisasi/components/PemilihUnit.vue'
 import { errorKolom, pesanError, usePeranAktif } from '../../pengaturan'
 
 /**
- * Tugaskan peran ke akun (FR-09-04): peran aktif, cakupan, masa berlaku, dasar pemberian wajib. Tiket 1.2c hanya
- * cakupan Seluruh RS; cakupan lain tampil nonaktif sampai data unit tersedia (1.8a).
+ * Tugaskan peran ke akun (FR-09-04): peran aktif, cakupan, masa berlaku, dasar pemberian wajib. Cakupan Seluruh RS
+ * atau Unit kerja (tiket 1.8a: unit induk mencakup turunannya, jadi ruang/poli/depo dipilih sebagai unit). Cakupan
+ * lain tampil nonaktif sampai didukung kontrak.
  */
 const props = defineProps<{ akunId: string; namaAkun: string }>()
 const buka = defineModel<boolean>('open', { required: true })
@@ -24,27 +26,29 @@ const sibuk = ref(false)
 const error = ref<string | null>(null)
 
 const CAKUPAN_LAIN = [
-  ['unit', 'Unit kerja'],
-  ['ruang', 'Ruang'],
-  ['poli', 'Poliklinik'],
   ['ksm', 'KSM'],
-  ['depo', 'Depo farmasi'],
+  ['pasien_dirawat', 'Pasien yang dirawat'],
 ] as const
 
 const skema = z
   .object({
     peran_id: z.string().min(1, 'Pilih peran.'),
+    cakupan_jenis: z.enum(['rs', 'unit']),
+    cakupan_id: z.string().nullable(),
     berlaku_dari: z.string().optional(),
     berlaku_sampai: z.string().optional(),
     dasar_pemberian: z.string().trim().min(3, 'Isi dasar pemberian (nomor SK atau surat tugas), minimal 3 karakter.').max(200),
     alasan: z.string().trim().max(500).optional(),
   })
+  .refine((v) => v.cakupan_jenis === 'rs' || !!v.cakupan_id, { path: ['cakupan_id'], message: 'Pilih unit kerja.' })
   .refine((v) => !v.berlaku_dari || !v.berlaku_sampai || v.berlaku_sampai >= v.berlaku_dari, {
     path: ['berlaku_sampai'],
     message: 'Tanggal berakhir tidak boleh sebelum tanggal mulai.',
   })
 const { defineField, handleSubmit, errors, resetForm, setErrors } = useForm({ validationSchema: skemaZod(skema) })
 const [peranId] = defineField('peran_id')
+const [cakupanJenis] = defineField('cakupan_jenis')
+const [cakupanId] = defineField<'cakupan_id', string | null>('cakupan_id')
 const [dari] = defineField('berlaku_dari')
 const [sampai] = defineField('berlaku_sampai')
 const [dasar] = defineField('dasar_pemberian')
@@ -53,7 +57,7 @@ const [alasan] = defineField('alasan')
 watch(buka, (b) => {
   if (!b) return
   error.value = null
-  resetForm({ values: { peran_id: '', berlaku_dari: '', berlaku_sampai: '', dasar_pemberian: '', alasan: '' } })
+  resetForm({ values: { peran_id: '', cakupan_jenis: 'rs', cakupan_id: null, berlaku_dari: '', berlaku_sampai: '', dasar_pemberian: '', alasan: '' } })
 })
 
 const kirim = handleSubmit(async (v) => {
@@ -62,8 +66,8 @@ const kirim = handleSubmit(async (v) => {
   try {
     await tugaskanPeran(props.akunId, {
       peran_id: v.peran_id,
-      cakupan_jenis: 'rs',
-      cakupan_id: null,
+      cakupan_jenis: v.cakupan_jenis,
+      cakupan_id: v.cakupan_jenis === 'unit' ? v.cakupan_id : null,
       berlaku_dari: v.berlaku_dari ? tanggalKeIso(v.berlaku_dari) : null,
       berlaku_sampai: v.berlaku_sampai ? tanggalKeIso(v.berlaku_sampai, true) : null,
       dasar_pemberian: v.dasar_pemberian,
@@ -72,7 +76,7 @@ const kirim = handleSubmit(async (v) => {
     buka.value = false
     emit('selesai')
   } catch (e) {
-    const kolom = errorKolom(e, ['peran_id', 'berlaku_dari', 'berlaku_sampai', 'dasar_pemberian', 'alasan'])
+    const kolom = errorKolom(e, ['peran_id', 'cakupan_id', 'berlaku_dari', 'berlaku_sampai', 'dasar_pemberian', 'alasan'])
     if (Object.keys(kolom).length) setErrors(kolom)
     else error.value = pesanError(e)
   } finally {
@@ -96,12 +100,16 @@ const kirim = handleSubmit(async (v) => {
 
       <fieldset class="cakupan">
         <legend>Cakupan</legend>
-        <label class="pilihan"><input type="radio" name="cakupan" value="rs" checked /> Seluruh RS</label>
+        <label class="pilihan"><input v-model="cakupanJenis" type="radio" name="cakupan" value="rs" /> Seluruh RS</label>
+        <label class="pilihan"><input v-model="cakupanJenis" type="radio" name="cakupan" value="unit" /> Unit kerja</label>
         <label v-for="[nilai, label] in CAKUPAN_LAIN" :key="nilai" class="pilihan nonaktif">
           <input type="radio" name="cakupan" :value="nilai" disabled aria-describedby="ket-cakupan" /> {{ label }}
         </label>
-        <p id="ket-cakupan" class="ket">Cakupan per unit, ruang, poli, KSM, dan depo menunggu data unit organisasi.</p>
+        <p id="ket-cakupan" class="ket">Ruang, poli, dan depo dipilih sebagai unit kerja; unit induk mencakup semua turunannya. Cakupan KSM dan pasien yang dirawat menyusul.</p>
       </fieldset>
+      <KolomIsian v-if="cakupanJenis === 'unit'" v-slot="a" label="Unit kerja" :error="errors.cakupan_id" wajib>
+        <PemilihUnit v-bind="a" v-model="cakupanId" />
+      </KolomIsian>
 
       <div class="dua-kolom">
         <KolomIsian v-slot="a" label="Berlaku dari" :error="errors.berlaku_dari" petunjuk="Kosong = mulai sekarang.">

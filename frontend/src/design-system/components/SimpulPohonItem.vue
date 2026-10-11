@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Ikon from '@/design-system/ikon/Ikon.vue'
-import type { SimpulPohon } from './pohon'
+import { bisaDibuka, type SimpulPohon } from './pohon'
 
 /** Satu treeitem PohonData beserta anak-anaknya (rekursif). Logika keyboard ada di PohonData. */
 const props = defineProps<{
@@ -16,7 +16,7 @@ const props = defineProps<{
 const emit = defineEmits<{ tekan: [e: KeyboardEvent, id: string]; pilih: [id: string]; ubahTerbuka: [id: string, buka: boolean] }>()
 defineSlots<{ label(p: { simpul: SimpulPohon }): unknown }>()
 
-const punyaAnak = () => !!props.simpul.anak?.length
+const punyaAnak = () => bisaDibuka(props.simpul)
 const buka = () => props.terbuka.has(props.simpul.id)
 </script>
 
@@ -25,24 +25,28 @@ const buka = () => props.terbuka.has(props.simpul.id)
     :id="`${awalan}-${simpul.id}`"
     role="treeitem"
     class="simpul"
+    :aria-labelledby="simpul.keterangan ? `${awalan}-${simpul.id}-label ${awalan}-${simpul.id}-ket` : `${awalan}-${simpul.id}-label`"
     :aria-level="tingkat"
     :aria-posinset="posisi"
     :aria-setsize="jumlah"
     :aria-expanded="punyaAnak() ? buka() : undefined"
     :aria-selected="terpilih === simpul.id"
+    :aria-busy="simpul.memuat || undefined"
     :tabindex="tabStop === simpul.id ? 0 : -1"
     @keydown="emit('tekan', $event, simpul.id)"
     @click.stop="emit('pilih', simpul.id)"
   >
     <div class="baris" :class="{ terpilih: terpilih === simpul.id }" :style="{ '--tingkat': tingkat - 1 }">
       <span v-if="punyaAnak()" class="lipat" aria-hidden="true" @click.stop="emit('ubahTerbuka', simpul.id, !buka())">
-        <Ikon :nama="buka() ? 'panah_bawah' : 'panah_kanan'" :ukuran="16" />
+        <span v-if="simpul.memuat" class="tombol-pemutar" />
+        <Ikon v-else :nama="buka() ? 'panah_bawah' : 'panah_kanan'" :ukuran="16" />
       </span>
       <span v-else class="lipat" />
-      <span class="label"><slot name="label" :simpul="simpul">{{ simpul.label }}</slot></span>
-      <span v-if="simpul.keterangan" class="keterangan">{{ simpul.keterangan }}</span>
+      <!-- Nama treeitem = label dan keterangan baris ini saja, bukan seluruh teks anaknya. -->
+      <span :id="`${awalan}-${simpul.id}-label`" class="label"><slot name="label" :simpul="simpul">{{ simpul.label }}</slot></span>
+      <span v-if="simpul.keterangan" :id="`${awalan}-${simpul.id}-ket`" class="keterangan">{{ simpul.keterangan }}</span>
     </div>
-    <ul v-if="punyaAnak() && buka()" role="group" class="grup">
+    <ul v-if="simpul.anak?.length && buka()" role="group" class="grup">
       <SimpulPohonItem
         v-for="(a, i) in simpul.anak"
         :key="a.id"

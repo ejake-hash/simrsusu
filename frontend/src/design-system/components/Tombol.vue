@@ -13,18 +13,37 @@ const props = withDefaults(
 )
 defineOptions({ inheritAttrs: false })
 const attrs = useAttrs()
-/** Sibuk selalu menahan klik (dan kirim formulir), apa pun nilai `disabled` dari pemakai. */
-const nonaktif = computed(() => props.sibuk || (attrs.disabled !== undefined && attrs.disabled !== false))
+/** `disabled` dari pemakai = benar-benar nonaktif. */
+const nonaktif = computed(() => attrs.disabled !== undefined && attrs.disabled !== false)
+/** Atribut selain onClick (klik ditangani sendiri agar sibuk bisa menahannya tanpa melepas fokus). */
+const atributLain = computed(() => Object.fromEntries(Object.entries(attrs).filter(([k]) => k !== 'onClick' && k !== 'disabled')))
+
+/**
+ * Sibuk tanpa `disabled`: tombol tetap fokus (aria-disabled), klik dan kirim formulir ditahan. Melepas `disabled`
+ * pada tombol yang sedang difokus membuat fokus jatuh ke body, jadi sibuk tidak memakai atribut itu.
+ */
+function klik(e: MouseEvent) {
+  if (props.sibuk) {
+    e.preventDefault()
+    e.stopImmediatePropagation()
+    return
+  }
+  const h = attrs.onClick as ((e: MouseEvent) => void) | ((e: MouseEvent) => void)[] | undefined
+  if (Array.isArray(h)) h.forEach((f) => f(e))
+  else h?.(e)
+}
 </script>
 
 <template>
   <button
-    v-bind="$attrs"
+    v-bind="atributLain"
     :type="type"
-    :disabled="nonaktif"
+    :disabled="nonaktif || undefined"
+    :aria-disabled="sibuk && !nonaktif ? 'true' : undefined"
     class="tombol"
     :class="[varian !== 'kedua' && `tombol-${varian}`, { 'tombol-besar': ukuran === 'besar', 'tombol-penuh': penuh, 'tombol-sibuk': sibuk }]"
     :aria-busy="sibuk || undefined"
+    @click="klik"
   >
     <span v-if="sibuk" class="tombol-pemutar" aria-hidden="true" />
     <slot />

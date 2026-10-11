@@ -153,7 +153,8 @@ jobs:
           composer install --no-interaction --prefer-dist --no-progress
           cp .env.example .env && php artisan key:generate
           php artisan migrate --database=pgsql_migrator --force
-          php artisan db:seed --class='App\Modules\Akses\Database\Seeders\AkunSintetisSeeder' --force
+          # DatabaseSeeder: akun sintetis (AkunSintetisSeeder) dan unit/KSM sintetis (OrganisasiSintetisSeeder, 1.8a).
+          php artisan db:seed --force
           php artisan serve --host=127.0.0.1 --port=8000 > ../serve.log 2>&1 &
           curl --retry 20 --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:8000/up > /dev/null
 

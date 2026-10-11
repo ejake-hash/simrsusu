@@ -1,34 +1,71 @@
+import { readonly, ref } from 'vue'
+import { ambilProfilRs } from '@/modules/organisasi/api'
+import type { ProfilRsApi } from '@/modules/organisasi/tipe'
+import { terapkanTema } from './tema'
+
 /**
- * Profil RS dan tanda instalasi demo. Sementara dari variabel Vite (.env.*); nanti dari
- * GET /profil-rs (inti.profil_rs, tiket 1.8a; PRD 3.4). Nilai kosong = bagian itu tidak ditampilkan.
+ * Profil dan paket identitas RS dari GET /profil-rs (publik terbatas, tiket 1.8a; PRD 3.4), menggantikan variabel
+ * VITE_RS_*: nama, logo, motif, foto, kontak pengelola akun, tanda instalasi demo, dan warna merek (tema). Dimuat
+ * sekali saat aplikasi mulai (halaman masuk ikut memakainya) dan diganti langsung sesudah profil disunting.
+ * Nilai kosong = bagian itu tidak ditampilkan; build produksi tanpa variabel apa pun tetap bekerja.
  */
 export interface ProfilRs {
-  /** Nama resmi RS di kartu RS; tanpa nama, kartu RS tidak tampil. */
+  versi: string | null
   nama: string | null
   logo: string | null
   /** Motif grafis di panel merek halaman masuk (PRD 5.3.2 aturan 4); bukan untuk layar kerja. */
   motif: string | null
-  /** Foto gedung RS di panel merek halaman masuk; tanpa foto, bagian itu tidak tampil. */
   foto: string | null
-  /** Unit yang mengelola akun, dipakai di teks halaman masuk; bawaan "admin SIMRS". */
+  /** Unit yang mengelola akun (teks halaman masuk dan Beranda); bawaan "admin SIMRS". */
   unitAdmin: string
-  /** Kontak unit itu untuk lupa sandi/akun terkunci, mis. "ext. 1234". */
   kontakAdmin: string | null
-  /** Instalasi demo/pelatihan berisi data sintetis (FR-54-10): pita "DEMO — data fiktif" di setiap layar. */
+  /** FR-54-10: pita "DEMO — data fiktif" di setiap layar. */
   demo: boolean
 }
 
 const UNIT_ADMIN_BAWAAN = 'admin SIMRS'
+export const PROFIL_BAWAAN: ProfilRs = {
+  versi: null,
+  nama: null,
+  logo: null,
+  motif: null,
+  foto: null,
+  unitAdmin: UNIT_ADMIN_BAWAAN,
+  kontakAdmin: null,
+  demo: false,
+}
 
-export function profilRsDariEnv(env: Record<string, string | undefined> = import.meta.env): ProfilRs {
-  const isi = (nilai: string | undefined) => nilai?.trim() || null
+const profil = ref<ProfilRs>({ ...PROFIL_BAWAAN })
+
+export function useProfilRs() {
+  return readonly(profil)
+}
+
+export function dariRespons(d: ProfilRsApi): ProfilRs {
+  const isi = (v: string | null | undefined) => v?.trim() || null
   return {
-    nama: isi(env.VITE_RS_NAMA),
-    logo: isi(env.VITE_RS_LOGO),
-    motif: isi(env.VITE_RS_MOTIF),
-    foto: isi(env.VITE_RS_FOTO),
-    unitAdmin: isi(env.VITE_RS_UNIT_ADMIN) ?? UNIT_ADMIN_BAWAAN,
-    kontakAdmin: isi(env.VITE_RS_KONTAK_ADMIN),
-    demo: env.VITE_INSTALASI_DEMO === 'true',
+    versi: d.versi,
+    nama: isi(d.nama),
+    logo: isi(d.paket_identitas.logo_url),
+    motif: isi(d.paket_identitas.motif_url),
+    foto: isi(d.paket_identitas.foto_url),
+    unitAdmin: isi(d.kontak_admin.unit) ?? UNIT_ADMIN_BAWAAN,
+    kontakAdmin: isi(d.kontak_admin.kontak),
+    demo: d.instalasi_demo,
+  }
+}
+
+/** Dipakai sesudah GET maupun sesudah PUT profil/berkas: satu sumber untuk seluruh layar. */
+export function terapkanProfilRs(d: ProfilRsApi): void {
+  profil.value = dariRespons(d)
+  terapkanTema(d.paket_identitas.warna)
+}
+
+/** Gagal (server mati, instalasi belum siap) = tetap profil bawaan; layar masuk tetap bisa dipakai. */
+export async function muatProfilRs(): Promise<void> {
+  try {
+    terapkanProfilRs((await ambilProfilRs()).data)
+  } catch {
+    // Profil bawaan sudah terpasang.
   }
 }

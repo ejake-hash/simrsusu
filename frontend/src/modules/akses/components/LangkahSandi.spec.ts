@@ -5,6 +5,11 @@ import { ApiError } from '@/shared/api/klien'
 import { kirimSandi } from '../api'
 import type { Langkah } from '../alurMasuk'
 import LangkahSandi from './LangkahSandi.vue'
+import { terapkanProfilRs } from '@/app/profilRs'
+import { profilRsTiruan } from '@/modules/organisasi/tiruan/profilRs'
+
+/** Profil RS (GET /profil-rs) dengan unit pengelola akun dan kontaknya; kosong = nilai bawaan. */
+const pasangProfil = (unit: string, kontak: string) => terapkanProfilRs(profilRsTiruan({ kontak_admin: { unit, kontak: kontak || null } }))
 
 vi.mock('../api', () => ({ kirimSandi: vi.fn(), ambilSaya: vi.fn(), keluar: vi.fn() }))
 
@@ -163,7 +168,7 @@ describe('LangkahSandi', () => {
   })
 
   it('MFA belum terdaftar dari luar jaringan RS: arahkan ke jaringan RS atau admin, tombol tetap aktif', async () => {
-    vi.stubEnv('VITE_RS_UNIT_ADMIN', 'Instalasi SIMRS')
+    pasangProfil('Instalasi SIMRS', '')
     vi.mocked(kirimSandi).mockRejectedValue(new ApiError(403, 'mfa_belum_terdaftar', 'Verifikasi dua langkah belum aktif.'))
     const w = pasang()
 
@@ -178,7 +183,7 @@ describe('LangkahSandi', () => {
   })
 
   it('konfigurasi belum lengkap (503): instalasi belum siap, hubungi admin', async () => {
-    vi.stubEnv('VITE_RS_UNIT_ADMIN', '')
+    pasangProfil('', '')
     vi.mocked(kirimSandi).mockRejectedValue(new ApiError(503, 'konfigurasi_belum_lengkap', 'SIMRS belum selesai disiapkan.'))
     const w = pasang()
 
@@ -213,18 +218,17 @@ describe('LangkahSandi', () => {
   })
 
   it('teks bantuan menyebut kontak admin dari profil RS', () => {
-    vi.stubEnv('VITE_RS_KONTAK_ADMIN', 'ext. 1234')
+    pasangProfil('', 'ext. 1234')
     expect(pasang().get('.bantuan').text()).toBe('Lupa sandi atau akun terkunci? Hubungi admin SIMRS di ext. 1234.')
   })
 
   it('teks bantuan tanpa kontak bila profil RS tidak mengisinya', () => {
-    vi.stubEnv('VITE_RS_KONTAK_ADMIN', '')
+    pasangProfil('', '')
     expect(pasang().get('.bantuan').text()).toBe('Lupa sandi atau akun terkunci? Hubungi admin SIMRS.')
   })
 
   it('nama unit dari profil RS dipakai di subjudul, bantuan, dan pesan error', async () => {
-    vi.stubEnv('VITE_RS_UNIT_ADMIN', 'Instalasi SIMRS')
-    vi.stubEnv('VITE_RS_KONTAK_ADMIN', '')
+    pasangProfil('Instalasi SIMRS', '')
     vi.mocked(kirimSandi).mockRejectedValue(new Error('bentuk respons aneh'))
     const w = pasang()
 
@@ -237,8 +241,8 @@ describe('LangkahSandi', () => {
     expect(w.text()).not.toContain('Unit TI')
   })
 
-  it('tanpa VITE_RS_UNIT_ADMIN memakai "admin SIMRS"', () => {
-    vi.stubEnv('VITE_RS_UNIT_ADMIN', '')
+  it('profil RS tanpa unit pengelola akun memakai "admin SIMRS"', () => {
+    pasangProfil('', '')
     expect(pasang().get('.lead').text()).toBe('Gunakan nama pengguna yang diberikan admin SIMRS.')
   })
 

@@ -45,6 +45,7 @@ const PETA = {
   panah_kanan: '<path d="m9 6 6 6-6 6"/>',
   panah_bawah: '<path d="m6 9 6 6 6-6"/>',
   pengguna: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  kritis: '<path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3z"/><path d="M12 8v4.5M12 16v.01"/>',
   kisi: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',
 } as const
 

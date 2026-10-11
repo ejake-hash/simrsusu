@@ -71,10 +71,12 @@
   display: flex;
   width: 100%;
 }
+.tombol-sibuk,
 .tombol-sibuk:disabled {
   opacity: 1;
   cursor: progress;
 }
+.tombol-utama.tombol-sibuk,
 .tombol-utama.tombol-sibuk:disabled {
   background: var(--brand-700);
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, useTemplateRef } from 'vue'
-import { profilRsDariEnv } from '@/app/profilRs'
+import { useProfilRs } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
 import { ApiError } from '@/shared/api/klien'
 import { formatSisaWaktu } from '@/shared/utils/waktu'
@@ -20,7 +20,7 @@ const props = defineProps<{
 defineEmits<{ kembali: [] }>()
 
 const sesi = useSesiStore()
-const { kontakAdmin, unitAdmin } = profilRsDariEnv()
+const profil = useProfilRs()
 const isian = reactive<IsianSandi>({ nama_pengguna: '', sandi: '' })
 const fieldError = ref<FieldError>({})
 /** tunggu = error kunci/rate limit: punya baris "Coba lagi …" sendiri dan menahan tombol Masuk. */
@@ -37,12 +37,13 @@ const PESAN_TUNGGU: Record<string, string> = {
 }
 
 // Error yang tidak bisa diatasi dengan mengetik ulang: kalimat frontend menyebut langkah berikutnya.
-const PESAN_TINDAK_LANJUT: Record<string, string> = {
-  mfa_belum_terdaftar:
-    'Verifikasi dua langkah akun ini belum aktif, dan hanya bisa diaktifkan dari jaringan rumah sakit. ' +
-    `Masuk sekali dari komputer di rumah sakit, atau minta ${unitAdmin} mereset verifikasi Anda.`,
-  konfigurasi_belum_lengkap: `SIMRS belum selesai disiapkan sehingga belum bisa dipakai untuk masuk. Hubungi ${unitAdmin}.`,
-}
+const pesanTindakLanjut = (kode: string, unitAdmin: string): string | undefined =>
+  ({
+    mfa_belum_terdaftar:
+      'Verifikasi dua langkah akun ini belum aktif, dan hanya bisa diaktifkan dari jaringan rumah sakit. ' +
+      `Masuk sekali dari komputer di rumah sakit, atau minta ${unitAdmin} mereset verifikasi Anda.`,
+    konfigurasi_belum_lengkap: `SIMRS belum selesai disiapkan sehingga belum bisa dipakai untuk masuk. Hubungi ${unitAdmin}.`,
+  })[kode]
 
 // Hitung mundur dari Retry-After server; tombol Masuk nonaktif sampai habis.
 const sekarang = ref(Date.now())
@@ -91,7 +92,7 @@ async function kirim(): Promise<void> {
 function tampilkanError(e: unknown): void {
   if (!(e instanceof ApiError)) {
     error.value = {
-      pesan: `Respons server tidak dikenali. Coba lagi atau hubungi ${unitAdmin}.`,
+      pesan: `Respons server tidak dikenali. Coba lagi atau hubungi ${profil.value.unitAdmin}.`,
       tunggu: false,
       cobaLagiSampai: null,
     }
@@ -106,7 +107,7 @@ function tampilkanError(e: unknown): void {
 
   const tunggu = e.kode in PESAN_TUNGGU
   const cobaLagiSampai = tunggu && e.cobaLagiDetik !== null ? Date.now() + e.cobaLagiDetik * 1000 : null
-  error.value = { pesan: PESAN_TUNGGU[e.kode] ?? PESAN_TINDAK_LANJUT[e.kode] ?? e.message, tunggu, cobaLagiSampai }
+  error.value = { pesan: PESAN_TUNGGU[e.kode] ?? pesanTindakLanjut(e.kode, profil.value.unitAdmin) ?? e.message, tunggu, cobaLagiSampai }
   if (cobaLagiSampai !== null) mulaiHitungMundur(cobaLagiSampai)
 
   if (e.kode === 'kredensial_salah') {
@@ -120,7 +121,7 @@ function tampilkanError(e: unknown): void {
   <section aria-labelledby="judul-masuk">
     <p class="label-atas">SIMRS · Rumah Sakit Pendidikan</p>
     <h1 id="judul-masuk">Masuk ke akun Anda</h1>
-    <p class="lead">Gunakan nama pengguna yang diberikan {{ unitAdmin }}.</p>
+    <p class="lead">Gunakan nama pengguna yang diberikan {{ profil.unitAdmin }}.</p>
 
     <Pesan v-if="sesi.pesanBerakhir && !error" jenis="info" class="pesan-atas" role="status">{{ sesi.pesanBerakhir }}</Pesan>
 
@@ -167,8 +168,8 @@ function tampilkanError(e: unknown): void {
     </form>
 
     <p class="bantuan">
-      Lupa sandi atau akun terkunci? Hubungi {{ unitAdmin }}<template v-if="kontakAdmin">
-        di <span class="kontak">{{ kontakAdmin }}</span></template>.
+      Lupa sandi atau akun terkunci? Hubungi {{ profil.unitAdmin }}<template v-if="profil.kontakAdmin">
+        di <span class="kontak">{{ profil.kontakAdmin }}</span></template>.
     </p>
   </section>
 </template>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useMenuSaya } from '@/app/menu'
-import { profilRsDariEnv } from '@/app/profilRs'
+import { useProfilRs } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
 import { useKelasLayar } from '@/shared/composables/useKelasLayar'
 import { modulSaya, salam } from '../beranda'
@@ -19,7 +19,7 @@ import Pintasan from '../components/Pintasan.vue'
 const sesi = useSesiStore()
 const menu = useMenuSaya()
 const kelas = useKelasLayar()
-const profil = profilRsDariEnv()
+const profil = useProfilRs()
 
 const sekarang = new Date()
 const ucapan = salam(sekarang.getHours())

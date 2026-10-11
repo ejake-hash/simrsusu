@@ -24,7 +24,8 @@ const teksNilai = computed(() => (typeof props.nilai === 'number' ? FORMAT.forma
 <template>
   <section class="kpi" :class="`kpi-${status}`" :aria-busy="memuat || undefined">
     <p class="kpi-label">
-      <Ikon v-if="status !== 'normal'" nama="peringatan" :ukuran="14" />
+      <!-- Bentuk ikon berbeda per tingkat (segitiga = perhatian, segi delapan = kritis), tidak hanya warna. -->
+      <Ikon v-if="status !== 'normal'" :nama="status === 'bahaya' ? 'kritis' : 'peringatan'" :ukuran="14" />
       {{ label }}<span v-if="status !== 'normal'" class="sr-only">{{ status === 'bahaya' ? ' (kritis)' : ' (perlu perhatian)' }}</span>
     </p>
     <p v-if="memuat" class="kpi-nilai kpi-memuat" role="status"><span class="sr-only">Memuat {{ label }}</span></p>

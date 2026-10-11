@@ -2,11 +2,12 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { cariPosisi, useMenuSaya } from '@/app/menu'
-import { profilRsDariEnv } from '@/app/profilRs'
+import { useProfilRs } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
 import NotifikasiToast from '@/design-system/components/NotifikasiToast.vue'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import { useKelasLayar } from '@/shared/composables/useKelasLayar'
+import PemilihUnitKerja from './PemilihUnitKerja.vue'
 import PencarianMenu from './PencarianMenu.vue'
 import PitaDemo from './PitaDemo.vue'
 import { adalahPintasanCari, bukaPencarianMenu, pencarianTerbuka } from './pencarianMenu'
@@ -15,7 +16,7 @@ import SidebarMenu from './SidebarMenu.vue'
 const sesi = useSesiStore()
 const router = useRouter()
 const route = useRoute()
-const profilRs = profilRsDariEnv()
+const profilRs = useProfilRs()
 const kelas = useKelasLayar()
 const menu = useMenuSaya()
 
@@ -167,6 +168,7 @@ async function keluar() {
             <span id="cari-segera" class="segera">Segera<span class="sr-only"> hadir</span></span>
           </div>
 
+          <PemilihUnitKerja />
           <PencarianMenu />
 
           <div class="akun">

@@ -1,11 +1,12 @@
 import { AxiosError, AxiosHeaders, getAdapter, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios'
-import { buatServerTiruan, type ServerTiruan } from './serverTiruan'
+import { buatServerGabungan } from './serverGabungan'
+import type { PermintaanTiruan, ResponsTiruan } from './serverTiruan'
 
 /**
  * Memasang server tiruan 1.2c sebagai adapter axios: permintaan yang dikenali dijawab dari memori, sisanya
  * diteruskan ke backend. Hanya untuk `vite` dev (VITE_API_TIRUAN=true) dan unit test; tidak masuk build produksi.
  */
-export function pasangTiruan(klien: AxiosInstance, server: ServerTiruan = buatServerTiruan()): ServerTiruan {
+export function pasangTiruan<S extends { tangani: (r: PermintaanTiruan) => ResponsTiruan | null }>(klien: AxiosInstance, server: S = buatServerGabungan() as unknown as S): S {
   const asli = getAdapter(klien.defaults.adapter)
 
   klien.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
@@ -15,6 +16,7 @@ export function pasangTiruan(klien: AxiosInstance, server: ServerTiruan = buatSe
       if (v !== undefined && v !== null) kueri.set(k, String(v))
     }
     const header = Object.fromEntries(Object.entries(AxiosHeaders.from(config.headers).toJSON()).map(([k, v]) => [k.toLowerCase(), String(v)]))
+    // FormData (unggah berkas) diteruskan apa adanya; JSON diurai.
     const isi = typeof config.data === 'string' && config.data ? JSON.parse(config.data) : config.data
 
     const hasil = server.tangani({ metode: config.method ?? 'get', jalur: url.pathname, kueri, header, isi })

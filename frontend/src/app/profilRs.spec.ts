@@ -1,38 +1,41 @@
-import { describe, expect, it } from 'vitest'
-import { profilRsDariEnv } from './profilRs'
+import { afterEach, describe, expect, it } from 'vitest'
+import { profilRsTiruan } from '@/modules/organisasi/tiruan/profilRs'
+import { dariRespons, PROFIL_BAWAAN, terapkanProfilRs, useProfilRs } from './profilRs'
 
-describe('profilRsDariEnv', () => {
-  it('membaca nama, logo, dan kontak admin', () => {
+afterEach(() => terapkanProfilRs(profilRsTiruan()))
+
+describe('profil RS dari GET /profil-rs', () => {
+  it('memetakan nama, berkas identitas, kontak pengelola akun, dan tanda demo', () => {
     expect(
-      profilRsDariEnv({
-        VITE_RS_NAMA: ' RS Contoh ',
-        VITE_RS_LOGO: '/logo/rs.png',
-        VITE_RS_MOTIF: '/motif/rs.svg',
-        VITE_RS_FOTO: '/foto/rs.webp',
-        VITE_RS_UNIT_ADMIN: 'Instalasi SIMRS',
-        VITE_RS_KONTAK_ADMIN: 'ext. 1234',
-        VITE_INSTALASI_DEMO: 'true',
-      }),
+      dariRespons(
+        profilRsTiruan({
+          versi: 'v9',
+          nama: ' RS Contoh ',
+          instalasi_demo: true,
+          paket_identitas: { logo_url: '/api/v1/profil-rs/berkas/logo?v=ab', motif_url: '/api/v1/profil-rs/berkas/motif?v=cd', foto_url: null },
+          kontak_admin: { unit: 'Instalasi SIMRS', kontak: 'ext. 1234' },
+        }),
+      ),
     ).toEqual({
+      versi: 'v9',
       nama: 'RS Contoh',
-      logo: '/logo/rs.png',
-      motif: '/motif/rs.svg',
-      foto: '/foto/rs.webp',
+      logo: '/api/v1/profil-rs/berkas/logo?v=ab',
+      motif: '/api/v1/profil-rs/berkas/motif?v=cd',
+      foto: null,
       unitAdmin: 'Instalasi SIMRS',
       kontakAdmin: 'ext. 1234',
       demo: true,
     })
   })
 
-  it('nilai kosong menjadi null; unit admin memakai bawaan', () => {
-    expect(profilRsDariEnv({ VITE_RS_NAMA: '  ', VITE_RS_UNIT_ADMIN: ' ', VITE_RS_KONTAK_ADMIN: '' })).toEqual({
-      nama: null,
-      logo: null,
-      motif: null,
-      foto: null,
-      unitAdmin: 'admin SIMRS',
-      kontakAdmin: null,
-      demo: false,
-    })
+  it('instalasi kosong: nilai kosong jadi null, unit admin memakai bawaan', () => {
+    expect(dariRespons(profilRsTiruan({ nama: '  ', kontak_admin: { unit: ' ', kontak: '' } }))).toEqual({ ...PROFIL_BAWAAN, versi: 'p1' })
+  })
+
+  it('terapkanProfilRs mengganti profil yang dibaca semua layar', () => {
+    const profil = useProfilRs()
+    terapkanProfilRs(profilRsTiruan({ nama: 'RS Baru', instalasi_demo: true }))
+    expect(profil.value.nama).toBe('RS Baru')
+    expect(profil.value.demo).toBe(true)
   })
 })

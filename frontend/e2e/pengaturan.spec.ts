@@ -248,3 +248,83 @@ test('390 px: halaman pengaturan menampilkan pesan gunakan tablet/desktop', asyn
   await expect(page.getByRole('table')).toHaveCount(0)
   await tanpaGulirSamping(page)
 })
+
+// ── Tiket 1.8a: profil RS dan cakupan unit (di berkas ini agar memakai satu sesi superadmin dan jeda rate limit yang sama) ──
+
+/** PNG 1×1 sintetis; tipe dan dimensi diperiksa server dari isi berkas. */
+const PNG_SINTETIS = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
+const NAMA_RS = 'RS Pendidikan Contoh (e2e)'
+
+test('1440 px: profil RS — kontras diuji sebelum simpan; nama dan logo baru tampil di halaman masuk tanpa build ulang', async ({ page, browser }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/pengaturan/profil-rs')
+  await expect(page.getByRole('heading', { level: 1, name: 'Profil rumah sakit' })).toBeVisible()
+  const form = page.getByRole('form', { name: 'Identitas' })
+  await form.getByLabel('Nama rumah sakit').fill(NAMA_RS)
+  await form.getByLabel('Unit pengelola akun').fill('Instalasi SIMRS (contoh)')
+  await form.getByRole('textbox', { name: 'Warna utama', exact: true }).fill('#FFEE00')
+  await expect(form.getByText(/Kontras teks putih di atas warna ini 1,\d+:1 · minimal 4,5:1/)).toBeVisible()
+  await form.getByLabel('Dasar perubahan').fill('SK Direktur E2E/profil')
+  await form.getByRole('button', { name: 'Simpan profil' }).click()
+  await expect(form.getByText('Kontras warna belum cukup')).toBeVisible()
+  await form.getByRole('textbox', { name: 'Warna utama', exact: true }).fill('#006937')
+  await expect(page.getByRole('img', { name: 'Pratinjau identitas' })).toBeVisible()
+  await form.getByRole('button', { name: 'Simpan profil' }).click()
+  await expect(page.getByText('Profil rumah sakit disimpan.')).toBeVisible()
+  await expect(page.getByText('Instalasi ini belum disiapkan')).toHaveCount(0)
+
+  await page.locator('input[data-berkas="logo"]').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: PNG_SINTETIS })
+  await expect(page.getByRole('img', { name: 'Logo saat ini' })).toHaveAttribute('src', /\/api\/v1\/profil-rs\/berkas\/logo\?v=/)
+
+  // Halaman masuk (tanpa sesi) memakai profil dari GET /profil-rs.
+  const tamu = await browser.newContext({ baseURL: new URL(info.project.use.baseURL ?? '').origin, storageState: TANPA_SESI })
+  const masuk = await tamu.newPage()
+  await masuk.goto('/masuk')
+  await expect(masuk.locator('.kartu-rs')).toContainText(NAMA_RS)
+  const logo = masuk.locator('.kartu-rs img')
+  await expect(logo).toHaveAttribute('src', /\/api\/v1\/profil-rs\/berkas\/logo\?v=/)
+  await expect.poll(() => logo.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth)).toBe(1)
+  await tamu.close()
+})
+
+test('1440 px: penugasan ber-cakupan unit tampil dengan label unit; pemegangnya melihat pemilih unit kerja di header', async ({ page, browser }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await pilihAkun(page, 'contoh.perawat', 'Contoh Perawat')
+  for (const [peran, kode] of [
+    ['Contoh Petugas Admisi', 'RUANG-MELATI'],
+    ['Contoh Dokter', 'RUANG-MAWAR'],
+  ] as const) {
+    await page.getByRole('button', { name: 'Tugaskan peran' }).click()
+    const tugas = page.getByRole('dialog', { name: 'Tugaskan peran ke Contoh Perawat' })
+    await tugas.getByLabel('Peran').selectOption({ label: peran })
+    await tugas.getByRole('radio', { name: 'Unit kerja' }).check()
+    await tugas.getByRole('button', { name: 'Tugaskan' }).click()
+    await expect(tugas.getByText('Pilih unit kerja.')).toBeVisible()
+    const unit = tugas.getByRole('combobox', { name: 'Unit kerja' })
+    await unit.fill(kode)
+    await tugas.getByRole('option', { name: new RegExp(kode) }).click()
+    await expect(unit).toHaveValue(new RegExp(`^${kode} · `))
+    await tugas.getByLabel('Dasar pemberian').fill('Surat tugas E2E/unit')
+    await tugas.getByRole('button', { name: 'Tugaskan' }).click()
+    await expect(page.getByRole('status').filter({ hasText: 'Peran ditugaskan.' })).toBeVisible()
+    await expect(page.getByRole('listitem').filter({ hasText: peran }).filter({ hasText: `Unit kerja · ${kode} · ` })).toBeVisible()
+  }
+
+  const perawat = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'contoh.perawat')
+  await perawat.page.goto('/')
+  const pemilih = perawat.page.getByRole('combobox', { name: 'Unit kerja' })
+  await expect(pemilih.getByRole('option')).toHaveText(['Ruang Mawar (contoh)', 'Ruang Melati (contoh)'])
+  await pemilih.selectOption({ label: 'Ruang Melati (contoh)' })
+  await expect(pemilih).toHaveValue(/.+/)
+  await perawat.tutup()
+
+  // Bersihkan: akhiri kedua penugasan agar run berikutnya mulai dari keadaan seeder.
+  for (const kode of ['RUANG-MELATI', 'RUANG-MAWAR']) {
+    await page.getByRole('listitem').filter({ hasText: `Unit kerja · ${kode} · ` }).getByRole('button', { name: 'Akhiri' }).click()
+    const akhiri = page.getByRole('alertdialog', { name: /Akhiri penugasan/ })
+    await akhiri.getByLabel('Alasan mengakhiri').fill('Uji e2e cakupan unit selesai')
+    await akhiri.getByRole('button', { name: 'Akhiri' }).click()
+    await expect(akhiri).toHaveCount(0)
+    await expect(page.getByRole('listitem').filter({ hasText: `Unit kerja · ${kode} · ` }).getByRole('button', { name: 'Akhiri' })).toHaveCount(0)
+  }
+})

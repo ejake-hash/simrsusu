@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, useTemplateRef } from 'vue'
-import { profilRsDariEnv } from '@/app/profilRs'
+import { useProfilRs } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
 import Pesan from '@/design-system/components/Pesan.vue'
 import Tombol from '@/design-system/components/Tombol.vue'
@@ -21,7 +21,7 @@ const props = defineProps<{
 const emit = defineEmits<{ kembali: [] }>()
 
 const sesi = useSesiStore()
-const { unitAdmin } = profilRsDariEnv()
+const profil = useProfilRs()
 const tahap = ref<'memuat' | 'pindai' | 'kode_cadangan'>('memuat')
 const rahasia = ref<RahasiaMfa | null>(null)
 const kode = ref('')
@@ -84,7 +84,7 @@ async function konfirmasi(): Promise<void> {
 }
 
 function tanganiError(e: unknown): void {
-  const tindakan = tindakanMfaError(e, unitAdmin)
+  const tindakan = tindakanMfaError(e, profil.value.unitAdmin)
   if (tindakan.jenis === 'kembali') {
     sesi.pesanBerakhir = tindakan.pesan
     emit('kembali')
