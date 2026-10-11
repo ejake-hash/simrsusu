@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.3.0
+  version: 0.4.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -20,6 +20,9 @@ info:
     v0.2.3: GET /saya pindah ke berkas ini (tiket 1.2e, Beranda): peran berlaku, masuk sebelumnya; email tidak dikirim.
     v0.3.0: Profil RS, unit organisasi, KSM (tiket 1.8a): /profil-rs (publik terbatas + `rinci` sesuai izin, berkas
     identitas), /unit-organisasi, /ksm; cakupan penugasan `unit` didukung (Penugasan.cakupan_label).
+    v0.4.0: Persetujuan dan permintaan akses (tiket 1.2d; kontrol ganda K3/K4/K13): /persetujuan-akses, /permintaan-akses, /izin/{kode}/penyetuju,
+    /akun/saran-peran; pemberian berisiko menjadi persetujuan menunggu (202 / `menunggu_persetujuan`); 409 `butuh_persetujuan`
+    dan `peran_bawaan_terkunci` (penugasan superadmin) tetap tercantum untuk backend sebelum 1.2d.
 servers:
   - url: /api/v1
 security:
@@ -263,8 +266,12 @@ paths:
         - `lihat_wajib`: aksi apa pun pada node tanpa izin `<node>.lihat`.
         - `induk_belum_diberikan`: izin pada bagian tanpa `lihat` pada sub-menu induknya (MD-3).
         Penolakan lain:
-        - 409 `butuh_persetujuan`: menambah izin sensitif. Alur persetujuan pemilik data di tiket 1.2d; sampai itu
-          ditolak utuh (tidak ada yang disimpan sebagian). `rincian` = `{kode, pesan}` per izin sensitif baru.
+        - Izin sensitif baru (sejak 1.2d): tidak langsung berlaku. Setiap izin sensitif baru menjadi satu persetujuan
+          menunggu (penyetuju = peran penyetuju izin itu, K3/K13) dan tercantum di `perubahan.menunggu_persetujuan`;
+          perubahan lain langsung berlaku. 422 `penyetuju_belum_ditetapkan` bila izin sensitif baru belum punya penyetuju
+          (`rincian` = `{kolom: "izin", kode, pesan}` per izin; tidak ada yang disimpan). Izin yang sudah menunggu tidak
+          diajukan ulang. Izin sensitif yang sedang menunggu tetap boleh dikirim di `izin` tanpa efek ganda.
+          Sebelum 1.2d backend menolak utuh dengan 409 `butuh_persetujuan` (`rincian` = `{kode, pesan}`).
         - 409 `peran_bawaan_terkunci`: isi peran superadmin tidak bisa diubah dari layar.
         - 403 `peran_sendiri`.
         Respons memuat ringkasan perubahan untuk audit dan toast.
@@ -296,9 +303,13 @@ paths:
                     type: object
                     required: [ditambah, dicabut, akun_terdampak]
                     properties:
-                      ditambah: { type: array, items: { type: string } }
+                      ditambah: { type: array, items: { type: string }, description: "Yang langsung berlaku" }
                       dicabut: { type: array, items: { type: string } }
                       akun_terdampak: { type: integer, minimum: 0 }
+                      menunggu_persetujuan:
+                        type: array
+                        description: "Izin sensitif baru yang menunggu persetujuan (sejak 1.2d)"
+                        items: { $ref: '#/components/schemas/PersetujuanAkses' }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
@@ -377,9 +388,15 @@ paths:
       description: |
         Izin: pengaturan.akun.input.
         - 403 `diri_sendiri`: tidak bisa menugaskan peran ke akun sendiri (PRD 9.2.4).
-        - 409 `peran_bawaan_terkunci`: peran superadmin hanya lewat konsol sampai tiket 1.2d (persetujuan superadmin lain).
+        - 202 (sejak 1.2d): penugasan peran superadmin (penyetuju = superadmin lain, K4), peran yang memuat izin
+          sensitif (penyetuju = peran penyetuju tiap izin itu), atau peran yang **menjadi penyetuju** izin sensitif
+          (penyetuju = superadmin lain; mencegah satu superadmin membuat penyetuju sendiri) dicatat sebagai persetujuan
+          menunggu (satu persetujuan per peran penyetuju, satu grup) dan baru berlaku saat seluruh grup disetujui.
+          422 `penyetuju_belum_ditetapkan`; 409 `persetujuan_ganda` (peran dan cakupan yang sama masih menunggu).
+          Sebelum 1.2d: 409 `peran_bawaan_terkunci` / `butuh_persetujuan`.
+        - `permintaan_akses_id` (opsional): menindaklanjuti permintaan akses akun ini (status → ditindaklanjuti);
+          422 `permintaan_tidak_valid` bila bukan permintaan menunggu milik akun ini.
         - 409 `peran_nonaktif`, 409 `penugasan_ganda` (peran dan cakupan yang sama masih aktif).
-        - 409 `butuh_persetujuan`: peran memuat izin sensitif (PRD 9.2.4; alur persetujuan di tiket 1.2d).
         - 422 `cakupan_belum_didukung`: selain `rs` dan `unit` (unit sejak tiket 1.8a) menunggu data lokasi/KSM/depo dan relasi perawatan.
         - 422 `cakupan_tidak_valid`: `unit` tanpa `cakupan_id`, unit tidak ada, atau unit nonaktif; `rs` dengan `cakupan_id`.
       requestBody:
@@ -397,12 +414,18 @@ paths:
                 berlaku_sampai: { type: [string, 'null'], format: date-time }
                 dasar_pemberian: { $ref: '#/components/schemas/Dasar' }
                 alasan: { type: [string, 'null'], maxLength: 500 }
+                permintaan_akses_id: { type: [string, 'null'], format: uuid }
       responses:
         '201':
           description: Penugasan dibuat
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Penugasan' } } }
+        '202':
+          description: Menunggu persetujuan (data = persetujuan pertama dalam grup)
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PersetujuanAkses' } } }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
@@ -416,8 +439,9 @@ paths:
       operationId: batalkanPenugasan
       summary: Akhiri penugasan (status batal; baris tidak dihapus)
       description: |
-        Izin: pengaturan.akun.perbaiki. 403 `diri_sendiri`; 409 `sudah_batal`; 409 `peran_bawaan_terkunci`
-        (penugasan superadmin diakhiri dengan persetujuan superadmin lain, tiket 1.2d); 404 bila penugasan bukan milik akun ini.
+        Izin: pengaturan.akun.perbaiki. 403 `diri_sendiri`; 409 `sudah_batal`; 404 bila penugasan bukan milik akun ini.
+        Penugasan superadmin: 202 (sejak 1.2d) = persetujuan menunggu superadmin lain (K4); 409 `superadmin_minimal`
+        bila tinggal 2 superadmin aktif (PRD 9.2.4). Sebelum 1.2d: 409 `peran_bawaan_terkunci`.
       requestBody:
         required: true
         content:
@@ -429,6 +453,11 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Penugasan' } } }
+        '202':
+          description: Menunggu persetujuan superadmin lain
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PersetujuanAkses' } } }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
@@ -443,7 +472,9 @@ paths:
       description: |
         Izin: pengaturan.akun.input. Sasaran ditulis dengan kode: kode menu (sub-menu/bagian) ATAU kode izin aksi.
         - 403 `diri_sendiri`.
-        - 409 `butuh_persetujuan`: `tambah` atas izin sensitif (tiket 1.2d).
+        - `tambah` atas izin sensitif: 202 (sejak 1.2d) = persetujuan menunggu peran penyetuju izin itu (jenis
+          `pengecualian`); 422 `penyetuju_belum_ditetapkan`. Sebelum 1.2d: 409 `butuh_persetujuan`.
+        - `permintaan_akses_id` (opsional): menindaklanjuti permintaan akses akun ini; 422 `permintaan_tidak_valid`.
         - 422 `berlaku_sampai_wajib`: menambah (`tambah`) izin sensitif tanpa batas waktu (PRD 9.2.3). Sasaran `menu`
           tidak dianggap sensitif (lapis 4 label sensitivitas di tiket 1.5); mencabut tidak butuh batas waktu.
         - 422 `sasaran_tidak_dikenal`, 409 `pengecualian_ganda` (sasaran dan efek yang sama masih aktif).
@@ -461,12 +492,18 @@ paths:
                 berlaku_sampai: { type: [string, 'null'], format: date-time }
                 dasar_pemberian: { $ref: '#/components/schemas/Dasar' }
                 alasan: { type: string, minLength: 5, maxLength: 500 }
+                permintaan_akses_id: { type: [string, 'null'], format: uuid }
       responses:
         '201':
           description: Pengecualian dibuat
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/IzinKhusus' } } }
+        '202':
+          description: Menunggu persetujuan pemilik data
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PersetujuanAkses' } } }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
@@ -916,6 +953,317 @@ paths:
         '412': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '428': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # Persetujuan akses dan permintaan akses (tiket 1.2d; PRD 9.2.3–9.2.4, 9.3; keputusan K3, K4, K13)
+  # Pemberian berisiko tidak langsung berlaku: dicatat sebagai persetujuan menunggu dan diterapkan (dalam transaksi
+  # yang sama dengan keputusan) saat semua penyetuju yang dibutuhkan menyetujui. Penyetuju = pemegang peran penyetuju
+  # yang berlaku; tidak pernah pengaju dan tidak pernah akun penerima akses. Kedaluwarsa 7 hari.
+  # Jalan masuk layar: sub-menu `pengaturan.persetujuan` (izin `pengaturan.persetujuan.lihat`, tidak sensitif) diberikan
+  # **lewat peran** seperti menu lain: bawaan untuk superadmin; untuk pemilik data, admin memberikannya ke peran penyetujunya.
+  # Endpoint /persetujuan-akses sendiri tidak butuh izin (hanya data yang relevan bagi akun itu). Usulan sub-menu otomatis
+  # untuk semua penyetuju dicatat terpisah untuk keputusan pemilik (melonggarkan model "diberikan eksplisit", PRD 9.2).
+  # Tidak ada POST /persetujuan-akses: persetujuan dibuat oleh endpoint pemberian (PUT izin peran, penugasan, izin khusus,
+  # pengakhiran penugasan superadmin, penyetuju izin).
+  # Aturan penyetuju (diperiksa server):
+  # - memegang peran penyetuju yang berlaku; bukan pengaju (403 pengaju_sendiri);
+  # - bukan penerima (403 penerima_sendiri): untuk penugasan/izin khusus = akun sasaran; untuk izin peran = semua pemegang
+  #   peran sasaran (penugasan aktif); untuk penyetuju izin = pemegang peran yang ditunjuk;
+  # - kontrol ganda K3/K13 tidak bisa dilewati satu superadmin: menunjuk penyetuju izin (PUT /izin/{kode}/penyetuju) dan
+  #   menugaskan peran yang menjadi penyetuju izin sensitif (POST /akun/{id}/penugasan) sama-sama butuh persetujuan
+  #   superadmin lain (202);
+  # - persetujuan yang lewat `kedaluwarsa_pada` ditolak (409 sudah_diputuskan) walau tugas harian belum jalan;
+  # - `permintaan_akses_id` tidak melewati persetujuan: pemberian berisiko tetap 202;
+  # - syarat saat penerapan (mis. minimal 2 superadmin, penugasan ganda) diperiksa ulang dengan kunci.
+  # Pengajuan ganda: sasaran yang sama selagi menunggu → 409 `persetujuan_ganda` (penugasan, izin khusus, pengakhiran);
+  # di PUT /peran/{id}/izin izin yang sudah menunggu tidak diajukan ulang (idempoten, tercantum lagi di menunggu_persetujuan).
+  # ---------------------------------------------------------------------------
+  /persetujuan-akses:
+    get:
+      operationId: daftarPersetujuanAkses
+      summary: Antrean persetujuan akses untuk akun yang sedang masuk (paginasi kursor, terbaru dulu)
+      description: |
+        Tanpa izin khusus: hanya data yang relevan bagi akun ini.
+        - `tab=perlu_saya_putuskan`: status menunggu, akun ini memegang peran penyetujunya, bukan pengaju, bukan penerima.
+        - `tab=saya_ajukan`: diajukan akun ini (semua status).
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: tab, required: true, schema: { type: string, enum: [perlu_saya_putuskan, saya_ajukan] } }
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/StatusPersetujuan' } }
+      responses:
+        '200':
+          description: Satu halaman persetujuan
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/PersetujuanAkses' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /persetujuan-akses/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciPersetujuanAkses
+      summary: Rincian persetujuan (siapa, apa, dasar, dampak)
+      description: "Hanya pengaju, penerima, atau pemegang peran penyetujunya; selain itu 404."
+      responses:
+        '200':
+          description: Rincian
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PersetujuanAkses' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /persetujuan-akses/{id}/setujui:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: setujuiPersetujuanAkses
+      summary: Setujui; perubahan diterapkan bila semua penyetuju dalam grup sudah setuju
+      description: |
+        - 403 `bukan_penyetuju`: tidak memegang peran penyetuju; 403 `pengaju_sendiri`: pengaju tidak bisa menyetujui
+          permintaannya sendiri; 403 `penerima_sendiri`: akun penerima akses tidak bisa menyetujui.
+        - 409 `sudah_diputuskan` (bukan menunggu, termasuk kedaluwarsa/dibatalkan).
+        - 409 `tidak_bisa_diterapkan`: keadaan berubah sejak diajukan (mis. peran nonaktif, akun nonaktif, penugasan
+          ganda, superadmin tinggal 2); seluruh grup tetap tersimpan sebagai ditolak oleh sistem dengan alasan itu
+          (klien memuat ulang rincian).
+        Audit `akses.persetujuan_disetujui` (+ audit perubahan yang diterapkan); cache menu akun terdampak dihapus.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                catatan: { type: [string, 'null'], maxLength: 500 }
+      responses:
+        '200':
+          description: Persetujuan sesudah diputuskan (`diterapkan` = perubahan sudah berlaku)
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PersetujuanAkses' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /persetujuan-akses/{id}/tolak:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: tolakPersetujuanAkses
+      summary: Tolak (alasan wajib); seluruh grup ikut ditolak dan tidak ada yang diterapkan
+      description: "Aturan penyetuju sama dengan setujui. 409 `sudah_diputuskan`. Audit `akses.persetujuan_ditolak`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alasan]
+              properties:
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200':
+          description: Persetujuan sesudah ditolak
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PersetujuanAkses' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /persetujuan-akses/{id}/batalkan:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: batalkanPersetujuanAkses
+      summary: Pengaju menarik pengajuannya (seluruh grup) selama masih menunggu
+      description: "Hanya pengaju (selain itu 404). 409 `sudah_diputuskan`. Audit `akses.persetujuan_dibatalkan`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alasan]
+              properties:
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200':
+          description: Persetujuan sesudah dibatalkan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PersetujuanAkses' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /permintaan-akses:
+    get:
+      operationId: daftarPermintaanAkses
+      summary: Permintaan akses (paginasi kursor, terbaru dulu)
+      description: |
+        - `milik_saya=true`: permintaan akun ini sendiri (semua akun yang masuk).
+        - Selain itu izin pengaturan.akun.lihat (pemberi kewenangan); filter `status`.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: milik_saya, schema: { type: boolean } }
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/StatusPermintaan' } }
+      responses:
+        '200':
+          description: Satu halaman permintaan
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/PermintaanAkses' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatPermintaanAkses
+      summary: Minta akses dari layar "Akses ditolak" (satu klik + alasan)
+      description: |
+        Semua akun yang masuk. Sasaran: kode sub-menu/bagian (`menu`) atau kode izin (`izin`).
+        - 422 `sasaran_tidak_dikenal`; 409 `sudah_punya_akses` (akun sudah boleh); 409 `permintaan_ganda` (permintaan
+          menunggu untuk sasaran yang sama). Audit `akses.permintaan_dibuat`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sasaran_jenis, sasaran_kode, alasan]
+              properties:
+                sasaran_jenis: { type: string, enum: [menu, izin] }
+                sasaran_kode: { type: string, maxLength: 200 }
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '201':
+          description: Permintaan dibuat
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PermintaanAkses' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /permintaan-akses/{id}/tolak:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: tolakPermintaanAkses
+      summary: Tolak permintaan akses (alasan wajib)
+      description: |
+        Izin pengaturan.akun.perbaiki. Permintaan disetujui dengan membuat penugasan/pengecualian yang membawa
+        `permintaan_akses_id` (POST /akun/{id}/penugasan, /akun/{id}/izin-khusus); dasar pemberiannya = nomor permintaan.
+        403 `diri_sendiri` (permintaan sendiri); 409 `sudah_diputuskan`. Audit `akses.permintaan_ditolak`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alasan]
+              properties:
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200':
+          description: Permintaan sesudah ditolak
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PermintaanAkses' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /izin/{kode}/penyetuju:
+    parameters:
+      - { in: path, name: kode, required: true, schema: { type: string, maxLength: 200 }, description: "Kode izin sensitif, mis. kasir.tagihan.batal" }
+    put:
+      operationId: aturPenyetujuIzin
+      summary: Tetapkan peran penyetuju (pemilik data) sebuah izin sensitif (K3)
+      description: |
+        Izin pengaturan.peran.perbaiki dengan cakupan `rs`. Mengganti pemilik data mengubah siapa yang boleh menyetujui,
+        jadi tidak langsung berlaku: 202 = persetujuan superadmin lain (jenis `izin_sensitif`, objek `penyetuju_izin`).
+        Pengecualian: data awal K13 dipasang migrasi. Menetapkan penyetuju pertama kali (belum ada) juga lewat persetujuan.
+        - 422 `izin_tidak_sensitif`; 422 `peran_tidak_valid` (tidak ada atau nonaktif); 404 kode izin tidak ada.
+        - 403 `peran_sendiri`: penyunting tidak boleh menunjuk peran yang ia pegang.
+        - 409 `persetujuan_ganda`: penggantian penyetuju izin ini masih menunggu.
+        Persetujuan yang masih menunggu tetap memakai penyetuju saat diajukan. Audit `akses.penyetuju_izin_diubah` saat berlaku.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [peran_id, dasar_perubahan]
+              properties:
+                peran_id: { type: string, format: uuid }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Izin sesudah diubah
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [kode, sensitif, penyetuju_peran]
+                    properties:
+                      kode: { type: string }
+                      sensitif: { type: boolean }
+                      penyetuju_peran: { $ref: '#/components/schemas/RingkasPeran' }
+        '202':
+          description: Menunggu persetujuan superadmin lain
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PersetujuanAkses' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /akun/saran-peran:
+    get:
+      operationId: saranPeran
+      summary: Pengecualian per akun yang sama dipakai ≥ 5 akun (saran jadikan peran, FR-09-15)
+      description: "Izin pengaturan.akun.lihat. Hanya pengecualian aktif; urut jumlah akun terbanyak; paling banyak 50 baris."
+      responses:
+        '200':
+          description: Daftar saran
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    maxItems: 50
+                    items:
+                      type: object
+                      required: [efek, sasaran_jenis, sasaran_kode, sasaran_label, jumlah_akun]
+                      properties:
+                        efek: { type: string, enum: [tambah, cabut] }
+                        sasaran_jenis: { type: string, enum: [menu, izin] }
+                        sasaran_kode: { type: string }
+                        sasaran_label: { type: string }
+                        jumlah_akun: { type: integer, minimum: 5 }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -1126,6 +1474,93 @@ components:
         ketua: { $ref: '#/components/schemas/RingkasPegawai', description: "Ketua KSM dari data pegawai; null sampai tiket 1.8d" }
         versi: { type: string }
         diubah_pada: { type: string, format: date-time }
+    RingkasPeran:
+      type: [object, 'null']
+      required: [id, kode, nama]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+    StatusPersetujuan:
+      type: string
+      enum: [menunggu, disetujui, ditolak, kedaluwarsa, dibatalkan]
+    PersetujuanAkses:
+      type: object
+      required: [id, nomor, jenis, ringkasan, objek, penyetuju_peran, status, diterapkan, diajukan_oleh, diajukan_pada, alasan, dasar, kedaluwarsa_pada, diputuskan_oleh, diputuskan_pada, catatan_keputusan, grup, akun_terdampak, dapat_diputuskan]
+      properties:
+        id: { type: string, format: uuid }
+        nomor: { type: string, examples: ['PSA-2026-000012'], description: "Dipakai sebagai dasar pemberian" }
+        jenis: { type: string, enum: [izin_sensitif, peran_superadmin, pengecualian] }
+        ringkasan: { type: string, examples: ["Tambah izin Kasir → Tagihan pasien → Batal ke peran Kasir Rawat Jalan"] }
+        objek:
+          type: object
+          required: [jenis]
+          description: "Perubahan yang akan diterapkan bila disetujui"
+          properties:
+            jenis: { type: string, enum: [izin_peran, penugasan, pengakhiran_penugasan, izin_khusus, penyetuju_izin] }
+            penugasan_id: { type: [string, 'null'], format: uuid, description: "Untuk pengakhiran_penugasan" }
+            peran: { $ref: '#/components/schemas/RingkasPeran' }
+            akun:
+              type: [object, 'null']
+              required: [id, nama_pengguna, nama]
+              properties:
+                id: { type: string, format: uuid }
+                nama_pengguna: { type: string }
+                nama: { type: string }
+            izin:
+              type: [object, 'null']
+              required: [kode, label]
+              properties:
+                kode: { type: string }
+                label: { type: string }
+            cakupan_label: { type: [string, 'null'] }
+            berlaku_sampai: { type: [string, 'null'], format: date-time }
+        penyetuju_peran: { $ref: '#/components/schemas/RingkasPeran' }
+        status: { $ref: '#/components/schemas/StatusPersetujuan' }
+        diterapkan: { type: boolean, description: "true = perubahan sudah berlaku (semua persetujuan dalam grup disetujui)" }
+        diajukan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        diajukan_pada: { type: string, format: date-time }
+        alasan: { type: [string, 'null'] }
+        dasar: { type: string }
+        kedaluwarsa_pada: { type: string, format: date-time }
+        diputuskan_oleh: { $ref: '#/components/schemas/Pelaku', description: "null = belum diputuskan, atau diputuskan sistem (kedaluwarsa, tidak bisa diterapkan)" }
+        diputuskan_pada: { type: [string, 'null'], format: date-time }
+        catatan_keputusan: { type: [string, 'null'] }
+        grup:
+          type: object
+          required: [id, jumlah, disetujui]
+          description: "Satu pengajuan bisa butuh beberapa penyetuju (mis. peran berisi izin sensitif milik beberapa pemilik data)"
+          properties:
+            id: { type: string, format: uuid }
+            jumlah: { type: integer, minimum: 1 }
+            disetujui: { type: integer, minimum: 0 }
+        akun_terdampak: { type: integer, minimum: 0 }
+        dapat_diputuskan: { type: boolean, description: "Akun yang sedang masuk boleh menyetujui/menolak ini sekarang" }
+    StatusPermintaan:
+      type: string
+      enum: [menunggu, ditindaklanjuti, ditolak]
+    PermintaanAkses:
+      type: object
+      required: [id, nomor, akun, sasaran_jenis, sasaran_kode, sasaran_label, alasan, status, diputuskan_oleh, diputuskan_pada, catatan_keputusan, dibuat_pada]
+      properties:
+        id: { type: string, format: uuid }
+        nomor: { type: string, examples: ['PMA-2026-000034'], description: "Dipakai sebagai dasar pemberian saat ditindaklanjuti" }
+        akun:
+          type: object
+          required: [id, nama_pengguna, nama]
+          properties:
+            id: { type: string, format: uuid }
+            nama_pengguna: { type: string }
+            nama: { type: string }
+        sasaran_jenis: { type: string, enum: [menu, izin] }
+        sasaran_kode: { type: string }
+        sasaran_label: { type: string }
+        alasan: { type: string }
+        status: { $ref: '#/components/schemas/StatusPermintaan' }
+        diputuskan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        diputuskan_pada: { type: [string, 'null'], format: date-time }
+        catatan_keputusan: { type: [string, 'null'] }
+        dibuat_pada: { type: string, format: date-time }
     StatusMenu:
       type: string
       enum: [aktif, segera]
@@ -1229,6 +1664,7 @@ components:
               kode: { type: string }
               jenis_aksi: { $ref: '#/components/schemas/JenisAksi' }
               sensitif: { type: boolean }
+              penyetuju_peran: { $ref: '#/components/schemas/RingkasPeran', description: "Untuk izin sensitif: peran penyetuju (K3); null = belum ditetapkan. Dikirim sejak 1.2d" }
         anak:
           type: array
           items: { $ref: '#/components/schemas/NodeMenu' }
@@ -1271,6 +1707,17 @@ components:
             versi: { type: string, description: "Sama dengan ETag; naik setiap perubahan peran dari layar (PATCH atau PUT izin)" }
             izin: { type: array, items: { type: string }, description: "Kode izin aksi yang diberikan" }
             wajib_mfa_terkunci: { type: boolean, description: "true = superadmin atau memuat izin sensitif; sakelar MFA dinonaktifkan di layar" }
+            izin_menunggu:
+              type: array
+              description: "Izin sensitif yang menunggu persetujuan untuk peran ini (sejak 1.2d); tidak termasuk di `izin`"
+              items:
+                type: object
+                required: [kode, persetujuan_id, penyetuju_peran, kedaluwarsa_pada]
+                properties:
+                  kode: { type: string }
+                  persetujuan_id: { type: string, format: uuid }
+                  penyetuju_peran: { $ref: '#/components/schemas/RingkasPeran' }
+                  kedaluwarsa_pada: { type: string, format: date-time }
             dapat_disunting: { type: boolean, description: "false bila peran bawaan terkunci atau dipegang penyunting" }
             alasan_terkunci: { type: [string, 'null'], enum: [peran_bawaan_terkunci, peran_sendiri, null] }
             diubah_pada: { type: string, format: date-time }
@@ -1382,3 +1829,7 @@ components:
         mfa: { $ref: '#/components/schemas/StatusMfaAkun' }
         penugasan: { type: array, items: { $ref: '#/components/schemas/Penugasan' }, description: "Berlaku dulu, lalu riwayat (batal/kedaluwarsa) terbaru dulu" }
         izin_khusus: { type: array, items: { $ref: '#/components/schemas/IzinKhusus' } }
+        menunggu_persetujuan:
+          type: array
+          description: "Penugasan, pengakhiran penugasan, dan izin khusus untuk akun ini yang menunggu persetujuan (sejak 1.2d)"
+          items: { $ref: '#/components/schemas/PersetujuanAkses' }
