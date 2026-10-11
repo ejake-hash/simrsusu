@@ -13,4 +13,6 @@ interface ImportMetaEnv {
   readonly VITE_RS_UNIT_ADMIN?: string
   /** Kontak unit pengelola akun di teks bantuan halaman masuk, mis. "ext. 1234". */
   readonly VITE_RS_KONTAK_ADMIN?: string
+  /** "true" = `vite` dev memakai menu tiruan (modules/akses/tiruan) alih-alih GET /saya/menu. Diabaikan di build produksi. */
+  readonly VITE_MENU_TIRUAN?: string
 }

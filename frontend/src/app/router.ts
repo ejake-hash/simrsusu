@@ -25,7 +25,15 @@ export const router = createRouter({
         },
       ],
     },
-    { path: '/', name: 'beranda', component: () => import('@/layouts/AppShell.vue'), meta: { judul: 'Beranda' } },
+    {
+      path: '/',
+      component: () => import('@/layouts/AppShell.vue'),
+      children: [
+        { path: '', name: 'beranda', component: () => import('@/modules/beranda/pages/BerandaPage.vue'), meta: { judul: 'Beranda' } },
+        // Halaman modul didaftarkan di atas baris ini. Jalur lain: Segera hadir bila ada di menu, selain itu tidak ditemukan.
+        { path: ':jalur(.*)*', name: 'menu', component: () => import('@/layouts/HalamanMenu.vue') },
+      ],
+    },
   ],
 })
 
