@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.5.0
+  version: 0.6.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -11,6 +11,7 @@ info:
     Kode error umum: belum_masuk (401), akses_ditolak (403), csrf_tidak_valid (403), tidak_ditemukan (404),
     validasi_gagal (422), ukuran_halaman_melebihi_batas (422), kursor_tidak_valid (422), versi_berubah (412),
     if_match_wajib (428), terlalu_banyak_permintaan (429). Sesi berakhir (401): sesi_kedaluwarsa, sesi_dicabut (ADR 0002).
+    Sejak v0.6.0: wajib_ganti_sandi (403) untuk akun bersandi awal, sampai POST /saya/sandi (lihat di sana).
     v0.2.0: Pengaturan Sistem → Peran & Izin, Akun & Akses (tiket 1.2c); kode menu data_induk.peran/akun → pengaturan.peran/akun.
     v0.2.1: istilah umum (tiket 1.0g, PRD 10.3.3): skema dan kunci respons `error`, field menu `jumlah_tugas`,
     kode menu `master_data`.
@@ -25,6 +26,9 @@ info:
     dan `peran_bawaan_terkunci` (penugasan superadmin) tetap tercantum untuk backend sebelum 1.2d.
     v0.5.0: Lokasi fisik, ruang, dan tempat tidur (tiket 1.8b): /lokasi (pohon, impor CSV), /bangsal, /kamar,
     /tempat-tidur (tutup bertanggal, kode tidak dipakai ulang), /kelas-rawat, /poliklinik, /kapasitas-tempat-tidur.
+    v0.6.0: Pegawai, izin praktik, RKK, akun dari pegawai (tiket 1.8d): /pegawai (NIK terenkripsi, utuh hanya dengan izin
+    bagian identitas), /pegawai/{id}/izin-praktik, /kewenangan-klinis, /akun; /akun/{id}/nonaktifkan dan /aktifkan;
+    /saya/sandi dan Saya.wajib_ganti_sandi; kepala unit dan ketua KSM dari pegawai.
 servers:
   - url: /api/v1
 security:
@@ -837,6 +841,7 @@ paths:
                 jenis: { $ref: '#/components/schemas/JenisUnit' }
                 status: { type: string, enum: [aktif, nonaktif] }
                 berlaku_dari: { type: string, format: date }
+                kepala_pegawai_id: { type: [string, 'null'], format: uuid, description: "Sejak 1.8d; 422 pegawai_tidak_valid bila pegawai tidak ada atau sudah keluar" }
                 dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
       responses:
         '200':
@@ -940,6 +945,7 @@ paths:
                 kode: { $ref: '#/components/schemas/KodeData' }
                 nama: { type: string, minLength: 2, maxLength: 150 }
                 status: { type: string, enum: [aktif, nonaktif] }
+                ketua_pegawai_id: { type: [string, 'null'], format: uuid, description: "Sejak 1.8d; 422 pegawai_tidak_valid bila pegawai tidak ada atau sudah keluar" }
                 dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
       responses:
         '200':
@@ -2078,6 +2084,454 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # Pegawai, izin praktik, kewenangan klinis, akun dari pegawai (tiket 1.8d; PRD 11.2 sdm, 9.2.6, 14.2; K5).
+  # Izin: `sdm.pegawai.*` (data pegawai), `sdm.kredensial.*` (izin praktik dan RKK), `pengaturan.akun.*` (akun),
+  # semuanya dengan cakupan `rs`. NIK disimpan terenkripsi (PRD 11.1) dan dikirim utuh hanya bila akun punya izin bagian
+  # `sdm.pegawai.identitas.lihat` (sensitif: diberikan lewat persetujuan pemilik data, K3) — tanpa izin itu field `nik`
+  # tidak dikirim, hanya `nik_samaran` (`1271 •••• •••• 0042`). NIK tidak pernah ada di URL, query string, log, atau audit.
+  # Satu akun = satu pegawai (K5). `tanggal_keluar` = hari pertama pegawai tidak lagi bekerja: mulai tanggal itu akunnya
+  # nonaktif dan sesinya diputus (langsung bila tanggalnya sudah tercapai, selain itu tugas harian 00.10 zona RS), audit
+  # `akses.akun_dinonaktifkan` dengan alasan pegawai_keluar (9.2.6).
+  # Superadmin (PRD 9.2.4, K4): akun yang memegang peran superadmin (penugasan aktif, berlaku atau akan berlaku) tidak bisa
+  # dinonaktifkan, diaktifkan, atau dicatat keluar lewat jalur SDM/akun — 409 `superadmin_aktif`; akhiri penugasan
+  # superadmin lebih dulu lewat persetujuan superadmin lain. Tugas harian tidak memproses keluar pegawai yang akunnya
+  # (sesudah dicatat) memegang superadmin; dicatat audit `sdm.keluar_tertunda_superadmin`.
+  # Pemilih unit di form pegawai butuh /unit-organisasi (master_data.organisasi.lihat) dan pemilih kepala unit/ketua KSM
+  # butuh /pegawai (sdm.pegawai.lihat): berikan lewat peran yang sama, tidak ada izin silang otomatis.
+  # 409/422 bisnis membawa `rincian` `[{kolom, pesan}]` (kolom = isian yang salah), kecuali yang disebut lain.
+  # ---------------------------------------------------------------------------
+  /pegawai:
+    get:
+      operationId: daftarPegawai
+      summary: Daftar pegawai (paginasi kursor), urut nama
+      description: |
+        Izin: sdm.pegawai.lihat, cakupan `rs`. `cari` cocok sebagian pada nama atau NIP (NIK tidak bisa dicari lewat URL).
+        `punya_akun=false` → pegawai aktif yang belum punya akun (pemilih "Buat akun").
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: cari, schema: { type: string, maxLength: 100 } }
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/StatusPegawai' } }
+        - { in: query, name: profesi, schema: { $ref: '#/components/schemas/Profesi' } }
+        - { in: query, name: unit_organisasi_id, schema: { type: string, format: uuid } }
+        - { in: query, name: punya_akun, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Satu halaman pegawai
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/PegawaiRingkas' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatPegawai
+      summary: Tambah pegawai
+      description: |
+        Izin: sdm.pegawai.input. 409 `nip_sudah_dipakai`; 409 `nik_sudah_dipakai` (dibandingkan lewat sidik; `rincian` tidak
+        menyebut pegawai pemegang NIK itu); 422 `unit_tidak_valid`. NIK 16 digit; mengisinya butuh izin bagian
+        `sdm.pegawai.identitas.lihat` (403 `akses_ditolak`). Respons memuat `nik` bila akun punya izin itu (audit `sdm.nik_dilihat`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianPegawai' }
+      responses:
+        '201':
+          description: Pegawai dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PegawaiRinci' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /pegawai/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciPegawai
+      summary: Rincian pegawai (NIK utuh hanya dengan izin bagian identitas; pembacaannya diaudit)
+      description: "Izin: sdm.pegawai.lihat. ETag = `versi`. Bila `nik` dikirim, audit `sdm.nik_dilihat` dicatat (tanpa NIK)."
+      responses:
+        '200':
+          description: Rincian pegawai
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PegawaiRinci' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: ubahPegawai
+      summary: Ubah data pegawai, termasuk pencatatan keluar
+      description: |
+        Izin: sdm.pegawai.perbaiki. Wajib If-Match. Kirim minimal satu isian selain `dasar_perubahan`. Mengubah `nik` butuh
+        izin `sdm.pegawai.identitas.lihat` (403 `akses_ditolak`). 409 `nip_sudah_dipakai`, `nik_sudah_dipakai`. Respons memuat `nik`
+        dengan aturan sama seperti GET (audit `sdm.nik_dilihat`).
+        - 409 `superadmin_aktif`: mencatat `tanggal_keluar` untuk pegawai yang akunnya memegang superadmin (lihat aturan di atas).
+        - `tanggal_keluar` (hari pertama tidak bekerja; + `alasan_keluar` wajib): akun pegawai itu nonaktif dan sesinya diputus
+          mulai tanggal itu; tanggal lampau/hari ini = langsung. `tanggal_keluar: null` membatalkan rencana keluar; akun yang sudah nonaktif tidak aktif
+          otomatis (aktifkan lewat /akun/{id}/aktifkan).
+        - Pegawai yang menjadi kepala unit / ketua KSM tetap tercatat; layar menandai bila ia sudah keluar.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              properties:
+                nip: { type: [string, 'null'], maxLength: 30 }
+                nik: { type: [string, 'null'], pattern: '^[0-9]{16}$' }
+                nama: { type: string, minLength: 2, maxLength: 150 }
+                jenis_kepegawaian: { type: [string, 'null'], maxLength: 50 }
+                profesi: { $ref: '#/components/schemas/Profesi' }
+                unit_organisasi_id: { type: [string, 'null'], format: uuid }
+                jabatan: { type: [string, 'null'], maxLength: 150 }
+                tmt: { type: [string, 'null'], format: date }
+                tanggal_keluar: { type: [string, 'null'], format: date }
+                alasan_keluar: { type: [string, 'null'], minLength: 5, maxLength: 500 }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Pegawai sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PegawaiRinci' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /pegawai/{id}/izin-praktik:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: daftarIzinPraktik
+      summary: Izin praktik pegawai (STR/SIP/SIK/SPK), terbaru dulu
+      description: "Izin: sdm.kredensial.lihat, cakupan `rs`."
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman izin praktik
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/IzinPraktik' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatIzinPraktik
+      summary: Catat izin praktik beserta dokumennya
+      description: |
+        Izin: sdm.kredensial.input. Dokumen opsional PDF/JPEG/PNG paling besar 5 MB, disimpan privat. Data tidak diubah setelah dicatat: perbaikan = batalkan lalu catat ulang (riwayat tetap).
+        - `berlaku_sampai` kosong hanya untuk STR (seumur hidup); 422 `tanggal_tidak_valid` bila sebelum `terbit`.
+        - 409 `izin_ganda`: jenis dan nomor yang sama masih tercatat (belum dibatalkan).
+        - 422 `tipe_berkas_tidak_diizinkan` (jenis dari isi berkas), 422 `berkas_terlalu_besar` (> 5 MB; di atas batas server
+          web 413), sama dengan unggahan profil RS.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [jenis, nomor, terbit]
+              properties:
+                jenis: { $ref: '#/components/schemas/JenisIzinPraktik' }
+                nomor: { type: string, minLength: 3, maxLength: 100 }
+                terbit: { type: string, format: date }
+                berlaku_sampai: { type: [string, 'null'], format: date }
+                berkas: { type: string, contentMediaType: application/octet-stream }
+      responses:
+        '201':
+          description: Izin praktik dicatat
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/IzinPraktik' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '413': { description: "Berkas melebihi batas unggah server web" }
+        '422': { $ref: '#/components/responses/Error' }
+  /pegawai/{id}/izin-praktik/{izinPraktikId}/batal:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - { in: path, name: izinPraktikId, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: batalkanIzinPraktik
+      summary: Batalkan catatan izin praktik (baris tetap sebagai riwayat)
+      description: "Izin: sdm.kredensial.perbaiki. 409 `sudah_batal`; 404 bila bukan milik pegawai ini."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PermintaanBatal' }
+      responses:
+        '200':
+          description: Izin praktik sesudah dibatalkan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/IzinPraktik' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /pegawai/{id}/izin-praktik/{izinPraktikId}/dokumen:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - { in: path, name: izinPraktikId, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: dokumenIzinPraktik
+      summary: Unduh dokumen izin praktik
+      description: "Izin: sdm.kredensial.lihat. `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, tidak di-cache. 404 bila tidak ada dokumen."
+      responses:
+        '200':
+          description: Isi dokumen
+          content:
+            application/pdf: { schema: { type: string, contentMediaType: application/pdf } }
+            image/jpeg: { schema: { type: string, contentMediaType: image/jpeg } }
+            image/png: { schema: { type: string, contentMediaType: image/png } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /pegawai/{id}/kewenangan-klinis:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: daftarKewenanganKlinis
+      summary: Rincian kewenangan klinis (RKK) pegawai, terbaru dulu
+      description: "Izin: sdm.kredensial.lihat, cakupan `rs`."
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman RKK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/KewenanganKlinis' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatKewenanganKlinis
+      summary: Catat RKK minimal (daftar kode tindakan + masa berlaku)
+      description: |
+        Izin: sdm.kredensial.input. Kode tindakan diisi RS dari referensi resmi (mis. ICD-9-CM yang dimuat di 1.8e); di 1.8d
+        hanya diperiksa bentuknya, tidak ada daftar bawaan. Perbaikan = batalkan lalu catat ulang. 422 `tanggal_tidak_valid`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kategori, kode_tindakan, berlaku_dari, berlaku_sampai, komite]
+              properties:
+                kategori: { type: string, minLength: 2, maxLength: 100 }
+                kode_tindakan: { type: array, minItems: 1, maxItems: 500, uniqueItems: true, items: { type: string, pattern: '^[0-9A-Za-z.\-]{1,20}$' } }
+                berlaku_dari: { type: string, format: date }
+                berlaku_sampai: { type: string, format: date }
+                komite: { type: string, minLength: 2, maxLength: 150, description: "Komite pemberi rekomendasi, mis. Komite Medik" }
+                dasar: { type: [string, 'null'], maxLength: 200, description: "Nomor SK penugasan klinis" }
+      responses:
+        '201':
+          description: RKK dicatat
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/KewenanganKlinis' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /pegawai/{id}/kewenangan-klinis/{kewenanganId}/batal:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - { in: path, name: kewenanganId, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: batalkanKewenanganKlinis
+      summary: Batalkan catatan RKK (baris tetap sebagai riwayat)
+      description: "Izin: sdm.kredensial.perbaiki. 409 `sudah_batal`; 404 bila bukan milik pegawai ini."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PermintaanBatal' }
+      responses:
+        '200':
+          description: RKK sesudah dibatalkan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/KewenanganKlinis' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /pegawai/{id}/akun:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: buatAkunPegawai
+      summary: Buat akun untuk pegawai (sandi awal ditampilkan sekali; wajib ganti saat masuk pertama)
+      description: |
+        Izin: pengaturan.akun.input (dan sdm.pegawai.lihat). Respons memuat `sandi_awal` sekali saja (tidak disimpan
+        terbaca, tidak dicatat di log/audit; `Cache-Control: no-store`). Tautan aktivasi lewat email menunggu notifikasi (1.7).
+        Akun baru tanpa peran; penugasan lewat /akun/{id}/penugasan.
+        - 409 `pegawai_sudah_punya_akun` (satu akun = satu pegawai, K5); 409 `nama_pengguna_dipakai`; 409 `pegawai_keluar`
+          (status pegawai `keluar`; pegawai `akan_keluar` masih bekerja, jadi boleh — akunnya nonaktif otomatis pada tanggalnya). Audit `akses.akun_dibuat` (tanpa sandi).
+        Sandi awal yang hilang belum bisa dipulihkan (reset sandi oleh admin di luar tiket ini, dicatat di backlog).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nama_pengguna, dasar_pemberian]
+              properties:
+                nama_pengguna: { type: string, pattern: '^[a-z][a-z0-9._-]{2,49}$' }
+                email: { type: [string, 'null'], format: email, maxLength: 200 }
+                dasar_pemberian: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '201':
+          description: Akun dibuat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [akun, sandi_awal]
+                    properties:
+                      akun: { $ref: '#/components/schemas/AkunRingkas' }
+                      sandi_awal: { type: string, minLength: 16, description: "Tampilkan sekali dengan tombol salin; jangan disimpan klien" }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /akun/{id}/nonaktifkan:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: nonaktifkanAkun
+      summary: Nonaktifkan akun (alasan wajib); sesi berjalannya diputus
+      description: |
+        Izin: pengaturan.akun.perbaiki. 403 `diri_sendiri`, `akun_superadmin` (aturan sama dengan /akun/{id}/*).
+        409 `sudah_nonaktif`; 409 `superadmin_aktif`: akun masih memegang peran superadmin — akhiri penugasannya lebih dulu
+        (lewat persetujuan superadmin lain, K4). Audit `akses.akun_dinonaktifkan`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alasan]
+              properties:
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200':
+          description: Akun sesudah dinonaktifkan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AkunRinci' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /akun/{id}/aktifkan:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: aktifkanAkun
+      summary: Aktifkan kembali akun (alasan wajib)
+      description: |
+        Izin: pengaturan.akun.perbaiki. 403 `diri_sendiri`, `akun_superadmin`. 409 `sudah_aktif`; 409 `pegawai_keluar`
+        (status pegawainya `keluar`; batalkan dulu tanggal keluar di data pegawai. Pegawai `akan_keluar` boleh); 409 `superadmin_aktif` (akun
+        masih memegang penugasan superadmin: mengaktifkannya = menambah superadmin tanpa K4). Audit `akses.akun_diaktifkan`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alasan]
+              properties:
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200':
+          description: Akun sesudah diaktifkan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AkunRinci' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /saya/sandi:
+    post:
+      operationId: gantiSandi
+      summary: Ganti sandi akun yang sedang masuk
+      description: |
+        Tanpa izin khusus. Selama `Saya.wajib_ganti_sandi` = true (akun baru dari /pegawai/{id}/akun), semua endpoint /api/v1
+        selain GET /saya, GET /saya/menu, POST /saya/sandi, POST /autentikasi/keluar, dan GET /profil-rs(/berkas/*) (identitas
+        RS di layar ganti sandi) menjawab 403 `wajib_ganti_sandi`.
+        Sandi baru mengikuti PRD 14.2 (panjang minimal dari konfigurasi, bawaan 12; cek sandi bocor) dan cek kontekstual:
+        tidak memuat nama pengguna, nama RS, atau nama produk (ADR 0001), dan tidak sama dengan sandi lama.
+        - 422 `sandi_lama_salah`: dibatasi laju per akun (429 sesudah 5 kali per 15 menit); tidak menambah hitungan
+          penguncian masuk. 422 `validasi_gagal` (`rincian` kolom `sandi_baru`).
+        - Sesudah berhasil: ID sesi diganti, sesi lain akun ini diputus, sesi ini tetap. Audit `akses.sandi_diganti` (tanpa sandi).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sandi_lama, sandi_baru]
+              properties:
+                sandi_lama: { type: string, maxLength: 200 }
+                sandi_baru: { type: string, maxLength: 200 }
+      responses:
+        '200':
+          description: Sandi diganti
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Saya' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -2137,6 +2591,7 @@ components:
         nama_pengguna: { type: string }
         login_terakhir_pada: { type: [string, 'null'], format: date-time, description: "Masuk yang memulai sesi ini" }
         mfa_aktif: { type: boolean }
+        wajib_ganti_sandi: { type: boolean, description: "true = arahkan ke layar ganti sandi; endpoint lain 403 wajib_ganti_sandi (sejak 1.8d)" }
         pegawai:
           type: [object, 'null']
           required: [id, nama]
@@ -2253,7 +2708,7 @@ components:
         jenis: { $ref: '#/components/schemas/JenisUnit' }
         status: { type: string, enum: [aktif, nonaktif] }
         berlaku_dari: { type: string, format: date }
-        kepala: { $ref: '#/components/schemas/RingkasPegawai', description: "Kepala unit dari data pegawai; null sampai tiket 1.8d" }
+        kepala: { $ref: '#/components/schemas/RingkasPegawai', description: "Kepala unit (pegawai); null = belum ditetapkan. Dipakai eskalasi tugas (1.7)" }
         jumlah_anak: { type: integer, minimum: 0, description: "Anak langsung (aktif dan nonaktif)" }
         jalur:
           type: array
@@ -2285,7 +2740,7 @@ components:
         kode: { type: string }
         nama: { type: string }
         status: { type: string, enum: [aktif, nonaktif] }
-        ketua: { $ref: '#/components/schemas/RingkasPegawai', description: "Ketua KSM dari data pegawai; null sampai tiket 1.8d" }
+        ketua: { $ref: '#/components/schemas/RingkasPegawai', description: "Ketua KSM (pegawai); null = belum ditetapkan" }
         versi: { type: string }
         diubah_pada: { type: string, format: date-time }
     JenisLokasi:
@@ -2561,6 +3016,119 @@ components:
               kelas_rawat: { $ref: '#/components/schemas/RingkasKelasRawat' }
               jumlah_tersedia: { type: integer, minimum: 0 }
               jumlah_ekstra: { type: integer, minimum: 0 }
+    StatusPegawai:
+      type: string
+      enum: [aktif, akan_keluar, keluar]
+      description: "Diturunkan dari tanggal_keluar (zona RS): akan_keluar = tanggal_keluar > hari ini; keluar = tanggal_keluar ≤ hari ini"
+    Profesi:
+      type: [string, 'null']
+      enum: [dokter, dokter_gigi, perawat, bidan, apoteker, tenaga_kesehatan_lain, non_kesehatan, null]
+      description: "Kelompok profesi untuk syarat izin praktik (lapis 5). Rincian jabatan/spesialisasi di `jabatan`"
+    RingkasUnitPegawai:
+      type: [object, 'null']
+      required: [id, kode, nama]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+    StatusIzinPraktik:
+      type: string
+      enum: [berlaku, akan_habis, habis, batal]
+      description: "akan_habis = berlaku_sampai dalam N hari (konfigurasi, angka awal 60 mengikuti contoh FR-40-01; perlu verifikasi kebijakan RS)"
+    PegawaiRingkas:
+      type: object
+      required: [id, nip, nama, nik_samaran, profesi, jabatan, unit, status, punya_akun, akun, izin_praktik_status]
+      properties:
+        id: { type: string, format: uuid }
+        nip: { type: [string, 'null'] }
+        nama: { type: string }
+        nik_samaran: { type: [string, 'null'], examples: ['1271 •••• •••• 0042'], description: "4 digit awal dan akhir; null = NIK belum diisi" }
+        profesi: { $ref: '#/components/schemas/Profesi' }
+        jabatan: { type: [string, 'null'] }
+        unit: { $ref: '#/components/schemas/RingkasUnitPegawai' }
+        status: { $ref: '#/components/schemas/StatusPegawai' }
+        punya_akun: { type: boolean }
+        akun:
+          type: [object, 'null']
+          description: "Hanya dikirim isinya untuk pemegang pengaturan.akun.lihat; selain itu null (lihat punya_akun)"
+          required: [id, nama_pengguna, status]
+          properties:
+            id: { type: string, format: uuid }
+            nama_pengguna: { type: string }
+            status: { type: string, enum: [aktif, nonaktif] }
+        izin_praktik_status:
+          type: [string, 'null']
+          enum: [berlaku, akan_habis, habis, null]
+          description: "Keadaan terburuk di antara izin praktik yang tidak dibatalkan; null = belum ada izin praktik"
+    PegawaiRinci:
+      allOf:
+        - $ref: '#/components/schemas/PegawaiRingkas'
+        - type: object
+          required: [jenis_kepegawaian, tmt, tanggal_keluar, alasan_keluar, ihs_practitioner_id, nik_dapat_dilihat, versi, diubah_pada]
+          properties:
+            nik: { type: string, pattern: '^[0-9]{16}$', description: "Hanya dikirim dengan izin sdm.pegawai.identitas.lihat" }
+            nik_dapat_dilihat: { type: boolean, description: "Akun ini punya izin bagian identitas (field nik ikut dikirim)" }
+            jenis_kepegawaian: { type: [string, 'null'], description: "Isian bebas RS, mis. PNS, PPPK, pegawai BLU, kontrak" }
+            tmt: { type: [string, 'null'], format: date }
+            tanggal_keluar: { type: [string, 'null'], format: date }
+            alasan_keluar: { type: [string, 'null'] }
+            ihs_practitioner_id: { type: [string, 'null'], description: "Diisi integrasi SATUSEHAT (1.9); hanya baca" }
+            versi: { type: string }
+            diubah_pada: { type: string, format: date-time }
+    IsianPegawai:
+      type: object
+      required: [nama, dasar_perubahan]
+      properties:
+        nip: { type: [string, 'null'], maxLength: 30 }
+        nik: { type: [string, 'null'], pattern: '^[0-9]{16}$', description: "Butuh izin sdm.pegawai.identitas.lihat untuk mengisi" }
+        nama: { type: string, minLength: 2, maxLength: 150 }
+        jenis_kepegawaian: { type: [string, 'null'], maxLength: 50 }
+        profesi: { $ref: '#/components/schemas/Profesi' }
+        unit_organisasi_id: { type: [string, 'null'], format: uuid }
+        jabatan: { type: [string, 'null'], maxLength: 150 }
+        tmt: { type: [string, 'null'], format: date }
+        dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+    JenisIzinPraktik:
+      type: string
+      enum: [str, sip, sik, spk]
+    IzinPraktik:
+      type: object
+      required: [id, jenis, nomor, terbit, berlaku_sampai, status, dokumen, dicatat_oleh, dicatat_pada, alasan_batal, dibatalkan_oleh, dibatalkan_pada]
+      properties:
+        id: { type: string, format: uuid }
+        jenis: { $ref: '#/components/schemas/JenisIzinPraktik' }
+        nomor: { type: string }
+        terbit: { type: string, format: date }
+        berlaku_sampai: { type: [string, 'null'], format: date, description: "null = seumur hidup (STR)" }
+        status: { $ref: '#/components/schemas/StatusIzinPraktik' }
+        dokumen:
+          type: [object, 'null']
+          required: [jenis_mime, ukuran]
+          properties:
+            jenis_mime: { type: string, enum: [application/pdf, image/jpeg, image/png] }
+            ukuran: { type: integer, minimum: 1 }
+        dicatat_oleh: { $ref: '#/components/schemas/Pelaku' }
+        dicatat_pada: { type: string, format: date-time }
+        alasan_batal: { type: [string, 'null'] }
+        dibatalkan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        dibatalkan_pada: { type: [string, 'null'], format: date-time }
+    KewenanganKlinis:
+      type: object
+      required: [id, kategori, kode_tindakan, berlaku_dari, berlaku_sampai, komite, dasar, status, dicatat_oleh, dicatat_pada, alasan_batal, dibatalkan_oleh, dibatalkan_pada]
+      properties:
+        id: { type: string, format: uuid }
+        kategori: { type: string }
+        kode_tindakan: { type: array, items: { type: string } }
+        berlaku_dari: { type: string, format: date }
+        berlaku_sampai: { type: string, format: date }
+        komite: { type: string }
+        dasar: { type: [string, 'null'] }
+        status: { type: string, enum: [belum_berlaku, berlaku, habis, batal] }
+        dicatat_oleh: { $ref: '#/components/schemas/Pelaku' }
+        dicatat_pada: { type: string, format: date-time }
+        alasan_batal: { type: [string, 'null'] }
+        dibatalkan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        dibatalkan_pada: { type: [string, 'null'], format: date-time }
     RingkasPeran:
       type: [object, 'null']
       required: [id, kode, nama]
