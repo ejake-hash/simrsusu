@@ -2,14 +2,18 @@
 
 namespace App\Modules\Akses;
 
+use App\Modules\Akses\Application\AccessEvaluator;
 use App\Modules\Akses\Application\PendaftaranPerangkat;
 use App\Modules\Akses\Application\SandiTidakBocor;
 use App\Modules\Akses\Console\BuatSuperadminPertama;
+use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Infrastructure\DaftarSandiBocor;
 use App\Modules\Akses\Infrastructure\PerangkatBelumTerdaftar;
+use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\TokenAksesPribadi;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -33,6 +37,21 @@ class ModuleServiceProvider extends ServiceProvider
         }
 
         Sanctum::usePersonalAccessTokenModel(TokenAksesPribadi::class);
+
+        // Semua kemampuan berbentuk kode izin (<menu>.<sub_menu>.<aksi>) diputuskan AccessEvaluator
+        // (PRD 9.2.5), mis. ->middleware('can:data_induk.peran.lihat') atau Gate::allows($kode, $cakupan).
+        // Argumen selain Cakupan ditolak sampai pemeriksaan per objek dibuat (tolak kecuali diberikan).
+        Gate::before(function (mixed $pengguna, string $kemampuan, array $argumen) {
+            if (! str_contains($kemampuan, '.')) {
+                return null;
+            }
+            $data = $argumen[0] ?? null;
+            if (! $pengguna instanceof Pengguna || ($data !== null && ! $data instanceof Cakupan)) {
+                return false;
+            }
+
+            return $this->app->make(AccessEvaluator::class)->boleh($pengguna, $kemampuan, $data);
+        });
 
         // Aturan sandi PRD 14.2; dipakai lewat Password::defaults() di mana pun sandi ditetapkan.
         Password::defaults(function () {

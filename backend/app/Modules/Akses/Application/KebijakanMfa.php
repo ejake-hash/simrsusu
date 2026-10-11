@@ -3,11 +3,13 @@
 namespace App\Modules\Akses\Application;
 
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Akses\Models\PenggunaPeran;
 use Symfony\Component\HttpFoundation\IpUtils;
 
 /**
- * Kapan MFA wajib (PRD 10.3.2, 9.2.4): akun bertanda wajib_mfa, atau akses dari luar jaringan RS.
- * Sebelum tiket 1.2 penentunya kolom wajib_mfa; sesudahnya diturunkan dari peran.
+ * Kapan MFA wajib (PRD 10.3.2, 9.2.4): peran aktif mana pun bertanda wajib_mfa atau memuat izin
+ * sensitif (superadmin selalu), akun bertanda wajib_mfa, atau akses dari luar jaringan RS. Admin
+ * tidak bisa membebaskan ketiganya; keringanan lewat perangkat terdaftar, bukan mematikan MFA.
  *
  * Pendaftaran MFA hanya dari jaringan RS (tiket 1.1c): sandi curian tidak bisa dipakai untuk
  * mendaftarkan autentikator dari internet.
@@ -30,7 +32,14 @@ final class KebijakanMfa
 
     public function wajib(Pengguna $pengguna, ?string $ip): bool
     {
-        return $pengguna->wajib_mfa || ! $this->dariJaringanRs($ip);
+        return $pengguna->wajib_mfa || ! $this->dariJaringanRs($ip) || $this->diwajibkanPeran($pengguna);
+    }
+
+    private function diwajibkanPeran(Pengguna $pengguna): bool
+    {
+        return PenggunaPeran::query()->berlaku()->where('pengguna_id', $pengguna->id)
+            ->whereHas('peran', fn ($peran) => $peran->mewajibkanMfa())
+            ->exists();
     }
 
     /** @return list<string> */

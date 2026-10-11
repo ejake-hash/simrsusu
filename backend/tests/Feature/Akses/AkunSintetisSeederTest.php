@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\Akses;
 
+use App\Modules\Akses\Application\AccessEvaluator;
 use App\Modules\Akses\Database\Seeders\AkunSintetisSeeder;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Akses\Models\PenggunaPeran;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Tests\TestCase;
@@ -55,6 +57,22 @@ class AkunSintetisSeederTest extends TestCase
         $akun->refresh();
         $this->assertFalse($akun->terkunci());
         $this->assertSame(0, $akun->percobaan_gagal);
+    }
+
+    public function test_peran_contoh_memberi_menu_berbeda_dan_aman_diulang(): void
+    {
+        config(['autentikasi.akun_sintetis_sandi' => 'kuda-lumping-biru-29']);
+        $this->seed(AkunSintetisSeeder::class);
+        $this->seed(AkunSintetisSeeder::class);
+        $evaluator = app(AccessEvaluator::class);
+        $akun = fn (string $nama) => Pengguna::query()->where('nama_pengguna', $nama)->firstOrFail();
+
+        $this->assertTrue($evaluator->bolehMenu($akun('contoh.admisi'), 'pendaftaran.pasien'));
+        $this->assertFalse($evaluator->bolehMenu($akun('contoh.admisi'), 'igd.papan'));
+        $this->assertTrue($evaluator->boleh($akun('contoh.dokter'), 'rawat_jalan.pemeriksaan.input'));
+        $this->assertTrue($evaluator->bolehMenu($akun('contoh.perawat'), 'rawat_inap.pemberian_obat'));
+        $this->assertFalse($evaluator->bolehMenu($akun('contoh.mfa'), 'igd.papan'));
+        $this->assertSame(1, PenggunaPeran::query()->where('pengguna_id', $akun('contoh.dokter')->id)->count());
     }
 
     public function test_menolak_sandi_akun_sintetis_yang_lemah(): void
