@@ -33,8 +33,12 @@ export function lanjutkanToast(id: number, durasiMs = 5000): void {
 
 export function tampilkanToast(pesan: string, jenis: Toast['jenis'] = 'ok', durasiMs = 5000): number {
   const id = ++nomor
-  // Paling banyak 3 sekaligus; yang lama keluar lebih dulu.
-  daftarToast.value = [...daftarToast.value.slice(-2), { id, jenis, pesan }]
+  // Paling banyak 3 toast non-error; yang lama keluar lebih dulu. Error tetap sampai ditutup pengguna.
+  const baru = [...daftarToast.value, { id, jenis, pesan }]
+  const nonError = baru.filter((t) => t.jenis !== 'error')
+  const buang = new Set(nonError.slice(0, Math.max(0, nonError.length - 3)).map((t) => t.id))
+  buang.forEach((x) => tahanToast(x))
+  daftarToast.value = baru.filter((t) => !buang.has(t.id))
   lanjutkanToast(id, durasiMs)
   return id
 }

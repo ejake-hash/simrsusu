@@ -34,12 +34,16 @@ watch(aktif, async () => {
 
 async function lanjut() {
   if (props.sebelumLanjut) {
-    memeriksa.value = true
-    try {
-      if (!(await props.sebelumLanjut(aktif.value))) return
-    } finally {
-      memeriksa.value = false
-    }
+    const hasil = props.sebelumLanjut(aktif.value)
+    // Validasi sinkron tidak menampilkan keadaan sibuk (tombol tidak berkedip).
+    if (hasil instanceof Promise) {
+      memeriksa.value = true
+      try {
+        if (!(await hasil)) return
+      } finally {
+        memeriksa.value = false
+      }
+    } else if (!hasil) return
   }
   if (terakhir.value) emit('selesai')
   else aktif.value = props.langkah[i.value + 1]!.kode

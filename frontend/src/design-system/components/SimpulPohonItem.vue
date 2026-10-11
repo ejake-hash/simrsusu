@@ -112,9 +112,15 @@ const buka = () => props.terbuka.has(props.simpul.id)
   font-size: 11.5px;
   color: var(--muted);
 }
+/* Kelas tablet: baris dan tombol lipat 44 px (satu-satunya cara melipat dengan sentuhan). */
 @media (min-width: 768px) and (max-width: 1279.98px) {
   .baris {
     min-height: 44px;
+  }
+  .lipat {
+    width: 44px;
+    height: 44px;
+    margin: -2px 0 -2px -10px;
   }
 }
 </style>

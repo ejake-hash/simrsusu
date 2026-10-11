@@ -26,6 +26,32 @@ for (const [lebar, tinggi] of [
   })
 }
 
+async function tanpaPelanggaranBerat(page: import('@playwright/test').Page) {
+  const hasil = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
+  const berat = hasil.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
+  expect(berat.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
+}
+
+test('keadaan terbuka juga lolos axe: toast, popover pencarian, dialog', async ({ page }) => {
+  // Kontras diukur pada keadaan akhir, bukan di tengah animasi masuk toast.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/katalog')
+  await page.getByRole('button', { name: 'Error' }).click()
+  await page.getByRole('button', { name: 'Berhasil' }).click()
+  await expect(page.getByRole('alert').filter({ hasText: 'Gagal menyimpan' })).toBeVisible()
+  await tanpaPelanggaranBerat(page)
+
+  await page.getByRole('button', { name: 'Cari contoh' }).click()
+  await page.keyboard.type('a')
+  await expect(page.getByRole('listbox')).toBeVisible()
+  await tanpaPelanggaranBerat(page)
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('button', { name: 'Buka dialog' }).click()
+  await expect(page.getByRole('dialog', { name: 'Contoh dialog' })).toBeVisible()
+  await tanpaPelanggaranBerat(page)
+})
+
 test('komponen interaktif di katalog: toast, pohon dengan keyboard, pencarian popover, dialog', async ({ page }) => {
   await page.goto('/katalog')
   await page.getByRole('button', { name: 'Berhasil' }).click()

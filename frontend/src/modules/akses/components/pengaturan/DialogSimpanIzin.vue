@@ -3,6 +3,7 @@ import { useForm } from 'vee-validate'
 import { computed, watch } from 'vue'
 import { z } from 'zod'
 import Dialog from '@/design-system/components/Dialog.vue'
+import Tombol from '@/design-system/components/Tombol.vue'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { skemaZod } from '@/design-system/form/skemaZod'
 import Ikon from '@/design-system/ikon/Ikon.vue'
@@ -91,7 +92,7 @@ defineExpose({ setErrors })
     </form>
     <template #aksi>
       <button type="button" class="tombol" :disabled="sibuk" @click="buka = false">Kembali menyunting</button>
-      <button type="submit" form="form-simpan-izin" class="tombol tombol-utama" :disabled="sibuk">{{ sibuk ? 'Menyimpan…' : 'Simpan perubahan' }}</button>
+      <Tombol type="submit" form="form-simpan-izin" varian="utama" :sibuk="sibuk">{{ sibuk ? 'Menyimpan…' : 'Simpan perubahan' }}</Tombol>
     </template>
   </Dialog>
 </template>

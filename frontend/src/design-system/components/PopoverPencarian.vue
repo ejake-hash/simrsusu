@@ -25,11 +25,14 @@ const emit = defineEmits<{ pilih: [item: ItemPencarian] }>()
 const id = `pencarian-${useId()}`
 const aktif = ref(0)
 let asal: HTMLElement | null = null
+/** Hanya Esc yang mengembalikan fokus ke elemen asal; klik di luar membiarkan fokus di tempat yang diklik. */
+let tutupEsc = false
 
 watch(buka, (b) => {
   if (!b) return
   // Elemen asal untuk dikembalikan fokusnya saat Esc (pemicu bisa tombol lain atau pintasan papan ketik).
   asal = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
+  tutupEsc = false
   kueri.value = ''
   aktif.value = 0
 })
@@ -51,11 +54,12 @@ function pilih(i: number) {
   emit('pilih', it)
 }
 function kembalikanFokus(e: Event) {
-  if (asal && asal.isConnected && !asal.closest('[data-pemicu-pencarian]')) {
+  if (tutupEsc && asal && asal.isConnected && !asal.closest('[data-pemicu-pencarian]')) {
     e.preventDefault()
     asal.focus()
   }
   asal = null
+  tutupEsc = false
 }
 </script>
 
@@ -70,7 +74,7 @@ function kembalikanFokus(e: Event) {
       </button>
     </PopoverTrigger>
     <PopoverPortal>
-      <PopoverContent class="panel-pencarian" align="end" side="bottom" :side-offset="8" :collision-padding="16" :aria-labelledby="`${id}-judul`" @close-auto-focus="kembalikanFokus">
+      <PopoverContent class="panel-pencarian" align="end" side="bottom" :side-offset="8" :collision-padding="16" :aria-labelledby="`${id}-judul`" @escape-key-down="tutupEsc = true" @close-auto-focus="kembalikanFokus">
         <p :id="`${id}-judul`" class="judul">{{ label }}<span v-if="uraian"> · {{ uraian }}</span></p>
         <div class="cari">
           <Ikon nama="cari" :ukuran="16" />

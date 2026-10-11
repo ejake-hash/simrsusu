@@ -45,6 +45,13 @@
 .tombol-utama:hover:not(:disabled) {
   background: var(--brand-700);
 }
+/* Cincin berjarak: tepi tombol utama sewarna latarnya, jadi cincin transparan saja tidak cukup kontras. */
+.tombol-utama:focus-visible,
+.tombol-bahaya:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--brand-600);
+}
 /* Nonaktif tanpa sibuk (mis. tertahan hitung mundur): tampak mati, bukan sedang memproses. */
 .tombol-utama:disabled:not(.tombol-sibuk) {
   border-color: var(--border-input);
