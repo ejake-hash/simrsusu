@@ -45,6 +45,9 @@ final class AkunSintetisSeeder extends Seeder
         self::TANPA_PERAN => 'Contoh Akun Tanpa Peran',
         // Pemegang Master Data (organisasi, unit, KSM; tiket 1.8a), bukan superadmin (FR-54-01).
         'contoh.data.induk' => 'Contoh Admin Data Induk',
+        // Admin SDM (tiket 1.8d): data pegawai, kredensial, dan buat akun dari pegawai. pengaturan.akun.input
+        // butuh MFA, jadi MFA aktif dengan rahasia sintetis yang diketahui e2e.
+        'contoh.sdm' => 'Contoh Admin SDM',
     ];
 
     /** Profesi pegawai sintetis (selain ini non_kesehatan). */
@@ -59,6 +62,18 @@ final class AkunSintetisSeeder extends Seeder
         'contoh_perawat' => ['Contoh Perawat', 'contoh.perawat', ['igd', 'rawat_inap']],
         'contoh_dokter' => ['Contoh Dokter', 'contoh.dokter', ['igd', 'rawat_jalan', 'rekam_medis']],
         'contoh_data_induk' => ['Contoh Admin Data Induk', 'contoh.data.induk', ['master_data']],
+    ];
+
+    /**
+     * Peran contoh dengan izin terpilih (bukan seluruh menu): kode peran => [nama, akun, kode izin].
+     * Bagian data pribadi (sdm.pegawai.identitas.lihat) sengaja tidak diberikan: NIK tampil tersamar.
+     */
+    private const PERAN_IZIN_CONTOH = [
+        'contoh_sdm' => ['Contoh Admin SDM', 'contoh.sdm', [
+            'sdm.pegawai.lihat', 'sdm.pegawai.input', 'sdm.pegawai.perbaiki',
+            'sdm.kredensial.lihat', 'sdm.kredensial.input', 'sdm.kredensial.perbaiki',
+            'master_data.organisasi.lihat', 'pengaturan.akun.lihat', 'pengaturan.akun.input',
+        ]],
     ];
 
     public function run(): void
@@ -77,7 +92,8 @@ final class AkunSintetisSeeder extends Seeder
         [$rahasiaMfa, $rahasiaMfaAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_mfa_rahasia');
         [$rahasiaSuperadmin, $rahasiaSuperadminAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_superadmin_mfa_rahasia');
         [$rahasiaSuperadminDua, $rahasiaSuperadminDuaAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_superadmin_dua_mfa_rahasia');
-        $rahasia = ['contoh.mfa' => $rahasiaMfa, 'contoh.superadmin' => $rahasiaSuperadmin, 'contoh.superadmin.dua' => $rahasiaSuperadminDua];
+        [$rahasiaSdm, $rahasiaSdmAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_sdm_mfa_rahasia');
+        $rahasia = ['contoh.mfa' => $rahasiaMfa, 'contoh.superadmin' => $rahasiaSuperadmin, 'contoh.superadmin.dua' => $rahasiaSuperadminDua, 'contoh.sdm' => $rahasiaSdm];
 
         $urutan = 0;
         foreach (self::AKUN as $namaPengguna => $nama) {
@@ -121,6 +137,7 @@ final class AkunSintetisSeeder extends Seeder
             $rahasiaMfaAcak ? "Rahasia TOTP contoh.mfa (hanya ditampilkan sekali): {$rahasiaMfa}" : null,
             $rahasiaSuperadminAcak ? "Rahasia TOTP contoh.superadmin (hanya ditampilkan sekali): {$rahasiaSuperadmin}" : null,
             $rahasiaSuperadminDuaAcak ? "Rahasia TOTP contoh.superadmin.dua (hanya ditampilkan sekali): {$rahasiaSuperadminDua}" : null,
+            $rahasiaSdmAcak ? "Rahasia TOTP contoh.sdm (hanya ditampilkan sekali): {$rahasiaSdm}" : null,
         ]);
         foreach ($sekaliTampil as $pesan) {
             $this->command?->warn($pesan);
@@ -139,6 +156,24 @@ final class AkunSintetisSeeder extends Seeder
                 $this->aktifkan('akses.peran_menu', ['peran_id' => $peran->id, 'menu_id' => $menuId]);
             }
             foreach (Izin::query()->whereIn('menu_id', $subMenu)->pluck('id') as $izinId) {
+                $this->aktifkan('akses.peran_izin', ['peran_id' => $peran->id, 'izin_id' => $izinId]);
+            }
+            app(CacheHakAkses::class)->lupakanSemua();
+
+            $this->tugaskan($namaPengguna, $peran);
+        }
+
+        foreach (self::PERAN_IZIN_CONTOH as $kode => [$nama, $namaPengguna, $daftarIzin]) {
+            $peran = Peran::query()->updateOrCreate(['kode' => $kode], ['nama' => $nama, 'uraian' => 'Peran sintetis untuk lokal/staging.']);
+            $izin = Izin::query()->whereIn('kode', $daftarIzin)->get(['id', 'menu_id', 'jenis_aksi']);
+            if ($izin->count() !== count($daftarIzin)) {
+                throw new RuntimeException("Izin peran {$kode} tidak lengkap di akses.izin.");
+            }
+            // Sama dengan KelolaPeran: peran_menu diturunkan dari izin lihat.
+            foreach ($izin->where('jenis_aksi', 'lihat')->pluck('menu_id')->unique() as $menuId) {
+                $this->aktifkan('akses.peran_menu', ['peran_id' => $peran->id, 'menu_id' => $menuId]);
+            }
+            foreach ($izin->pluck('id') as $izinId) {
                 $this->aktifkan('akses.peran_izin', ['peran_id' => $peran->id, 'izin_id' => $izinId]);
             }
             app(CacheHakAkses::class)->lupakanSemua();
