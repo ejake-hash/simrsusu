@@ -16,7 +16,7 @@ info:
     kode menu `master_data`.
     v0.2.2: penyelarasan 1.2c-be: 409 `butuh_persetujuan` pada penugasan peran berizin sensitif, 409 `peran_bawaan_terkunci`
     saat mengakhiri penugasan superadmin, 403 `akun_superadmin` pada semua perubahan /akun/{id}/* atas akun superadmin oleh
-    bukan superadmin (PRD 9.2.4), bentuk `rincian` error matriks, arti `versi` peran.
+    bukan superadmin (PRD 9.2.4), AkunRinci.dapat_diubah/alasan_terkunci, bentuk `rincian` error matriks, arti `versi` peran.
 servers:
   - url: /api/v1
 security:
@@ -408,7 +408,8 @@ paths:
         Izin: pengaturan.akun.input. Sasaran ditulis dengan kode: kode menu (sub-menu/bagian) ATAU kode izin aksi.
         - 403 `diri_sendiri`.
         - 409 `butuh_persetujuan`: `tambah` atas izin sensitif (tiket 1.2d).
-        - 422 `berlaku_sampai_wajib`: sasaran sensitif tanpa batas waktu (PRD 9.2.3).
+        - 422 `berlaku_sampai_wajib`: menambah (`tambah`) izin sensitif tanpa batas waktu (PRD 9.2.3). Sasaran `menu`
+          tidak dianggap sensitif (lapis 4 label sensitivitas di tiket 1.5); mencabut tidak butuh batas waktu.
         - 422 `sasaran_tidak_dikenal`, 409 `pengecualian_ganda` (sasaran dan efek yang sama masih aktif).
       requestBody:
         required: true
@@ -814,7 +815,7 @@ components:
         dibuat_pada: { type: string, format: date-time }
     AkunRinci:
       type: object
-      required: [id, nama_pengguna, nama, status, terkunci_sampai, login_terakhir_pada, diri_sendiri, mfa, penugasan, izin_khusus]
+      required: [id, nama_pengguna, nama, status, terkunci_sampai, login_terakhir_pada, diri_sendiri, dapat_diubah, alasan_terkunci, mfa, penugasan, izin_khusus]
       properties:
         id: { type: string, format: uuid }
         nama_pengguna: { type: string }
@@ -823,6 +824,8 @@ components:
         terkunci_sampai: { type: [string, 'null'], format: date-time }
         login_terakhir_pada: { type: [string, 'null'], format: date-time }
         diri_sendiri: { type: boolean, description: "true = akun milik penyunting; semua tombol ubah disembunyikan (PRD 9.2.4)" }
+        dapat_diubah: { type: boolean, description: "false = semua perubahan /akun/{id}/* oleh penyunting ini akan ditolak 403; tombol ubah tidak dirender" }
+        alasan_terkunci: { type: [string, 'null'], enum: [diri_sendiri, akun_superadmin, null], description: "Kode 403 yang akan diterima bila tetap mengubah" }
         mfa: { $ref: '#/components/schemas/StatusMfaAkun' }
         penugasan: { type: array, items: { $ref: '#/components/schemas/Penugasan' }, description: "Berlaku dulu, lalu riwayat (batal/kedaluwarsa) terbaru dulu" }
         izin_khusus: { type: array, items: { $ref: '#/components/schemas/IzinKhusus' } }

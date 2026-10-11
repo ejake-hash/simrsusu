@@ -98,7 +98,7 @@ class PengaturanAkunTest extends TestCase
         $this->masukSebagai($pengelola);
 
         $rinci = $this->assertSesuaiKontrak($this->minta('GET', "/api/v1/akun/{$akun->id}")->assertOk(), 'GET', '/akun/{id}');
-        $rinci->assertJsonPath('data.diri_sendiri', false)
+        $rinci->assertJsonPath('data.diri_sendiri', false)->assertJsonPath('data.dapat_diubah', true)->assertJsonPath('data.alasan_terkunci', null)
             ->assertJsonPath('data.penugasan.0.id', $berlaku->id)
             ->assertJsonPath('data.penugasan.0.berlaku_sekarang', true)
             ->assertJsonPath('data.penugasan.1.status', 'batal')
@@ -108,6 +108,7 @@ class PengaturanAkunTest extends TestCase
             ->assertJsonPath('data.mfa.aktif', false);
 
         $this->minta('GET', "/api/v1/akun/{$pengelola->id}")->assertOk()->assertJsonPath('data.diri_sendiri', true)
+            ->assertJsonPath('data.dapat_diubah', false)->assertJsonPath('data.alasan_terkunci', 'diri_sendiri')
             ->assertJsonPath('data.mfa.dapat_direset', false);
     }
 
@@ -342,7 +343,9 @@ class PengaturanAkunTest extends TestCase
         $this->masukSebagai($this->pengelola());
         $id = $superadmin->id;
 
-        $this->minta('GET', "/api/v1/akun/$id")->assertOk()->assertJsonPath('data.mfa.dapat_direset', false);
+        $this->assertSesuaiKontrak($this->minta('GET', "/api/v1/akun/$id")->assertOk(), 'GET', '/akun/{id}')
+            ->assertJsonPath('data.mfa.dapat_direset', false)->assertJsonPath('data.dapat_diubah', false)
+            ->assertJsonPath('data.alasan_terkunci', 'akun_superadmin');
         foreach ([
             ['POST', "/akun/$id/penugasan", '/akun/{id}/penugasan', ['peran_id' => $peran->id, 'cakupan_jenis' => 'rs', 'dasar_pemberian' => self::DASAR]],
             ['POST', "/akun/$id/izin-khusus", '/akun/{id}/izin-khusus', ['efek' => 'cabut', 'sasaran_jenis' => 'menu', 'sasaran_kode' => 'pengaturan.akun', 'dasar_pemberian' => self::DASAR, 'alasan' => 'Kunci superadmin']],
@@ -358,7 +361,8 @@ class PengaturanAkunTest extends TestCase
         // Superadmin lain boleh (yang tetap terkunci sampai 1.2d: penugasan peran superadmin itu sendiri).
         [$lain, $rahasiaLain] = $this->superadminBerMfa();
         $this->masukSebagai($lain, $rahasiaLain);
-        $this->minta('GET', "/api/v1/akun/$id")->assertOk()->assertJsonPath('data.mfa.dapat_direset', true);
+        $this->minta('GET', "/api/v1/akun/$id")->assertOk()->assertJsonPath('data.mfa.dapat_direset', true)
+            ->assertJsonPath('data.dapat_diubah', true);
         $this->minta('POST', "/api/v1/akun/$id/penugasan/{$penugasanSuperadmin->id}/batal", ['alasan_batal' => 'Coba cabut'])
             ->assertStatus(409)->assertJsonPath('error.kode', 'peran_bawaan_terkunci');
         $this->minta('POST', "/api/v1/akun/$id/mfa/reset", ['alasan' => 'Ponsel hilang', 'dasar' => self::DASAR])->assertOk();

@@ -66,6 +66,8 @@ final class AkunPresenter
         return [
             ...$this->dasar($akun, $this->pegawai->nama([$akun->pegawai_id])),
             'diri_sendiri' => $akun->id === $penyunting->id,
+            'dapat_diubah' => ($alasan = $this->alasanTerkunci($penyunting, $akun)) === null,
+            'alasan_terkunci' => $alasan,
             'mfa' => $this->statusMfa($akun, $penyunting),
             'penugasan' => $penugasan->map(fn (PenggunaPeran $p) => $this->penugasan($p, $pelaku))->values()->all(),
             'izin_khusus' => $khusus->map(fn (PenggunaIzinKhusus $k) => $this->izinKhusus($k, $pelaku, $menu))->values()->all(),
@@ -97,18 +99,19 @@ final class AkunPresenter
             'aktif_pada' => $akun->mfa_aktif_pada?->toIso8601String(),
             'wajib_akun' => $akun->wajib_mfa,
             'sumber_wajib' => $this->kebijakanMfa->sumberWajib($akun),
-            'dapat_direset' => $akun->mfaAktif() && $this->bolehMengubah($penyunting, $akun),
+            'dapat_direset' => $akun->mfaAktif() && $this->alasanTerkunci($penyunting, $akun) === null,
         ];
     }
 
-    private function bolehMengubah(Pengguna $penyunting, Pengguna $akun): bool
+    /** Kode penolakan yang akan diterima penyunting bila mengubah akun ini (diri_sendiri | akun_superadmin), atau null. */
+    private function alasanTerkunci(Pengguna $penyunting, Pengguna $akun): ?string
     {
         try {
             $this->penjaga->pastikanBolehMengubahAkun($penyunting, $akun);
 
-            return true;
-        } catch (ApiError) {
-            return false;
+            return null;
+        } catch (ApiError $e) {
+            return $e->kode;
         }
     }
 
