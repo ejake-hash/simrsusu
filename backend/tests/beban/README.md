@@ -13,7 +13,7 @@ Backend di-seed `AkunSintetisSeeder` (sandi dari `AKUN_SINTETIS_SANDI`) dan dija
 
 ```bash
 # backend/.env selama uji: semua VU memakai satu akun, jadi rate limit per pengguna dinaikkan
-# (yang diukur kapasitas server, bukan pemrate limit). Kembalikan setelah selesai.
+# (yang diukur kapasitas server, bukan rate limiter). Kembalikan setelah selesai.
 #   RATE_LIMIT_API_PER_PENGGUNA_PER_MENIT=100000
 PHP_CLI_SERVER_WORKERS=8 php artisan serve --port=8000 --no-reload   # tanpa --no-reload hanya satu proses
 

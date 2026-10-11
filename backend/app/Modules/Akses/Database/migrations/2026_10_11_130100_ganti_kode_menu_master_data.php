@@ -25,17 +25,18 @@ return new class extends Migration
         app(CacheHakAkses::class)->lupakanSemua();
     }
 
+    /** Awalan dicocokkan persis dengan starts_with(), bukan LIKE (`_` di LIKE cocok dengan karakter apa pun). */
     private function ganti(string $lama, string $baru, string $ruteLama, string $ruteBaru): void
     {
         DB::update(
             'UPDATE akses.menu SET kode = ? || substr(kode, ?), ikon = CASE WHEN ikon = ? THEN ? ELSE ikon END,
-                    rute = CASE WHEN rute = ? OR rute LIKE ? THEN ? || substr(rute, ?) ELSE rute END, diubah_pada = now()
-              WHERE kode = ? OR kode LIKE ?',
-            [$baru, strlen($lama) + 1, $lama, $baru, $ruteLama, $ruteLama.'/%', $ruteBaru, strlen($ruteLama) + 1, $lama, $lama.'.%'],
+                    rute = CASE WHEN rute = ? OR starts_with(rute, ?) THEN ? || substr(rute, ?) ELSE rute END, diubah_pada = now()
+              WHERE kode = ? OR starts_with(kode, ?)',
+            [$baru, strlen($lama) + 1, $lama, $baru, $ruteLama, $ruteLama.'/', $ruteBaru, strlen($ruteLama) + 1, $lama, $lama.'.'],
         );
         DB::update(
-            'UPDATE akses.izin SET kode = ? || substr(kode, ?), diubah_pada = now() WHERE kode LIKE ?',
-            [$baru, strlen($lama) + 1, $lama.'.%'],
+            'UPDATE akses.izin SET kode = ? || substr(kode, ?), diubah_pada = now() WHERE starts_with(kode, ?)',
+            [$baru, strlen($lama) + 1, $lama.'.'],
         );
     }
 };

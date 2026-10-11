@@ -11,7 +11,7 @@ info:
     Kode error umum: belum_masuk (401), akses_ditolak (403), csrf_tidak_valid (403), tidak_ditemukan (404),
     validasi_gagal (422), ukuran_halaman_melebihi_batas (422), kursor_tidak_valid (422), versi_berubah (412),
     if_match_wajib (428), terlalu_banyak_permintaan (429).
-    v0.2.0: Pengaturan Sistem → Peran & Izin, Akun & Akses (tiket 1.2c); kode menu master_data.peran/akun → pengaturan.peran/akun.
+    v0.2.0: Pengaturan Sistem → Peran & Izin, Akun & Akses (tiket 1.2c); kode menu data_induk.peran/akun → pengaturan.peran/akun.
     v0.2.1: istilah umum (tiket 1.0g, PRD 10.3.3): skema dan kunci respons `error`, field menu `jumlah_tugas`,
     kode menu `master_data`.
 servers:
