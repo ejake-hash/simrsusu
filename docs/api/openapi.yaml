@@ -1,13 +1,16 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.1.0
+  version: 0.2.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
     backend wajib lulus uji kontrak terhadapnya. Perubahan kontrak lewat PR yang mengubah berkas ini.
     Konvensi: PRD 10.3.1 (prefiks /api/v1, kata benda Indonesia, kunci snake_case, galat tunggal).
     Endpoint autentikasi dan MFA: PRD 10.3.2 (belum dipindah ke berkas ini).
+    Kode galat umum: belum_masuk (401), tidak_diizinkan (403), tidak_ditemukan (404), validasi_gagal (422),
+    ukuran_halaman_melebihi_batas (422), versi_berubah (412), if_match_wajib (428), terlalu_banyak_permintaan (429).
+    v0.2.0: Pengaturan Sistem → Peran & Izin, Akun & Akses (tiket 1.2c); kode menu data_induk.peran/akun → pengaturan.peran/akun.
 servers:
   - url: /api/v1
 security:
@@ -59,22 +62,480 @@ paths:
                     - kode: tata_kelola
                       label: Tata Kelola
                       menu:
-                        - kode: data_induk
-                          label: Master Data
-                          ikon: data_induk
-                          rute: /data-induk
+                        - kode: pengaturan
+                          label: Pengaturan Sistem
+                          ikon: pengaturan
+                          rute: /pengaturan
                           status: aktif
                           fase: 1
                           sub_menu:
-                            - { kode: data_induk.peran, label: Peran & menu, rute: /data-induk/peran, status: aktif, fase: 1 }
-                            - { kode: data_induk.akun, label: Akun & akses, rute: /data-induk/akun, status: aktif, fase: 1 }
+                            - { kode: pengaturan.peran, label: Peran & izin, rute: /pengaturan/peran, status: aktif, fase: 1 }
+                            - { kode: pengaturan.akun, label: Akun & akses, rute: /pengaturan/akun, status: aktif, fase: 1 }
                   izin:
-                    - data_induk.peran.lihat
-                    - data_induk.akun.lihat
+                    - pengaturan.peran.lihat
+                    - pengaturan.akun.lihat
         '304': { description: Tidak berubah sejak versi di If-None-Match }
         '401': { $ref: '#/components/responses/Galat' }
         '429': { $ref: '#/components/responses/Galat' }
+  # ---------------------------------------------------------------------------
+  # Pengaturan Sistem → Peran & Izin, Akun & Akses (tiket 1.2c; PRD 9.2–9.3, 10.3.2)
+  # Izin: pengaturan.peran.{lihat,input,perbaiki}, pengaturan.akun.{lihat,input,perbaiki}.
+  # Semua perubahan: audit catat() di akhir transaksi dengan sebelum/sesudah dan dasar;
+  # cache menu efektif akun terdampak dihapus (versi /saya/menu berubah).
+  # ---------------------------------------------------------------------------
+  /menu:
+    get:
+      operationId: pohonMenu
+      summary: Pohon menu lengkap beserta izin aksi per node, untuk matriks peran dan pilihan pengecualian per akun
+      description: |
+        Izin: pengaturan.peran.lihat ATAU pengaturan.akun.lihat. Memuat semua node `aktif` (termasuk modul
+        yang belum tersedia, agar peran bisa disiapkan sebelum modulnya dinyalakan). Grup tidak punya izin.
+      responses:
+        '200':
+          description: Pohon menu
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PohonMenu' }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+  /peran:
+    get:
+      operationId: daftarPeran
+      summary: Daftar peran (paginasi kursor PRD 14.1.1)
+      description: "Izin: pengaturan.peran.lihat."
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: cari, schema: { type: string, maxLength: 100 }, description: "Cocok sebagian pada kode atau nama" }
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
+      responses:
+        '200':
+          description: Satu halaman peran
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/PeranRingkas' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+        '422': { $ref: '#/components/responses/Galat' }
+    post:
+      operationId: buatPeran
+      summary: Buat peran baru, kosong atau salinan peran lain
+      description: |
+        Izin: pengaturan.peran.input. `salin_dari_id` menyalin izin peran sumber KECUALI izin sensitif
+        (pemberiannya butuh persetujuan, tiket 1.2d). Peran baru berstatus aktif tanpa penugasan.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kode, nama, wajib_mfa, dasar_perubahan]
+              properties:
+                kode: { type: string, pattern: '^[a-z][a-z0-9_]{1,49}$' }
+                nama: { type: string, minLength: 3, maxLength: 100 }
+                uraian: { type: [string, 'null'], maxLength: 500 }
+                wajib_mfa: { type: boolean }
+                salin_dari_id: { type: [string, 'null'], format: uuid }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '201':
+          description: Peran dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PeranRinci' } } }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+        '409': { description: "kode_sudah_dipakai", $ref: '#/components/responses/Galat' }
+        '422': { $ref: '#/components/responses/Galat' }
+  /peran/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciPeran
+      summary: Rincian peran beserta kode izin yang diberikannya
+      description: "Izin: pengaturan.peran.lihat. ETag = `versi` (dipakai If-Match saat mengubah)."
+      responses:
+        '200':
+          description: Rincian peran
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PeranRinci' } } }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+        '404': { $ref: '#/components/responses/Galat' }
+    patch:
+      operationId: ubahPeran
+      summary: Ubah nama, uraian, wajib MFA, atau status peran
+      description: |
+        Izin: pengaturan.peran.perbaiki. Wajib If-Match.
+        - `wajib_mfa: false` ditolak (422 `mfa_tidak_bisa_dimatikan`) untuk superadmin dan peran yang memuat izin sensitif.
+        - Peran bawaan sistem tidak bisa dinonaktifkan (409 `peran_bawaan_terkunci`).
+        - Penyunting tidak bisa mengubah peran yang sedang ia pegang (403 `peran_sendiri`).
+        - Menonaktifkan peran yang masih punya penugasan aktif ditolak (409 `peran_masih_dipakai`) dan menyebut jumlahnya.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              properties:
+                nama: { type: string, minLength: 3, maxLength: 100 }
+                uraian: { type: [string, 'null'], maxLength: 500 }
+                wajib_mfa: { type: boolean }
+                status: { type: string, enum: [aktif, nonaktif] }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Peran sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PeranRinci' } } }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+        '404': { $ref: '#/components/responses/Galat' }
+        '409': { $ref: '#/components/responses/Galat' }
+        '412': { description: "versi_berubah: peran diubah orang lain sejak dibuka", $ref: '#/components/responses/Galat' }
+        '422': { $ref: '#/components/responses/Galat' }
+        '428': { description: "if_match_wajib", $ref: '#/components/responses/Galat' }
+  /peran/{id}/izin:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      operationId: gantiIzinPeran
+      summary: Ganti seluruh himpunan izin peran (simpan matriks)
+      description: |
+        Izin: pengaturan.peran.perbaiki. Wajib If-Match. Server menurunkan `peran_menu` dari izin `lihat`.
+        Validasi (422, `rincian` menyebut kode yang salah):
+        - `izin_tidak_dikenal`: kode tidak ada di akses.izin.
+        - `lihat_wajib`: aksi apa pun pada node tanpa izin `<node>.lihat`.
+        - `induk_belum_diberikan`: izin pada bagian tanpa `lihat` pada sub-menu induknya (MD-3).
+        Penolakan lain:
+        - 409 `butuh_persetujuan`: menambah izin sensitif. Alur persetujuan pemilik data di tiket 1.2d; sampai itu
+          ditolak utuh (tidak ada yang disimpan sebagian).
+        - 409 `peran_bawaan_terkunci`: isi peran superadmin tidak bisa diubah dari layar.
+        - 403 `peran_sendiri`.
+        Respons memuat ringkasan perubahan untuk audit dan toast.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [izin, dasar_perubahan]
+              properties:
+                izin: { type: array, maxItems: 5000, uniqueItems: true, items: { type: string } }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+                alasan: { type: [string, 'null'], maxLength: 500 }
+      responses:
+        '200':
+          description: Izin tersimpan
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, perubahan]
+                properties:
+                  data: { $ref: '#/components/schemas/PeranRinci' }
+                  perubahan:
+                    type: object
+                    required: [ditambah, dicabut, akun_terdampak]
+                    properties:
+                      ditambah: { type: array, items: { type: string } }
+                      dicabut: { type: array, items: { type: string } }
+                      akun_terdampak: { type: integer, minimum: 0 }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+        '404': { $ref: '#/components/responses/Galat' }
+        '409': { $ref: '#/components/responses/Galat' }
+        '412': { $ref: '#/components/responses/Galat' }
+        '422': { $ref: '#/components/responses/Galat' }
+        '428': { $ref: '#/components/responses/Galat' }
+  /akun:
+    get:
+      operationId: daftarAkun
+      summary: Daftar akun (paginasi kursor PRD 14.1.1)
+      description: "Izin: pengaturan.akun.lihat. Tidak mengirim NIP, surel, atau data rahasia."
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: cari, schema: { type: string, maxLength: 100 }, description: "Cocok sebagian pada nama pengguna atau nama pegawai" }
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif, terkunci] } }
+        - { in: query, name: peran_id, schema: { type: string, format: uuid } }
+        - { in: query, name: mfa, schema: { type: string, enum: [aktif, belum] } }
+      responses:
+        '200':
+          description: Satu halaman akun
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AkunRingkas' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+        '422': { $ref: '#/components/responses/Galat' }
+  /akun/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciAkun
+      summary: Rincian akun, penugasan, pengecualian per akun (termasuk riwayat batal), dan status MFA
+      description: "Izin: pengaturan.akun.lihat."
+      responses:
+        '200':
+          description: Rincian akun
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AkunRinci' } } }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+        '404': { $ref: '#/components/responses/Galat' }
+  /akun/{id}/menu:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: menuAkun
+      summary: Lihat sebagai — menu efektif dan izin akun lain, dihitung AccessEvaluator yang sama dengan /saya/menu
+      description: |
+        Izin: pengaturan.akun.lihat. Bentuk respons = MenuSaya. Hanya pratinjau: tidak membuat sesi atas nama akun itu.
+        Status "segera" mengikuti aturan yang sama dengan /saya/menu. Audit `akses.lihat_sebagai`.
+      responses:
+        '200':
+          description: Menu efektif akun
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MenuSaya' }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+        '404': { $ref: '#/components/responses/Galat' }
+  /akun/{id}/penugasan:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: tugaskanPeran
+      summary: Tugaskan peran ke akun dengan cakupan, masa berlaku, dan dasar pemberian (FR-09-04)
+      description: |
+        Izin: pengaturan.akun.input.
+        - 403 `diri_sendiri`: tidak bisa menugaskan peran ke akun sendiri (PRD 9.2.4).
+        - 409 `peran_bawaan_terkunci`: peran superadmin hanya lewat konsol sampai tiket 1.2d (persetujuan superadmin lain).
+        - 409 `peran_nonaktif`, 409 `penugasan_ganda` (peran dan cakupan yang sama masih aktif).
+        - 422 `cakupan_belum_didukung`: selain `rs` menunggu inti.unit_organisasi dan relasi perawatan.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [peran_id, cakupan_jenis, dasar_pemberian]
+              properties:
+                peran_id: { type: string, format: uuid }
+                cakupan_jenis: { $ref: '#/components/schemas/CakupanJenis' }
+                cakupan_id: { type: [string, 'null'], format: uuid }
+                berlaku_dari: { type: [string, 'null'], format: date-time, description: "Kosong = sekarang (jam aplikasi)" }
+                berlaku_sampai: { type: [string, 'null'], format: date-time }
+                dasar_pemberian: { $ref: '#/components/schemas/Dasar' }
+                alasan: { type: [string, 'null'], maxLength: 500 }
+      responses:
+        '201':
+          description: Penugasan dibuat
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Penugasan' } } }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+        '404': { $ref: '#/components/responses/Galat' }
+        '409': { $ref: '#/components/responses/Galat' }
+        '422': { $ref: '#/components/responses/Galat' }
+  /akun/{id}/penugasan/{penugasanId}/batal:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - { in: path, name: penugasanId, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: batalkanPenugasan
+      summary: Akhiri penugasan (status batal; baris tidak dihapus)
+      description: "Izin: pengaturan.akun.perbaiki. 403 `diri_sendiri`; 409 `sudah_batal`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PermintaanBatal' }
+      responses:
+        '200':
+          description: Penugasan sesudah dibatalkan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Penugasan' } } }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+        '404': { $ref: '#/components/responses/Galat' }
+        '409': { $ref: '#/components/responses/Galat' }
+        '422': { $ref: '#/components/responses/Galat' }
+  /akun/{id}/izin-khusus:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: buatIzinKhusus
+      summary: Tambah atau cabut sub-menu, bagian, atau aksi untuk satu akun (FR-09-13; cabut selalu menang)
+      description: |
+        Izin: pengaturan.akun.input. Sasaran ditulis dengan kode: kode menu (sub-menu/bagian) ATAU kode izin aksi.
+        - 403 `diri_sendiri`.
+        - 409 `butuh_persetujuan`: `tambah` atas izin sensitif (tiket 1.2d).
+        - 422 `berlaku_sampai_wajib`: sasaran sensitif tanpa batas waktu (PRD 9.2.3).
+        - 422 `sasaran_tidak_dikenal`, 409 `pengecualian_ganda` (sasaran dan efek yang sama masih aktif).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [efek, sasaran_jenis, sasaran_kode, dasar_pemberian, alasan]
+              properties:
+                efek: { type: string, enum: [tambah, cabut] }
+                sasaran_jenis: { type: string, enum: [menu, izin] }
+                sasaran_kode: { type: string, examples: [kasir.tutup, kasir.tagihan.batal] }
+                berlaku_sampai: { type: [string, 'null'], format: date-time }
+                dasar_pemberian: { $ref: '#/components/schemas/Dasar' }
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '201':
+          description: Pengecualian dibuat
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/IzinKhusus' } } }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+        '404': { $ref: '#/components/responses/Galat' }
+        '409': { $ref: '#/components/responses/Galat' }
+        '422': { $ref: '#/components/responses/Galat' }
+  /akun/{id}/izin-khusus/{izinKhususId}/batal:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - { in: path, name: izinKhususId, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: batalkanIzinKhusus
+      summary: Akhiri pengecualian per akun (MD-1; bukan hapus)
+      description: "Izin: pengaturan.akun.perbaiki. 403 `diri_sendiri`; 409 `sudah_batal`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PermintaanBatal' }
+      responses:
+        '200':
+          description: Pengecualian sesudah dibatalkan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/IzinKhusus' } } }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+        '404': { $ref: '#/components/responses/Galat' }
+        '409': { $ref: '#/components/responses/Galat' }
+        '422': { $ref: '#/components/responses/Galat' }
+  /akun/{id}/wajib-mfa:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      operationId: aturWajibMfaAkun
+      summary: Nyalakan atau matikan kewajiban MFA tingkat akun
+      description: |
+        Izin: pengaturan.akun.perbaiki. Hanya mengubah `akses.pengguna.wajib_mfa`; kewajiban dari peran, izin
+        sensitif, dan akses luar jaringan RS tetap berlaku (lihat `mfa.sumber_wajib` di respons).
+        Menyalakan untuk akun yang belum punya MFA memutus sesi berjalannya: masuk berikutnya harus mendaftar MFA
+        dari jaringan RS. 403 `diri_sendiri`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [wajib_mfa, alasan]
+              properties:
+                wajib_mfa: { type: boolean }
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200':
+          description: Status MFA sesudah diubah
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/StatusMfaAkun' } } }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+        '404': { $ref: '#/components/responses/Galat' }
+        '422': { $ref: '#/components/responses/Galat' }
+  /akun/{id}/mfa/reset:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: resetMfaAkun
+      summary: Reset MFA akun (autentikator hilang/ganti ponsel)
+      description: |
+        Izin: pengaturan.akun.perbaiki. Mengosongkan rahasia TOTP dan mfa_aktif_pada, membatalkan semua kode
+        cadangan, dan memutus semua sesi akun itu. Akun mendaftar ulang saat masuk berikutnya, hanya dari jaringan
+        RS (PRD 10.3.2). Audit `akses.mfa_direset` dengan alasan dan dasar, tanpa rahasia.
+        403 `diri_sendiri`; 409 `mfa_belum_aktif`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alasan, dasar]
+              properties:
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+                dasar: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Status MFA sesudah direset
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/StatusMfaAkun' } } }
+        '401': { $ref: '#/components/responses/Galat' }
+        '403': { $ref: '#/components/responses/Galat' }
+        '404': { $ref: '#/components/responses/Galat' }
+        '409': { $ref: '#/components/responses/Galat' }
+        '422': { $ref: '#/components/responses/Galat' }
 components:
+  parameters:
+    Id:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, format: uuid }
+    Kursor:
+      in: query
+      name: kursor
+      required: false
+      schema: { type: string }
+      description: "Kursor buram dari meta.kursor_berikutnya"
+    Batas:
+      in: query
+      name: batas
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      description: "Di atas 200 → 422 ukuran_halaman_melebihi_batas"
+    IfMatch:
+      in: header
+      name: If-Match
+      required: true
+      schema: { type: string }
+      description: "ETag/versi dari GET terakhir; tidak cocok → 412 versi_berubah, tidak ada → 428 if_match_wajib"
   securitySchemes:
     sesiCookie:
       type: apiKey
@@ -152,3 +613,205 @@ components:
               type: array
               description: "kode izin aksi yang dimiliki (format <menu>.<sub_menu>.<aksi>); dipakai v-can/PermissionGate. Server tetap memeriksa ulang setiap permintaan."
               items: { type: string }
+    MetaKursor:
+      type: object
+      required: [kursor_berikutnya]
+      description: "Bentuk dari App\\Core\\Http\\Paginasi::respons (tiket 1.0e)"
+      properties:
+        kursor_berikutnya: { type: [string, 'null'], description: "null = halaman terakhir" }
+    Dasar:
+      type: string
+      minLength: 3
+      maxLength: 200
+      description: "Nomor SK, surat tugas, memo, atau persetujuan (Permenkes 24/2022 Ps. 30 ayat 1–2; PRD 9.2)"
+    CakupanJenis:
+      type: string
+      enum: [rs, unit, ruang, poli, ksm, depo, pasien_dirawat]
+      description: "Tiket 1.2c hanya menerima `rs`; lainnya 422 cakupan_belum_didukung"
+    JenisAksi:
+      type: string
+      enum: [lihat, input, perbaiki, sahkan, verifikasi, setujui, batal, ekspor, cetak, lihat_rupiah]
+    PermintaanBatal:
+      type: object
+      required: [alasan_batal]
+      properties:
+        alasan_batal: { type: string, minLength: 5, maxLength: 500 }
+    Pelaku:
+      type: [object, 'null']
+      description: "null = konsol/sistem"
+      required: [id, nama]
+      properties:
+        id: { type: string, format: uuid }
+        nama: { type: string }
+    NodeMenu:
+      type: object
+      required: [id, kode, label, tingkat, tersedia, modul_aktif, ikut_induk, izin, anak]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        label: { type: string }
+        tingkat: { type: string, enum: [menu, sub_menu, bagian] }
+        ikon: { type: [string, 'null'] }
+        fase: { type: [integer, 'null'] }
+        tersedia: { type: boolean, description: "Halaman sudah dibangun di versi ini" }
+        modul_aktif: { type: boolean, description: "Modul dinyalakan di instalasi ini (inti.modul_aktif)" }
+        ikut_induk: { type: boolean }
+        izin:
+          type: array
+          items:
+            type: object
+            required: [kode, jenis_aksi, sensitif]
+            properties:
+              kode: { type: string }
+              jenis_aksi: { $ref: '#/components/schemas/JenisAksi' }
+              sensitif: { type: boolean }
+        anak:
+          type: array
+          items: { $ref: '#/components/schemas/NodeMenu' }
+    PohonMenu:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [grup]
+          properties:
+            grup:
+              type: array
+              items:
+                type: object
+                required: [kode, label, menu]
+                properties:
+                  kode: { type: string }
+                  label: { type: [string, 'null'] }
+                  menu: { type: array, items: { $ref: '#/components/schemas/NodeMenu' } }
+    PeranRingkas:
+      type: object
+      required: [id, kode, nama, uraian, bawaan_sistem, wajib_mfa, status, jumlah_akun, memuat_izin_sensitif]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+        uraian: { type: [string, 'null'] }
+        bawaan_sistem: { type: boolean }
+        wajib_mfa: { type: boolean }
+        status: { type: string, enum: [aktif, nonaktif] }
+        jumlah_akun: { type: integer, minimum: 0, description: "Akun dengan penugasan berlaku untuk peran ini" }
+        memuat_izin_sensitif: { type: boolean }
+    PeranRinci:
+      allOf:
+        - $ref: '#/components/schemas/PeranRingkas'
+        - type: object
+          required: [versi, izin, wajib_mfa_terkunci, dapat_disunting, alasan_terkunci, diubah_pada]
+          properties:
+            versi: { type: string, description: "Sama dengan ETag" }
+            izin: { type: array, items: { type: string }, description: "Kode izin aksi yang diberikan" }
+            wajib_mfa_terkunci: { type: boolean, description: "true = superadmin atau memuat izin sensitif; sakelar MFA dinonaktifkan di layar" }
+            dapat_disunting: { type: boolean, description: "false bila peran bawaan terkunci atau dipegang penyunting" }
+            alasan_terkunci: { type: [string, 'null'], enum: [peran_bawaan_terkunci, peran_sendiri, null] }
+            diubah_pada: { type: string, format: date-time }
+    StatusMfaAkun:
+      type: object
+      required: [aktif, aktif_pada, wajib_akun, sumber_wajib, dapat_direset]
+      properties:
+        aktif: { type: boolean, description: "Autentikator sudah didaftarkan" }
+        aktif_pada: { type: [string, 'null'], format: date-time }
+        wajib_akun: { type: boolean, description: "Sakelar tingkat akun (akses.pengguna.wajib_mfa)" }
+        sumber_wajib:
+          type: array
+          description: "Alasan MFA wajib di dalam jaringan RS. Kosong = di jaringan RS tidak wajib. Dari luar jaringan RS selalu wajib (tidak dicantumkan di sini)."
+          items:
+            type: object
+            required: [jenis, label, dapat_dimatikan]
+            properties:
+              jenis: { type: string, enum: [akun, peran, superadmin, izin_sensitif] }
+              label: { type: string, examples: ["Peran Superadmin", "Sakelar akun"] }
+              dapat_dimatikan: { type: boolean }
+        dapat_direset: { type: boolean, description: "false bila MFA belum aktif atau akun milik penyunting" }
+    AkunRingkas:
+      type: object
+      required: [id, nama_pengguna, nama, status, terkunci_sampai, login_terakhir_pada, peran, pengecualian, mfa_aktif]
+      properties:
+        id: { type: string, format: uuid }
+        nama_pengguna: { type: string }
+        nama: { type: string, description: "Nama pegawai" }
+        status: { type: string, enum: [aktif, nonaktif] }
+        terkunci_sampai: { type: [string, 'null'], format: date-time }
+        login_terakhir_pada: { type: [string, 'null'], format: date-time }
+        peran:
+          type: array
+          description: "Peran dengan penugasan berlaku"
+          items:
+            type: object
+            required: [id, nama, berlaku_sampai]
+            properties:
+              id: { type: string, format: uuid }
+              nama: { type: string }
+              berlaku_sampai: { type: [string, 'null'], format: date-time }
+        pengecualian:
+          type: object
+          required: [tambah, cabut]
+          properties:
+            tambah: { type: integer, minimum: 0 }
+            cabut: { type: integer, minimum: 0 }
+        mfa_aktif: { type: boolean }
+    Penugasan:
+      type: object
+      required: [id, peran, cakupan_jenis, cakupan_id, berlaku_dari, berlaku_sampai, dasar_pemberian, alasan, diberikan_oleh, status, berlaku_sekarang, alasan_batal, dibatalkan_oleh, dibatalkan_pada, dibuat_pada]
+      properties:
+        id: { type: string, format: uuid }
+        peran:
+          type: object
+          required: [id, kode, nama]
+          properties:
+            id: { type: string, format: uuid }
+            kode: { type: string }
+            nama: { type: string }
+        cakupan_jenis: { $ref: '#/components/schemas/CakupanJenis' }
+        cakupan_id: { type: [string, 'null'], format: uuid }
+        berlaku_dari: { type: string, format: date-time }
+        berlaku_sampai: { type: [string, 'null'], format: date-time }
+        dasar_pemberian: { type: string }
+        alasan: { type: [string, 'null'] }
+        diberikan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        status: { type: string, enum: [aktif, batal] }
+        berlaku_sekarang: { type: boolean, description: "aktif dan di dalam masa berlaku saat ini" }
+        alasan_batal: { type: [string, 'null'] }
+        dibatalkan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        dibatalkan_pada: { type: [string, 'null'], format: date-time }
+        dibuat_pada: { type: string, format: date-time }
+    IzinKhusus:
+      type: object
+      required: [id, efek, sasaran_jenis, sasaran_kode, sasaran_label, sensitif, berlaku_dari, berlaku_sampai, dasar_pemberian, alasan, diberikan_oleh, status, berlaku_sekarang, alasan_batal, dibatalkan_oleh, dibatalkan_pada, dibuat_pada]
+      properties:
+        id: { type: string, format: uuid }
+        efek: { type: string, enum: [tambah, cabut] }
+        sasaran_jenis: { type: string, enum: [menu, izin] }
+        sasaran_kode: { type: string }
+        sasaran_label: { type: string, description: "Jalur label, mis. Kasir → Tutup kasir, atau Kasir → Tagihan pasien → Batal" }
+        sensitif: { type: boolean }
+        berlaku_dari: { type: string, format: date-time }
+        berlaku_sampai: { type: [string, 'null'], format: date-time }
+        dasar_pemberian: { type: string }
+        alasan: { type: string }
+        diberikan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        status: { type: string, enum: [aktif, batal] }
+        berlaku_sekarang: { type: boolean }
+        alasan_batal: { type: [string, 'null'] }
+        dibatalkan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        dibatalkan_pada: { type: [string, 'null'], format: date-time }
+        dibuat_pada: { type: string, format: date-time }
+    AkunRinci:
+      type: object
+      required: [id, nama_pengguna, nama, status, terkunci_sampai, login_terakhir_pada, diri_sendiri, mfa, penugasan, izin_khusus]
+      properties:
+        id: { type: string, format: uuid }
+        nama_pengguna: { type: string }
+        nama: { type: string }
+        status: { type: string, enum: [aktif, nonaktif] }
+        terkunci_sampai: { type: [string, 'null'], format: date-time }
+        login_terakhir_pada: { type: [string, 'null'], format: date-time }
+        diri_sendiri: { type: boolean, description: "true = akun milik penyunting; semua tombol ubah disembunyikan (PRD 9.2.4)" }
+        mfa: { $ref: '#/components/schemas/StatusMfaAkun' }
+        penugasan: { type: array, items: { $ref: '#/components/schemas/Penugasan' }, description: "Berlaku dulu, lalu riwayat (batal/kedaluwarsa) terbaru dulu" }
+        izin_khusus: { type: array, items: { $ref: '#/components/schemas/IzinKhusus' } }

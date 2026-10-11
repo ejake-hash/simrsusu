@@ -23,7 +23,10 @@
 | 1.0f | Antrean setelah commit, penghitung batas laju di instans `noeviction`, aturan bersih-bersih tiket di CLAUDE.md. Catatan: store `batas-laju` = `cache.limiter`; tes memakai `array` (`CACHE_LIMITER_STORE`) agar `travel()` berlaku | Selesai | #25 |
 | 1.2a | Backend akses: tabel menu/peran/izin/penugasan, seeder menu dari prototipe, `AccessEvaluator` lapis 1–3, `GET /api/v1/saya/menu`, superadmin sementara → peran. Catatan: menu bawaan di `MenuBawaan` (dipasang migrasi), halaman yang sudah dibangun ditandai `TERSEDIA`; izin lewat `can:<menu>.<sub_menu>.<aksi>`; e2e kerangka kini ke backend asli dengan `contoh.dokter` | Selesai | #27 |
 | 1.2b | Frontend kerangka aplikasi: `AppShell` + `SidebarMenu` dinamis (kontrak `docs/api/openapi.yaml`), `SegeraHadirPage`, responsif PRD 5.5. Catatan: menu aktif tanpa halaman frontend juga ke `SegeraHadirPage`; jalur di luar menu = *Halaman tidak ditemukan* (tidak dibedakan dari tidak diizinkan); e2e masih memakai menu tiruan (lihat utang) | Selesai | #26 |
-| 1.2c | Halaman Data Induk → Peran & menu, Akun & akses (`masterdata.html`), termasuk wajib MFA per peran/akun dan reset MFA | Menunggu paket halaman (1.2a dan 1.2b selesai) | — |
+| — | PRD v0.10.9 (penyelarasan 1.2a, aturan layar peran/akun), kontrak `openapi.yaml` v0.2.0, paket halaman 1.2c | **Siap dikerjakan** (PR dokumen, dulu) | — |
+| **1.2c-be** | Backend Pengaturan → Peran & izin, Akun & akses: pindah kode menu ke `pengaturan.*`, endpoint kontrak v0.2.0, wajib MFA per peran/akun, reset MFA, larangan diri sendiri | **Siap dikerjakan** setelah PR dokumen | — |
+| **1.2c-fe** | Frontend halaman Peran & izin, Akun & akses (`masterdata.html`, temuan MD-1…MD-4), navigasi sub-menu di halaman induk modul | **Siap dikerjakan** setelah PR dokumen (paralel dengan 1.2c-be, data tiruan dari kontrak) | — |
+| 1.2d | Persetujuan akses: izin sensitif oleh pemilik data, peran superadmin oleh superadmin lain, permintaan akses dari layar "Akses ditolak", pembuatan/penonaktifan akun | Menunggu 1.2c | — |
 | 1.5 | Lapis 4–5 hak akses (label sensitivitas, SIP/SPK, MFA aksi sensitif) | Menunggu 1.2 | — |
 | 1.6 | TTE T1: aktivasi PIN, `TtdModal`, kunci Ed25519 | Menunggu 1.2 | — |
 | 1.7 | Notifikasi dasar (PRD 7.53), jenis bawaan pertama: pemberitahuan akun terkunci | Menunggu 1.2 | — |
@@ -55,10 +58,9 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
 - Dependensi frontend tertinggal satu-dua versi mayor (per 11 Okt 2026): `vite` 6 → 8, `@vitejs/plugin-vue` 5 → 6, `typescript` 5.8 → 7, `vue-tsc` 2 → 3, `vue-router` 4 → 5, `@vue/tsconfig` 0.7 → 0.9. Naikkan dalam tiket sendiri, bukan sambil lalu.
 - Profil RS di frontend sementara dari variabel Vite (`VITE_RS_NAMA`, `VITE_RS_LOGO`, `VITE_RS_MOTIF`, `VITE_RS_FOTO`, `VITE_RS_UNIT_ADMIN`, `VITE_RS_KONTAK_ADMIN`; `frontend/src/app/profilRs.ts`). Nilai contoh RS USU hanya di `frontend/.env.development`; build produksi tanpa nilai ini tidak menampilkan kartu RS, motif, dan foto gedung. Ganti dengan `inti.profil_rs` lewat API di tiket 1.8.
 - Dari library PRD 10.4, baru axios dan TanStack Query (1.2b) yang dipakai. VeeValidate + Zod dan Tailwind/Reka UI belum dipasang; pasang saat halaman pertama yang membutuhkannya, bukan sekaligus.
-- Hak akses 1.2a yang belum lengkap: `peran_menu.tingkat_akses/urutan_khusus/label_khusus` (PRD 11.2, layar 9.3) belum dibuat, aksi diambil dari `peran_izin`; cakupan `pasien_dirawat` belum dievaluasi (butuh relasi perawatan); `inti.modul_aktif.unit_organisasi_id` belum berkunci tamu dan modul per unit belum dipakai (menunggu `inti.unit_organisasi`); persetujuan pemilik data untuk izin sensitif dan larangan superadmin memberi akses ke diri sendiri dikerjakan bersama layar 1.2c.
-- PRD perlu diselaraskan dengan implementasi 1.2a: 9.1 masih menulis kode izin sub-menu `menu.<modul>.<sub_menu>`, sedangkan kontrak dan kode memakai kode menu `igd.papan` dan izin `<menu>.<sub_menu>.<aksi>`; 11.2 belum memuat kolom `akses.menu.fase/tersedia/selalu_tampil`, `akses.peran.wajib_mfa/status`, dan cakupan di `pengguna_izin_khusus`.
+- Hak akses 1.2a yang belum lengkap: `peran_menu.tingkat_akses/urutan_khusus/label_khusus` (PRD 11.2, layar 9.3) belum dibuat, aksi diambil dari `peran_izin`; cakupan `pasien_dirawat` belum dievaluasi (butuh relasi perawatan); `inti.modul_aktif.unit_organisasi_id` belum berkunci tamu dan modul per unit belum dipakai (menunggu `inti.unit_organisasi`); larangan memberi akses ke diri sendiri dikerjakan di 1.2c-be; persetujuan pemilik data untuk izin sensitif dan perubahan peran superadmin di 1.2d (sampai itu ditolak dengan 409 `butuh_persetujuan`/`peran_bawaan_terkunci`, bukan disimpan diam-diam).
 - Nama ikon yang dikenal frontend = kode menu prototipe (`frontend/src/design-system/ikon/ikon.ts`: `beranda`, `pendaftaran`, `igd`, `rawat_jalan`, `rawat_inap`, `kamar_operasi`, `penunjang`, `farmasi`, `rekam_medis`, `kasir`, `casemix`, `mutu`, `sdm`, `logistik`, `penelitian`, `pendidikan`, `integrasi`, `dasbor`, `data_induk`, `pengaturan`). Seeder menu 1.2a memakai nama ini; nama lain tampil sebagai ikon umum.
-- Sidebar ringkas 64 px (tablet mendatar) tidak menampilkan sub-menu. Halaman induk setiap modul wajib menampilkan navigasi sub-menunya sendiri (berlaku sejak 1.2c).
+- Sidebar ringkas 64 px (tablet mendatar) tidak menampilkan sub-menu. Halaman induk setiap modul wajib menampilkan navigasi sub-menunya sendiri (komponen bersama dibuat di 1.2c-fe, wajib dipakai modul berikutnya).
 - Pemilih unit kerja dan lonceng notifikasi di header prototipe belum dibuat: unit kerja menunggu `inti.unit_organisasi` (cakupan penugasan per unit sudah ada sejak 1.2a), notifikasi di tiket 1.7.
 - Tombol, kolom isian, dan pesan galat di halaman masuk masih ditulis per komponen (`LangkahSandi.vue` dan `components/langkah-mfa.css` bergaya sama). Pindahkan ke `frontend/src/design-system/` saat komponen dasar dibuat (DESIGN.md).
 
@@ -221,6 +223,160 @@ Uji penerimaan:
   - Setelah 1.2a merge: e2e ke backend asli dengan contoh.dokter (menu sesuai perannya).
   - Tangkapan layar berdampingan dengan docs/html/home.html (sidebar dan header) di PR.
 Di luar lingkup tiket: isi beranda/kotak kerja (1.7), pencarian pasien global (fase 2), halaman data induk (1.2c).
+```
+
+## [SIMRS] Akses · 1.2c Paket halaman: Pengaturan → Peran & izin, Akun & akses
+
+Sumber kebenaran: PRD v0.10.9 (9.1, 9.2, 9.3 "Aturan layar…", 10.3.2), kontrak `docs/api/openapi.yaml` v0.2.0.
+Acuan visual: `docs/html/masterdata.html` bagian Hak akses dan Akun (bukan acuan data atau perilaku; PRD > prototipe).
+
+**Letak menu (keputusan 17.2 #21):** sub-menu pindah dari Master Data ke Pengaturan Sistem, sesuai PRD 9.1.
+
+| Lama (1.2a) | Baru | Label | Rute |
+|---|---|---|---|
+| `data_induk.peran` | `pengaturan.peran` | Peran & izin | `/pengaturan/peran` |
+| `data_induk.akun` | `pengaturan.akun` | Akun & akses | `/pengaturan/akun` |
+| `data_induk.audit` | `pengaturan.audit` | Jejak audit | `/pengaturan/audit` (tetap Segera hadir) |
+
+Izin yang dipakai: `pengaturan.peran.lihat|input|perbaiki`, `pengaturan.akun.lihat|input|perbaiki` (dari `AKSI_DASAR`).
+
+**Dari prototipe: dipertahankan / diubah / dibuang**
+
+| Bagian prototipe | Keputusan |
+|---|---|
+| Pohon grup → menu → sub-menu → bagian yang bisa dilipat, penanda *ikut induk*, label jenis node | Dipertahankan |
+| Matriks dengan semua peran sebagai kolom | **Diubah**: satu peran per suntingan, kolom = aksi (lihat/input/perbaiki + aksi khusus yang terdaftar di node). Alasan: puluhan peran tidak terbaca di 1024 px (PRD 5.5) |
+| Tingkat L/I/P per sel | **Diubah**: jalan pintas di layar, yang dikirim tetap daftar kode izin. Bagian dinonaktifkan selama sub-menu induk belum diberi *lihat* (MD-3) |
+| Tombol Simpan langsung | **Diubah**: dialog ringkasan (ditambah, dicabut, akun terdampak) + kolom *dasar perubahan* wajib (MD-2); If-Match, 412 → "Peran ini diubah orang lain, muat ulang" |
+| Antrean "menunggu persetujuan pemilik data" + tombol "Peragaan: setujui" | **Dibuang** dari 1.2c (1.2d). Menambah izin sensitif → pesan 409 `butuh_persetujuan` yang jelas (MD-4) |
+| Daftar akun + panel rincian, tab Penugasan / Per akun / Lihat sebagai | Dipertahankan; tab ke-4 **MFA** ditambahkan |
+| Tombol "×" pada pengecualian per akun | **Diubah**: tombol *Akhiri* → dialog dengan alasan wajib dan kalimat akibat; baris tetap tampil sebagai riwayat (MD-1) |
+| Tab "Uji akses", label sensitivitas, permintaan akses, uji akses darurat, KPI berangka (2.418 akun, dll.) | **Dibuang** (lapis 4 = 1.5, permintaan akses = 1.2d, KPI tanpa data asli dilarang) |
+| Cakupan bebas teks ("Bangsal Penyakit Dalam") | **Diubah**: 1.2c hanya cakupan *Seluruh RS*; pilihan lain tampil nonaktif "menunggu data unit" |
+| Catatan superadmin tidak membuka RM/rupiah | Dipertahankan sebagai catatan di rincian akun superadmin |
+
+**Temuan heuristik yang wajib selesai di tiket ini**
+- MD-1 Mengakhiri pencabutan mengembalikan akses tanpa konfirmasi → dialog + alasan + riwayat.
+- MD-2 Matriks tersimpan tanpa dasar → dasar wajib + ringkasan sebelum simpan.
+- MD-3 Baris anak ambigu saat induk tidak diberikan → sel bagian nonaktif + keterangan; server menolak `induk_belum_diberikan`.
+- MD-4 Superadmin menyetujui permintaan orang lain → tidak ada tombol setujui di 1.2c; alur persetujuan di 1.2d dengan penyetuju yang ditunjuk.
+
+**Pembagian sesi:** backend (1.2c-be) dan frontend (1.2c-fe) paralel dari kontrak yang sama. Frontend memakai data tiruan dari contoh dan skema kontrak sampai 1.2c-be merge, lalu e2e ke backend asli.
+
+## [SIMRS] Akses · 1.2c-be Backend Peran & izin, Akun & akses
+
+```
+Tujuan     : Superadmin bisa menyusun peran, menugaskan peran, memberi/mencabut per akun, mengatur wajib MFA,
+             dan mereset MFA lewat API yang menegakkan semua batas PRD 9.2.4 dan 10.3.2 di server.
+FR         : FR-09-01…04, 08, 09, 10, 13; FR-54-04; PRD 9.2.3, 9.2.4, 9.3 (aturan layar), 10.3.2
+Kontrak    : docs/api/openapi.yaml v0.2.0 → /menu, /peran*, /akun* (uji kontrak semua respons sukses dan galat)
+Tabel      : tidak ada tabel baru. Migrasi data: ganti kode menu/izin data_induk.{peran,akun,audit} →
+             pengaturan.* (induk_id ikut pindah), aman diulang, tanpa DELETE.
+Pekerjaan  :
+  1. MenuBawaan: pindahkan peran/akun/audit ke menu pengaturan; TERSEDIA dan SUB_MENU_SUPERADMIN ikut;
+     migrasi baru yang mengganti kode di DB yang sudah terpasang (UPDATE akses.menu dan akses.izin).
+     Cari semua rujukan `data_induk.peran|akun` (rute can:, tes, e2e, frontend) dan ganti.
+  2. GET /menu (pohon + izin per node, modul_aktif, tersedia).
+  3. Peran: GET daftar (Paginasi, jumlah_akun, memuat_izin_sensitif), POST (salin_dari_id tanpa izin
+     sensitif), GET rinci (ETag = versi), PATCH (If-Match), PUT /peran/{id}/izin (If-Match, ganti utuh,
+     turunkan peran_menu dari izin lihat, validasi lihat_wajib / induk_belum_diberikan / izin_tidak_dikenal,
+     tolak utuh bila ada izin sensitif baru → 409 butuh_persetujuan, superadmin → 409 peran_bawaan_terkunci,
+     peran yang dipegang penyunting → 403 peran_sendiri). Respons memuat ditambah/dicabut/akun_terdampak.
+  4. Akun: GET daftar (Paginasi; filter cari/status/peran_id/mfa; tanpa NIP/surel), GET rinci, GET
+     /akun/{id}/menu (Lihat sebagai = MenuSaya untuk akun itu, audit akses.lihat_sebagai).
+  5. Penugasan dan izin khusus: POST + POST .../batal. Hanya cakupan `rs` (lainnya 422
+     cakupan_belum_didukung). Sasaran sensitif tanpa berlaku_sampai → 422. Tambah izin sensitif → 409.
+     Penugasan peran superadmin dari API → 409 peran_bawaan_terkunci (tetap lewat konsol sampai 1.2d).
+  6. MFA: PUT /akun/{id}/wajib-mfa; POST /akun/{id}/mfa/reset (kosongkan rahasia, mfa_aktif_pada,
+     mfa_langkah_terakhir; batalkan kode cadangan; putus semua sesi akun itu). PATCH peran wajib_mfa=false
+     ditolak untuk superadmin/peran berizin sensitif. sumber_wajib dihitung dari KebijakanMfa yang sama
+     dengan login (jangan dua rumus).
+  7. Larangan diri sendiri (403 diri_sendiri) di semua endpoint ubah /akun/{id}/*, dan `diri_sendiri: true`
+     di rincian.
+  8. Pencabutan sesi (utang ADR 0002): reset MFA dan wajib MFA baru untuk akun tanpa MFA memutus sesi akun
+     itu. Perubahan peran/penugasan cukup menghapus cache (izin diperiksa per permintaan); tulis ini di ADR 0002.
+  9. Audit catat() di akhir transaksi untuk setiap perubahan: akses.peran_dibuat|diubah|izin_diganti,
+     akses.penugasan_dibuat|dibatalkan, akses.izin_khusus_dibuat|dibatalkan, akses.wajib_mfa_diubah,
+     akses.mfa_direset, akses.lihat_sebagai; sebelum/sesudah + dasar; tanpa rahasia.
+ 10. Cache menu efektif dihapus untuk semua akun terdampak (pemegang peran yang diubah; akun yang
+     penugasan/izin khususnya berubah). Hindari N+1: hapus cache per batch.
+ 11. AkunSintetisSeeder (lokal/staging saja): akun `contoh.superadmin` berperan superadmin dengan MFA aktif,
+     rahasia TOTP dari env `AKUN_SINTETIS_SUPERADMIN_MFA_RAHASIA` (kosong = acak, ditampilkan sekali seperti
+     contoh.mfa), dan peran contoh tanpa izin sensitif untuk e2e frontend. Tidak pernah berjalan di production.
+Uji penerimaan:
+  - Semua endpoint: tanpa izin → 403; respons lulus skema openapi (sukses dan galat utama).
+  - contoh.dokter tidak melihat menu Pengaturan; superadmin melihat pengaturan.peran dan pengaturan.akun.
+  - Migrasi kode: DB lama (1.2a) → semua izin/peran_menu/peran_izin lama menunjuk node pengaturan.*;
+    menjalankan ulang tidak menggandakan baris.
+  - PUT izin: aksi tanpa lihat → 422 lihat_wajib; bagian tanpa induk → 422 induk_belum_diberikan; dua
+    penyunting dengan versi sama → yang kedua 412; izin sensitif baru → 409 dan tidak ada yang tersimpan.
+  - Superadmin mengubah peran yang ia pegang → 403; menugaskan/menambah izin ke dirinya → 403.
+  - Cabut per akun lalu batal → akses kembali sesuai peran, baris lama status batal dengan alasan.
+  - Reset MFA: akun yang tadinya masuk kehilangan sesinya; masuk dari luar jaringan RS → 403
+    mfa_belum_terdaftar; dari jaringan RS → perlu_daftar_mfa.
+  - wajib_mfa=false pada superadmin → 422; sumber_wajib akun superadmin memuat jenis superadmin
+    dengan dapat_dimatikan=false.
+  - Daftar akun 1.000 akun sintetis: P95 < 300 ms lokal dengan batas 50 (factory, bukan seeder default).
+  - composer test, analyse, e2e yang ada tetap hijau.
+Di luar lingkup tiket: alur persetujuan (1.2d), cakupan selain rs, admin delegasi, pembuatan akun,
+label sensitivitas (1.5), personalisasi urutan/label menu per peran.
+```
+
+## [SIMRS] Akses · 1.2c-fe Frontend Peran & izin, Akun & akses
+
+```
+Tujuan     : Superadmin mengelola peran dan akses akun dari layar yang aman dipakai (tidak ada perubahan
+             akses tanpa dasar dan konfirmasi), di desktop dan tablet.
+FR         : PRD 9.3 (aturan layar, MD-1…MD-4), 5.1 butir 9–17, 5.5, FR-09-08 (Lihat sebagai)
+Kontrak    : docs/api/openapi.yaml v0.2.0. Sampai 1.2c-be merge: data tiruan dibuat dari skema/contoh kontrak
+             (mode dev/test saja), termasuk respons galat 403/409/412/422.
+Acuan      : docs/html/masterdata.html bagian Hak akses dan Akun + tabel "dipertahankan/diubah/dibuang" di paket 1.2c
+Pekerjaan  :
+  1. Komponen bersama NavigasiSubMenu (design-system): halaman induk modul (/pengaturan) menampilkan
+     sub-menu dari /saya/menu sebagai kartu/tab; wajib karena sidebar 64 px tidak menampilkan sub-menu.
+  2. /pengaturan/peran: daftar peran (cari, status, jumlah akun, penanda bawaan/MFA) + editor per peran:
+     pohon menu (lipat/buka), kolom aksi, tingkat L/I/P sebagai jalan pintas, sel bagian nonaktif bila induk
+     belum diberi lihat, penanda izin sensitif (gembok). Peran terkunci (alasan_terkunci) = mode baca dengan
+     keterangan. Buat peran / salin peran (dialog).
+  3. Simpan matriks: dialog ringkasan perubahan (ditambah, dicabut, akun terdampak) + dasar perubahan wajib;
+     tangani 412 (muat ulang tanpa kehilangan suntingan diam-diam: tampilkan perbedaan), 409 butuh_persetujuan
+     (sebut izin sensitif mana), 422 (sorot node yang salah).
+  4. /pengaturan/akun: daftar akun (cari, filter status/peran/MFA, paginasi kursor "Muat lagi") + rincian
+     dengan tab Penugasan, Per akun, Lihat sebagai, MFA. Akun diri_sendiri: semua tombol ubah tidak dirender,
+     ada keterangan "Perubahan akun sendiri dilakukan superadmin lain".
+  5. Penugasan: tambah (peran aktif, cakupan Seluruh RS; pilihan lain nonaktif "menunggu data unit", berlaku
+     dari/sampai, dasar wajib) dan Akhiri (dialog, alasan wajib). Riwayat batal/kedaluwarsa dilipat di bawah.
+  6. Per akun: tambah/cabut dengan pemilih node dari /menu (cari, jalur label), berlaku sampai wajib untuk
+     sasaran sensitif; Akhiri = dialog dengan kalimat akibat (MD-1), bukan "×".
+  7. Lihat sebagai: render sidebar dari GET /akun/{id}/menu memakai SidebarMenu yang sama (mode pratinjau,
+     tanpa navigasi), plus daftar izin aksi.
+  8. MFA: status, daftar sumber kewajiban (yang tidak bisa dimatikan diberi gembok dan alasannya), sakelar
+     wajib MFA akun (alasan wajib), Reset MFA (dialog: akibat = sesi diputus, daftar ulang dari jaringan RS;
+     alasan + dasar wajib). Teks tetap: "Dari luar jaringan RS, MFA selalu wajib."
+  9. Pasang VeeValidate + Zod (form pertama yang membutuhkannya) dan primitif dialog/tab yang aksesibel
+     (Reka UI atau setara; fokus terjebak, Esc, kembali fokus). Tanpa HEX di komponen.
+ 10. Rute v-can: tombol tambah/ubah mengikuti izin input/perbaiki; tanpa izin lihat → Halaman tidak ditemukan.
+Uji penerimaan:
+  - Unit: L/I/P → himpunan kode benar; bagian nonaktif saat induk tidak diberi; dialog simpan menolak tanpa
+    dasar; 412/409/422 menampilkan pesan yang benar; Akhiri pengecualian butuh alasan; diri_sendiri
+    menyembunyikan tombol ubah.
+  - e2e (1440, 1024, 768): superadmin membuat peran, memberi sub-menu, menugaskan ke akun sintetis, akun itu
+    melihat menu baru (masuk sebagai akun itu); cabut per akun lalu akhiri; reset MFA contoh.mfa lalu
+    contoh.mfa diminta mendaftar ulang. 390 px: halaman pengaturan menampilkan pesan "gunakan tablet/desktop"
+    (PRD 5.5 kelas terbatas).
+  - Tidak ada gulir horizontal halaman di 1024 dan 768; matriks boleh bergulir di dalam kotaknya.
+  - Tangkapan layar berdampingan dengan masterdata.html di PR.
+Di luar lingkup tiket: antrean persetujuan dan permintaan akses (1.2d), label sensitivitas, bandingkan dua peran,
+favorit menu.
+```
+
+## [SIMRS] Akses · 1.2d Persetujuan akses (garis besar, dirinci setelah 1.2c)
+
+```
+Isi        : persetujuan_akses (izin sensitif → pemilik data; peran/penugasan superadmin → superadmin lain),
+             permintaan_akses dari layar "Akses ditolak", pembuatan/penonaktifan akun terhubung sdm.pegawai,
+             saran jadikan peran (FR-09-15). Menggantikan 409 butuh_persetujuan dan peran_bawaan_terkunci 1.2c.
+Butuh dulu : siapa "pemilik data" per izin sensitif (data induk), notifikasi 1.7 untuk penyetuju.
 ```
 
 ## [SIMRS] Akses · 1.10 SSO universitas (terhambat)
