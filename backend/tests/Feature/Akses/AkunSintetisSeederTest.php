@@ -5,7 +5,9 @@ namespace Tests\Feature\Akses;
 use App\Modules\Akses\Application\AccessEvaluator;
 use App\Modules\Akses\Application\CacheHakAkses;
 use App\Modules\Akses\Database\Seeders\AkunSintetisSeeder;
+use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Akses\Models\PenggunaIzinKhusus;
 use App\Modules\Akses\Models\PenggunaPeran;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -74,10 +76,16 @@ class AkunSintetisSeederTest extends TestCase
         $this->assertSame(1, PenggunaPeran::query()->where('pengguna_id', $superadmin->id)->count());
 
         // Akun tanpa peran kembali tanpa penugasan berlaku walau sempat ditugaskan, dan tidak wajib MFA.
-        $tanpaPeran = $akun('contoh.tanpa.peran');
+        $tanpaPeran = $akun(AkunSintetisSeeder::TANPA_PERAN);
         PenggunaPeran::query()->create(['pengguna_id' => $tanpaPeran->id, 'peran_id' => $peranDokter, 'dasar_pemberian' => 'Uji e2e']);
+        PenggunaIzinKhusus::query()->create([
+            'pengguna_id' => $tanpaPeran->id, 'efek' => 'tambah', 'dasar_pemberian' => 'Uji e2e', 'alasan' => 'Uji',
+            'menu_id' => Menu::query()->where('kode', 'igd.papan')->value('id'),
+        ]);
         $this->seed(AkunSintetisSeeder::class);
         $this->assertFalse(PenggunaPeran::query()->berlaku()->where('pengguna_id', $tanpaPeran->id)->exists());
+        $this->assertFalse(PenggunaIzinKhusus::query()->berlaku()->where('pengguna_id', $tanpaPeran->id)->exists());
+        $this->assertSame(['beranda'], array_keys(app(AccessEvaluator::class)->hak($tanpaPeran->refresh())->menu));
         $this->assertFalse($tanpaPeran->refresh()->wajib_mfa);
     }
 
