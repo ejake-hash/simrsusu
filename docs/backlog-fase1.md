@@ -1,6 +1,7 @@
 # Backlog Fase 1 (Fondasi)
 
 > Sumber tiket untuk semua sesi. Kebutuhan tetap di `docs/prd.md`; file ini hanya urutan, status, dan isi tiket yang belum jalan.
+> Alur kerja per halaman (paket halaman → backend & frontend paralel → integrasi → selesai): PRD D.5. Menu ke modul yang belum dibangun: *Segera hadir* (PRD 10.4).
 > Format tiket: PRD Lampiran D.6. Definition of Done: PRD D.7. Ubah status lewat PR yang menyelesaikan tiketnya.
 
 | Tiket | Isi singkat | Status | PR |
@@ -15,6 +16,7 @@
 | 1.4b | Halaman masuk: penyelarasan visual dengan prototipe (motif, ilustrasi, label), cek sesi tahan server mati. Catatan: ilustrasi peta TT dipertahankan (pola tetap, warna token); jam WIB tidak ditampilkan (produk generik) | Selesai | #10 |
 | 1.0b | Kebersihan repo: folder modul, Larastan level 5, aturan worktree. Catatan: `composer test` kini membaca `DB_DATABASE_TES` (bawaan `simrs_test`) agar tiap worktree bisa memakai database tes sendiri | Selesai | #12 |
 | **1.1b** | MFA TOTP + kode cadangan, backend dan langkah MFA di halaman masuk | **Siap dikerjakan** (backend dan frontend; PR #10 sudah merge) | — |
+| **1.0c** | Nama modul bahasa Indonesia (backend dan frontend) | **Siap dikerjakan** (paralel dengan 1.1b) | — |
 | 1.2 | Menu, peran, izin, `AccessEvaluator` lapis 1–3, `GET /api/v1/saya/menu` | Menunggu 1.1b | — |
 | 1.5 | Lapis 4–5 hak akses (label sensitivitas, SIP/SPK, MFA aksi sensitif) | Menunggu 1.2 | — |
 | 1.6 | TTE T1: aktivasi PIN, `TtdModal`, kunci Ed25519 | Menunggu 1.2 | — |
@@ -30,6 +32,31 @@ Branch `lampiran/pr-1.4b` berisi gambar yang dirujuk deskripsi PR #10; jangan di
 Motif `docs/brand/motif-usu.svg` dibuat ulang (bukan berkas resmi pedoman); hanya untuk pengembangan sampai dicocokkan dengan `PATTERN DESIGN USU.ai` dari Humas/Promosi USU.
 
 ---
+
+## [SIMRS] Platform · 1.0c Nama modul bahasa Indonesia
+
+```
+Tujuan     : Semua nama modul seragam bahasa Indonesia sebelum modul-modul itu terisi kode.
+FR         : — (tiket teknis) · PRD 10.3 (aturan nama modul), 10.4, D.3
+Pekerjaan  :
+  1. Backend app/Modules: Registration → Pendaftaran, Queue → Antrean, Emergency → Igd,
+     Integration → Integrasi (git mv dua langkah bila hanya beda huruf). Akses dan Sdm tetap.
+     Sesuaikan namespace, ModuleServiceProvider, pendaftaran rute/provider, dan baseline phpstan.
+  2. Frontend src/modules: registration → pendaftaran, emergency → igd, outpatient → rawat-jalan,
+     inpatient → rawat-inap. akses tetap.
+  3. Cari sisa nama lama: grep -rniE "Registration|Queue|Emergency|Integration|outpatient|inpatient"
+     di backend/app, backend/routes, backend/tests, frontend/src, CLAUDE.md, README.md, DESIGN.md.
+     Kecualikan nama milik Laravel/vendor (mis. kelas Queue framework, config queue.php).
+  4. CLAUDE.md: tambahkan aturan "nama modul bahasa Indonesia; lapisan teknis (Core, Shared, Domain,
+     Application, Infrastructure, Http, Models, Database) tetap".
+Uji penerimaan:
+  - composer dump-autoload --strict-psr, composer analyse, composer test, npm run build, e2e: semua lulus.
+  - Grep butir 3 tidak menemukan nama modul lama di kode proyek.
+  - Rute api/v1 tiap modul tetap terdaftar (php artisan route:list) dan jumlahnya sama dengan sebelum rename.
+Di luar lingkup tiket: modul Akses dan Sdm, isi modul, panel Spek dev di docs/html (diperbarui terpisah
+oleh penyusun PRD), nama tabel/skema database.
+Catatan: jangan sentuh berkas modul Akses agar tidak bentrok dengan worktree 1.1b.
+```
 
 ## [SIMRS] Akses · 1.1b MFA (TOTP + kode cadangan)
 
