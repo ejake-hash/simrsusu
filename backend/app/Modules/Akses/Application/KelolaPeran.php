@@ -8,6 +8,7 @@ use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\Peran;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
@@ -252,7 +253,8 @@ final class KelolaPeran
 
     private function naikkanVersi(Peran $peran, string $versi, Pengguna $penyunting): void
     {
-        $naik = ctype_digit($versi) && Peran::query()->whereKey($peran->id)->where('revisi', (int) $versi)
+        // Versi = revisi (integer 32-bit); angka yang lebih panjang tidak mungkin cocok (bukan 500).
+        $naik = ctype_digit($versi) && strlen($versi) <= 9 && Peran::query()->whereKey($peran->id)->where('revisi', (int) $versi)
             ->update(['revisi' => DB::raw('revisi + 1'), 'diubah_oleh' => $penyunting->id]) === 1;
         if (! $naik) {
             throw new ApiError(412, 'versi_berubah', 'Peran ini diubah orang lain sejak Anda membukanya. Muat ulang untuk melihat perubahan terbaru.');
@@ -262,9 +264,7 @@ final class KelolaPeran
 
     private function jumlahPenugasanAktif(Peran $peran): int
     {
-        return DB::table('akses.pengguna_peran')->where('peran_id', $peran->id)->where('status', 'aktif')
-            ->where(fn ($q) => $q->whereNull('berlaku_sampai')->orWhere('berlaku_sampai', '>', now()->format('Y-m-d H:i:s.uP')))
-            ->distinct()->count('pengguna_id');
+        return PenggunaPeran::query()->where('peran_id', $peran->id)->masihAktif()->distinct()->count('pengguna_id');
     }
 
     /** @return array<string, mixed> */

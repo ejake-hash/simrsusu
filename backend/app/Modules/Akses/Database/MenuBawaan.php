@@ -27,6 +27,15 @@ final class MenuBawaan
     public const SUB_MENU_SUPERADMIN = ['pengaturan.peran', 'pengaturan.akun'];
 
     /**
+     * Izin yang setara kuasa superadmin (membuat/mengubah peran, memberi akses): sensitif, jadi tidak bisa
+     * dibagikan lewat peran biasa atau per akun tanpa persetujuan (tiket 1.2d) dan pemegangnya wajib MFA
+     * (PRD 9.2.4, 10.3.2). pasang() hanya menyalakan tanda ini, tidak pernah mematikannya.
+     */
+    public const IZIN_SENSITIF = [
+        'pengaturan.peran.input', 'pengaturan.peran.perbaiki', 'pengaturan.akun.input', 'pengaturan.akun.perbaiki',
+    ];
+
+    /**
      * Kode yang pindah tempat (lama => baru), diganti di tempat sebelum pohon dipasang agar id, peran,
      * dan pengecualian per akun ikut menunjuk kode baru. Hanya bila kode baru belum ada; aman diulang.
      * Tiket 1.2c: peran, akun, dan jejak audit pindah dari Master Data ke Pengaturan Sistem (PRD 9.1).
@@ -217,6 +226,8 @@ final class MenuBawaan
             }
         }
 
+        DB::table('akses.izin')->whereIn('kode', self::IZIN_SENSITIF)->where('sensitif', false)
+            ->update(['sensitif' => true, 'diubah_pada' => now()]);
         self::pasangSuperadmin();
     }
 

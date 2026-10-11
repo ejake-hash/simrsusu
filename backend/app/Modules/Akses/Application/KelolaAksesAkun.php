@@ -11,7 +11,6 @@ use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaIzinKhusus;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\Peran;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -44,7 +43,8 @@ final class KelolaAksesAkun
         return DB::transaction(function () use ($penyunting, $akun, $isi, $dari, $sampai) {
             // Penugasan bersamaan ke akun yang sama tidak boleh sama-sama lolos cek ganda di bawah.
             Pengguna::query()->whereKey($akun->id)->lockForUpdate()->first();
-            $peran = Peran::query()->findOrFail($isi['peran_id']);
+            // Dikunci: penonaktifan peran yang bersamaan tidak bisa lolos dari cek status di bawah.
+            $peran = Peran::query()->lockForUpdate()->findOrFail($isi['peran_id']);
 
             if ($peran->bawaan_sistem) {
                 throw new ApiError(409, 'peran_bawaan_terkunci', 'Peran superadmin hanya diberikan lewat konsol server sampai persetujuan superadmin lain tersedia.');
@@ -57,7 +57,7 @@ final class KelolaAksesAkun
             }
             $ganda = PenggunaPeran::query()->where('pengguna_id', $akun->id)->where('peran_id', $peran->id)
                 ->where('cakupan_jenis', $isi['cakupan_jenis'])->whereNull('cakupan_id');
-            if ($this->masihAktif($ganda)->exists()) {
+            if ($ganda->masihAktif()->exists()) {
                 throw new ApiError(409, 'penugasan_ganda', 'Akun ini sudah punya penugasan aktif untuk peran dan cakupan yang sama.');
             }
 
@@ -127,7 +127,7 @@ final class KelolaAksesAkun
             Pengguna::query()->whereKey($akun->id)->lockForUpdate()->first();
             $ganda = PenggunaIzinKhusus::query()->where('pengguna_id', $akun->id)->where('efek', $isi['efek'])
                 ->where($kolomSasaran, $idSasaran);
-            if ($this->masihAktif($ganda)->exists()) {
+            if ($ganda->masihAktif()->exists()) {
                 throw new ApiError(409, 'pengecualian_ganda', 'Pengecualian yang sama untuk akun ini masih aktif.');
             }
 
@@ -238,20 +238,6 @@ final class KelolaAksesAkun
         }
 
         return [$dari, $sampai];
-    }
-
-    /**
-     * Status aktif dan belum lewat masanya (sedang atau akan berlaku).
-     *
-     * @template T of PemberianAkses
-     *
-     * @param  Builder<T>  $query
-     * @return Builder<T>
-     */
-    private function masihAktif($query)
-    {
-        return $query->where('status', 'aktif')
-            ->where(fn ($q) => $q->whereNull('berlaku_sampai')->orWhere('berlaku_sampai', '>', now()->format('Y-m-d H:i:s.uP')));
     }
 
     private function batalkan(PemberianAkses $pemberian, Pengguna $penyunting, string $alasan): void

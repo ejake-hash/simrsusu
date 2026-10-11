@@ -2,13 +2,13 @@
 
 namespace App\Modules\Akses\Http\Controllers;
 
+use App\Core\Database\Like;
 use App\Core\Http\Paginasi;
 use App\Modules\Akses\Application\KelolaPeran;
 use App\Modules\Akses\Application\PenjagaPenyunting;
 use App\Modules\Akses\Http\Resources\PeranResource;
 use App\Modules\Akses\Http\Resources\PeranRinciResource;
 use App\Modules\Akses\Models\Peran;
-use App\Modules\Sdm\Application\RingkasanPegawai;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -34,7 +34,7 @@ final class PeranController
         $query = Peran::query()->denganRingkasan()
             ->when($filter['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->when($filter['cari'] ?? null, function ($q, $cari) {
-                $pola = '%'.RingkasanPegawai::escapeLike($cari).'%';
+                $pola = Like::memuat($cari);
                 $q->where(fn ($q) => $q->whereRaw('kode ILIKE ?', [$pola])->orWhereRaw('nama ILIKE ?', [$pola]));
             });
 

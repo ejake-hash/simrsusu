@@ -2,6 +2,7 @@
 
 namespace App\Modules\Sdm\Application;
 
+use App\Core\Database\Like;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -36,12 +37,6 @@ final class RingkasanPegawai
      */
     public function idCocokNama(string $cari): Builder
     {
-        return Pegawai::query()->select('id')->whereRaw('nama ILIKE ?', ['%'.self::escapeLike($cari).'%']);
-    }
-
-    /** Wildcard LIKE di masukan pengguna dibaca sebagai huruf biasa. */
-    public static function escapeLike(string $teks): string
-    {
-        return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $teks);
+        return Pegawai::query()->select('id')->whereRaw('nama ILIKE ?', [Like::memuat($cari)]);
     }
 }

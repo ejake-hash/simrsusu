@@ -60,7 +60,8 @@ class PengaturanAkunTest extends TestCase
         $mfa = $this->buatPengguna();
         $mfa->forceFill(['mfa_rahasia_enkripsi' => Totp::rahasiaBaru(), 'mfa_aktif_pada' => now()])->save();
         $this->buatPengguna(['status' => 'nonaktif']);
-        $this->masukSebagai($this->pengelola());
+        $pengelola = $this->pengelola();
+        $this->masukSebagai($pengelola);
 
         $semua = $this->assertSesuaiKontrak($this->minta('GET', '/api/v1/akun')->assertOk(), 'GET', '/akun');
         $this->assertStringNotContainsString('"email"', (string) $semua->getContent());
@@ -75,7 +76,7 @@ class PengaturanAkunTest extends TestCase
         $this->assertSame([$siti->id], $this->minta('GET', '/api/v1/akun?cari=SITI.KAS')->json('data.*.id'));
         $this->assertSame([$siti->id], $this->minta('GET', "/api/v1/akun?peran_id={$peran->id}")->json('data.*.id'));
         $this->assertSame([$terkunci->id], $this->minta('GET', '/api/v1/akun?status=terkunci')->json('data.*.id'));
-        $this->assertSame([$mfa->id], $this->minta('GET', '/api/v1/akun?mfa=aktif')->json('data.*.id'));
+        $this->assertEqualsCanonicalizing([$mfa->id, $pengelola->id], $this->minta('GET', '/api/v1/akun?mfa=aktif')->json('data.*.id'));
         $this->assertNotContains($terkunci->id, $this->minta('GET', '/api/v1/akun?status=aktif')->json('data.*.id'));
 
         $halaman1 = $this->minta('GET', '/api/v1/akun?batas=2')->assertOk();
@@ -267,6 +268,12 @@ class PengaturanAkunTest extends TestCase
 
         $this->pakaiPeramban($perambanAkun);
         $this->minta('GET', '/api/v1/saya')->assertUnauthorized()->assertJsonPath('error.kode', 'sesi_dicabut');
+
+        // Sesi yang dimulai sesudah pencabutan tetap berlaku.
+        $akun->refresh()->forceFill(['wajib_mfa' => false])->save();
+        $this->masukSebagai($akun);
+        $this->minta('GET', '/api/v1/saya')->assertOk();
+        $akun->forceFill(['wajib_mfa' => true])->save();
 
         // Masuk lagi: harus mendaftar MFA dari jaringan RS dulu.
         $this->mulaiSesiSpa();

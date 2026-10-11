@@ -35,6 +35,9 @@ class HakAksesMenuTest extends TestCase
         parent::setUp();
 
         config(['menu.tampilkan_segera_hadir' => true]);
+        // Tes ini memakai Pengaturan sebagai contoh sub-menu yang sudah tersedia, bukan menguji izin
+        // sensitif; tanpa ini setiap pemegangnya wajib MFA (MenuBawaan::IZIN_SENSITIF, tiket 1.2c).
+        Izin::query()->whereIn('kode', MenuBawaan::IZIN_SENSITIF)->update(['sensitif' => false]);
     }
 
     public function test_akun_tanpa_penugasan_hanya_melihat_beranda_dan_master_data_ditolak(): void

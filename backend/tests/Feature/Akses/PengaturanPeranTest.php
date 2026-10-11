@@ -42,7 +42,10 @@ class PengaturanPeranTest extends TestCase
     {
         $pengguna = $this->buatPengguna();
         // Cukup salah satu izin lihat (peran ATAU akun).
-        $this->tugaskan($pengguna, $this->buatPeran(['pengaturan.akun']));
+        $peran = $this->buatPeran(['pengaturan.akun']);
+        DB::table('akses.peran_izin')->where('peran_id', $peran->id)
+            ->whereIn('izin_id', Izin::query()->where('kode', '<>', 'pengaturan.akun.lihat')->select('id'))->update(['status' => 'batal']);
+        $this->tugaskan($pengguna, $peran);
         Menu::query()->where('kode', 'igd.triase')->firstOrFail()->forceFill(['aktif' => false])->save();
         $this->masukSebagai($pengguna);
 
@@ -263,6 +266,44 @@ class PengaturanPeranTest extends TestCase
         $this->mintaDenganVersi('PUT', "/api/v1/peran/{$peran->id}/izin", $versi, [
             'izin' => ['kasir.tagihan.lihat', 'kasir.tagihan.perbaiki'], 'dasar_perubahan' => self::DASAR,
         ])->assertOk()->assertJsonPath('perubahan.dicabut', ['kasir.tagihan.input'])->assertJsonPath('data.wajib_mfa_terkunci', true);
+    }
+
+    public function test_izin_pengelola_akses_sensitif_tidak_bisa_dibagikan_dari_layar(): void
+    {
+        $peran = $this->buatPeran(['igd.papan']);
+        $akun = $this->buatPengguna();
+        $this->masukSebagai($this->pengelola());
+
+        // Lewat matriks peran.
+        $this->mintaDenganVersi('PUT', "/api/v1/peran/{$peran->id}/izin", (string) $peran->refresh()->revisi, [
+            'izin' => ['igd.papan.lihat', 'pengaturan.akun.lihat', 'pengaturan.akun.perbaiki'], 'dasar_perubahan' => self::DASAR,
+        ])->assertStatus(409)->assertJsonPath('error.kode', 'butuh_persetujuan')->assertJsonPath('error.rincian.0.kode', 'pengaturan.akun.perbaiki');
+        // Lewat salinan peran superadmin: hanya izin lihat yang ikut.
+        $salinan = $this->minta('POST', '/api/v1/peran', [
+            'kode' => 'salin_superadmin', 'nama' => 'Salinan superadmin', 'wajib_mfa' => false, 'salin_dari_id' => $this->superadmin()->id, 'dasar_perubahan' => self::DASAR,
+        ])->assertCreated();
+        $this->assertSame(['pengaturan.akun.lihat', 'pengaturan.peran.lihat'], $salinan->json('data.izin'));
+        // Lewat pengecualian per akun, dan peran yang memuatnya tidak bisa ditugaskan.
+        $this->minta('POST', "/api/v1/akun/{$akun->id}/izin-khusus", [
+            'efek' => 'tambah', 'sasaran_jenis' => 'izin', 'sasaran_kode' => 'pengaturan.peran.input', 'berlaku_sampai' => now()->addDay()->toIso8601String(),
+            'dasar_pemberian' => self::DASAR, 'alasan' => 'Bantu admin',
+        ])->assertStatus(409)->assertJsonPath('error.kode', 'butuh_persetujuan');
+        $pengelolaLain = Peran::query()->whereIn('id', DB::table('akses.peran_izin')->whereIn('izin_id',
+            Izin::query()->where('kode', 'pengaturan.peran.perbaiki')->select('id'))->select('peran_id'))->where('bawaan_sistem', false)->firstOrFail();
+        $this->minta('POST', "/api/v1/akun/{$akun->id}/penugasan", ['peran_id' => $pengelolaLain->id, 'cakupan_jenis' => 'rs', 'dasar_pemberian' => self::DASAR])
+            ->assertStatus(409)->assertJsonPath('error.kode', 'butuh_persetujuan');
+
+        // Pemegangnya wajib MFA dan sakelarnya terkunci.
+        $this->minta('GET', "/api/v1/peran/{$pengelolaLain->id}")->assertJsonPath('data.wajib_mfa_terkunci', true)->assertJsonPath('data.memuat_izin_sensitif', true);
+    }
+
+    public function test_versi_di_luar_rentang_integer_412_bukan_500(): void
+    {
+        $peran = $this->buatPeran(['igd.papan']);
+        $this->masukSebagai($this->pengelola());
+
+        $this->mintaDenganVersi('PATCH', "/api/v1/peran/{$peran->id}", '99999999999999999999', ['nama' => 'Baru', 'dasar_perubahan' => self::DASAR])
+            ->assertStatus(412)->assertJsonPath('error.kode', 'versi_berubah');
     }
 
     public function test_superadmin_terkunci_dan_mfa_tidak_bisa_dimatikan(): void

@@ -3,6 +3,7 @@
 namespace App\Modules\Akses\Http\Controllers;
 
 use App\Core\Audit\CatatAktivitas;
+use App\Core\Database\Like;
 use App\Core\Http\Paginasi;
 use App\Modules\Akses\Application\MenuSaya;
 use App\Modules\Akses\Http\Resources\AkunPresenter;
@@ -30,7 +31,7 @@ final class AkunController
 
         $query = Pengguna::query()
             ->when($filter['cari'] ?? null, fn ($q, $cari) => $q->where(fn ($q) => $q
-                ->whereRaw('nama_pengguna ILIKE ?', ['%'.RingkasanPegawai::escapeLike($cari).'%'])
+                ->whereRaw('nama_pengguna ILIKE ?', [Like::memuat($cari)])
                 ->orWhereIn('pegawai_id', $pegawai->idCocokNama($cari))))
             ->when($filter['status'] ?? null, fn ($q, $status) => match ($status) {
                 'terkunci' => $q->where('terkunci_sampai', '>', $sekarang),

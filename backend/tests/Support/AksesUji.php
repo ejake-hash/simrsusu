@@ -54,18 +54,29 @@ trait AksesUji
         return Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->firstOrFail();
     }
 
-    /** Pengelola akses tanpa MFA wajib (peran biasa yang memberi Pengaturan → Peran & izin, Akun & akses). */
+    /**
+     * Pengelola akses bukan superadmin: peran biasa yang memberi Pengaturan → Peran & izin, Akun & akses.
+     * Izin input/perbaiki-nya sensitif (MenuBawaan::IZIN_SENSITIF), jadi wajib MFA; dibuat langsung di DB
+     * karena dari layar pemberiannya butuh persetujuan (tiket 1.2d).
+     */
     protected function pengelola(): Pengguna
     {
         $pengguna = $this->buatPengguna();
+        $pengguna->forceFill(['mfa_rahasia_enkripsi' => Totp::rahasiaBaru(), 'mfa_aktif_pada' => now()])->save();
         $this->tugaskan($pengguna, $this->buatPeran(['pengaturan.peran', 'pengaturan.akun']));
 
         return $pengguna;
     }
 
-    /** Peramban baru lalu masuk dengan sandi, ditambah kode TOTP bila $rahasiaMfa diisi. */
+    /** Peramban baru lalu masuk dengan sandi, ditambah kode TOTP bila akun punya MFA. */
     protected function masukSebagai(Pengguna $pengguna, ?string $rahasiaMfa = null): void
     {
+        $pengguna->refresh();
+        if ($pengguna->mfaAktif()) {
+            $rahasiaMfa ??= (string) $pengguna->mfa_rahasia_enkripsi;
+            // Masuk berulang dalam satu periode TOTP: tanpa ini kode yang sama ditolak sebagai pakai ulang.
+            $pengguna->forceFill(['mfa_langkah_terakhir' => null])->save();
+        }
         $this->mulaiSesiSpa();
         $sandi = $this->minta('POST', '/api/v1/autentikasi/masuk', ['nama_pengguna' => $pengguna->nama_pengguna, 'sandi' => self::SANDI_UJI])->assertOk();
         if ($rahasiaMfa === null) {

@@ -66,7 +66,8 @@ final class Pengguna extends Authenticatable
 
     public function mfaAktif(): bool
     {
-        return $this->mfa_aktif_pada !== null && $this->mfa_rahasia_enkripsi !== null;
+        // Nilai mentah: daftar akun tidak perlu mendekripsi rahasia TOTP tiap baris.
+        return $this->mfa_aktif_pada !== null && ($this->getAttributes()['mfa_rahasia_enkripsi'] ?? null) !== null;
     }
 
     /**

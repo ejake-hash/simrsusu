@@ -6,7 +6,6 @@ use App\Core\Http\ApiError;
 use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaPeran;
-use App\Modules\Akses\Models\Peran;
 use Illuminate\Http\Request;
 
 /**
@@ -24,26 +23,24 @@ final class PenjagaPenyunting
         if ($penyunting->id === $akun->id) {
             throw new ApiError(403, 'diri_sendiri', 'Perubahan akses akun sendiri dilakukan superadmin lain.');
         }
-        if ($this->superadmin($akun) && ! $this->superadmin($penyunting)) {
+        // Akun: termasuk penugasan yang akan berlaku. Penyunting: hanya yang berlaku sekarang.
+        if ($this->superadmin($akun, termasukMasaDepan: true) && ! $this->superadmin($penyunting, termasukMasaDepan: false)) {
             throw new ApiError(403, 'akun_superadmin', 'Akses akun superadmin hanya diubah oleh superadmin lain.');
         }
     }
 
-    /** Memegang peran superadmin yang sedang atau akan berlaku. */
-    public function superadmin(Pengguna $pengguna): bool
+    public function superadmin(Pengguna $pengguna, bool $termasukMasaDepan): bool
     {
-        $peranId = Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->value('id');
+        $query = PenggunaPeran::query()->where('pengguna_id', $pengguna->id)
+            ->whereHas('peran', fn ($peran) => $peran->where('kode', MenuBawaan::PERAN_SUPERADMIN));
 
-        return $peranId !== null && $this->memegangPeran($pengguna, $peranId);
+        return ($termasukMasaDepan ? $query->masihAktif() : $query->berlaku())->exists();
     }
 
     /** Penugasan aktif yang sedang atau akan berlaku; yang sudah lewat masanya tidak dihitung. */
     public function memegangPeran(Pengguna $pengguna, string $peranId): bool
     {
-        return PenggunaPeran::query()->where('pengguna_id', $pengguna->id)->where('peran_id', $peranId)
-            ->where('status', 'aktif')
-            ->where(fn ($q) => $q->whereNull('berlaku_sampai')->orWhere('berlaku_sampai', '>', now()->format('Y-m-d H:i:s.uP')))
-            ->exists();
+        return PenggunaPeran::query()->where('pengguna_id', $pengguna->id)->where('peran_id', $peranId)->masihAktif()->exists();
     }
 
     public function pastikanBukanPeranSendiri(Pengguna $penyunting, string $peranId): void

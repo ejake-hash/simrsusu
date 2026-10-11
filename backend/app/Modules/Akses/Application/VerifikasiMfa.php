@@ -125,8 +125,9 @@ final class VerifikasiMfa
         }
 
         return DB::update(
+            // MFA yang direset admin bersamaan (tiket 1.2c) membuat baris ini tidak cocok lagi setelah commit.
             'UPDATE akses.pengguna SET mfa_langkah_terakhir = ?
-              WHERE id = ? AND (mfa_langkah_terakhir IS NULL OR mfa_langkah_terakhir < ?)',
+              WHERE id = ? AND mfa_aktif_pada IS NOT NULL AND (mfa_langkah_terakhir IS NULL OR mfa_langkah_terakhir < ?)',
             [$langkah, $pengguna->id, $langkah],
         ) === 1;
     }
@@ -146,6 +147,7 @@ final class VerifikasiMfa
             $terpakai = DB::table('akses.kode_cadangan_mfa')
                 ->where('id', $baris->id)
                 ->whereNull('dipakai_pada')
+                ->whereNull('dibatalkan_pada')
                 ->update(['dipakai_pada' => now()]) === 1;
 
             if ($terpakai) {

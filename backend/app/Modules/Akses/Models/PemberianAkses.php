@@ -59,6 +59,17 @@ abstract class PemberianAkses extends Model
             ->where(fn (Builder $q) => $q->whereNull('berlaku_sampai')->orWhere('berlaku_sampai', '>', $waktu));
     }
 
+    /**
+     * Status aktif dan belum lewat masanya: sedang atau akan berlaku.
+     *
+     * @param  Builder<static>  $query
+     */
+    public function scopeMasihAktif(Builder $query): void
+    {
+        $query->where('status', 'aktif')
+            ->where(fn (Builder $q) => $q->whereNull('berlaku_sampai')->orWhere('berlaku_sampai', '>', now()->format('Y-m-d H:i:s.uP')));
+    }
+
     public function cakupan(): Cakupan
     {
         return new Cakupan($this->cakupan_jenis, $this->cakupan_id);
