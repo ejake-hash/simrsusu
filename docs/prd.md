@@ -6,13 +6,13 @@
 
 | Atribut | Nilai |
 |---|---|
-| Versi dokumen | 0.10.8 |
-| Tanggal | 10 Oktober 2026 |
+| Versi dokumen | 0.10.9 |
+| Tanggal | 11 Oktober 2026 |
 | Penyusun | Eza (Karyasistemnusantara) · disusun bersama Claude |
 | Sumber konteks | Lampiran 1 *Visual Layar SIMRS* (15 layar), Lampiran 2 *Visual Dasbor Berjenjang* (7 dasbor + contoh kewenangan), HTML *Dasbor Berjenjang Karsitara*, *Pedoman Identitas USU* (2021) dan folder Logo |
 | Tech stack | Laravel 12 (PHP 8.3+) · Vue 3 + TypeScript · PostgreSQL 16 · Valkey (kompatibel Redis) · Laravel Reverb |
 | Status | **Produk generik** (3.4). Fase 0 mode produk selesai dengan satu gerbang tertunda: uji SUS (16.1). Keputusan yang biasanya diambil RS dicatat sebagai keputusan produk di 17.2 dan dikonfirmasi tiap RS saat implementasi |
-| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · v0.10.1 hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) · v0.10.2 kontrak autentikasi dan MFA (10.3.2) · v0.10.3 header Retry-After (10.3.2) · v0.10.4 nama modul bahasa Indonesia (10.3, 10.4, D.3), menu *Segera hadir* (10.4), alur kerja per halaman (D.5) · v0.10.5 keputusan basis data dan Valkey (10.1), pendaftaran MFA hanya dari jaringan RS (10.3.2), superadmin pertama lewat konsol (FR-54-08) · v0.10.6 responsif dan perangkat (5.5), DoD uji kelas layar (D.7) · v0.10.7 ketahanan beban (14.1.1), DoD endpoint daftar (D.7) · **v0.10.8** siapa wajib MFA dan batas kewenangan admin (10.3.2); kontrak API pertama di `docs/api/openapi.yaml` |
+| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · v0.10.1 hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) · v0.10.2 kontrak autentikasi dan MFA (10.3.2) · v0.10.3 header Retry-After (10.3.2) · v0.10.4 nama modul bahasa Indonesia (10.3, 10.4, D.3), menu *Segera hadir* (10.4), alur kerja per halaman (D.5) · v0.10.5 keputusan basis data dan Valkey (10.1), pendaftaran MFA hanya dari jaringan RS (10.3.2), superadmin pertama lewat konsol (FR-54-08) · v0.10.6 responsif dan perangkat (5.5), DoD uji kelas layar (D.7) · v0.10.7 ketahanan beban (14.1.1), DoD endpoint daftar (D.7) · v0.10.8 siapa wajib MFA dan batas kewenangan admin (10.3.2); kontrak API pertama di `docs/api/openapi.yaml` · **v0.10.9** penyelarasan dengan implementasi hak akses tiket 1.2a: format kode menu dan izin (9.1), letak Akun & Peran di Pengaturan Sistem (9.1), aturan layar peran dan akun (9.3), kolom tabel `akses` (11.2) |
 
 > **Konvensi penandaan sumber**
 > - **[K]** = fitur/aturan tertulis eksplisit di dokumen konteks (Lampiran 1/2/HTML).
@@ -1454,7 +1454,7 @@ Persyaratan teknis: refresh terjadwal (mis. 07.00 WIB harian + near-real-time un
 ## 9. Struktur Menu dan Pengaturan Menu per Akun
 
 ### 9.1 Pohon menu lengkap
-Menu disimpan di tabel `akses.menu` (bukan hard-coded), tiga tingkat: **grup** (huruf kapital di bawah), **menu**, dan **sub-menu**. Setiap sub-menu punya kode izin `menu.<modul>.<sub_menu>` (misal `menu.farmasi.telaah_resep`), dan sub-menu adalah unit terkecil yang diberikan superadmin (9.2). Sidebar dirender dari API `GET /api/v1/saya/menu` yang hanya mengembalikan sub-menu yang boleh diakses.
+Menu disimpan di tabel `akses.menu` (bukan hard-coded), tiga tingkat: **grup** (huruf kapital di bawah), **menu**, dan **sub-menu**. Setiap item punya **kode stabil** `<menu>.<sub_menu>` (misal `farmasi.telaah_resep`; menu tanpa sub-menu cukup `<menu>`, misal `beranda`; bagian `<menu>.<sub_menu>.<bagian>`), dipakai rute frontend dan pohon hak akses. **Kode izin aksi** = kode sub-menu atau bagian + jenis aksi: `<menu>.<sub_menu>.<aksi>` (misal `farmasi.telaah_resep.sahkan`, `pengaturan.akun.perbaiki`), dan inilah yang diperiksa server (`can:<kode izin>`) serta dikirim ke frontend untuk `v-can`. Kode ditulis snake_case bahasa Indonesia dan tidak diubah setelah dipakai peran; mengganti label tidak mengganti kode. Sub-menu dan bagian adalah unit terkecil yang diberikan superadmin (9.2). Sidebar dirender dari API `GET /api/v1/saya/menu` yang hanya mengembalikan sub-menu yang boleh diakses.
 
 ```
 BERANDA
@@ -1583,7 +1583,7 @@ MASTER DATA
  └─ Template Formulir RME                                    [26, 54]
 
 PENGATURAN SISTEM
- ├─ Pengguna & Akun                                          [54]
+ ├─ Akun & Akses                                             [54]
  ├─ Peran & Izin                                             [54]
  ├─ Pengaturan Menu                                          [54]
  ├─ Jejak Audit                                              [54]
@@ -1695,6 +1695,14 @@ akses(akun, sub_menu, bagian, aksi, data) =
 - **Antrean persetujuan** untuk aksi sensitif dan perubahan peran superadmin.
 - **Permintaan akses** dari pengguna (diajukan dari layar "Akses ditolak" dengan satu klik), diteruskan ke pemberi kewenangan.
 - **Urutan dan label menu** dapat disesuaikan per peran (misal perawat IGD: IGD paling atas), plus **menu favorit** per pengguna. Penyesuaian ini hanya tampilan, tidak mengubah hak akses.
+- **Aturan layar Peran & Izin dan Akun & Akses** (v0.10.9, dari tinjauan heuristik prototipe `masterdata.html`, temuan MD-1…MD-4):
+  - **Matriks disunting per peran**, bukan semua peran sebagai kolom: baris = pohon menu, kolom = aksi (*lihat, input, perbaiki* + aksi khusus yang terdaftar untuk node itu). Alasan: puluhan peran sebagai kolom tidak terbaca di kelas layar 1024 px (5.5). Perbandingan dua peran berdampingan adalah fitur terpisah.
+  - **Tingkat lihat → input → perbaiki** di layar adalah jalan pintas; yang disimpan tetap izin per aksi. Aksi apa pun pada sebuah node mensyaratkan *lihat* pada node itu, dan bagian mensyaratkan sub-menu induknya diberikan; sel bagian dinonaktifkan selama induknya belum diberikan (MD-3).
+  - **Menyimpan perubahan peran wajib mencantumkan dasar perubahan** (nomor SK/memo/persetujuan) dan menampilkan ringkasan sebelum simpan: izin yang ditambah, yang dicabut, dan jumlah akun terdampak (MD-2). Dua admin yang menyunting peran yang sama tidak saling menimpa (versi/ETag).
+  - **Mengakhiri pencabutan atau pemberian per akun bukan tombol hapus**: wajib alasan, dialog konfirmasi menyebut akibatnya (misal "akses *Tutup kasir* kembali sesuai peran"), dan barisnya tetap ada sebagai riwayat berstatus batal (MD-1).
+  - **Tombol persetujuan hanya untuk penyetuju yang ditunjuk** (pemilik data/pejabat PDP); superadmin tidak melihat tombol *Setujui* atas permintaan yang bukan kewenangannya (MD-4, 9.2.4).
+  - Superadmin tidak bisa mengubah penugasan, pemberian per akun, atau MFA akunnya sendiri, dan tidak bisa mengubah isi peran yang sedang ia pegang.
+  - **Wajib MFA** dapat dinyalakan per peran atau per akun dan **MFA akun dapat direset** (dengan alasan dan dasar; akun mendaftar ulang dari jaringan RS, sesi berjalannya diputus). Admin tidak dapat membebaskan MFA bagi superadmin, peran yang memuat izin sensitif, maupun akses dari luar jaringan RS (10.3.2); layar menampilkan sumber kewajiban MFA tiap akun.
 
 | ID | Kebutuhan | Prio | Sumber |
 |---|---|---|---|
@@ -2045,14 +2053,15 @@ Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis
 #### `akses` — akun, peran, menu, akses
 | Tabel | Kolom utama |
 |---|---|
-| `pengguna` | id, pegawai_id, peserta_didik_id, nama_pengguna, surel, sandi_hash, mfa_rahasia_enkripsi, status, login_terakhir_pada, terkunci_sampai |
-| `peran` | id, kode (R-DPJ, …), nama, uraian, bawaan_sistem |
-| `izin` | id, kode (`farmasi.resep.sahkan_telaah`), menu_id (sub-menu tempat aksi berada), jenis_aksi (lihat/input/perbaiki/sahkan/verifikasi/setujui/batal/ekspor/cetak/lihat_rupiah), uraian, sensitif, butuh_mfa, butuh_kewenangan_klinis |
+| `pengguna` | id, pegawai_id, peserta_didik_id, nama_pengguna, surel, sandi_hash, status, login_terakhir_pada, percobaan_gagal, terkunci_sampai, mfa_rahasia_enkripsi, mfa_aktif_pada, mfa_langkah_terakhir, wajib_mfa (kewajiban MFA tingkat akun, di samping yang diturunkan dari peran) |
+| `kode_cadangan_mfa` | id, pengguna_id, kode_hash (Argon2id), dipakai_pada, dibatalkan_pada (diisi saat kode baru dibuat atau MFA direset) |
+| `peran` | id, kode (snake_case, mis. `superadmin`, `dokter`), nama, uraian, bawaan_sistem, wajib_mfa (superadmin selalu `true`, dijaga constraint), status (aktif/nonaktif) |
+| `izin` | id, kode (`<menu>.<sub_menu>.<aksi>`, mis. `farmasi.telaah_resep.sahkan`), menu_id (sub-menu tempat aksi berada), jenis_aksi (lihat/input/perbaiki/sahkan/verifikasi/setujui/batal/ekspor/cetak/lihat_rupiah), uraian, sensitif, butuh_mfa, butuh_kewenangan_klinis |
 | `peran_izin` | peran_id, izin_id, disetujui_oleh (untuk izin sensitif), disetujui_pada |
-| `pengguna_peran` | id, pengguna_id, peran_id, cakupan_jenis (rs/unit/ruang/poli/ksm/depo/pasien_dirawat), cakupan_id, berlaku_dari, berlaku_sampai, dasar_pemberian (no SK/surat tugas/persetujuan), diberikan_oleh, disetujui_oleh, alasan, status |
-| `pengguna_izin_khusus` | id, pengguna_id, izin_id atau menu_id (sub-menu atau bagian), efek (tambah/cabut), berlaku_sampai (wajib untuk yang sensitif), dasar_pemberian, diberikan_oleh, disetujui_oleh, alasan |
-| `menu` | id, induk_id, tingkat (grup/menu/sub_menu/bagian), kode, label, ikon, rute, modul_no, urutan, ikut_induk, aktif |
-| `peran_menu` | peran_id, menu_id (sub-menu), tingkat_akses (lihat/input/perbaiki), urutan_khusus, label_khusus |
+| `pengguna_peran` | id, pengguna_id, peran_id, cakupan_jenis (rs/unit/ruang/poli/ksm/depo/pasien_dirawat), cakupan_id, berlaku_dari, berlaku_sampai, dasar_pemberian (no SK/surat tugas/persetujuan), diberikan_oleh, disetujui_oleh, alasan, status (aktif/batal), alasan_batal, dibatalkan_oleh, dibatalkan_pada. Tidak pernah dihapus; diakhiri lewat status atau berlaku_sampai |
+| `pengguna_izin_khusus` | id, pengguna_id, izin_id atau menu_id (tepat satu; sub-menu atau bagian), efek (tambah/cabut), cakupan_jenis, cakupan_id, berlaku_dari, berlaku_sampai (wajib untuk yang sensitif), dasar_pemberian, diberikan_oleh, disetujui_oleh, alasan, status (aktif/batal), alasan_batal, dibatalkan_oleh, dibatalkan_pada |
+| `menu` | id, induk_id, tingkat (grup/menu/sub_menu/bagian), kode (9.1), label, ikon, rute, modul_no, fase (rencana, untuk *Segera hadir*), urutan, tersedia (halaman sudah dibangun di versi ini; diisi pengembang), selalu_tampil (Beranda), ikut_induk, aktif (dinonaktifkan admin) |
+| `peran_menu` | peran_id, menu_id (sub-menu atau bagian; diturunkan dari izin *lihat* peran), urutan_khusus, label_khusus (personalisasi tampilan 9.3, menyusul). Tingkat lihat/input/perbaiki **tidak** disimpan di sini: sumbernya `peran_izin` |
 | `label_sensitivitas` | id, kode (hiv/psikiatri/kekerasan_seksual/genetik/privasi_tinggi), uraian, butuh_relasi_perawatan |
 | `pengguna_label` | pengguna_id, label_sensitivitas_id, berlaku_sampai, disetujui_oleh (pejabat PDP) |
 | `admin_delegasi` | id, pengguna_id, cakupan_unit_id, peran_boleh_ditugaskan jsonb, berlaku_sampai, ditetapkan_oleh |
@@ -2828,6 +2837,7 @@ Setiap baris berisi keputusan produk (berlaku sekarang), bagian yang dibuat konf
 | 18 | Logbook pendidikan | Pseudonim bawaan; templat DPIA disediakan | Aturan pseudonim | Penetapan pejabat PDP RS |
 | 19 | Logo RS | Paket identitas per instalasi (3.4); logo RS USU hanya untuk instalasi/uji RS USU | Logo, kop | Berkas vektor dan izin pemakaian |
 | 20 | HEX pedoman USU | Tetap memakai nilai hasil render (5.3.2) untuk paket RS USU | Warna paket | Konfirmasi Humas USU |
+| 21 | Letak Akun & Peran di menu | Di **Pengaturan Sistem** (9.1: `pengaturan.akun`, `pengaturan.peran`, `pengaturan.audit`), bukan di Master Data seperti prototipe `masterdata.html`. Master Data untuk data rujukan dengan alur usulan pemilik data; pengaturan akun dan peran adalah administrasi keamanan instalasi | Label menu | — |
 
 ---
 
