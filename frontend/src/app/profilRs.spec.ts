@@ -11,6 +11,7 @@ describe('profilRsDariEnv', () => {
         VITE_RS_FOTO: '/foto/rs.webp',
         VITE_RS_UNIT_ADMIN: 'Instalasi SIMRS',
         VITE_RS_KONTAK_ADMIN: 'ext. 1234',
+        VITE_INSTALASI_DEMO: 'true',
       }),
     ).toEqual({
       nama: 'RS Contoh',
@@ -19,6 +20,7 @@ describe('profilRsDariEnv', () => {
       foto: '/foto/rs.webp',
       unitAdmin: 'Instalasi SIMRS',
       kontakAdmin: 'ext. 1234',
+      demo: true,
     })
   })
 
@@ -30,6 +32,7 @@ describe('profilRsDariEnv', () => {
       foto: null,
       unitAdmin: 'admin SIMRS',
       kontakAdmin: null,
+      demo: false,
     })
   })
 })

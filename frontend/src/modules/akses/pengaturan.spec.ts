@@ -15,6 +15,7 @@ import { indeksPohon } from './matriks'
 import { uid } from './tiruan/dataPengaturan'
 import { pasangTiruan } from './tiruan/pasangTiruan'
 import { buatServerTiruan, ID_SUPERADMIN, type ServerTiruan } from './tiruan/serverTiruan'
+import { penggunaTiruan } from './tiruan/pengguna'
 
 const adapterAsli = klien.defaults.adapter
 const KASIR = uid(105)
@@ -289,7 +290,7 @@ describe('HalamanModul (gerbang halaman sub-menu)', () => {
     return defineComponent({ render: () => h(HalamanModul, { izin: 'pengaturan.peran.lihat', judul: 'Peran & izin', kelasTerbatas: true }, { default: () => h('p', 'isi rahasia') }) })
   }
   beforeEach(() => {
-    useSesiStore().pengguna = { id: ID_SUPERADMIN, nama_pengguna: 'contoh.superadmin', email: null, login_terakhir_pada: null, mfa_aktif: true, pegawai: null }
+    useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'contoh.superadmin', mfa_aktif: true })
   })
 
   it('dengan izin lihat: judul, navigasi sub-menu saudara, dan isi', async () => {

@@ -29,6 +29,8 @@ const izin = ref<Set<string>>(new Set())
 const sorot = ref<Set<string>>(new Set())
 const pesan = ref<string | null>(null)
 const errorEditor = ref<string | null>(null)
+/** Akibat penggabungan dengan versi terbaru yang perlu diperiksa sebelum simpan. */
+const peringatan = ref<string | null>(null)
 /** Versi server yang lebih baru dari dasar sementara ada suntingan (412, atau muat ulang latar). */
 const bentrok = ref<PeranBerversi | null>(null)
 
@@ -40,6 +42,7 @@ function terapkanDasar(b: PeranBerversi, izinBaru: Set<string>) {
   izin.value = izinBaru
   sorot.value = new Set()
   errorEditor.value = null
+  peringatan.value = null
   bentrok.value = null
 }
 
@@ -104,7 +107,7 @@ async function simpan(isian: { dasar_perubahan: string; alasan: string | null })
     void qc.invalidateQueries({ queryKey: KUNCI.daftarPeran })
     void qc.invalidateQueries({ queryKey: KUNCI.daftarAkun })
     // Menu "Lihat sebagai" akun pemegang peran ini ikut berubah.
-    void qc.invalidateQueries({ queryKey: ['pengaturan', 'akun'] })
+    void qc.invalidateQueries({ queryKey: KUNCI.semuaAkun })
     const p = hasil.perubahan
     pesan.value = `Izin ${hasil.peran.nama} tersimpan: ${p.ditambah.length} ditambah, ${p.dicabut.length} dicabut, ${p.akun_terdampak} akun terdampak.`
     dialogSimpan.value = false
@@ -177,7 +180,7 @@ function terapkanDiAtasTerbaru() {
   const dilepas = periksa(props.indeks, baru).map((m) => m.kode)
   dilepas.forEach((k) => baru.delete(k))
   terapkanDasar(b, baru)
-  if (dilepas.length) pesan.value = `Dilepas karena lihat atau induknya dicabut di versi terbaru: ${dilepas.map((k) => labelIzin(props.indeks, k)).join('; ')}.`
+  if (dilepas.length) peringatan.value = `Dilepas karena lihat atau induknya dicabut di versi terbaru: ${dilepas.map((k) => labelIzin(props.indeks, k)).join('; ')}. Periksa sebelum menyimpan.`
 }
 function pakaiTerbaru() {
   const b = bentrok.value
@@ -261,6 +264,10 @@ function infoSelesai(hasil: PeranBerversi) {
         <p v-if="pesan" class="catatan catatan-info" role="status">
           <Ikon nama="centang" :ukuran="16" />
           <span>{{ pesan }}</span>
+        </p>
+        <p v-if="peringatan" class="catatan catatan-peringatan" role="alert">
+          <Ikon nama="peringatan" :ukuran="16" />
+          <span>{{ peringatan }}</span>
         </p>
         <p v-if="errorEditor" class="catatan catatan-bahaya" role="alert">
           <Ikon nama="peringatan" :ukuran="16" />

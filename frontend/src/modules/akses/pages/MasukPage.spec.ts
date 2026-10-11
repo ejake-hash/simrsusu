@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { ApiError } from '@/shared/api/klien'
 import { ambilSaya, kirimSandi } from '../api'
 import MasukPage from './MasukPage.vue'
+import { penggunaTiruan } from '@/modules/akses/tiruan/pengguna'
 
 vi.mock('../api', () => ({ kirimSandi: vi.fn(), ambilSaya: vi.fn(), keluar: vi.fn(), kirimKodeMfa: vi.fn(), mintaRahasiaMfa: vi.fn(), konfirmasiDaftarMfa: vi.fn() }))
 
@@ -32,14 +33,7 @@ async function kirim(w: Awaited<ReturnType<typeof pasang>>['w']) {
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.mocked(kirimSandi).mockReset()
-  vi.mocked(ambilSaya).mockReset().mockResolvedValue({
-    id: 'p-1',
-    nama_pengguna: 'contoh.dokter',
-    email: null,
-    login_terakhir_pada: null,
-    mfa_aktif: false,
-    pegawai: { id: 'g-1', nama: 'Contoh Dokter' },
-  })
+  vi.mocked(ambilSaya).mockReset().mockResolvedValue(penggunaTiruan({ pegawai: { id: 'g-1', nama: 'Contoh Dokter' } }))
 })
 
 describe('MasukPage (mesin status PRD 10.3.2)', () => {

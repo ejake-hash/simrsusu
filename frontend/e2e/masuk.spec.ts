@@ -14,7 +14,8 @@ test.beforeAll(() => {
 })
 
 /** Judul beranda menyebut nama pegawai; header menyembunyikan nama di layar sempit. */
-const sapaan = (page: Page, pegawai: string) => page.getByRole('heading', { level: 1, name: `Selamat datang, ${pegawai}` })
+// Salam Beranda mengikuti jam perangkat (pagi/siang/sore/malam).
+const sapaan = (page: Page, pegawai: string) => page.getByRole('heading', { level: 1, name: new RegExp(`^Selamat (pagi|siang|sore|malam), ${pegawai}$`) })
 
 async function isiLewatKeyboard(page: Page, nama: string, sandi: string) {
   await expect(page.getByLabel('Nama pengguna')).toBeFocused()

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { profilRsDariEnv } from '@/app/profilRs'
+import PitaDemo from './PitaDemo.vue'
 
 const profilRs = profilRsDariEnv()
 </script>
 
 <template>
-  <div class="halaman">
+  <div class="halaman" :class="{ 'dengan-pita': profilRs.demo }">
+    <PitaDemo v-if="profilRs.demo" class="pita" />
     <main class="panel-form">
       <div class="atas">
         <img class="logo-produk" src="/logo/karsitara.png" alt="Karsitara" width="160" height="28" />
@@ -72,6 +74,13 @@ const profilRs = profilRsDariEnv()
   flex-direction: column;
   min-width: 0;
   padding: var(--space-8) 48px;
+}
+/* Pita demo = baris sendiri selebar halaman, di atas kolom form dan panel merek. */
+.dengan-pita {
+  grid-template-rows: auto 1fr;
+}
+.pita {
+  grid-column: 1 / -1;
 }
 .atas {
   display: flex;

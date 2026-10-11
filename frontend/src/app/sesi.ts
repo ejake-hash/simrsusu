@@ -35,6 +35,19 @@ export const useSesiStore = defineStore('sesi', () => {
     pesanBerakhir.value = null
   }
 
+  /**
+   * Muat ulang data akun tanpa mengganggu layar (Beranda: masuk terakhir selain sesi ini dihitung server per
+   * permintaan). Gagal jaringan/5xx diabaikan dan data lama dipakai; 401 berarti sesi sudah berakhir.
+   */
+  async function segarkan(): Promise<void> {
+    if (!pengguna.value) return
+    try {
+      pengguna.value = await ambilSaya()
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) akhiri(error)
+    }
+  }
+
   /** Dipanggil saat server menjawab 401 di luar langkah masuk. */
   function akhiri(error: ApiError): void {
     pengguna.value = null
@@ -51,5 +64,5 @@ export const useSesiStore = defineStore('sesi', () => {
     }
   }
 
-  return { pengguna, sudahDicek, pesanBerakhir, pastikan, muatSetelahMasuk, akhiri, keluar }
+  return { pengguna, sudahDicek, pesanBerakhir, pastikan, muatSetelahMasuk, segarkan, akhiri, keluar }
 })

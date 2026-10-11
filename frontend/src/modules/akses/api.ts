@@ -6,13 +6,18 @@ import type { IsianSandi } from './validasi'
 
 export type { GrupMenu, Menu, MenuSaya, StatusMenu, SubMenu } from './tipeMenu'
 
+/** GET /saya (docs/api/openapi.yaml v0.2.3 → Saya); juga `pengguna` di respons masuk. */
 export interface Pengguna {
   id: string
   nama_pengguna: string
-  email: string | null
   login_terakhir_pada: string | null
   mfa_aktif: boolean
   pegawai: { id: string; nama: string } | null
+  /** Peran dengan penugasan yang berlaku sekarang, urut nama; kosong = belum ada modul. */
+  peran: { id: string; nama: string }[]
+  /** Masuk berhasil terakhir selain sesi ini (juga dari perangkat lain sesudah sesi dibuka); null = tidak ada catatan. */
+  masuk_sebelumnya_pada: string | null
+  masuk_sebelumnya_dari_jaringan_rs: boolean | null
 }
 
 export interface RahasiaMfa {

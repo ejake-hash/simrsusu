@@ -3,7 +3,7 @@ import type { AkunRinci, CakupanJenis, IzinKhusus, IzinNode, NodeMenu, Penugasan
 import { buatPohon, izinMenu, uid } from './dataPengaturan'
 
 /**
- * Server tiruan kontrak docs/api/openapi.yaml v0.2.2 (tiket 1.2c) sampai 1.2c-be merge: menyimpan keadaan di
+ * Server tiruan kontrak docs/api/openapi.yaml v0.2.3 (tiket 1.2c) sampai 1.2c-be merge: menyimpan keadaan di
  * memori dan meniru aturan yang tertulis di kontrak, termasuk error 403/409/412/422/428. Dipakai unit test,
  * e2e (page.route), dan `vite` dev dengan VITE_API_TIRUAN=true; tidak masuk build produksi.
  * Bukan sumber aturan: bila berbeda dengan kontrak atau backend, kontrak yang berlaku.
@@ -307,7 +307,19 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
 
     if (m === 'GET' && r.jalur === '/saya') {
       const a = akun.get(penggunaId)!
-      return ok({ data: { id: a.id, nama_pengguna: a.nama_pengguna, email: null, login_terakhir_pada: a.login_terakhir_pada, mfa_aktif: a.mfa_aktif_pada !== null, pegawai: { id: uid(9000), nama: a.nama } } })
+      const peranSaya = peranBerlaku(a).map((p) => ({ id: p.id, nama: p.nama })).sort((x, y) => x.nama.localeCompare(y.nama))
+      return ok({
+        data: {
+          id: a.id,
+          nama_pengguna: a.nama_pengguna,
+          login_terakhir_pada: a.login_terakhir_pada,
+          mfa_aktif: a.mfa_aktif_pada !== null,
+          pegawai: { id: uid(9000), nama: a.nama },
+          peran: peranSaya,
+          masuk_sebelumnya_pada: '2026-10-09T23:48:00.000Z',
+          masuk_sebelumnya_dari_jaringan_rs: true,
+        },
+      })
     }
     if (m === 'GET' && r.jalur === '/saya/menu') return ok({ data: menuEfektif(akun.get(penggunaId)!) })
     if (m === 'POST' && r.jalur === '/autentikasi/keluar') return ok(null, 204)
