@@ -66,13 +66,15 @@ return [
 
         // Antrean per jenis: App\Core\Antrean\JenisAntrean dan supervisor di config/horizon.php.
         // retry_after harus lebih lama dari batas waktu terpanjang jenis di koneksi itu.
+        // after_commit: pekerjaan yang dikirim di dalam transaksi baru masuk antrean setelah commit,
+        // dan dibuang bila transaksi batal, supaya pekerja tidak membaca data yang belum/tidak tersimpan.
         'redis' => [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'bawaan'),
             'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 150),
             'block_for' => null,
-            'after_commit' => false,
+            'after_commit' => true,
         ],
 
         'redis-laporan' => [
@@ -81,7 +83,7 @@ return [
             'queue' => 'laporan',
             'retry_after' => 960,
             'block_for' => null,
-            'after_commit' => false,
+            'after_commit' => true,
         ],
 
         'deferred' => [

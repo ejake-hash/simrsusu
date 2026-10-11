@@ -174,6 +174,20 @@ class InfrastrukturTest extends TestCase
         $this->assertSame('noeviction', $this->kebijakanMemori($this->storeCacheRedis()->lockConnection()));
     }
 
+    /**
+     * PRD 14.1.1 butir 6–7: penghitung batas laju dan kunci nama fiktif (MasukPengguna) tidak boleh
+     * dibuang saat memori cache penuh. Tes sendiri memakai store `array` (CACHE_LIMITER_STORE di
+     * phpunit.xml), jadi yang diperiksa adalah nilai bawaan config/cache.php yang dipakai di luar tes.
+     */
+    public function test_penghitung_batas_laju_di_instans_noeviction(): void
+    {
+        $limiter = $this->tanpaEnv('CACHE_LIMITER_STORE', fn () => (require config_path('cache.php'))['limiter']);
+
+        $store = Cache::store($limiter)->getStore();
+        $this->assertInstanceOf(RedisStore::class, $store, "Store limiter '$limiter' harus di Valkey.");
+        $this->assertSame('noeviction', $this->kebijakanMemori($store->connection()));
+    }
+
     public function test_cache_di_instans_allkeys_lru(): void
     {
         $this->assertSame('allkeys-lru', $this->kebijakanMemori($this->storeCacheRedis()->connection()));
@@ -185,6 +199,29 @@ class InfrastrukturTest extends TestCase
         $this->assertInstanceOf(RedisStore::class, $store);
 
         return $store;
+    }
+
+    /** Menjalankan $baca seolah variabel lingkungan $nama tidak diset, lalu memulihkannya. */
+    private function tanpaEnv(string $nama, callable $baca): mixed
+    {
+        $semula = [getenv($nama), $_ENV[$nama] ?? null, $_SERVER[$nama] ?? null];
+        putenv($nama);
+        unset($_ENV[$nama], $_SERVER[$nama]);
+
+        try {
+            return $baca();
+        } finally {
+            [$env, $envSuper, $server] = $semula;
+            if ($env !== false) {
+                putenv("$nama=$env");
+            }
+            if ($envSuper !== null) {
+                $_ENV[$nama] = $envSuper;
+            }
+            if ($server !== null) {
+                $_SERVER[$nama] = $server;
+            }
+        }
     }
 
     private function kebijakanMemori(Connection $koneksi): string

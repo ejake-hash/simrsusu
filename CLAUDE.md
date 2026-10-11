@@ -28,6 +28,12 @@ Beberapa sesi (orang atau agen) bisa bekerja bersamaan di mesin yang sama. Atura
    Jangan memakai `simrs_test` (bawaan CI dan folder utama) atau database tes worktree lain. Jangan `docker compose down -v`: volume Postgres dipakai bersama.
 3. **Sebelum stash, checkout, atau reset: jalankan `git status` dan `git worktree list`**, lalu sentuh hanya berkas tiket sendiri. Stash dipakai bersama oleh semua worktree dan bisa ikut menelan perubahan staged milik sesi lain.
 4. **Node lokal mengikuti `.nvmrc` (24)**, sama dengan CI.
+5. **Tiket selesai = sudah bersih.** Setelah PR merge dan CI `main` hijau:
+   - `git worktree remove <jalur lengkap>`, `git branch -D <branch>`, dan hapus branch remote (`git push origin --delete <branch>`);
+   - `DROP DATABASE` tes/e2e milik tiket (`simrs_test_<tiket>`, `simrs_e2e_<tiket>`);
+   - `flushdb` nomor DB Valkey milik tiket di kedua instans: `docker compose -p simrs-usu exec valkey valkey-cli -n <REDIS_DB> flushdb`, lalu `valkey-cache` dengan `-n <REDIS_CACHE_DB>`;
+   - `docker compose -p <proyek> down` untuk stack tambahan yang dibuat tiket (tanpa `-v`);
+   - laporan akhir menyertakan `git worktree list` (hanya folder utama) dan daftar database yang tersisa.
 
 <!-- simrs-skills -->
 ## Konvensi wajib (ringkasan PRD)
