@@ -1,0 +1,154 @@
+openapi: 3.1.0
+info:
+  title: Karsitara SIMRS API
+  version: 0.1.0
+  description: |
+    Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
+    berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
+    backend wajib lulus uji kontrak terhadapnya. Perubahan kontrak lewat PR yang mengubah berkas ini.
+    Konvensi: PRD 10.3.1 (prefiks /api/v1, kata benda Indonesia, kunci snake_case, galat tunggal).
+    Endpoint autentikasi dan MFA: PRD 10.3.2 (belum dipindah ke berkas ini).
+servers:
+  - url: /api/v1
+security:
+  - sesiCookie: []
+paths:
+  /saya/menu:
+    get:
+      operationId: menuSaya
+      summary: Menu efektif akun yang sedang masuk (sidebar) beserta kode izin aksinya
+      description: |
+        Dihitung server dengan AccessEvaluator (PRD 9.2.5) dan modul aktif (PRD 3.4).
+        - Grup/menu/sub-menu yang tidak diizinkan tidak dikirim sama sekali.
+        - Menu tampil bila minimal satu bagiannya boleh dilihat.
+        - Modul yang belum dibangun/aktif dikirim dengan status "segera" HANYA bila konfigurasi
+          `menu.tampilkan_segera_hadir` = true (pengembangan/demo); di produksi tidak dikirim.
+        - Respons di-cache per akun (Valkey cache) dan memakai ETag dari `versi`.
+      parameters:
+        - in: header
+          name: If-None-Match
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Menu efektif
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MenuSaya' }
+              example:
+                data:
+                  versi: "c3f1a9"
+                  grup:
+                    - kode: utama
+                      label: null
+                      menu:
+                        - { kode: beranda, label: Beranda, ikon: beranda, rute: /, status: aktif, fase: 1, sub_menu: [] }
+                    - kode: pelayanan
+                      label: Pelayanan
+                      menu:
+                        - kode: igd
+                          label: IGD
+                          ikon: igd
+                          rute: /igd
+                          status: segera
+                          fase: 2
+                          sub_menu:
+                            - { kode: igd.papan, label: Papan pasien IGD, rute: /igd/papan, status: segera, fase: 2 }
+                    - kode: tata_kelola
+                      label: Tata Kelola
+                      menu:
+                        - kode: data_induk
+                          label: Master Data
+                          ikon: data_induk
+                          rute: /data-induk
+                          status: aktif
+                          fase: 1
+                          sub_menu:
+                            - { kode: data_induk.peran, label: Peran & menu, rute: /data-induk/peran, status: aktif, fase: 1 }
+                            - { kode: data_induk.akun, label: Akun & akses, rute: /data-induk/akun, status: aktif, fase: 1 }
+                  izin:
+                    - data_induk.peran.lihat
+                    - data_induk.akun.lihat
+        '304': { description: Tidak berubah sejak versi di If-None-Match }
+        '401': { $ref: '#/components/responses/Galat' }
+        '429': { $ref: '#/components/responses/Galat' }
+components:
+  securitySchemes:
+    sesiCookie:
+      type: apiKey
+      in: cookie
+      name: karsitara_session
+      description: Cookie sesi Sanctum stateful (PRD 10.3.2); nama cookie mengikuti konfigurasi.
+  responses:
+    Galat:
+      description: Galat format tunggal (PRD 10.3.1)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Galat' }
+  schemas:
+    Galat:
+      type: object
+      required: [galat]
+      properties:
+        galat:
+          type: object
+          required: [kode, pesan]
+          properties:
+            kode: { type: string, examples: [belum_masuk] }
+            pesan: { type: string }
+            rincian:
+              type: array
+              items: { type: object, additionalProperties: true }
+    StatusMenu:
+      type: string
+      enum: [aktif, segera]
+      description: "aktif = halaman tersedia; segera = tampil sebagai Segera hadir (hanya pengembangan/demo)"
+    SubMenu:
+      type: object
+      required: [kode, label, rute, status, fase]
+      properties:
+        kode: { type: string, description: "kode stabil, mis. igd.papan; dipakai rute dan izin" }
+        label: { type: string }
+        rute: { type: string }
+        status: { $ref: '#/components/schemas/StatusMenu' }
+        fase: { type: integer, minimum: 0, maximum: 6, description: "fase rencana (PRD 16), ditampilkan di SegeraHadirPage" }
+    Menu:
+      type: object
+      required: [kode, label, ikon, rute, status, fase, sub_menu]
+      properties:
+        kode: { type: string }
+        label: { type: string }
+        ikon: { type: string, description: "nama ikon dari design-system, bukan URL" }
+        rute: { type: string }
+        status: { $ref: '#/components/schemas/StatusMenu' }
+        fase: { type: integer, minimum: 0, maximum: 6 }
+        lencana: { type: [integer, 'null'], description: "jumlah tugas terbuka; null bila belum tersedia (tiket 1.7)" }
+        sub_menu:
+          type: array
+          items: { $ref: '#/components/schemas/SubMenu' }
+    MenuSaya:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [versi, grup, izin]
+          properties:
+            versi: { type: string, description: "hash isi menu+izin; berubah saat peran/penugasan/izin berubah" }
+            grup:
+              type: array
+              items:
+                type: object
+                required: [kode, label, menu]
+                properties:
+                  kode: { type: string }
+                  label: { type: [string, 'null'] }
+                  menu:
+                    type: array
+                    items: { $ref: '#/components/schemas/Menu' }
+            izin:
+              type: array
+              description: "kode izin aksi yang dimiliki (format <menu>.<sub_menu>.<aksi>); dipakai v-can/PermissionGate. Server tetap memeriksa ulang setiap permintaan."
+              items: { type: string }
