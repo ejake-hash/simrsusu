@@ -776,6 +776,9 @@ Aturan rinci (kontrak v0.6.0):
     dan mencatat audit. `tanggal_keluar` = hari pertama tidak bekerja.
   - Daftar pegawai: isi `akun` hanya untuk pemegang `pengaturan.akun.lihat` (selain itu `punya_akun` saja).
   - Kepala unit / ketua KSM ditetapkan lewat PATCH /unit-organisasi dan /ksm (`kepala_pegawai_id`, `ketua_pegawai_id`).
+  - Utang kontrak (tinjauan #58, sesi 2): deskripsi GET /pegawai "klien mengurutkan tampilan" diganti "Klien menampilkan
+    urutan server (terbaru dicatat dulu) dan memakai `cari`/filter; tidak mengurutkan ulang antarhalaman" di PR kontrak
+    berikutnya (penyelarasan deskripsi, bentuk tidak berubah).
 Di luar lingkup tiket: jadwal dinas, kredensial lengkap komite (fase 4), peserta didik (fase 5).
 ```
 
