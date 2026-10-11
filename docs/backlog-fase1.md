@@ -15,7 +15,9 @@
 | 1.4a | Halaman masuk (frontend), e2e, Retry-After | Selesai | #9 |
 | 1.4b | Halaman masuk: penyelarasan visual dengan prototipe (motif, ilustrasi, label), cek sesi tahan server mati. Catatan: ilustrasi peta TT dipertahankan (pola tetap, warna token); jam WIB tidak ditampilkan (produk generik) | Selesai | #10 |
 | 1.0b | Kebersihan repo: folder modul, Larastan level 5, aturan worktree. Catatan: `composer test` kini membaca `DB_DATABASE_TES` (bawaan `simrs_test`) agar tiap worktree bisa memakai database tes sendiri | Selesai | #12 |
-| **1.1b** | MFA TOTP + kode cadangan, backend dan langkah MFA di halaman masuk | **Siap dikerjakan** (backend dan frontend; PR #10 sudah merge) | — |
+| 1.1b | MFA TOTP + kode cadangan, backend dan langkah MFA di halaman masuk. Catatan: penghitung gagal baru direset setelah MFA lolos; `AUTENTIKASI_MFA_JARINGAN_RS` kosong = semua dianggap dari luar | Selesai | #15 |
+| **1.1c** | Pendaftaran MFA hanya dari jaringan RS + superadmin pertama lewat konsol | **Siap dikerjakan** | — |
+| **1.0d** | Ganti Redis ke Valkey (compose, CI, dokumentasi) | **Siap dikerjakan** | — |
 | 1.0c | Nama modul bahasa Indonesia (backend dan frontend). Catatan: panel Spek dev di `docs/html` masih menyebut nama lama (di luar lingkup) | Selesai | #16 |
 | 1.2 | Menu, peran, izin, `AccessEvaluator` lapis 1–3, `GET /api/v1/saya/menu` | Menunggu 1.1b | — |
 | 1.5 | Lapis 4–5 hak akses (label sensitivitas, SIP/SPK, MFA aksi sensitif) | Menunggu 1.2 | — |
@@ -33,30 +35,39 @@ Motif `docs/brand/motif-usu.svg` dibuat ulang (bukan berkas resmi pedoman); hany
 
 ---
 
-## [SIMRS] Akses · 1.1b MFA (TOTP + kode cadangan)
+## [SIMRS] Akses · 1.1c Pendaftaran MFA hanya dari jaringan RS
 
 ```
-Tujuan     : Superadmin, peran sensitif, dan akses dari luar jaringan RS wajib verifikasi dua langkah.
-FR         : FR-54-07, FR-09-05, FR-09-06 · kontrak lengkap PRD 10.3.2
-Regulasi   : UU 27/2022 PDP Ps. 4 (data spesifik) [High]; Permenkes 24/2022 Ps. 29 [High]
-Akses      : — (sebelum 1.2: kolom akses.pengguna.wajib_mfa + CIDR jaringan RS di config)
-Tabel      : akses.pengguna (mfa_rahasia_enkripsi, wajib_mfa, mfa_aktif_pada),
-             akses.kode_cadangan_mfa (pengguna_id, kode_hash, dipakai_pada)
-API        : POST /api/v1/autentikasi/masuk (bentuk respons baru {status,…}),
-             POST /api/v1/autentikasi/mfa, POST /api/v1/autentikasi/mfa/daftar,
-             POST /api/v1/autentikasi/mfa/daftar/konfirmasi
-Uji penerimaan: semua aturan di PRD 10.3.2, minimal:
-  - Akun wajib_mfa: masuk → perlu_mfa; /saya tetap 401 sampai kode benar.
-  - Akun wajib_mfa tanpa rahasia: perlu_daftar_mfa → daftar → konfirmasi → 10 kode cadangan sekali tampil.
-  - Kode salah dihitung ke penghitung gagal sandi; 5x → akun_terkunci + Retry-After.
-  - Tantangan kedaluwarsa (5 menit), sekali pakai, dan ditolak dari sesi lain → tantangan_tidak_berlaku.
-  - Kode TOTP yang sama ditolak bila dipakai dua kali dalam periodenya.
-  - Akun tidak wajib MFA dari dalam jaringan RS: langsung {status:"masuk", pengguna}.
-  - Akses dari luar CIDR RS: wajib MFA walau wajib_mfa=false.
-  - Log dan audit tidak memuat kode, rahasia, maupun URI otpauth.
-  - Frontend: komponen langkah perlu_mfa dan perlu_daftar_mfa menggantikan LangkahMfaBelumTersedia;
-    e2e alur MFA dengan rahasia TOTP sintetis.
-Di luar lingkup tiket: WebAuthn, MFA per aksi sensitif (tiket 1.5), reset MFA oleh admin (tiket 1.2).
+Tujuan     : Sandi curian tidak bisa dipakai mendaftarkan autentikator dari internet, dan instalasi baru
+             tetap bisa membuat superadmin pertama.
+FR         : PRD 10.3.2 (aturan pendaftaran MFA), FR-54-08 langkah (1), 14.2
+Tabel      : akses.pengguna (tidak ada kolom baru)
+API        : POST /api/v1/autentikasi/masuk → 403 mfa_belum_terdaftar dari luar jaringan RS untuk akun tanpa MFA
+Konsol     : php artisan akses:superadmin-pertama (membuat akun superadmin bernama, menampilkan URI otpauth dan
+             10 kode cadangan SEKALI di terminal; menolak berjalan bila sudah ada 2 superadmin aktif)
+Uji penerimaan:
+  - Dari luar CIDR RS, akun tanpa MFA → 403 mfa_belum_terdaftar; tidak ada tantangan dibuat; tercatat di audit.
+  - Dari dalam CIDR RS, akun tanpa MFA yang wajib → perlu_daftar_mfa (perilaku 1.1b tetap).
+  - Dari luar CIDR RS, akun yang sudah ber-MFA → perlu_mfa (tetap bisa masuk).
+  - AUTENTIKASI_MFA_JARINGAN_RS kosong → login web biasa ditolak dengan pesan konfigurasi (503 konfigurasi_belum_lengkap);
+    perintah konsol tetap berjalan.
+  - Perintah konsol: idempoten terhadap superadmin ke-3 (ditolak), tidak menulis rahasia ke log.
+  - Frontend: pesan mfa_belum_terdaftar dan konfigurasi_belum_lengkap tampil jelas di halaman masuk (unit tes + e2e).
+Di luar lingkup tiket: reset MFA oleh admin (tiket 1.2), WebAuthn.
+```
+
+## [SIMRS] Platform · 1.0d Ganti Redis ke Valkey
+
+```
+Tujuan     : Komponen cache/antrean berlisensi BSD untuk produk yang dipasang di banyak RS.
+FR         : PRD 10.1 (baris Antrean pekerjaan)
+Pekerjaan  : docker-compose.yml dan .github/workflows/ci.yml: redis:7-alpine → valkey/valkey dengan versi
+             mayor-minor dipatok (bukan tag mengambang). Nama layanan/env tetap (REDIS_HOST dll.) agar konfigurasi
+             Laravel tidak berubah. README dan CLAUDE.md: sebut Valkey.
+Uji penerimaan:
+  - composer test, e2e, dan Horizon/queue lokal berjalan dengan Valkey; sesi login tersimpan dan dibaca.
+  - Tag image tertulis lengkap (mis. 8.x.y-alpine), dicek ada di registry.
+Di luar lingkup tiket: Sentinel/HA (tiket infrastruktur produksi).
 ```
 
 ## [SIMRS] Akses · 1.10 SSO universitas (terhambat)
