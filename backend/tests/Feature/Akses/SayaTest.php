@@ -102,6 +102,18 @@ class SayaTest extends TestCase
             ->assertJsonPath('data.masuk_sebelumnya_dari_jaringan_rs', true);
     }
 
+    public function test_zona_waktu_aplikasi_tidak_memunculkan_masuk_lain_palsu(): void
+    {
+        config(['app.timezone' => 'Asia/Jakarta']);
+        date_default_timezone_set('Asia/Jakarta');
+        try {
+            $this->masukSebagai($this->buatPengguna());
+            $this->minta('GET', '/api/v1/saya')->assertJsonPath('data.masuk_sebelumnya_pada', null);
+        } finally {
+            date_default_timezone_set('UTC');
+        }
+    }
+
     public function test_akun_yang_sudah_pernah_masuk_sebelum_fitur_ini(): void
     {
         $akun = $this->buatPengguna();

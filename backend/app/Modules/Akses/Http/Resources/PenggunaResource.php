@@ -7,6 +7,7 @@ use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Sdm\Application\RingkasanPegawai;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Carbon;
 
 /**
  * Akun yang sedang masuk (kontrak skema Saya): GET /saya dan `pengguna` di respons masuk (PRD 10.3.2).
@@ -17,7 +18,11 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 final class PenggunaResource extends JsonResource
 {
-    /** Waktu masuk yang memulai sesi ini, disimpan di sesi saat masuk (PenyelesaiMasuk). */
+    /**
+     * Waktu masuk yang memulai sesi ini (detik epoch, sama dengan login_terakhir_pada yang disimpan), diisi
+     * PenyelesaiMasuk. Dibandingkan sebagai angka, bukan teks, agar tidak bergantung zona waktu. Dua masuk
+     * dalam detik yang sama tidak dibedakan (kolom berpresisi detik).
+     */
     public const LOGIN_SESI_INI = 'autentikasi.login_pada';
 
     public function toArray(Request $request): array
@@ -30,17 +35,17 @@ final class PenggunaResource extends JsonResource
 
         // "Apakah ini Anda?": bila akun ini masuk lagi di tempat lain sesudah sesi ini dimulai, masuk itulah
         // yang ditampilkan, bukan masuk sebelum sesi ini. Sesi lama tanpa catatan memakai nilai di akun.
-        $terakhir = $this->login_terakhir_pada?->toIso8601String();
+        $terakhir = $this->login_terakhir_pada;
         $sesiIni = $request->hasSession() ? $request->session()->get(self::LOGIN_SESI_INI) : null;
-        $adaMasukLain = is_string($sesiIni) && $terakhir !== null && $sesiIni !== $terakhir;
+        $adaMasukLain = is_int($sesiIni) && $terakhir !== null && $sesiIni !== $terakhir->getTimestamp();
         [$sebelumnya, $sebelumnyaDariRs] = $adaMasukLain
-            ? [$terakhir, $this->login_terakhir_dari_jaringan_rs]
+            ? [$terakhir->toIso8601String(), $this->login_terakhir_dari_jaringan_rs]
             : [$this->masuk_sebelumnya_pada?->toIso8601String(), $this->masuk_sebelumnya_dari_jaringan_rs];
 
         return [
             'id' => $this->id,
             'nama_pengguna' => $this->nama_pengguna,
-            'login_terakhir_pada' => is_string($sesiIni) ? $sesiIni : $terakhir,
+            'login_terakhir_pada' => is_int($sesiIni) ? Carbon::createFromTimestamp($sesiIni, config('app.timezone'))->toIso8601String() : $terakhir?->toIso8601String(),
             'mfa_aktif' => $this->mfaAktif(),
             'pegawai' => app(RingkasanPegawai::class)->untuk($this->pegawai_id),
             'peran' => $peran,
