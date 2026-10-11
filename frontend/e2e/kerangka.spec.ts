@@ -1,9 +1,9 @@
 import { expect, test as dasar, type APIRequestContext, type BrowserContext, type Page } from '@playwright/test'
-import { menuSayaTiruan } from '../src/modules/akses/tiruan/menuSaya'
 
 /**
  * Kerangka aplikasi (tiket 1.2b) di empat kelas layar PRD 5.5. Masuk ke backend asli dengan akun
- * sintetis; GET /saya/menu sementara dijawab data tiruan dari contoh kontrak sampai 1.2a merge.
+ * sintetis; menu dari GET /saya/menu (tiket 1.2a) sesuai peran contoh_dokter di AkunSintetisSeeder:
+ * IGD, Rawat Jalan, Rekam Medis, semuanya Segera hadir di APP_ENV=local.
  */
 const SANDI = process.env.E2E_SANDI ?? ''
 const AKUN = { nama: 'contoh.dokter', pegawai: 'Contoh Dokter' }
@@ -22,12 +22,6 @@ test.beforeAll(async ({ playwright }, info) => {
   await masukLewatApi(permintaan, asal)
   sesi = await permintaan.storageState()
   await permintaan.dispose()
-})
-
-test.beforeEach(async ({ page }) => {
-  await page.route('**/api/v1/saya/menu', (route) =>
-    route.fulfill({ json: { data: menuSayaTiruan }, headers: { ETag: `"${menuSayaTiruan.versi}"` } }),
-  )
 })
 
 /** Langkah sandi kontrak 10.3.2 lewat API (bukan form): halaman masuk sudah diuji di masuk.spec.ts. */
@@ -65,8 +59,10 @@ test('1440 px: sidebar 248 px dengan grup, kartu RS, menu aktif; kolom cari nona
 
   expect((await sidebar(page).boundingBox())?.width).toBe(248)
   await expect(tombolMenu(page)).toBeHidden()
-  for (const grup of ['Pelayanan', 'Pendapatan', 'Tata Kelola']) {
-    await expect(menu(page).getByText(grup, { exact: true })).toBeVisible()
+  await expect(menu(page).getByText('Pelayanan', { exact: true })).toBeVisible()
+  // Grup tanpa menu yang diizinkan untuk peran ini tidak dikirim server sama sekali.
+  for (const grup of ['Pendapatan', 'Tata Kelola']) {
+    await expect(menu(page).getByText(grup, { exact: true })).toHaveCount(0)
   }
   await expect(menu(page).getByRole('link', { name: 'Beranda' })).toHaveAttribute('aria-current', 'page')
   await expect(menu(page).getByRole('link', { name: 'IGD Segera hadir' })).toBeVisible()
@@ -108,14 +104,14 @@ test('1024 px: sidebar ikon 64 px, label lewat tooltip, target sentuh 44 px', as
   // Label grup menjadi garis pemisah 1 px.
   expect((await menu(page).getByText('Pelayanan', { exact: true }).boundingBox())?.height).toBeLessThanOrEqual(1)
 
-  const farmasi = menu(page).getByRole('link', { name: /^Farmasi/ })
-  const kotak = await farmasi.boundingBox()
+  const rekamMedis = menu(page).getByRole('link', { name: /^Rekam Medis/ })
+  const kotak = await rekamMedis.boundingBox()
   expect(kotak?.width).toBeGreaterThanOrEqual(44)
   expect(kotak?.height).toBeGreaterThanOrEqual(44)
 
   // Tooltip juga muncul lewat fokus keyboard, bukan hanya hover (PRD 5.5 aturan 2).
-  await farmasi.focus()
-  await expect(page.locator('.tip')).toHaveText('Farmasi')
+  await rekamMedis.focus()
+  await expect(page.locator('.tip')).toHaveText('Rekam Medis')
   await page.keyboard.press('Escape')
   await expect(page.locator('.tip')).toHaveCount(0)
 })
@@ -128,8 +124,8 @@ test('768 px: menu laci, Esc menutup dan fokus kembali ke tombol menu', async ({
   await tombolMenu(page).click()
   await expect(sidebar(page)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Tutup menu' })).toBeFocused()
-  await expect(menu(page).getByRole('link', { name: /^Rawat Inap/ })).toBeVisible()
-  const kotak = await menu(page).getByRole('link', { name: /^Rawat Inap/ }).boundingBox()
+  await expect(menu(page).getByRole('link', { name: /^Rawat Jalan/ })).toBeVisible()
+  const kotak = await menu(page).getByRole('link', { name: /^Rawat Jalan/ }).boundingBox()
   expect(kotak?.height).toBeGreaterThanOrEqual(44)
 
   await page.keyboard.press('Escape')
@@ -138,8 +134,8 @@ test('768 px: menu laci, Esc menutup dan fokus kembali ke tombol menu', async ({
 
   // Memilih menu menutup laci.
   await tombolMenu(page).click()
-  await menu(page).getByRole('link', { name: /^Kasir/ }).click()
-  await expect(page).toHaveURL(/\/kasir$/)
+  await menu(page).getByRole('link', { name: /^Rekam Medis/ }).click()
+  await expect(page).toHaveURL(/\/rekam-medis$/)
   await expect(sidebar(page)).toBeHidden()
 })
 

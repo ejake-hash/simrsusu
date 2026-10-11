@@ -27,6 +27,7 @@ final class MenuBawaan
     public const SUB_MENU_SUPERADMIN = ['data_induk.peran', 'data_induk.akun'];
 
     /**
+     * Kode menu = kode prototipe, juga nama ikon di frontend/src/design-system/ikon/ikon.ts.
      * kode grup => [label, menu]; menu: kode => [label, fase, modul, sub-menu];
      * sub-menu: kode => [label, modul] atau [label, modul, fase] bila fasenya berbeda dari menunya.
      *
@@ -101,7 +102,7 @@ final class MenuBawaan
                 'deposit' => ['Deposit & refund', 28],
                 'tutup' => ['Tutup kasir', 28],
             ]],
-            'casemix_klaim' => ['Casemix dan Klaim', 3, 27, [
+            'casemix' => ['Casemix dan Klaim', 3, 27, [
                 'koding' => ['Koding', 27],
                 'berkas' => ['Berkas klaim', 27],
                 'verifikasi' => ['Hasil verifikasi', 27],
