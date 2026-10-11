@@ -162,7 +162,8 @@ final class PenerapPersetujuan
     private function penyetujuIzin(PersetujuanAkses $p, Pengguna $penyetuju): void
     {
         $izin = Izin::query()->lockForUpdate()->find($p->izin_id);
-        $peran = Peran::query()->find($p->peran_id);
+        // Dikunci: penugasan peran ini yang diterapkan bersamaan menghitung ulang penyetuju sesudah perubahan ini.
+        $peran = Peran::query()->lockForUpdate()->find($p->peran_id);
         if ($izin === null || ! $izin->sensitif || $peran === null || $peran->status !== 'aktif') {
             throw new TidakBisaDiterapkan('Peran sudah nonaktif atau izin tidak lagi sensitif.');
         }

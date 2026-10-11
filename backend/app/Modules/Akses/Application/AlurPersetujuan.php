@@ -139,6 +139,10 @@ final class AlurPersetujuan
     {
         try {
             return DB::transaction(function () use ($penyetuju, $p, $catatan) {
+                // Urutan kunci sama dengan KelolaPeran::gantiIzin (peran, lalu grup) agar tidak saling menunggu.
+                if ($p->peran_id !== null) {
+                    Peran::query()->whereKey($p->peran_id)->lockForUpdate()->first();
+                }
                 $grup = $this->kunciGrup($p);
                 $p = $grup->firstWhere('id', $p->id);
                 $this->pastikanBolehMemutuskan($penyetuju, $p);
