@@ -5,8 +5,8 @@ import type { Pengguna } from '@/modules/akses/api'
 import { formatTanggalWaktu } from '@/shared/utils/waktu'
 
 /**
- * Keamanan akun: waktu masuk sebelumnya (dan dari jaringan mana) agar pemilik akun bisa mengenali masuk yang bukan
- * dirinya, status MFA, dan siapa yang dihubungi.
+ * Keamanan akun: masuk berhasil terakhir selain sesi ini (termasuk dari perangkat lain sesudah sesi ini dibuka) dan
+ * dari jaringan mana, agar pemilik akun mengenali masuk yang bukan dirinya; status MFA; siapa yang dihubungi.
  */
 const props = defineProps<{ pengguna: Pengguna; unitAdmin: string; kontakAdmin: string | null }>()
 
@@ -23,7 +23,7 @@ const jaringan = computed(() => {
     </div>
     <dl class="kartu-isi daftar">
       <div>
-        <dt>Masuk sebelumnya</dt>
+        <dt>Masuk terakhir selain sesi ini</dt>
         <dd v-if="pengguna.masuk_sebelumnya_pada">
           {{ formatTanggalWaktu(pengguna.masuk_sebelumnya_pada) }}<template v-if="jaringan">, {{ jaringan }}</template>
         </dd>

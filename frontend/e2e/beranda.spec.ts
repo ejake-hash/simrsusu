@@ -33,7 +33,7 @@ async function halaman(browser: Browser, asal: string, nama: string, lebar = 144
 
 const asalDari = (baseURL: string | undefined) => new URL(baseURL ?? '').origin
 const modulSaya = (page: Page) => page.getByRole('region', { name: 'Modul saya' })
-const judulKartu = async (page: Page) => (await modulSaya(page).getByRole('article').getByRole('heading', { level: 3 }).allTextContents()).map((t) => t.trim())
+const judulKartu = (page: Page) => modulSaya(page).getByRole('article').getByRole('heading', { level: 3 })
 
 async function bukaBeranda(page: Page, nama: string) {
   await page.goto('/')
@@ -45,7 +45,7 @@ test('kisi modul mengikuti peran: contoh.dokter dan contoh.admisi berbeda; kartu
   const dokter = await halaman(browser, asal, 'contoh.dokter')
   await bukaBeranda(dokter, 'Contoh Dokter')
   await expect(dokter.getByText('· Contoh Dokter')).toBeVisible()
-  expect(await judulKartu(dokter)).toEqual(['IGD', 'Rawat Jalan', 'Rekam Medis'])
+  await expect(judulKartu(dokter)).toHaveText(['IGD', 'Rawat Jalan', 'Rekam Medis'])
   await expect(modulSaya(dokter).getByRole('article', { name: 'IGD' }).getByText(/^Segera hadir · fase \d$/)).toBeVisible()
   // Sub-menu bisa diklik langsung dari kartu.
   await modulSaya(dokter).getByRole('article', { name: 'IGD' }).getByRole('link', { name: 'Papan pasien IGD' }).click()
@@ -54,7 +54,7 @@ test('kisi modul mengikuti peran: contoh.dokter dan contoh.admisi berbeda; kartu
 
   const admisi = await halaman(browser, asal, 'contoh.admisi')
   await bukaBeranda(admisi, 'Contoh Petugas Admisi')
-  expect(await judulKartu(admisi)).toEqual(['Pendaftaran'])
+  await expect(judulKartu(admisi)).toHaveText(['Pendaftaran'])
   await modulSaya(admisi).getByRole('link', { name: 'Pendaftaran', exact: true }).click()
   await expect(admisi.getByRole('heading', { level: 1, name: 'Pendaftaran' })).toBeVisible()
   await expect(admisi.getByText(/tersedia pada fase \d/)).toBeVisible()
@@ -63,7 +63,7 @@ test('kisi modul mengikuti peran: contoh.dokter dan contoh.admisi berbeda; kartu
 test('akun tanpa penugasan hanya melihat Beranda dengan keterangan siapa yang dihubungi', async ({ browser }, info) => {
   const page = await halaman(browser, asalDari(info.project.use.baseURL), 'contoh.tanpa.peran')
   await bukaBeranda(page, 'Contoh Akun Tanpa Peran')
-  await expect(modulSaya(page).getByText(/^Belum ada modul yang diberikan, hubungi /)).toBeVisible()
+  await expect(modulSaya(page).getByText(/Belum ada modul yang diberikan, hubungi \S/)).toBeVisible()
   await expect(modulSaya(page).getByRole('article')).toHaveCount(0)
   await expect(page.getByRole('navigation', { name: 'Menu utama' }).getByRole('link')).toHaveText(['Beranda'])
 })
@@ -81,6 +81,8 @@ test('masuk dua kali: kali kedua menampilkan waktu masuk sebelumnya, bukan waktu
   await masukLewatApi(pertama, asal, 'contoh.perawat')
   const masukPertama = (await saya(pertama)).login_terakhir_pada
   await pertama.dispose()
+  // Waktu masuk disimpan per detik; jeda agar masuk kedua pasti berbeda.
+  await new Promise((r) => setTimeout(r, 1100))
 
   const kedua = await browser.newContext({ baseURL: asal })
   await masukLewatApi(kedua.request, asal, 'contoh.perawat')
