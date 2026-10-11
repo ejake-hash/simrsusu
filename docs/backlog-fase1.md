@@ -29,7 +29,7 @@
 | **1.2c-fe** | Frontend halaman Peran & izin, Akun & akses (`masterdata.html`, temuan MD-1…MD-4), navigasi sub-menu di halaman induk modul | **Siap dikerjakan** setelah PR dokumen (paralel dengan 1.2c-be, data tiruan dari kontrak) | — |
 | **1.2e** | Beranda: modul saya, keamanan akun, pencarian menu, aksesibilitas (`home.html`); tanpa angka tiruan | Menunggu 1.2c-fe (be kecil bisa setelah 1.2c-be) | — |
 | 1.2d-be / 1.2d-fe | Persetujuan akses (izin sensitif, superadmin), permintaan akses dari layar "Akses ditolak" | Siap setelah 1.2c dan 1.8a | — |
-| 1.8a-be / 1.8a-fe | Profil RS dan paket identitas, unit organisasi, KSM (ganti `VITE_RS_*`) | be: **Dikerjakan sesi 1** (PR kontrak #37); fe: siap setelah 1.2c | — |
+| 1.8a-be / 1.8a-fe | Profil RS dan paket identitas, unit organisasi, KSM (ganti `VITE_RS_*`) | be: **Dikerjakan sesi 1** (kontrak #37, branch `feat/organisasi-be`); fe: **Dikerjakan sesi 2** (branch `feat/organisasi-fe`) | — |
 | 1.8b-be / 1.8b-fe | Lokasi fisik bertingkat, bangsal/kamar/TT, kelas rawat, poliklinik, impor CSV | Siap setelah 1.8a | — |
 | 1.8c-be / 1.8c-fe | Usulan perubahan data induk berjenjang (mesin generik), dipakai pertama oleh TT | Siap setelah 1.7 | — |
 | 1.8d-be / 1.8d-fe | Pegawai, izin praktik (STR/SIP/SPK), RKK minimal, akun dibuat dari pegawai | Siap setelah 1.8a | — |
