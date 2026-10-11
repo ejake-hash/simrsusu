@@ -22,6 +22,7 @@
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
+  touch-action: manipulation;
 }
 .tombol:hover:not(:disabled) {
   background: var(--bg);
@@ -41,7 +42,51 @@
   color: var(--surface);
 }
 .tombol-utama:hover:not(:disabled) {
+  border-color: var(--brand-700);
   background: var(--brand-700);
+}
+/* Nonaktif tanpa sibuk (mis. tertahan hitung mundur): tampak mati, bukan sedang memproses. */
+.tombol-utama:disabled:not(.tombol-sibuk) {
+  border-color: var(--border-input);
+  background: var(--bg);
+  color: var(--muted);
+  opacity: 1;
+}
+/* 44 px untuk formulir masuk dan ponsel; ukuran huruf mengikuti teks dasar. */
+.tombol-besar {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  gap: var(--space-2);
+  font-size: inherit;
+}
+.tombol-penuh {
+  width: 100%;
+}
+.tombol-sibuk:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+.tombol-utama.tombol-sibuk:disabled {
+  border-color: var(--brand-700);
+  background: var(--brand-700);
+}
+.tombol-pemutar {
+  width: 16px;
+  height: 16px;
+  border: 2px solid color-mix(in srgb, currentColor 45%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: tombol-putar 0.7s linear infinite;
+}
+@keyframes tombol-putar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tombol-pemutar {
+    animation-duration: 2s;
+  }
 }
 .tombol-bahaya {
   border-color: var(--danger);
@@ -84,6 +129,33 @@ textarea.isian {
 .isian:disabled {
   background: var(--bg);
   color: var(--muted);
+}
+.isian[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+/* Isian 44 px (formulir masuk, ponsel). 16 px di layar sentuh mencegah zoom otomatis iOS saat fokus. */
+.isian-besar {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: max(16px, var(--text-base));
+}
+@media (pointer: fine) {
+  .isian-besar {
+    font-size: var(--text-base);
+  }
+}
+.isian-besar:hover:not(:focus) {
+  border-color: var(--subtle);
+}
+.isian-besar[aria-invalid='true']:hover:not(:focus) {
+  border-color: var(--danger);
+}
+/* Kode verifikasi/nomor: huruf rata lebar agar mudah dicocokkan. */
+.isian-kode {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3em;
 }
 
 /* ── Pil status (selalu bersama teks, PRD 5.1 butir 4) ── */

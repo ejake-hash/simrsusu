@@ -8,18 +8,21 @@ import { computed, useId } from 'vue'
  *     <input v-bind="a" v-model="dasar" class="isian" />
  *   </KolomIsian>
  */
-const props = withDefaults(defineProps<{ label: string; error?: string; petunjuk?: string; wajib?: boolean }>(), {
+/** `id` opsional untuk id yang stabil (mis. #nama-pengguna di halaman masuk); bawaan dibangkitkan. */
+const props = withDefaults(defineProps<{ label: string; error?: string; petunjuk?: string; wajib?: boolean; id?: string }>(), {
   error: undefined,
   petunjuk: undefined,
   wajib: false,
+  id: undefined,
 })
 
-const id = `kolom-${useId()}`
+const idBawaan = `kolom-${useId()}`
+const id = computed(() => props.id ?? idBawaan)
 const atribut = computed(() => ({
-  id,
+  id: id.value,
   'aria-invalid': props.error ? true : undefined,
   'aria-required': props.wajib || undefined,
-  'aria-describedby': [props.petunjuk ? `${id}-petunjuk` : '', props.error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined,
+  'aria-describedby': [props.petunjuk ? `${id.value}-petunjuk` : '', props.error ? `${id.value}-error` : ''].filter(Boolean).join(' ') || undefined,
 }))
 </script>
 
@@ -42,7 +45,7 @@ const atribut = computed(() => ({
 }
 .kolom-label {
   font-size: 13px;
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
 }
 .kolom-wajib {
   color: var(--danger);
@@ -54,10 +57,7 @@ const atribut = computed(() => ({
 }
 .kolom-error {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--danger);
-}
-.kolom-salah :slotted(.isian) {
-  border-color: var(--danger);
 }
 </style>

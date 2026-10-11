@@ -63,7 +63,8 @@ describe('LangkahSandi', () => {
     const tombol = w.get('button[type="submit"]')
     expect(tombol.attributes('disabled')).toBeDefined()
     expect(tombol.text()).toBe('Memproses…')
-    expect(tombol.find('.spinner').exists()).toBe(true)
+    expect(tombol.find('.tombol-pemutar').exists()).toBe(true)
+    expect(tombol.attributes('aria-busy')).toBe('true')
 
     // Enter lagi saat proses tidak mengirim dua kali.
     await w.get('form').trigger('submit')
