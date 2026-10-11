@@ -10,7 +10,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * Akun yang sedang masuk (kontrak skema Saya): GET /saya dan `pengguna` di respons masuk (PRD 10.3.2).
- * Tidak mengirim email, NIP, atau data rahasia: tidak dipakai layar.
+ * Tidak mengirim email, NIP, atau data rahasia: tidak dipakai layar. Tanda instalasi demo bukan milik akun
+ * (GET /profil-rs, tiket 1.8a).
  *
  * @mixin Pengguna
  */
@@ -32,7 +33,6 @@ final class PenggunaResource extends JsonResource
             'peran' => $peran,
             'masuk_sebelumnya_pada' => $this->masuk_sebelumnya_pada?->toIso8601String(),
             'masuk_sebelumnya_dari_jaringan_rs' => $this->masuk_sebelumnya_pada === null ? null : $this->masuk_sebelumnya_dari_jaringan_rs,
-            'instalasi_demo' => (bool) config('instalasi.demo'),
         ];
     }
 }

@@ -65,13 +65,19 @@ class SayaTest extends TestCase
         $this->assertSame($saya->json('data'), $masuk->json('pengguna'));
     }
 
-    public function test_akun_tanpa_penugasan_dan_tanda_instalasi_demo(): void
+    public function test_akun_tanpa_penugasan_dan_tanpa_data_yang_tidak_dipakai_layar(): void
     {
-        $this->masukSebagai($this->buatPengguna());
-        $this->minta('GET', '/api/v1/saya')->assertOk()->assertJsonPath('data.peran', [])->assertJsonPath('data.instalasi_demo', false);
+        $akun = $this->buatPengguna(['email' => 'rahasia@contoh.invalid']);
+        $this->mulaiSesiSpa();
+        $masuk = $this->minta('POST', '/api/v1/autentikasi/masuk', ['nama_pengguna' => $akun->nama_pengguna, 'sandi' => self::SANDI_UJI])->assertOk();
+        $saya = $this->minta('GET', '/api/v1/saya')->assertOk()->assertJsonPath('data.peran', []);
 
-        config(['instalasi.demo' => true]);
-        $this->minta('GET', '/api/v1/saya')->assertOk()->assertJsonPath('data.instalasi_demo', true);
+        // Skema kontrak tidak melarang field tambahan, jadi ketiadaannya diperiksa langsung.
+        foreach ([(string) $masuk->getContent(), (string) $saya->getContent()] as $isi) {
+            $this->assertStringNotContainsString('email', $isi);
+            $this->assertStringNotContainsString('rahasia@contoh.invalid', $isi);
+            $this->assertStringNotContainsString('instalasi_demo', $isi);
+        }
     }
 
     public function test_tanpa_sesi_401_sesuai_kontrak(): void
