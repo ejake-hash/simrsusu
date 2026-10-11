@@ -2407,7 +2407,7 @@ paths:
         terbaca, tidak dicatat di log/audit; `Cache-Control: no-store`). Tautan aktivasi lewat email menunggu notifikasi (1.7).
         Akun baru tanpa peran; penugasan lewat /akun/{id}/penugasan.
         - 409 `pegawai_sudah_punya_akun` (satu akun = satu pegawai, K5); 409 `nama_pengguna_dipakai`; 409 `pegawai_keluar`
-          (status pegawai keluar atau akan keluar). Audit `akses.akun_dibuat` (tanpa sandi).
+          (status pegawai `keluar`; pegawai `akan_keluar` masih bekerja, jadi boleh — akunnya nonaktif otomatis pada tanggalnya). Audit `akses.akun_dibuat` (tanpa sandi).
         Sandi awal yang hilang belum bisa dipulihkan (reset sandi oleh admin di luar tiket ini, dicatat di backlog).
       requestBody:
         required: true
@@ -2478,7 +2478,7 @@ paths:
       summary: Aktifkan kembali akun (alasan wajib)
       description: |
         Izin: pengaturan.akun.perbaiki. 403 `diri_sendiri`, `akun_superadmin`. 409 `sudah_aktif`; 409 `pegawai_keluar`
-        (pegawainya keluar atau akan keluar; batalkan dulu tanggal keluar di data pegawai); 409 `superadmin_aktif` (akun
+        (status pegawainya `keluar`; batalkan dulu tanggal keluar di data pegawai. Pegawai `akan_keluar` boleh); 409 `superadmin_aktif` (akun
         masih memegang penugasan superadmin: mengaktifkannya = menambah superadmin tanpa K4). Audit `akses.akun_diaktifkan`.
       requestBody:
         required: true
