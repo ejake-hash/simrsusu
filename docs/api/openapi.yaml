@@ -19,7 +19,7 @@ info:
     bukan superadmin (PRD 9.2.4), AkunRinci.dapat_diubah/alasan_terkunci, bentuk `rincian` error matriks, arti `versi` peran.
     v0.2.3: GET /saya pindah ke berkas ini (tiket 1.2e, Beranda): peran berlaku, masuk sebelumnya; email tidak dikirim.
     v0.3.0: Profil RS, unit organisasi, KSM (tiket 1.8a): /profil-rs (publik terbatas + `rinci` sesuai izin, berkas
-    identitas), /unit-organisasi, /ksm; cakupan penugasan `unit` didukung.
+    identitas), /unit-organisasi, /ksm; cakupan penugasan `unit` didukung (Penugasan.cakupan_label).
 servers:
   - url: /api/v1
 security:
@@ -598,7 +598,8 @@ paths:
       description: |
         Izin: pengaturan.profil_rs.perbaiki. Wajib If-Match (`versi`). Ganti utuh isian di bawah; berkas gambar lewat
         PUT /profil-rs/berkas/{jenis}.
-        Kontras warna (FR-54-08 langkah 2), 422 `kontras_kurang` dengan `rincian` = `{kolom, rasio, minimal, pesan}`:
+        Kontras warna (FR-54-08 langkah 2), 422 `kontras_kurang` dengan `rincian` = `{kolom, rasio, minimal, pesan}`,
+        `kolom` = `warna.brand` atau `warna.accent`, `rasio` dibulatkan 2 desimal:
         - `warna.brand` dipakai sebagai teks/tautan di latar putih dan latar tombol bertulisan putih: kontras dengan
           putih ≥ 4,5:1.
         - `warna.accent` dipakai hanya sebagai isian (garis penanda, badge, aksen; PRD 5.3.2 aturan 2): teks di atas
@@ -656,7 +657,8 @@ paths:
         logo dan motif: SVG atau PNG; foto: WebP, JPEG, atau PNG. Batas ukuran per jenis di konfigurasi
         (bawaan logo 200 KB, motif 500 KB, foto 2 MB; 422 `berkas_terlalu_besar`). SVG berisi skrip, handler
         `on*`, `foreignObject`, atau rujukan eksternal ditolak (422 `berkas_tidak_aman`). Berkas lama tetap
-        tersimpan (tidak dihapus); profil menunjuk berkas baru.
+        tersimpan (tidak dihapus); profil menunjuk berkas baru. Mengosongkan berkas (kembali tanpa logo/motif/foto)
+        tidak tersedia di fase 1; ganti dengan berkas lain.
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -685,11 +687,14 @@ paths:
       operationId: daftarUnitOrganisasi
       summary: Daftar unit organisasi (paginasi kursor), per induk untuk pohon yang dimuat bertahap
       description: |
-        Izin: master_data.organisasi.lihat, kecuali `milik_saya=true`.
+        Izin: master_data.organisasi.lihat ATAU pengaturan.akun.input (pemilih cakupan unit di dialog Tugaskan peran),
+        kecuali `milik_saya=true`.
         - `induk_id` kosong + `akar=true` → unit tingkat teratas; `induk_id=<id>` → anak langsung unit itu.
           Tiap baris membawa `jumlah_anak` agar pohon tahu node mana yang bisa dibuka.
         - `milik_saya=true` → unit dari penugasan akun yang sedang masuk ber-cakupan `unit` yang berlaku
-          (pemilih unit kerja di header); boleh untuk semua akun yang masuk, filter lain diabaikan.
+          (pemilih unit kerja di header); boleh untuk semua akun yang masuk, filter lain diabaikan. Pemilih unit kerja
+          hanya konteks tampilan di klien (mis. filter bawaan daftar); tidak mengubah izin, dan server tetap memaksa
+          cakupan dari penugasan pada setiap permintaan.
         Urut: kode.
       parameters:
         - $ref: '#/components/parameters/Kursor'
@@ -742,7 +747,7 @@ paths:
     get:
       operationId: rinciUnitOrganisasi
       summary: Rincian unit beserta jalur induknya
-      description: "Izin: master_data.organisasi.lihat. ETag = `versi`."
+      description: "Izin: master_data.organisasi.lihat ATAU pengaturan.akun.input. ETag = `versi`."
       responses:
         '200':
           description: Rincian unit
@@ -1297,7 +1302,7 @@ components:
         mfa_aktif: { type: boolean }
     Penugasan:
       type: object
-      required: [id, peran, cakupan_jenis, cakupan_id, berlaku_dari, berlaku_sampai, dasar_pemberian, alasan, diberikan_oleh, status, berlaku_sekarang, alasan_batal, dibatalkan_oleh, dibatalkan_pada, dibuat_pada]
+      required: [id, peran, cakupan_jenis, cakupan_id, cakupan_label, berlaku_dari, berlaku_sampai, dasar_pemberian, alasan, diberikan_oleh, status, berlaku_sekarang, alasan_batal, dibatalkan_oleh, dibatalkan_pada, dibuat_pada]
       properties:
         id: { type: string, format: uuid }
         peran:
@@ -1309,6 +1314,7 @@ components:
             nama: { type: string }
         cakupan_jenis: { $ref: '#/components/schemas/CakupanJenis' }
         cakupan_id: { type: [string, 'null'], format: uuid }
+        cakupan_label: { type: [string, 'null'], description: "Nama unit untuk cakupan `unit` (dengan kode), null untuk `rs`; tidak perlu permintaan per baris (tiket 1.8a)" }
         berlaku_dari: { type: string, format: date-time }
         berlaku_sampai: { type: [string, 'null'], format: date-time }
         dasar_pemberian: { type: string }
