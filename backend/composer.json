@@ -17,6 +17,7 @@
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
+        "larastan/larastan": "^3.13",
         "laravel/pail": "^1.2.2",
         "laravel/pint": "^1.24",
         "laravel/sail": "^1.41",
@@ -51,9 +52,11 @@
         ],
         "test": [
             "@php artisan config:clear --ansi",
-            "@putenv DB_DATABASE=simrs_test",
-            "@php artisan migrate --database=pgsql_migrator --force --ansi",
-            "@php artisan test"
+            "DB_DATABASE=${DB_DATABASE_TES:-simrs_test} php artisan migrate --database=pgsql_migrator --force --ansi",
+            "DB_DATABASE=${DB_DATABASE_TES:-simrs_test} php artisan test"
+        ],
+        "analyse": [
+            "@php vendor/bin/phpstan analyse --memory-limit=1G"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

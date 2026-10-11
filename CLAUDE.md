@@ -12,6 +12,22 @@
 - Frontend: **Vue 3 + TypeScript + Vite** (SPA, Vue Router, Pinia) di `frontend/` (PRD 10.4). **Bukan** Blade, Livewire, atau Inertia.
 - Token desain: `frontend/src/design-system/tokens.css` (dari PRD 5.3). Jangan menulis warna HEX langsung di komponen. Lihat @DESIGN.md.
 
+## Kerja paralel
+Beberapa sesi (orang atau agen) bisa bekerja bersamaan di mesin yang sama. Aturannya:
+
+1. **Folder utama `SIMRS-USU` dipakai satu sesi saja.** Sesi lain wajib memakai worktree sendiri:
+   `git worktree add ../SIMRS-USU-<tiket> <branch>` (worktree butuh `composer install`, `npm ci`, dan `.env` sendiri; jangan salin `.env` worktree lain).
+2. **Setiap worktree backend memakai database tes sendiri `simrs_test_<tiket>`**, dibuat dari skrip yang sama dengan CI:
+   ```bash
+   export PGHOST=127.0.0.1 PGPORT=5433 PGUSER=postgres PGPASSWORD=postgres
+   psql -c "CREATE DATABASE simrs_test_<tiket> OWNER simrs_migrator"
+   psql -d simrs_test_<tiket> -f docker/postgres/init/sql/02-database.sql   # DBNAME otomatis = database tersambung
+   DB_DATABASE_TES=simrs_test_<tiket> composer test                          # migrate --database=pgsql_migrator, lalu phpunit
+   ```
+   Jangan memakai `simrs_test` (bawaan CI dan folder utama) atau database tes worktree lain. Jangan `docker compose down -v`: volume Postgres dipakai bersama.
+3. **Sebelum stash, checkout, atau reset: jalankan `git status` dan `git worktree list`**, lalu sentuh hanya berkas tiket sendiri. Stash dipakai bersama oleh semua worktree dan bisa ikut menelan perubahan staged milik sesi lain.
+4. **Node lokal mengikuti `.nvmrc` (24)**, sama dengan CI.
+
 <!-- simrs-skills -->
 ## Konvensi wajib (ringkasan PRD)
 
@@ -50,7 +66,8 @@
 
 **Tes**
 - PHPUnit/Pest terhadap **PostgreSQL** (bukan SQLite). Tes memakai **`DatabaseTransactions`** lewat `Tests\TestCase`. `RefreshDatabase`, `DatabaseMigrations`, `DatabaseTruncation` **ditolak CI**.
-- Jalankan dengan `composer test` (migrasi `simrs_test` sebagai migrator, lalu phpunit).
+- Jalankan dengan `composer test` (migrasi sebagai migrator, lalu phpunit). Database tes bawaan `simrs_test`; di worktree pakai `DB_DATABASE_TES=simrs_test_<tiket> composer test` (lihat "Kerja paralel").
+- Analisis statis: `composer analyse` (Larastan level 5, juga di CI). `phpstan-baseline.neon` hanya berisi temuan kode lama; kode baru harus bersih, jangan menambah baseline.
 - Playwright hanya ke **staging**, atau ke **lokal/CI dengan data sintetis**. Jangan pernah memakai data pasien asli di tes, seed, log, atau rekaman.
 
 **Klinis dan integrasi**
