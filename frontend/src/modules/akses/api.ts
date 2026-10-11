@@ -61,11 +61,6 @@ let menuTerakhir: { etag: string; data: MenuSaya } | null = null
 
 /** Menu efektif akun. 304 (versi sama) = pakai respons terakhir tanpa mengunduh ulang. */
 export async function ambilMenuSaya(): Promise<MenuSaya> {
-  // Data tiruan dari contoh kontrak, hanya di mode dev; cabang ini dibuang dari build produksi.
-  if (import.meta.env.DEV && import.meta.env.VITE_MENU_TIRUAN === 'true') {
-    return (await import('./tiruan/menuSaya')).menuSayaTiruan
-  }
-
   const sebelumnya = menuTerakhir
   const respons = await klien.get<{ data: MenuSaya }>('/saya/menu', {
     headers: sebelumnya ? { 'If-None-Match': sebelumnya.etag } : {},

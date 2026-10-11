@@ -1,11 +1,11 @@
 import type { Menu, MenuSaya } from '../tipeMenu'
 
 /**
- * Data tiruan GET /api/v1/saya/menu sampai backend 1.2a tersedia: contoh di docs/api/openapi.yaml
- * (beranda, igd + igd.papan, master_data + peran/akun, izin) ditambah menu sidebar docs/html/home.html
+ * Data tiruan GET /api/v1/saya/menu: contoh di docs/api/openapi.yaml v0.2.x (beranda, igd + igd.papan,
+ * pengaturan + peran/akun, izin) ditambah menu sidebar docs/html/home.html
  * agar kerangka bisa dibandingkan dengan prototipe. Fase dari PRD D.3 dan 16. Kode, rute, dan ikon
  * menu tambahan hanya perkiraan; yang berlaku adalah seeder menu 1.2a.
- * Dipakai unit test, e2e (page.route), dan `vite` dev dengan VITE_MENU_TIRUAN=true; tidak masuk build produksi.
+ * Dipakai unit test; tidak masuk build produksi. Menu yang dihitung dari peran ada di serverTiruan.ts.
  */
 const segera = (kode: string, label: string, rute: string, fase: number): Menu => ({
   kode,
@@ -64,19 +64,20 @@ export const menuSayaTiruan: MenuSaya = {
         segera('integrasi', 'Integrasi dan Laporan', '/integrasi', 4),
         segera('dasbor', 'Dasbor', '/dasbor', 4),
         {
-          kode: 'master_data',
-          label: 'Master Data',
-          ikon: 'master_data',
-          rute: '/master-data',
+          kode: 'pengaturan',
+          label: 'Pengaturan Sistem',
+          ikon: 'pengaturan',
+          rute: '/pengaturan',
           status: 'aktif',
           fase: 1,
           sub_menu: [
-            { kode: 'master_data.peran', label: 'Peran & menu', rute: '/master-data/peran', status: 'aktif', fase: 1 },
-            { kode: 'master_data.akun', label: 'Akun & akses', rute: '/master-data/akun', status: 'aktif', fase: 1 },
+            { kode: 'pengaturan.peran', label: 'Peran & izin', rute: '/pengaturan/peran', status: 'aktif', fase: 1 },
+            { kode: 'pengaturan.akun', label: 'Akun & akses', rute: '/pengaturan/akun', status: 'aktif', fase: 1 },
+            { kode: 'pengaturan.audit', label: 'Jejak audit', rute: '/pengaturan/audit', status: 'segera', fase: 1 },
           ],
         },
       ],
     },
   ],
-  izin: ['master_data.peran.lihat', 'master_data.akun.lihat'],
+  izin: ['pengaturan.peran.lihat', 'pengaturan.akun.lihat'],
 }

@@ -1,0 +1,193 @@
+/*
+ * Kelas dasar layar kerja (tombol, isian, pil status, catatan, kartu), dari pola prototipe docs/html.
+ * Hanya token dari tokens.css; tidak ada nilai warna di sini.
+ */
+
+/* ── Tombol ── */
+.tombol {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+.tombol:hover:not(:disabled) {
+  background: var(--bg);
+}
+.tombol:focus-visible {
+  outline: none;
+  border-color: var(--brand-600);
+  box-shadow: var(--ring);
+}
+.tombol:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.tombol-utama {
+  border-color: var(--brand-600);
+  background: var(--brand-600);
+  color: var(--surface);
+}
+.tombol-utama:hover:not(:disabled) {
+  background: var(--brand-700);
+}
+.tombol-bahaya {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.tombol-bahaya:hover:not(:disabled) {
+  background: var(--danger-bg);
+}
+.tombol-tautan {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand-600);
+}
+
+/* ── Isian (input, select, textarea) ── */
+.isian {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+}
+textarea.isian {
+  min-height: 72px;
+  padding: var(--space-2) 10px;
+  resize: vertical;
+}
+.isian:focus {
+  outline: none;
+  border-color: var(--brand-600);
+  box-shadow: var(--ring);
+}
+.isian:disabled {
+  background: var(--bg);
+  color: var(--muted);
+}
+
+/* ── Pil status (selalu bersama teks, PRD 5.1 butir 4) ── */
+.pil {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+.pil-ok {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.pil-peringatan {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.pil-bahaya {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.pil-info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+.pil-netral {
+  background: var(--bg);
+  color: var(--muted);
+}
+.pil-merek {
+  background: var(--brand-50);
+  color: var(--brand-800);
+}
+
+/* ── Catatan di dalam halaman/dialog ── */
+.catatan {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 9px 11px;
+  border-radius: 9px;
+  font-size: 12.5px;
+}
+.catatan svg {
+  flex: none;
+  margin-top: 1px;
+}
+.catatan-info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+.catatan-peringatan {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.catatan-bahaya {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.catatan-netral {
+  background: var(--bg);
+  color: var(--muted);
+}
+
+/* ── Kartu ── */
+.kartu {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+.kartu-kepala {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.kartu-kepala h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.kartu-kepala p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--subtle);
+}
+.kartu-isi {
+  padding: 14px var(--space-4);
+}
+
+/* Kelas tablet: target sentuh 44 px (PRD 5.5 aturan 1). */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  .tombol {
+    min-height: 44px;
+  }
+  .isian {
+    min-height: 44px;
+  }
+}

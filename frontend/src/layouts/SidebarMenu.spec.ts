@@ -23,10 +23,10 @@ describe('SidebarMenu', () => {
   })
 
   it('menu aktif mengikuti rute; sub-menu hanya di bawah menu aktif', async () => {
-    const w = await pasang('/master-data/akun')
+    const w = await pasang('/pengaturan/akun')
     const aktif = w.get('.nav-item.aktif')
-    expect(aktif.text()).toContain('Master Data')
-    expect(w.findAll('.sub-item').map((s) => s.text())).toEqual(['Peran & menu', 'Akun & akses'])
+    expect(aktif.text()).toContain('Pengaturan Sistem')
+    expect(w.findAll('.sub-item').map((s) => s.text())).toEqual(['Peran & izin', 'Akun & akses', 'Jejak audit'])
     expect(w.get('.sub-item.aktif').attributes('aria-current')).toBe('page')
     expect(w.text()).not.toContain('Papan pasien IGD')
   })

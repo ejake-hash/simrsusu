@@ -2,8 +2,12 @@ import axios, { AxiosError } from 'axios'
 
 /** Error API dalam format tunggal PRD 10.3.1: {"error": {"kode", "pesan", "rincian"}}. */
 export interface RincianError {
+  /** Validasi kolom (ErrorHandler): nama kolom permintaan. */
   kolom?: string
   pesan?: string
+  /** Penolakan izin (409/422 di /peran dan /akun): kode izin yang ditolak. */
+  kode?: string
+  [kunci: string]: unknown
 }
 
 export class ApiError extends Error {
