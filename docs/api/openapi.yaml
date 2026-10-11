@@ -268,7 +268,9 @@ paths:
         Penolakan lain:
         - Izin sensitif baru (sejak 1.2d): tidak langsung berlaku. Setiap izin sensitif baru menjadi satu persetujuan
           menunggu (penyetuju = peran penyetuju izin itu, K3/K13) dan tercantum di `perubahan.menunggu_persetujuan`;
-          perubahan lain langsung berlaku. 422 `penyetuju_belum_ditetapkan` bila izin sensitif baru belum punya penyetuju.
+          perubahan lain langsung berlaku. 422 `penyetuju_belum_ditetapkan` bila izin sensitif baru belum punya penyetuju
+          (`rincian` = `{kolom: "izin", kode, pesan}` per izin; tidak ada yang disimpan). Izin yang sudah menunggu tidak
+          diajukan ulang. Izin sensitif yang sedang menunggu tetap boleh dikirim di `izin` tanpa efek ganda.
           Sebelum 1.2d backend menolak utuh dengan 409 `butuh_persetujuan` (`rincian` = `{kode, pesan}`).
         - 409 `peran_bawaan_terkunci`: isi peran superadmin tidak bisa diubah dari layar.
         - 403 `peran_sendiri`.
@@ -954,6 +956,11 @@ paths:
   # Pemberian berisiko tidak langsung berlaku: dicatat sebagai persetujuan menunggu dan diterapkan (dalam transaksi
   # yang sama dengan keputusan) saat semua penyetuju yang dibutuhkan menyetujui. Penyetuju = pemegang peran penyetuju
   # yang berlaku; tidak pernah pengaju dan tidak pernah akun penerima akses. Kedaluwarsa 7 hari.
+  # Jalan masuk layar: sub-menu `pengaturan.persetujuan` (izin `pengaturan.persetujuan.lihat`) diberikan **otomatis oleh
+  # server** (tidak lewat peran) kepada akun yang memegang peran penyetuju izin mana pun, peran superadmin (penyetuju K4),
+  # atau punya pengajuan sendiri; bagian lain Pengaturan tetap tidak terlihat. Admin juga boleh memberikannya lewat peran.
+  # Pengajuan ganda: sasaran yang sama selagi menunggu → 409 `persetujuan_ganda` (penugasan, izin khusus, pengakhiran);
+  # di PUT /peran/{id}/izin izin yang sudah menunggu tidak diajukan ulang (idempoten, tercantum lagi di menunggu_persetujuan).
   # ---------------------------------------------------------------------------
   /persetujuan-akses:
     get:
@@ -1065,7 +1072,11 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/PermintaanBatal' }
+            schema:
+              type: object
+              required: [alasan]
+              properties:
+                alasan: { type: string, minLength: 5, maxLength: 500 }
       responses:
         '200':
           description: Persetujuan sesudah dibatalkan
@@ -1670,6 +1681,17 @@ components:
             versi: { type: string, description: "Sama dengan ETag; naik setiap perubahan peran dari layar (PATCH atau PUT izin)" }
             izin: { type: array, items: { type: string }, description: "Kode izin aksi yang diberikan" }
             wajib_mfa_terkunci: { type: boolean, description: "true = superadmin atau memuat izin sensitif; sakelar MFA dinonaktifkan di layar" }
+            izin_menunggu:
+              type: array
+              description: "Izin sensitif yang menunggu persetujuan untuk peran ini (sejak 1.2d); tidak termasuk di `izin`"
+              items:
+                type: object
+                required: [kode, persetujuan_id, penyetuju_peran, kedaluwarsa_pada]
+                properties:
+                  kode: { type: string }
+                  persetujuan_id: { type: string, format: uuid }
+                  penyetuju_peran: { $ref: '#/components/schemas/RingkasPeran' }
+                  kedaluwarsa_pada: { type: string, format: date-time }
             dapat_disunting: { type: boolean, description: "false bila peran bawaan terkunci atau dipegang penyunting" }
             alasan_terkunci: { type: [string, 'null'], enum: [peran_bawaan_terkunci, peran_sendiri, null] }
             diubah_pada: { type: string, format: date-time }
@@ -1781,3 +1803,7 @@ components:
         mfa: { $ref: '#/components/schemas/StatusMfaAkun' }
         penugasan: { type: array, items: { $ref: '#/components/schemas/Penugasan' }, description: "Berlaku dulu, lalu riwayat (batal/kedaluwarsa) terbaru dulu" }
         izin_khusus: { type: array, items: { $ref: '#/components/schemas/IzinKhusus' } }
+        menunggu_persetujuan:
+          type: array
+          description: "Penugasan, pengakhiran penugasan, dan izin khusus untuk akun ini yang menunggu persetujuan (sejak 1.2d)"
+          items: { $ref: '#/components/schemas/PersetujuanAkses' }
