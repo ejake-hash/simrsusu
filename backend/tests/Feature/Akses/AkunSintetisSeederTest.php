@@ -32,7 +32,7 @@ class AkunSintetisSeederTest extends TestCase
 
         $akun = Pengguna::query()->where('nama_pengguna', 'like', 'contoh.%')->get();
         $this->assertEqualsCanonicalizing(
-            ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci', 'contoh.mfa', 'contoh.mfa.baru', 'contoh.superadmin'],
+            ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci', 'contoh.mfa', 'contoh.mfa.baru', 'contoh.superadmin', 'contoh.tanpa.peran'],
             $akun->pluck('nama_pengguna')->all(),
         );
         foreach ($akun as $pengguna) {
@@ -72,6 +72,13 @@ class AkunSintetisSeederTest extends TestCase
 
         $this->assertTrue($evaluator->boleh($akun('contoh.dokter'), 'rawat_jalan.pemeriksaan.input'));
         $this->assertSame(1, PenggunaPeran::query()->where('pengguna_id', $superadmin->id)->count());
+
+        // Akun tanpa peran kembali tanpa penugasan berlaku walau sempat ditugaskan, dan tidak wajib MFA.
+        $tanpaPeran = $akun('contoh.tanpa.peran');
+        PenggunaPeran::query()->create(['pengguna_id' => $tanpaPeran->id, 'peran_id' => $peranDokter, 'dasar_pemberian' => 'Uji e2e']);
+        $this->seed(AkunSintetisSeeder::class);
+        $this->assertFalse(PenggunaPeran::query()->berlaku()->where('pengguna_id', $tanpaPeran->id)->exists());
+        $this->assertFalse($tanpaPeran->refresh()->wajib_mfa);
     }
 
     public function test_seeding_ulang_membuka_kunci_akun_sintetis(): void

@@ -34,6 +34,9 @@ final class AkunSintetisSeeder extends Seeder
         'contoh.mfa.baru' => 'Contoh Akun MFA Baru',
         // Superadmin sintetis untuk e2e Pengaturan (tiket 1.2c), MFA aktif dengan rahasia yang diketahui e2e.
         'contoh.superadmin' => 'Contoh Superadmin',
+        // Tanpa penugasan dan tanpa wajib MFA: Beranda "belum ada modul" (tiket 1.2e). Seeding ulang
+        // mengakhiri penugasan yang sempat dibuat uji lain.
+        'contoh.tanpa.peran' => 'Contoh Akun Tanpa Peran',
     ];
 
     /**
@@ -92,6 +95,11 @@ final class AkunSintetisSeeder extends Seeder
             ->update(['dibatalkan_pada' => now()]);
 
         $this->pasangPeranContoh();
+        PenggunaPeran::query()->where('status', 'aktif')
+            ->whereIn('pengguna_id', Pengguna::query()->where('nama_pengguna', 'contoh.tanpa.peran')->select('id'))
+            ->get()->each(fn (PenggunaPeran $p) => $p->forceFill([
+                'status' => 'batal', 'alasan_batal' => 'Seeding ulang: akun contoh tanpa peran', 'dibatalkan_pada' => now(),
+            ])->save());
         $this->tugaskan('contoh.superadmin', Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->firstOrFail());
 
         $this->command?->info('Akun sintetis: '.implode(', ', array_keys(self::AKUN)).'.');
