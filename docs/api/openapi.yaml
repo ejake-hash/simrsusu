@@ -2407,7 +2407,14 @@ components:
         id: { type: string, format: uuid }
         nomor: { type: string, description: "Kode ruang (segmen terakhir kode_lengkap)" }
         bangsal: { $ref: '#/components/schemas/RingkasBangsal' }
-        lokasi: { $ref: '#/components/schemas/RingkasLokasi', description: "Ruang fisik kamar ini" }
+        lokasi:
+          type: object
+          description: "Ruang fisik kamar ini"
+          required: [id, kode_lengkap, nama]
+          properties:
+            id: { type: string, format: uuid }
+            kode_lengkap: { type: string }
+            nama: { type: string }
         kapasitas_maksimum: { type: [integer, 'null'], minimum: 1 }
         atribut_standar: { $ref: '#/components/schemas/AtributKamar' }
         jumlah_tempat_tidur_aktif: { type: integer, minimum: 0, description: "TT yang dihitung hari ini" }

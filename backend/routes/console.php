@@ -14,3 +14,6 @@ Schedule::command('audit:ekspor-anchor')->hourlyAt(5)->onOneServer();
 
 // Persetujuan akses yang lewat 7 hari tanpa keputusan (tiket 1.2d).
 Schedule::command('akses:kedaluwarsakan-persetujuan')->dailyAt('01:00')->timezone(config('instalasi.zona_waktu'))->onOneServer();
+
+// Kapasitas TT harian per bangsal dan kelas, penyebut BOR/BTO/TOI (tiket 1.8b, FR-08-18).
+Schedule::command('master-data:rekam-kapasitas-tt')->dailyAt('00:05')->timezone(config('instalasi.zona_waktu'))->onOneServer();
