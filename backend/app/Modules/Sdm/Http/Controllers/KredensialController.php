@@ -2,6 +2,7 @@
 
 namespace App\Modules\Sdm\Http\Controllers;
 
+use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
 use App\Core\Http\Paginasi;
 use App\Modules\Akses\Domain\Cakupan;
@@ -59,7 +60,7 @@ final class KredensialController
         return new JsonResponse(['data' => $this->resource->izinPraktik(collect([$this->kelola->batalkan($request->user(), $izin, $isi['alasan_batal'])]))[0]]);
     }
 
-    public function dokumen(Pegawai $pegawai, string $izinPraktikId): StreamedResponse
+    public function dokumen(Request $request, Pegawai $pegawai, string $izinPraktikId, CatatAktivitas $audit): StreamedResponse
     {
         self::izin('lihat');
         $izin = IzinPraktik::query()->where('pegawai_id', $pegawai->id)->findOrFail($izinPraktikId);
@@ -68,6 +69,7 @@ final class KredensialController
             throw new ApiError(404, 'tidak_ditemukan', 'Dokumen tidak ada.');
         }
         $nama = $izin->jenis.'-'.$izin->id.'.'.pathinfo($izin->dokumen_jalur, PATHINFO_EXTENSION);
+        $audit->catat('sdm.dokumen_izin_praktik_diunduh', $request->user()->id, 'sdm.izin_praktik', $izin->id, ['pegawai_id' => $pegawai->id]);
 
         return $disk->download($izin->dokumen_jalur, $nama, [
             'Content-Type' => (string) $izin->dokumen_mime, 'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'private, no-store',

@@ -12,10 +12,10 @@ use Illuminate\Contracts\Validation\ValidationRule;
  */
 final class SandiKontekstual implements ValidationRule
 {
-    /** Kata umum nama RS yang terlalu sering muncul untuk dilarang sendiri-sendiri. */
     /** Nama perangkat lunak (sama untuk semua RS; nama RS dari profil). */
     private const NAMA_PRODUK = 'karsitara';
 
+    /** Kata umum nama RS yang terlalu sering muncul untuk dilarang sendiri-sendiri. */
     private const KATA_UMUM = ['rumah', 'sakit', 'umum', 'daerah', 'pusat', 'khusus', 'universitas', 'provinsi', 'kabupaten', 'kota'];
 
     public function __construct(private readonly string $namaPengguna) {}

@@ -2109,9 +2109,10 @@ paths:
   /pegawai:
     get:
       operationId: daftarPegawai
-      summary: Daftar pegawai (paginasi kursor), urut nama
+      summary: Daftar pegawai (paginasi kursor), terbaru dicatat dulu
       description: |
         Izin: sdm.pegawai.lihat, cakupan `rs`. `cari` cocok sebagian pada nama atau NIP (NIK tidak bisa dicari lewat URL).
+        Tidak diurut nama: kursor ada di query string dan tidak boleh memuat data pribadi; klien mengurutkan tampilan.
         Filter satu nilai; `status` kosong = semua (termasuk keluar); `unit_organisasi_id` = unit itu saja (tanpa subpohon).
         `punya_akun=false` → pegawai yang belum punya akun dan belum keluar (aktif atau akan keluar; pemilih "Buat akun").
       parameters:

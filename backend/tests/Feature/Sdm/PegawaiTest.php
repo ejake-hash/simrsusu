@@ -111,7 +111,6 @@ class PegawaiTest extends TestCase
         $sesiAkun = $this->peramban();
 
         $this->masukSebagai($this->petugasSdm());
-        $hariIni = now(config('instalasi.zona_waktu'))->toDateString();
         $besok = now(config('instalasi.zona_waktu'))->addDay()->toDateString();
         $ubah = fn (array $isi) => $this->mintaDenganVersi('PATCH', "/api/v1/pegawai/{$pegawai->id}",
             (string) $pegawai->refresh()->revisi, [...$isi, 'dasar_perubahan' => self::DASAR]);
@@ -130,7 +129,50 @@ class PegawaiTest extends TestCase
         $this->masukSebagai($admin);
         $this->assertSesuaiKontrak($this->minta('POST', "/api/v1/akun/{$akun->id}/aktifkan", ['alasan' => 'Salah input'])
             ->assertStatus(409)->assertJsonPath('error.kode', 'pegawai_keluar'), 'POST', '/akun/{id}/aktifkan');
-        unset($hariIni);
+    }
+
+    public function test_keluar_tertunda_superadmin_tidak_bisa_dipicu_patch_lain(): void
+    {
+        $pegawai = Pegawai::query()->create(['nama' => 'Calon Superadmin']);
+        $akun = $this->buatPengguna(['pegawai_id' => $pegawai->id]);
+        $sdm = $this->petugasSdm();
+        $this->masukSebagai($sdm);
+        $besok = now(config('instalasi.zona_waktu'))->addDay()->toDateString();
+        $this->mintaDenganVersi('PATCH', "/api/v1/pegawai/{$pegawai->id}", (string) $pegawai->refresh()->revisi, [
+            'tanggal_keluar' => $besok, 'alasan_keluar' => 'Kontrak berakhir', 'dasar_perubahan' => self::DASAR,
+        ])->assertOk();
+        // Sesudah dicatat keluar, akun diberi superadmin (lewat K4; di tes dipasang langsung).
+        $this->tugaskan($akun, $this->superadmin());
+
+        $this->travel(2)->days();
+        $this->artisan('sdm:proses-pegawai-keluar')->assertSuccessful();
+        $this->assertSame('aktif', $akun->refresh()->status);
+        $this->masukSebagai($this->petugasSdm());
+        $this->mintaDenganVersi('PATCH', "/api/v1/pegawai/{$pegawai->id}", (string) $pegawai->refresh()->revisi, ['jabatan' => 'Staf', 'dasar_perubahan' => self::DASAR])
+            ->assertOk();
+        $this->assertSame('aktif', $akun->refresh()->status);
+        $this->assertTrue(DB::table('audit.log_aktivitas')->where('aksi', 'sdm.keluar_tertunda_superadmin')->where('subjek_id', $pegawai->id)->exists());
+    }
+
+    public function test_validasi_keluar_rekrut_ulang_dan_kode_ganda(): void
+    {
+        $this->masukSebagai($this->petugasSdm(identitas: true));
+        $a = $this->minta('POST', '/api/v1/pegawai', ['nama' => 'Pegawai A', 'nip' => 'NIP-1', 'nik' => self::NIK, 'dasar_perubahan' => self::DASAR])->assertCreated();
+        $this->minta('POST', '/api/v1/pegawai', ['nama' => 'Pegawai B', 'nip' => 'NIP-1', 'nik' => '1271015501900099', 'dasar_perubahan' => self::DASAR])
+            ->assertStatus(409)->assertJsonPath('error.kode', 'nip_sudah_dipakai');
+        $id = $a->json('data.id');
+        $versi = fn () => (string) Pegawai::query()->findOrFail($id)->revisi;
+        $this->mintaDenganVersi('PATCH', "/api/v1/pegawai/$id", $versi(), ['alasan_keluar' => 'Tanpa tanggal', 'dasar_perubahan' => self::DASAR])
+            ->assertStatus(422)->assertJsonPath('error.kode', 'validasi_gagal');
+
+        // Keluar hari ini (diproses), lalu direkrut ulang dengan rencana keluar mendatang: aktif lagi.
+        $hariIni = now(config('instalasi.zona_waktu'))->toDateString();
+        $this->mintaDenganVersi('PATCH', "/api/v1/pegawai/$id", $versi(), ['tanggal_keluar' => $hariIni, 'alasan_keluar' => 'Mengundurkan diri', 'dasar_perubahan' => self::DASAR])
+            ->assertOk()->assertJsonPath('data.status', 'keluar');
+        $this->assertSame('nonaktif', Pegawai::query()->findOrFail($id)->status);
+        $this->mintaDenganVersi('PATCH', "/api/v1/pegawai/$id", $versi(), ['tanggal_keluar' => now()->addYear()->toDateString(), 'dasar_perubahan' => self::DASAR])
+            ->assertOk()->assertJsonPath('data.status', 'akan_keluar');
+        $this->assertSame('aktif', Pegawai::query()->findOrFail($id)->status);
     }
 
     public function test_superadmin_tidak_lewat_jalur_sdm_atau_akun(): void

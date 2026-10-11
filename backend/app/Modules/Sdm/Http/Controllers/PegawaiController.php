@@ -49,7 +49,8 @@ final class PegawaiController
                 ? $q->whereExists($akun)
                 : $q->whereNotExists($akun)->where(fn ($q) => $q->whereNull('tanggal_keluar')->orWhere('tanggal_keluar', '>', $hariIni)));
 
-        return Paginasi::respons($query, $request, 'nama', arah: 'asc', bentuk: fn ($baris) => $this->resource->ringkas($baris, $request->user()));
+        // Urut waktu dicatat, bukan nama: kursor (di query string) tidak boleh memuat data pribadi.
+        return Paginasi::respons($query, $request, 'dibuat_pada', bentuk: fn ($baris) => $this->resource->ringkas($baris, $request->user()));
     }
 
     public function show(Request $request, Pegawai $pegawai): JsonResponse

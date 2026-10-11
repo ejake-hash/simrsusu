@@ -52,14 +52,13 @@ final class KelolaPegawai
             $pegawai->refresh();
             $sebelum = $this->isiAudit($pegawai);
             // Superadmin hanya berkurang lewat persetujuan superadmin lain (K4), bukan lewat data SDM.
-            if (($isi['tanggal_keluar'] ?? null) !== null && $this->akun->memegangSuperadmin($pegawai->id)) {
-                throw new ApiError(409, 'superadmin_aktif', 'Akun pegawai ini memegang peran superadmin. Akhiri penugasan superadminnya lebih dulu.', [
-                    ['kolom' => 'tanggal_keluar', 'pesan' => 'Akhiri penugasan superadmin lewat persetujuan superadmin lain.'],
-                ]);
+            if (($isi['tanggal_keluar'] ?? null) !== null && $this->akun->memegangSuperadmin($pegawai->id, kunci: true)) {
+                throw new ApiError(409, 'superadmin_aktif', 'Akun pegawai ini memegang peran superadmin. Akhiri penugasan superadminnya lebih dulu lewat persetujuan superadmin lain.');
             }
             $this->isi($pegawai, $isi, $bolehNik);
-            // Rencana keluar dibatalkan: pegawai aktif lagi, tetapi akunnya tetap nonaktif sampai diaktifkan admin.
-            if (array_key_exists('tanggal_keluar', $isi) && $isi['tanggal_keluar'] === null) {
+            // Rencana keluar dibatalkan atau dimundurkan ke masa depan: pegawai aktif lagi (akunnya tetap nonaktif sampai
+            // diaktifkan admin).
+            if (array_key_exists('tanggal_keluar', $isi) && $pegawai->statusKepegawaian() !== 'keluar') {
                 $pegawai->status = 'aktif';
             }
             $pegawai->forceFill(['diubah_oleh' => $penyunting->id])->save();
@@ -77,21 +76,19 @@ final class KelolaPegawai
         $jumlah = 0;
         $hariIni = now(config('instalasi.zona_waktu'))->toDateString();
         foreach (Pegawai::query()->where('status', 'aktif')->where('tanggal_keluar', '<=', $hariIni)->pluck('id') as $id) {
-            DB::transaction(function () use ($id, &$jumlah) {
-                $pegawai = Pegawai::query()->whereKey($id)->lockForUpdate()->firstOrFail();
-                if ($this->akun->memegangSuperadmin($pegawai->id)) {
-                    // Ditugaskan superadmin sesudah keluarnya dicatat: ditunda sampai penugasan itu diakhiri lewat K4.
-                    $this->audit->catat('sdm.keluar_tertunda_superadmin', null, 'sdm.pegawai', $pegawai->id,
-                        ['tanggal_keluar' => $pegawai->tanggal_keluar?->toDateString()]);
-
-                    return;
-                }
-                if ($this->prosesKeluarBila($pegawai, null)) {
-                    $jumlah++;
-                    $this->audit->catat('sdm.pegawai_keluar_diproses', null, 'sdm.pegawai', $pegawai->id,
-                        ['tanggal_keluar' => $pegawai->tanggal_keluar?->toDateString()]);
-                }
-            });
+            // Satu pegawai yang gagal tidak menghentikan yang lain; dicoba lagi besok.
+            try {
+                DB::transaction(function () use ($id, &$jumlah) {
+                    $pegawai = Pegawai::query()->whereKey($id)->lockForUpdate()->firstOrFail();
+                    if ($this->prosesKeluarBila($pegawai, null)) {
+                        $jumlah++;
+                        $this->audit->catat('sdm.pegawai_keluar_diproses', null, 'sdm.pegawai', $pegawai->id,
+                            ['tanggal_keluar' => $pegawai->tanggal_keluar?->toDateString()]);
+                    }
+                });
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
         return $jumlah;
@@ -101,6 +98,14 @@ final class KelolaPegawai
     private function prosesKeluarBila(Pegawai $pegawai, ?string $olehId): bool
     {
         if ($pegawai->status !== 'aktif' || $pegawai->statusKepegawaian() !== 'keluar') {
+            return false;
+        }
+        // Akun pemegang superadmin tidak pernah dinonaktifkan lewat jalur SDM (K4): ditunda dan dicatat sampai penugasan
+        // superadminnya diakhiri lewat persetujuan superadmin lain. Dicek di bawah kunci akun.
+        if ($this->akun->memegangSuperadmin($pegawai->id, kunci: true)) {
+            $this->audit->catat('sdm.keluar_tertunda_superadmin', $olehId, 'sdm.pegawai', $pegawai->id,
+                ['tanggal_keluar' => $pegawai->tanggal_keluar?->toDateString()]);
+
             return false;
         }
         $pegawai->forceFill(['status' => 'nonaktif'])->save();
@@ -121,10 +126,16 @@ final class KelolaPegawai
         if (($isi['unit_organisasi_id'] ?? null) !== null && ! $this->dataUnit->aktif($isi['unit_organisasi_id'])) {
             throw new ApiError(422, 'unit_tidak_valid', 'Unit tidak ada atau nonaktif.', [['kolom' => 'unit_organisasi_id', 'pesan' => 'Pilih unit yang aktif.']]);
         }
-        if (array_key_exists('tanggal_keluar', $isi) && $isi['tanggal_keluar'] !== null && empty($isi['alasan_keluar'])) {
+        // Nilai sesudah perubahan: tanggal dan alasan keluar selalu berpasangan (pegawai_keluar_cek).
+        $tanggal = array_key_exists('tanggal_keluar', $isi) ? $isi['tanggal_keluar'] : $pegawai->tanggal_keluar?->toDateString();
+        $alasan = array_key_exists('alasan_keluar', $isi) ? $isi['alasan_keluar'] : $pegawai->alasan_keluar;
+        if ($tanggal !== null && empty($alasan)) {
             throw new ApiError(422, 'validasi_gagal', 'Alasan keluar wajib diisi.', [['kolom' => 'alasan_keluar', 'pesan' => 'Isi alasan keluar.']]);
         }
-        if (array_key_exists('tanggal_keluar', $isi) && $isi['tanggal_keluar'] === null) {
+        if ($tanggal === null && ! empty($isi['alasan_keluar'])) {
+            throw new ApiError(422, 'validasi_gagal', 'Alasan keluar hanya diisi bersama tanggal keluar.', [['kolom' => 'alasan_keluar', 'pesan' => 'Isi tanggal keluar lebih dulu.']]);
+        }
+        if ($tanggal === null) {
             $isi['alasan_keluar'] = null;
         }
         $pegawai->fill(array_intersect_key($isi, array_flip(['nip', 'nama', 'jenis_kepegawaian', 'profesi', 'unit_organisasi_id', 'jabatan', 'tmt', 'tanggal_keluar', 'alasan_keluar'])));
@@ -144,8 +155,9 @@ final class KelolaPegawai
             if ($e->getCode() !== '23505') {
                 throw $e;
             }
-            // Pesan basis data bisa memuat nilai kunci; hanya nama constraint yang dipakai.
-            [$kode, $kolom] = str_contains($e->getMessage(), 'nik_sidik') ? ['nik_sudah_dipakai', 'nik'] : ['nip_sudah_dipakai', 'nip'];
+            // Hanya nama constraint dari pesan PostgreSQL yang dipakai (teks SQL dan nilai kunci tidak dibaca).
+            $constraint = preg_match('/unique constraint "([^"]+)"/', (string) ($e->errorInfo[2] ?? ''), $m) === 1 ? $m[1] : '';
+            [$kode, $kolom] = str_contains($constraint, 'nik_sidik') ? ['nik_sudah_dipakai', 'nik'] : ['nip_sudah_dipakai', 'nip'];
             throw new ApiError(409, $kode, $kolom === 'nik' ? 'NIK sudah tercatat untuk pegawai lain.' : 'NIP sudah dipakai pegawai lain.', [['kolom' => $kolom, 'pesan' => 'Sudah dipakai.']]);
         }
     }

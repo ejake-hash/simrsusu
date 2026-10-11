@@ -23,10 +23,10 @@ final class AkunPegawai
         private readonly PenjagaPenyunting $penjaga,
     ) {}
 
-    /** Akun pegawai ini memegang superadmin (penugasan aktif, berlaku atau akan berlaku). */
-    public function memegangSuperadmin(string $pegawaiId): bool
+    /** Akun pegawai ini memegang superadmin (penugasan aktif, berlaku atau akan berlaku). $kunci: akun dikunci FOR UPDATE. */
+    public function memegangSuperadmin(string $pegawaiId, bool $kunci = false): bool
     {
-        return Pengguna::query()->where('pegawai_id', $pegawaiId)->get()
+        return Pengguna::query()->where('pegawai_id', $pegawaiId)->when($kunci, fn ($q) => $q->lockForUpdate())->get()
             ->contains(fn (Pengguna $p) => $this->penjaga->superadmin($p, termasukMasaDepan: true));
     }
 
@@ -70,6 +70,10 @@ final class AkunPegawai
     public function nonaktifkanKarenaKeluar(PegawaiKeluar $kejadian): void
     {
         foreach (Pengguna::query()->where('pegawai_id', $kejadian->pegawaiId)->where('status', 'aktif')->lockForUpdate()->get() as $akun) {
+            // Pagar kedua K4: superadmin tidak pernah dinonaktifkan lewat jalur ini.
+            if ($this->penjaga->superadmin($akun, termasukMasaDepan: true)) {
+                continue;
+            }
             $akun->forceFill(['status' => 'nonaktif', 'diubah_oleh' => $kejadian->olehId])->save();
             $akun->cabutSesi();
             $this->audit->catat('akses.akun_dinonaktifkan', $kejadian->olehId, 'akses.pengguna', $akun->id, ['alasan' => 'pegawai_keluar']);
