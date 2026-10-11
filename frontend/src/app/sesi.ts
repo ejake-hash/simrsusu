@@ -13,6 +13,8 @@ export const useSesiStore = defineStore('sesi', () => {
   const sudahDicek = ref(false)
   /** Pesan dari server saat sesi berakhir (mis. sesi_kedaluwarsa), ditampilkan di halaman masuk. */
   const pesanBerakhir = ref<string | null>(null)
+  /** Waktu /saya terakhir berhasil dimuat (bukan reaktif). */
+  let dimuatPada = 0
 
   /**
    * Cek sesi sekali per muat halaman. Server tak terjangkau atau error lain = anggap belum masuk
@@ -22,6 +24,7 @@ export const useSesiStore = defineStore('sesi', () => {
     if (sudahDicek.value) return
     try {
       pengguna.value = await ambilSaya()
+      dimuatPada = Date.now()
       sudahDicek.value = true
     } catch (error) {
       pengguna.value = null
@@ -31,6 +34,7 @@ export const useSesiStore = defineStore('sesi', () => {
 
   async function muatSetelahMasuk(): Promise<void> {
     pengguna.value = await ambilSaya()
+    dimuatPada = Date.now()
     sudahDicek.value = true
     pesanBerakhir.value = null
   }
@@ -40,9 +44,11 @@ export const useSesiStore = defineStore('sesi', () => {
    * permintaan). Gagal jaringan/5xx diabaikan dan data lama dipakai; 401 berarti sesi sudah berakhir.
    */
   async function segarkan(): Promise<void> {
-    if (!pengguna.value) return
+    // Baru saja dimuat (mis. pemeriksaan sesi di router tepat sebelum Beranda dibuka): tidak perlu diminta lagi.
+    if (!pengguna.value || Date.now() - dimuatPada < 5000) return
     try {
       pengguna.value = await ambilSaya()
+      dimuatPada = Date.now()
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) akhiri(error)
     }

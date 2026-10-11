@@ -48,7 +48,7 @@ describe('AppShell', () => {
     const shell = await pasang()
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, cancelable: true }))
     expect(pencarianTerbuka.value).toBe(true)
-    expect(shell.get('.tombol-cari-menu').attributes('aria-label')).toBe('Cari menu')
+    expect(shell.get('[data-pemicu-pencarian]').attributes('aria-label')).toBe('Cari menu')
   })
 
   it('pintasan: Cmd+K di Apple, Ctrl+K di lainnya; diabaikan saat IME atau sudah ditangani', () => {

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { cariPosisi, useMenuSaya } from '@/app/menu'
 import { profilRsDariEnv } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
+import NotifikasiToast from '@/design-system/components/NotifikasiToast.vue'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import { useKelasLayar } from '@/shared/composables/useKelasLayar'
 import PencarianMenu from './PencarianMenu.vue'
@@ -72,9 +73,18 @@ function tekanTombol(e: KeyboardEvent) {
   e.preventDefault()
   bukaPencarianMenu()
 }
-onMounted(() => window.addEventListener('keydown', tekanTombol))
+// Tinggi header lekat (+ pita demo) sebagai variabel CSS untuk panel lekat dan scroll-margin di halaman.
+const atasLekat = ref<HTMLElement | null>(null)
+let pengamat: ResizeObserver | undefined
+onMounted(() => {
+  window.addEventListener('keydown', tekanTombol)
+  if (typeof ResizeObserver === 'undefined' || !atasLekat.value) return
+  pengamat = new ResizeObserver(([e]) => document.documentElement.style.setProperty('--tinggi-atas-lekat', `${Math.round(e!.contentRect.height)}px`))
+  pengamat.observe(atasLekat.value)
+})
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', tekanTombol)
+  pengamat?.disconnect()
   // Keluar/sesi berakhir: pencarian tidak terbuka lagi saat akun berikutnya masuk.
   pencarianTerbuka.value = false
 })
@@ -124,7 +134,7 @@ async function keluar() {
 
     <div class="utama" :inert="laciTerbuka || undefined">
       <!-- Pita demo ikut lekat bersama header agar tetap terlihat saat halaman digulir (FR-54-10). -->
-      <div class="atas-lekat">
+      <div ref="atasLekat" class="atas-lekat">
         <PitaDemo v-if="profilRs.demo" />
         <header class="kepala">
           <button
@@ -175,6 +185,7 @@ async function keluar() {
       <main id="konten" class="konten" tabindex="-1">
         <RouterView />
       </main>
+      <NotifikasiToast />
     </div>
   </div>
 </template>

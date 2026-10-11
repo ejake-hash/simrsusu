@@ -28,6 +28,18 @@
 - Drawer untuk detail; modal hanya untuk konfirmasi tindakan berisiko (PRD 5.1 butir 6).
 - Format Indonesia: `Rp 1.950.000`, `36,7 °C`, `2 Oktober 2026`, `10.30 WIB`.
 
+## Komponen yang sudah ada (tiket 1.11)
+Di `frontend/src/design-system/`; contoh semua keadaan (normal/kosong/error/memuat) di rute `/katalog` (hanya mode
+pengembangan). Pakai ini sebelum membuat yang baru; warna hanya dari token (uji `tanpaHex.spec.ts`).
+- Aksi dan pesan: `Tombol` (utama/kedua/bahaya/tautan, besar, penuh, sibuk), `Pesan` (error/info/peringatan/ok),
+  `Lencana` (status berikon), `NotifikasiToast` + `tampilkanToast()` untuk hasil aksi yang tidak terlihat di tempat.
+- Formulir: `KolomIsian` (label, petunjuk, error), kelas `.isian`/`.isian-besar`/`.isian-kode`, `IsianSandi`,
+  `FormulirBertahap` (langkah dengan `aria-current="step"`), `Sakelar`.
+- Data: `DataTable` (kursor "Muat lagi", kolom berprioritas, gulir virtual), `PohonData` (tree WAI-ARIA),
+  `KpiCard` (hanya data asli; null = "—"), `KeadaanKosong`.
+- Navigasi dan lapisan: `Dialog` (hanya konfirmasi tindakan berisiko), `PopoverPencarian` (combobox non-modal),
+  `Tabs`, `NavigasiSubMenu`; di `frontend/src/layouts/`: `HalamanModul`, `HalamanIndukModul`, `PencarianMenu`, `PitaDemo`.
+
 ## Komponen bersama (PRD 5.4 dan Lampiran D.4)
 - `AppShell`, `SidebarMenu`, `PermissionGate`/`v-can`, `TtdModal`, `CpptLinimasa`, `DataTable`, `PatientHeader`, `KpiCard`, `StatusBadge`. Dibuat sekali di `frontend/src/design-system/` atau `frontend/src/shared/`, tidak dibuat ulang per modul.
 - Contoh perilaku ada di prototipe `docs/html/` (tombol **Spek dev** di tiap halaman).

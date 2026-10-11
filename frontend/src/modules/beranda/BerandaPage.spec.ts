@@ -132,7 +132,7 @@ describe('PencarianMenu (popover, Ctrl/Cmd+K)', () => {
     expect(w.get('button').attributes('aria-label')).toBe('Cari menu')
     await w.get('button').trigger('click')
     await flushPromises()
-    const panel = document.querySelector('.panel-cari-menu')!
+    const panel = document.querySelector('.panel-pencarian')!
     expect(panel).not.toBeNull()
     expect(panel.getAttribute('aria-modal')).toBeNull()
     expect(document.querySelector('.dialog-tirai')).toBeNull()
