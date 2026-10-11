@@ -22,7 +22,7 @@
 | 1.0c | Nama modul bahasa Indonesia (backend dan frontend). Catatan: panel Spek dev di `docs/html` masih menyebut nama lama (di luar lingkup) | Selesai | #16 |
 | 1.0f | Antrean setelah commit, penghitung batas laju di instans `noeviction`, aturan bersih-bersih tiket di CLAUDE.md. Catatan: store `batas-laju` = `cache.limiter`; tes memakai `array` (`CACHE_LIMITER_STORE`) agar `travel()` berlaku | Selesai | #25 |
 | **1.2a** | Backend akses: tabel menu/peran/izin/penugasan, seeder menu dari prototipe, `AccessEvaluator` lapis 1–3, `GET /api/v1/saya/menu`, superadmin sementara → peran | **Siap dikerjakan** (Sesi 1) | — |
-| 1.2b | Frontend kerangka aplikasi: `AppShell` + `SidebarMenu` dinamis (kontrak `docs/api/openapi.yaml`), `SegeraHadirPage`, responsif PRD 5.5. Catatan: menu aktif tanpa halaman frontend juga ke `SegeraHadirPage`; jalur di luar menu = *Halaman tidak ditemukan* (tidak dibedakan dari tidak diizinkan); e2e masih memakai menu tiruan (lihat utang) | Selesai | #PR |
+| 1.2b | Frontend kerangka aplikasi: `AppShell` + `SidebarMenu` dinamis (kontrak `docs/api/openapi.yaml`), `SegeraHadirPage`, responsif PRD 5.5. Catatan: menu aktif tanpa halaman frontend juga ke `SegeraHadirPage`; jalur di luar menu = *Halaman tidak ditemukan* (tidak dibedakan dari tidak diizinkan); e2e masih memakai menu tiruan (lihat utang) | Selesai | #26 |
 | 1.2c | Halaman Data Induk → Peran & menu, Akun & akses (`masterdata.html`), termasuk wajib MFA per peran/akun dan reset MFA | Menunggu 1.2a dan 1.2b; paket halaman menyusul | — |
 | 1.5 | Lapis 4–5 hak akses (label sensitivitas, SIP/SPK, MFA aksi sensitif) | Menunggu 1.2 | — |
 | 1.6 | TTE T1: aktivasi PIN, `TtdModal`, kunci Ed25519 | Menunggu 1.2 | — |
