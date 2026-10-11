@@ -41,6 +41,8 @@ final class AkunSintetisSeeder extends Seeder
         // Tanpa penugasan dan tanpa wajib MFA: Beranda "belum ada modul" (tiket 1.2e). Seeding ulang
         // mengakhiri penugasan yang sempat dibuat uji lain.
         self::TANPA_PERAN => 'Contoh Akun Tanpa Peran',
+        // Pemegang Master Data (organisasi, unit, KSM; tiket 1.8a), bukan superadmin (FR-54-01).
+        'contoh.data.induk' => 'Contoh Admin Data Induk',
     ];
 
     /**
@@ -51,6 +53,7 @@ final class AkunSintetisSeeder extends Seeder
         'contoh_admisi' => ['Contoh Petugas Admisi', 'contoh.admisi', ['pendaftaran']],
         'contoh_perawat' => ['Contoh Perawat', 'contoh.perawat', ['igd', 'rawat_inap']],
         'contoh_dokter' => ['Contoh Dokter', 'contoh.dokter', ['igd', 'rawat_jalan', 'rekam_medis']],
+        'contoh_data_induk' => ['Contoh Admin Data Induk', 'contoh.data.induk', ['master_data']],
     ];
 
     public function run(): void

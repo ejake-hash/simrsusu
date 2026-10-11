@@ -41,10 +41,12 @@ trait AksesUji
         return $peran;
     }
 
-    protected function tugaskan(Pengguna $pengguna, Peran $peran, mixed $sampai = null): PenggunaPeran
+    protected function tugaskan(Pengguna $pengguna, Peran $peran, mixed $sampai = null, ?Cakupan $cakupan = null): PenggunaPeran
     {
+        $cakupan ??= Cakupan::rs();
+
         return PenggunaPeran::query()->create(array_filter([
-            'pengguna_id' => $pengguna->id, 'peran_id' => $peran->id, 'cakupan_jenis' => Cakupan::rs()->jenis,
+            'pengguna_id' => $pengguna->id, 'peran_id' => $peran->id, 'cakupan_jenis' => $cakupan->jenis, 'cakupan_id' => $cakupan->id,
             'berlaku_sampai' => $sampai, 'dasar_pemberian' => 'SK uji',
         ], fn ($nilai) => $nilai !== null));
     }

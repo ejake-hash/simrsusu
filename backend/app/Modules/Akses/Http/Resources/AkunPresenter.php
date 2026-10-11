@@ -3,6 +3,7 @@
 namespace App\Modules\Akses\Http\Resources;
 
 use App\Core\Http\ApiError;
+use App\Modules\Akses\Application\DataUnit;
 use App\Modules\Akses\Application\KebijakanMfa;
 use App\Modules\Akses\Application\PenjagaPenyunting;
 use App\Modules\Akses\Application\PohonMenu;
@@ -25,7 +26,11 @@ final class AkunPresenter
         private readonly RingkasanPegawai $pegawai,
         private readonly KebijakanMfa $kebijakanMfa,
         private readonly PenjagaPenyunting $penjaga,
+        private readonly DataUnit $dataUnit,
     ) {}
+
+    /** @var array<string, string> label unit cakupan penugasan yang sedang dibentuk */
+    private array $labelUnit = [];
 
     /**
      * @param  Collection<int, Pengguna>  $akun
@@ -61,6 +66,7 @@ final class AkunPresenter
         $penugasan = $this->urutRiwayat(PenggunaPeran::query()->where('pengguna_id', $akun->id)->with('peran:id,kode,nama')->get());
         $khusus = $this->urutRiwayat(PenggunaIzinKhusus::query()->where('pengguna_id', $akun->id)->with('izin:id,kode,menu_id,jenis_aksi,sensitif')->get());
         $pelaku = $this->pelaku([...$penugasan, ...$khusus]);
+        $this->labelUnit = $this->dataUnit->label($this->unitCakupan($penugasan));
         $menu = Menu::query()->get(['id', 'induk_id', 'tingkat', 'kode', 'label'])->keyBy('id');
 
         return [
@@ -78,8 +84,25 @@ final class AkunPresenter
     public function satuPenugasan(PenggunaPeran $penugasan): array
     {
         $penugasan->loadMissing('peran:id,kode,nama');
+        $this->labelUnit = $this->dataUnit->label($this->unitCakupan([$penugasan]));
 
         return $this->penugasan($penugasan, $this->pelaku([$penugasan]));
+    }
+
+    /**
+     * @param  iterable<PenggunaPeran>  $penugasan
+     * @return list<string>
+     */
+    private function unitCakupan(iterable $penugasan): array
+    {
+        $id = [];
+        foreach ($penugasan as $p) {
+            if ($p->cakupan_jenis === 'unit' && $p->cakupan_id !== null) {
+                $id[] = $p->cakupan_id;
+            }
+        }
+
+        return array_values(array_unique($id));
     }
 
     /** @return array<string, mixed> */
@@ -142,6 +165,7 @@ final class AkunPresenter
             'peran' => ['id' => $p->peran->id, 'kode' => $p->peran->kode, 'nama' => $p->peran->nama],
             'cakupan_jenis' => $p->cakupan_jenis,
             'cakupan_id' => $p->cakupan_id,
+            'cakupan_label' => $p->cakupan_id === null ? null : ($this->labelUnit[$p->cakupan_id] ?? null),
             ...$this->pemberian($p, $pelaku),
         ];
     }

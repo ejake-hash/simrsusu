@@ -184,7 +184,9 @@ class PengaturanAkunTest extends TestCase
             [$akun, ['peran_id' => $this->superadmin()->id], 409, 'peran_bawaan_terkunci'],
             [$akun, ['peran_id' => $nonaktif->id], 409, 'peran_nonaktif'],
             [$akun, ['peran_id' => $sensitif->id, 'berlaku_sampai' => now()->addDay()->toIso8601String()], 409, 'butuh_persetujuan'],
-            [$akun, ['peran_id' => $biasa->id, 'cakupan_jenis' => 'unit', 'cakupan_id' => (string) Str::uuid7()], 422, 'cakupan_belum_didukung'],
+            [$akun, ['peran_id' => $biasa->id, 'cakupan_jenis' => 'poli', 'cakupan_id' => (string) Str::uuid7()], 422, 'cakupan_belum_didukung'],
+            [$akun, ['peran_id' => $biasa->id, 'cakupan_jenis' => 'unit', 'cakupan_id' => (string) Str::uuid7()], 422, 'cakupan_tidak_valid'],
+            [$akun, ['peran_id' => $biasa->id, 'cakupan_jenis' => 'unit'], 422, 'cakupan_tidak_valid'],
             [$akun, ['peran_id' => $biasa->id, 'berlaku_sampai' => now()->subDay()->toIso8601String()], 422, 'validasi_gagal'],
             [$akun, ['peran_id' => (string) Str::uuid7()], 422, 'validasi_gagal'],
         ] as [$ke, $isi, $status, $kode]) {

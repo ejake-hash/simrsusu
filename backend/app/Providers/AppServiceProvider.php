@@ -37,8 +37,11 @@ class AppServiceProvider extends ServiceProvider
             ]))]);
         }
 
-        $this->loadMigrationsFrom([app_path('Core/Audit/Database/migrations'), app_path('Core/Modul/Database/migrations')]);
+        $this->loadMigrationsFrom([
+            app_path('Core/Audit/Database/migrations'), app_path('Core/Modul/Database/migrations'), app_path('Core/ProfilRs/Database/migrations'),
+        ]);
         $this->loadRoutesFrom(app_path('Core/Http/routes.php'));
+        $this->loadRoutesFrom(app_path('Core/ProfilRs/routes.php'));
 
         // throttle:api dipasang ke grup `api` di bootstrap/app.php; nilai di config/rate_limit.php.
         RateLimiter::for('api', fn (Request $request) => self::batasPerPengguna(

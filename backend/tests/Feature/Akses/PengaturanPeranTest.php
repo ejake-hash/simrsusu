@@ -282,7 +282,9 @@ class PengaturanPeranTest extends TestCase
         $salinan = $this->minta('POST', '/api/v1/peran', [
             'kode' => 'salin_superadmin', 'nama' => 'Salinan superadmin', 'wajib_mfa' => false, 'salin_dari_id' => $this->superadmin()->id, 'dasar_perubahan' => self::DASAR,
         ])->assertCreated();
-        $this->assertSame(['pengaturan.akun.lihat', 'pengaturan.peran.lihat'], $salinan->json('data.izin'));
+        // Profil RS (tiket 1.8a) tidak sensitif, jadi ikut tersalin.
+        $this->assertSame(['pengaturan.akun.lihat', 'pengaturan.peran.lihat', 'pengaturan.profil_rs.input', 'pengaturan.profil_rs.lihat', 'pengaturan.profil_rs.perbaiki'],
+            $salinan->json('data.izin'));
         // Lewat pengecualian per akun, dan peran yang memuatnya tidak bisa ditugaskan.
         $this->minta('POST', "/api/v1/akun/{$akun->id}/izin-khusus", [
             'efek' => 'tambah', 'sasaran_jenis' => 'izin', 'sasaran_kode' => 'pengaturan.peran.input', 'berlaku_sampai' => now()->addDay()->toIso8601String(),

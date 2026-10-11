@@ -42,27 +42,38 @@ final class SesiPengguna
     {
         /** @var Pengguna $pengguna */
         $pengguna = $request->user();
-        $sesi = $request->session();
 
-        if (! $pengguna->aktif()) {
-            $this->akhiri($request, $pengguna, 'sesi_dicabut', 'Akun Anda sudah tidak aktif. Hubungi admin.');
-        }
+        match (self::alasanBerakhir($request, $pengguna)) {
+            'nonaktif' => $this->akhiri($request, $pengguna, 'sesi_dicabut', 'Akun Anda sudah tidak aktif. Hubungi admin.'),
+            'dicabut' => $this->akhiri($request, $pengguna, 'sesi_dicabut', 'Sesi Anda diakhiri oleh admin. Silakan masuk lagi.'),
+            'diam' => $this->akhiri($request, $pengguna, 'sesi_kedaluwarsa', 'Sesi berakhir karena tidak ada aktivitas. Silakan masuk lagi.'),
+            null => null,
+        };
 
-        $masukPada = $sesi->get(self::MASUK_PADA);
-        if ($pengguna->sesi_dicabut_pada !== null
-            && (! is_int($masukPada) || $masukPada < (int) $pengguna->sesi_dicabut_pada->getPreciseTimestamp(6))) {
-            $this->akhiri($request, $pengguna, 'sesi_dicabut', 'Sesi Anda diakhiri oleh admin. Silakan masuk lagi.');
-        }
-
-        $terakhir = $sesi->get(self::TERAKHIR_AKTIF);
-        $batasDetik = (int) $sesi->get(self::BATAS_DIAM, config('autentikasi.sesi.batas_diam_menit')) * 60;
-        if (! is_int($terakhir) || now()->getTimestamp() - $terakhir > $batasDetik) {
-            $this->akhiri($request, $pengguna, 'sesi_kedaluwarsa', 'Sesi berakhir karena tidak ada aktivitas. Silakan masuk lagi.');
-        }
-
-        $sesi->put(self::TERAKHIR_AKTIF, now()->getTimestamp());
+        $request->session()->put(self::TERAKHIR_AKTIF, now()->getTimestamp());
 
         return $next($request);
+    }
+
+    /**
+     * Alasan sesi ini harus berakhir (akun nonaktif, dicabut admin, melewati batas diam), atau null bila masih sah.
+     *
+     * @return 'nonaktif'|'dicabut'|'diam'|null
+     */
+    public static function alasanBerakhir(Request $request, Pengguna $pengguna): ?string
+    {
+        $sesi = $request->session();
+        $masukPada = $sesi->get(self::MASUK_PADA);
+        $terakhir = $sesi->get(self::TERAKHIR_AKTIF);
+        $batasDetik = (int) $sesi->get(self::BATAS_DIAM, config('autentikasi.sesi.batas_diam_menit')) * 60;
+
+        return match (true) {
+            ! $pengguna->aktif() => 'nonaktif',
+            $pengguna->sesi_dicabut_pada !== null
+                && (! is_int($masukPada) || $masukPada < (int) $pengguna->sesi_dicabut_pada->getPreciseTimestamp(6)) => 'dicabut',
+            ! is_int($terakhir) || now()->getTimestamp() - $terakhir > $batasDetik => 'diam',
+            default => null,
+        };
     }
 
     /** @return never */
