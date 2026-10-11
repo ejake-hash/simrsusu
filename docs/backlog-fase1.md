@@ -30,7 +30,7 @@
 | **1.2e** | Beranda: modul saya, keamanan akun, pencarian menu, aksesibilitas (`home.html`); tanpa angka tiruan | be: Selesai (kontrak #33, backend #34). Catatan: kolom `akses.pengguna.login_terakhir_dari_jaringan_rs`, `masuk_sebelumnya_pada`, `masuk_sebelumnya_dari_jaringan_rs`; `email` tidak dikirim di `/saya` maupun respons masuk; tanda instalasi demo tidak di `/saya` (milik instalasi, ke `/profil-rs` 1.8a). fe: **Dikerjakan sesi 2** (di atas 1.2c-fe #30) | #33, #34 |
 | 1.2d-be / 1.2d-fe | Persetujuan akses (izin sensitif, superadmin), permintaan akses dari layar "Akses ditolak" | be: Selesai (kontrak #41, backend #43). Catatan: `akses.persetujuan_akses` (satu baris per peran penyetuju, satu grup per pengajuan), `akses.permintaan_akses`, `akses.izin.peran_penyetuju_id`; sub-menu `pengaturan.persetujuan` lewat peran (bawaan superadmin); tugas harian `akses:kedaluwarsakan-persetujuan`; fe: siap (kontrak #41) | #41, #43 |
 | 1.8a-be / 1.8a-fe | Profil RS dan paket identitas, unit organisasi, KSM (ganti `VITE_RS_*`) | be: Selesai (kontrak #37, backend #38). Catatan: profil di `App\Core\ProfilRs`, unit/KSM di modul `MasterData`, lapis 3 cakupan `unit` = subpohon, berkas lewat disk `IDENTITAS_DISK`, akun e2e `contoh.data.induk`; fe: **Dikerjakan sesi 2** (#42). Catatan fe: profil dari `GET /profil-rs` (tanpa `VITE_RS_*`), tema dari dua warna paket identitas (`app/tema.ts`), pohon unit muat-lambat, cakupan penugasan `unit`, pemilih unit kerja di header | — |
-| 1.8b-be / 1.8b-fe | Lokasi fisik bertingkat, bangsal/kamar/TT, kelas rawat, poliklinik, impor CSV | Siap setelah 1.8a | — |
+| 1.8b-be / 1.8b-fe | Lokasi fisik bertingkat, bangsal/kamar/TT, kelas rawat, poliklinik, impor CSV | be: **Dikerjakan sesi 1** (kontrak dulu, branch `docs/kontrak-1.8b`); fe: siap setelah kontrak | — |
 | 1.8c-be / 1.8c-fe | Usulan perubahan data induk berjenjang (mesin generik), dipakai pertama oleh TT | Siap setelah 1.7 | — |
 | 1.8d-be / 1.8d-fe | Pegawai, izin praktik (STR/SIP/SPK), RKK minimal, akun dibuat dari pegawai | Siap setelah 1.8a | — |
 | 1.8e-be | Pemuat paket referensi (`inti.paket_referensi`) | Siap setelah 1.8a | — |
@@ -140,6 +140,14 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   - Penggantian penyetuju yang masih menunggu belum tampil di `NodeMenu` (catatan sesi 2; layar memakai tab "Yang saya ajukan").
   - Superadmin ikut mendapat `pengaturan.persetujuan.input/perbaiki` dari `AKSI_DASAR` walau layar itu hanya memakai `lihat`.
   - Dari tinjauan #43 (non-penghalang): `catat()` audit dipanggil di tengah transaksi pada `ajukan`/`tindaklanjuti`/penerapan (bukan di akhir, ADR 0003) sehingga kunci rantai dipegang lebih lama; pemegang peran penyetuju bercakupan unit tetap bisa memutuskan pemberian bercakupan RS (cakupan penyetuju belum dibandingkan, bersama admin delegasi); pemeriksaan `penerima_sendiri` tanpa kunci baris peran (balapan sempit, tetap butuh kolusi dua orang); `lihat_wajib` tidak diperiksa ulang saat izin peran diterapkan.
+- Utang 1.8b (dari tinjauan #44): arti `bangsal.kelas_layanan` di PRD 11.2 (kelas bawaan bangsal? kelas layanan VIP?) perlu
+  dijelaskan pemilik; TT terisi saat akan ditutup ditolak 409, padahal FR-08-17 meminta "akan ditutup setelah kosong" →
+  bersama penempatan pasien (fase 2); impor lokasi lewat antrean `dokumen` untuk berkas > 5.000 baris butuh endpoint
+  status impor (di luar daftar API tiket) → usulan bila dibutuhkan RS besar.
+- **[Perlu pemilik] Usulan (1.8b):** daftar periksa baku atribut kamar (FR-08-19) sebagai data induk dengan endpoint
+  sendiri (mis. `/atribut-kamar`: kode, label, jenis nilai, berlaku untuk KRIS/kelas lama). Endpoint ini tidak tercantum
+  di API tiket 1.8b, jadi menunggu pemilik; sampai itu `Kamar.atribut_standar` berupa pasangan kunci-nilai bebas
+  (kunci snake_case, paling banyak 50).
 - Sesudah backend 1.2d merge: field baru kontrak v0.4.0 di skema lama (`izin_menunggu`, `menunggu_persetujuan`, `penyetuju_peran`, 202) dijadikan `required`/satu-satunya, dan teks "sebelum 1.2d" serta 409 `butuh_persetujuan`/`peran_bawaan_terkunci` (penugasan) dihapus dari kontrak.
 - Sesudah 1.8a-fe:
   - Server tiruan organisasi `frontend/src/modules/organisasi/tiruan/serverOrganisasi.ts` digabung dengan server tiruan akses (`serverGabungan.ts`) untuk `VITE_API_TIRUAN=true` dan unit test; mengikuti kontrak v0.3.0, bukan acuan aturan. `/saya` dan `/saya/menu` tetap butuh backend.
@@ -651,6 +659,24 @@ Uji penerimaan:
   - Menutup TT dengan berlaku_dari besok: hari ini masih dihitung, besok tidak (kapasitas harian).
   - Kode TT yang ditutup tidak bisa dipakai untuk TT baru.
   - Tablet 1024 px: pohon dan panel rinci berdampingan tanpa gulir horizontal halaman.
+Aturan rinci (kontrak v0.5.0; isi FR-54-11…14 dan FR-08-16…20 menunggu PRD v0.10.11 di #39, jadi aturan yang dipakai
+kode ditulis di sini):
+  - Izin: sub-menu yang sudah ada `master_data.organisasi` (PRD 9.1 "Organisasi, Unit, Ruang & Tempat Tidur", satu
+    halaman; labelnya disamakan dengan PRD) untuk lokasi, bangsal, kamar, TT, kelas rawat, poliklinik, kapasitas. Semua
+    dengan cakupan `rs`. Pemisahan pemilik data ruang & TT (FR-54-01) nanti lewat izin tingkat bagian, bukan sub-menu baru.
+  - Bangsal tanpa `kelas_layanan` (PRD 11.2): kelas ditetapkan per TT. Arti kolom itu ditanyakan ke pemilik (utang).
+  - Impor CSV sinkron, paling banyak 5.000 baris / 2 MB per berkas.
+  - Jenis anak: akar → situs|gedung; situs → gedung; gedung → sayap|lantai; sayap → lantai; lantai → ruang;
+    ruang → tempat_tidur. Kode segmen `^[A-Z0-9]{1,10}$`, `kode_lengkap` = gabungan dengan "-", unik di seluruh RS.
+  - Kamar = ruang (lokasi jenis ruang) yang dimasukkan ke bangsal; satu ruang paling banyak satu kamar.
+  - TT: node lokasi jenis tempat_tidur dibuat lewat /tempat-tidur; kode TT = kode_lengkap saat dibuat, tidak berubah
+    walau ruangnya dipindah, unik selamanya. `berlaku_sampai` = hari terakhir dihitung; tutup = permanen (tutup
+    sementara/buka kembali lewat 1.8c). Status operasional diturunkan dari tanggal.
+  - Status lokasi berlaku segera (tanggal ≤ hari ini); penjadwalan ke depan lewat 1.8c.
+  - Kapasitas: rekaman hari T dibuat 00.05 zona RS dan diperbarui setiap perubahan TT sepanjang hari T, lalu beku;
+    tanggal lampau dibaca dari rekaman, hari ini/mendatang dihitung dari masa berlaku TT.
+  - Kelas rawat, kode Aplicares, dan kode poli BPJS diisi RS; tidak ada data bawaan.
+  - `satusehat_lokasi_id` hanya baca (diisi integrasi 1.9).
 Di luar lingkup tiket: peta TT dan penempatan pasien (fase 2), denah gambar (FR-54-13, S → fase 2), sinkron Aplicares (1.9).
 ```
 
