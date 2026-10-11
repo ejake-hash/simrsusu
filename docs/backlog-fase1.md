@@ -35,7 +35,7 @@
 | 1.8d-be / 1.8d-fe | Pegawai, izin praktik (STR/SIP/SPK), RKK minimal, akun dibuat dari pegawai | be: **Dikerjakan sesi 1** (kontrak dulu, branch `docs/kontrak-1.8d`); fe: siap setelah kontrak | — |
 | 1.8e-be | Pemuat paket referensi (`inti.paket_referensi`) | Siap setelah 1.8a | — |
 | 1.8f-be / 1.8f-fe | Wizard penyiapan instalasi kosong (FR-54-08) | Siap setelah 1.8a–e | — |
-| 1.7-be / 1.7-fe | Notifikasi, kotak kerja, jenis tugas, eskalasi 3 tingkat | Siap setelah 1.8a, 1.8d, 1.2d | — |
+| 1.7-be / 1.7-fe | Notifikasi, kotak kerja, jenis tugas, eskalasi 3 tingkat | be: **Dikerjakan sesi 1** (kontrak dulu, branch `docs/kontrak-1.7`); fe: siap setelah kontrak | — |
 | 1.6-be / 1.6-fe | TTE T1: aktivasi PIN, kunci Ed25519, TtdModal, verifikasi, tanda tangan massal; adapter PSrE + simulator | Siap setelah 1.7 | — |
 | 1.5-be / 1.5-fe | Lapis 4 (label sensitivitas) dan 5 (izin praktik, RKK, MFA ulang) | Siap setelah 1.8d, 1.2d, 1.6 | — |
 | 1.9-be / 1.9-fe | Gateway integrasi: outbox, adapter BPJS/SATUSEHAT/Aplicares, simulator, layar Konfigurasi & status | Siap setelah 1.8b, 1.8f | — |
@@ -831,6 +831,19 @@ Uji penerimaan:
   - Tugas dengan tenggat 1 jam: pengingat, lalu teguran ke kepala unit setelah lewat, lalu eskalasi (waktu dimajukan).
   - Kejadian penyelesai menutup tugas otomatis; riwayat lengkap.
   - 10.000 notifikasi untuk satu akun: daftar tetap paginasi kursor, P95 < 200 ms; polling dengan ETag menjawab 304.
+Aturan rinci (kontrak v0.7.0):
+  - Tabel mengikuti PRD 11.2: `inti.jenis_tugas`, `inti.tugas`, `inti.tugas_kejadian` (bukan skema `tugas` seperti tertulis
+    di atas), `notifikasi.notifikasi` (partisi bulanan, pola audit) dan `notifikasi.preferensi`.
+  - Layar Jenis tugas = sub-menu PRD 9.1 "Jenis Tugas, Tenggat & Eskalasi" (`master_data.jenis_tugas`), cakupan `rs`.
+    Tidak ada POST: jenis dipasang migrasi modul pembuatnya; RS mengubah tenggat, waktu eskalasi, kritis, aktif.
+  - Kotak kerja dan notifikasi (`/saya/*`) tanpa izin khusus. Tab unit = unit yang dikepalai akun (kepala_pegawai_id,
+    termasuk turunannya); eskalasi tingkat 2 ke kepala unit pelaksana, tingkat 3 ke kepala unit induknya.
+  - Jenis bawaan fase 1 (angka awal = data, diubah di layar; perlu verifikasi kebijakan RS):
+    PERSETUJUAN_AKSES_MENUNGGU (pelaksana peran penyetuju; tenggat 2 hari; selesai saat diputuskan/kedaluwarsa/dibatalkan),
+    PERMINTAAN_AKSES (pelaksana peran pemegang pengaturan.akun.perbaiki; tenggat 2 hari; selesai saat ditindaklanjuti/ditolak),
+    IZIN_PRAKTIK_BERAKHIR (dibuat 30 hari sebelum berakhir — FR-53-05; pelaksana akun pegawai itu; tenggat = tanggal
+    berakhir; selesai saat izin pengganti dicatat), dan pemberitahuan AKUN_TERKUNCI (notifikasi saja, kritis, ke pemilik
+    akun — issue #11). USULAN_DATA_INDUK dipasang 1.8c.
 Di luar lingkup tiket: WebSocket/Reverb (fase 2), push mobile, kinerja tindak lanjut unit FR-53-08 (fase 4 dasbor).
 ```
 
