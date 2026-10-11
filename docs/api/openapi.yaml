@@ -8,8 +8,9 @@ info:
     backend wajib lulus uji kontrak terhadapnya. Perubahan kontrak lewat PR yang mengubah berkas ini.
     Konvensi: PRD 10.3.1 (prefiks /api/v1, kata benda Indonesia, kunci snake_case, galat tunggal).
     Endpoint autentikasi dan MFA: PRD 10.3.2 (belum dipindah ke berkas ini).
-    Kode galat umum: belum_masuk (401), tidak_diizinkan (403), tidak_ditemukan (404), validasi_gagal (422),
-    ukuran_halaman_melebihi_batas (422), versi_berubah (412), if_match_wajib (428), terlalu_banyak_permintaan (429).
+    Kode galat umum: belum_masuk (401), akses_ditolak (403), csrf_tidak_valid (403), tidak_ditemukan (404),
+    validasi_gagal (422), ukuran_halaman_melebihi_batas (422), kursor_tidak_valid (422), versi_berubah (412),
+    if_match_wajib (428), terlalu_banyak_permintaan (429).
     v0.2.0: Pengaturan Sistem → Peran & Izin, Akun & Akses (tiket 1.2c); kode menu data_induk.peran/akun → pengaturan.peran/akun.
 servers:
   - url: /api/v1
