@@ -3,6 +3,7 @@
 namespace App\Modules\Akses\Application;
 
 use App\Core\Audit\CatatAktivitas;
+use App\Core\Http\ApiError;
 use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Pengguna;
@@ -23,6 +24,8 @@ final class PenerapPersetujuan
     public function __construct(
         private readonly CatatAktivitas $audit,
         private readonly CacheHakAkses $cache,
+        private readonly KebutuhanPersetujuan $kebutuhan,
+        private readonly DataUnit $dataUnit,
     ) {}
 
     public function terapkan(PersetujuanAkses $p, Pengguna $penyetuju): void
@@ -67,9 +70,24 @@ final class PenerapPersetujuan
     {
         $o = $p->objek;
         $akun = Pengguna::query()->lockForUpdate()->find($o['pengguna_id']);
-        $peran = Peran::query()->find($o['peran_id']);
+        // Dikunci: perubahan izin peran yang bersamaan menunggu sampai penerapan ini selesai.
+        $peran = Peran::query()->lockForUpdate()->find($o['peran_id']);
         if ($akun === null || ! $akun->aktif() || $peran === null || $peran->status !== 'aktif') {
             throw new TidakBisaDiterapkan('Akun atau peran sudah tidak aktif.');
+        }
+        if ($o['cakupan_jenis'] === 'unit' && ! $this->dataUnit->aktif((string) $o['cakupan_id'])) {
+            throw new TidakBisaDiterapkan('Unit cakupan sudah nonaktif.');
+        }
+        // Isi peran bisa berubah selagi menunggu (izin sensitif baru, atau peran dijadikan penyetuju): penyetuju yang
+        // dibutuhkan sekarang harus sudah ada dalam grup yang menyetujui.
+        try {
+            $perlu = $this->kebutuhan->penugasan($peran, kunci: true);
+        } catch (ApiError) {
+            throw new TidakBisaDiterapkan('Ada izin sensitif di peran ini yang belum punya penyetuju.');
+        }
+        $grup = PersetujuanAkses::query()->where('grup_id', $p->grup_id)->pluck('penyetuju_peran_id')->all();
+        if (array_diff($perlu, $grup) !== []) {
+            throw new TidakBisaDiterapkan('Isi peran berubah sejak diajukan dan kini butuh penyetuju lain; ajukan ulang.');
         }
         $ganda = PenggunaPeran::query()->masihAktif()->where('pengguna_id', $akun->id)->where('peran_id', $peran->id)
             ->where('cakupan_jenis', $o['cakupan_jenis'])

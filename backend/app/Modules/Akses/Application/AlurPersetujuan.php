@@ -4,7 +4,6 @@ namespace App\Modules\Akses\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
-use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaPeran;
@@ -27,28 +26,27 @@ final class AlurPersetujuan
     public function __construct(
         private readonly CatatAktivitas $audit,
         private readonly PenerapPersetujuan $penerap,
+        private readonly KebutuhanPersetujuan $kebutuhan,
     ) {}
 
     /**
-     * Peran penyetuju tiap izin sensitif; 422 penyetuju_belum_ditetapkan bila ada yang belum (tidak ada yang disimpan).
-     *
      * @param  Collection<int, Izin>  $izin
      * @return array<string, string> izin id => peran penyetuju id
      */
     public function penyetujuIzin(Collection $izin): array
     {
-        $tanpa = $izin->filter(fn (Izin $i) => $i->peran_penyetuju_id === null);
-        if ($tanpa->isNotEmpty()) {
-            throw new ApiError(422, 'penyetuju_belum_ditetapkan', 'Izin sensitif ini belum punya penyetuju (pemilik data). Tetapkan dulu di pengaturan izin.',
-                $tanpa->map(fn (Izin $i) => ['kolom' => 'izin', 'kode' => $i->kode, 'pesan' => 'Penyetuju belum ditetapkan'])->values()->all());
-        }
-
-        return $izin->mapWithKeys(fn (Izin $i) => [$i->id => (string) $i->peran_penyetuju_id])->all();
+        return $this->kebutuhan->penyetujuIzin($izin);
     }
 
     public function peranSuperadmin(): string
     {
-        return (string) Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->value('id');
+        return $this->kebutuhan->peranSuperadmin();
+    }
+
+    /** @return list<string> */
+    public function penyetujuPenugasan(Peran $peran): array
+    {
+        return $this->kebutuhan->penugasan($peran);
     }
 
     /**
@@ -159,10 +157,10 @@ final class AlurPersetujuan
                 return $p;
             });
         } catch (TidakBisaDiterapkan $e) {
-            DB::transaction(function () use ($p, $e) {
+            DB::transaction(function () use ($p, $e, $penyetuju) {
                 $this->kunciGrup($p);
                 $this->tutupGrup($p, 'ditolak', null, 'Tidak bisa diterapkan: '.$e->getMessage());
-                $this->audit->catat('akses.persetujuan_tidak_bisa_diterapkan', null, 'akses.persetujuan_akses', $p->id, [
+                $this->audit->catat('akses.persetujuan_tidak_bisa_diterapkan', $penyetuju->id, 'akses.persetujuan_akses', $p->id, [
                     'nomor' => $p->nomor, 'alasan' => $e->getMessage(),
                 ]);
             });
@@ -198,6 +196,16 @@ final class AlurPersetujuan
         });
     }
 
+    /**
+     * Tarik pengajuan yang sasarannya dibatalkan penyunting (mis. izin dikeluarkan dari matriks peran). Dipanggil di
+     * dalam transaksi pemanggil; audit ikut audit perubahan pemanggil.
+     */
+    public function tarik(Pengguna $penyunting, PersetujuanAkses $p, string $catatan): void
+    {
+        $this->kunciGrup($p);
+        $this->tutupGrup($p, 'dibatalkan', $penyunting->id, $catatan);
+    }
+
     /** Tandai kedaluwarsa semua pengajuan yang lewat batas waktu (tugas harian, aman diulang). */
     public function kedaluwarsakan(): int
     {
@@ -229,11 +237,8 @@ final class AlurPersetujuan
 
     private function pastikanMenunggu(PersetujuanAkses $p): void
     {
-        if ($p->status === 'menunggu' && $p->kedaluwarsa_pada->isPast()) {
-            $this->tutupGrup($p, 'kedaluwarsa', null, 'Kedaluwarsa tanpa keputusan ('.self::MASA_HARI.' hari)');
-            $p->refresh();
-        }
-        if ($p->status !== 'menunggu') {
+        // Lewat batas waktu: ditolak walau tugas harian belum menandainya (status disimpan oleh tugas harian).
+        if ($p->status !== 'menunggu' || ! $p->kedaluwarsa_pada->isFuture()) {
             throw new ApiError(409, 'sudah_diputuskan', 'Pengajuan ini sudah diputuskan, kedaluwarsa, atau dibatalkan.');
         }
     }

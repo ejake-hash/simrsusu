@@ -68,13 +68,8 @@ final class KelolaAksesAkun
 
             // Menunggu persetujuan, satu baris per peran penyetuju: superadmin (K4); peran berizin sensitif (K3, pemilik
             // data tiap izin); peran yang menjadi penyetuju izin sensitif (superadmin lain, K13: satu superadmin tidak
-            // bisa membuat penyetuju sendiri lalu menyetujui lewat peran itu).
-            $superadmin = $peran->kode === MenuBawaan::PERAN_SUPERADMIN;
-            $penyetuju = $superadmin ? [$this->alur->peranSuperadmin()]
-                : array_values($this->alur->penyetujuIzin($peran->izin()->where('sensitif', true)->get()));
-            if (! $superadmin && Izin::query()->where('sensitif', true)->where('peran_penyetuju_id', $peran->id)->exists()) {
-                $penyetuju[] = $this->alur->peranSuperadmin();
-            }
+            // bisa membuat penyetuju sendiri lalu menyetujui lewat peran itu). Dihitung ulang saat diterapkan.
+            $penyetuju = $this->alur->penyetujuPenugasan($peran);
             if ($penyetuju !== []) {
                 $menunggu = PersetujuanAkses::query()->menunggu()->where('objek_jenis', 'penugasan')->where('sasaran_pengguna_id', $akun->id)
                     ->where('peran_id', $peran->id)->get()->contains(fn (PersetujuanAkses $p) => $p->objek['cakupan_jenis'] === $isi['cakupan_jenis']

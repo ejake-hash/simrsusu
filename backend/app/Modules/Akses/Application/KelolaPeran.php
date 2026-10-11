@@ -133,6 +133,12 @@ final class KelolaPeran
                 $persetujuan[] = $menunggu[$i->id] ?? $this->alur->ajukan($penyunting, 'izin_sensitif', 'izin_peran',
                     ['peran_id' => $peran->id, 'izin_id' => $i->id], [$penyetuju[$i->id]], ['peran_id' => $peran->id, 'izin_id' => $i->id], $dasar, $alasan)[0];
             }
+            // Izin sensitif yang masih menunggu tetapi dikeluarkan dari matriks: pengajuannya ditarik, tidak berlaku belakangan.
+            $ditarik = PersetujuanAkses::query()->menunggu()->where('objek_jenis', 'izin_peran')->where('peran_id', $peran->id)
+                ->whereNotIn('izin_id', $izin->pluck('id'))->get();
+            foreach ($ditarik as $p) {
+                $this->alur->tarik($penyunting, $p, 'Izin dikeluarkan dari matriks peran oleh penyunting.');
+            }
             $ditambah = $ditambah->where('sensitif', false)->values();
             $izin = $izin->reject(fn (Izin $i) => $sensitifBaru->contains('id', $i->id))->values();
 
@@ -152,6 +158,7 @@ final class KelolaPeran
                 'dicabut' => $hasil['dicabut'],
                 'akun_terdampak' => $akunTerdampak,
                 'menunggu_persetujuan' => array_map(fn (PersetujuanAkses $p) => $p->nomor, $persetujuan),
+                'persetujuan_ditarik' => $ditarik->pluck('nomor')->all(),
                 'dasar_perubahan' => $dasar,
                 'alasan' => $alasan,
             ], ['izin' => $lama->pluck('kode')->sort()->values()->all()]);

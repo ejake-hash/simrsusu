@@ -221,6 +221,68 @@ class PersetujuanAksesTest extends TestCase
         $this->assertSame(1, PenggunaPeran::query()->where('pengguna_id', $akun->id)->where('peran_id', $kasir->id)->where('status', 'aktif')->count());
     }
 
+    public function test_isi_peran_berubah_selagi_penugasan_menunggu_tidak_melewati_penyetuju_baru(): void
+    {
+        $pemilikTagihan = $this->buatPeran(['igd.papan']);
+        $pemilikDeposit = $this->buatPeran(['igd.papan']);
+        $this->jadikanSensitif('kasir.tagihan.perbaiki', $pemilikTagihan);
+        $this->jadikanSensitif('kasir.deposit.perbaiki', $pemilikDeposit);
+        $z = $this->buatPeran(['kasir.tagihan']);
+        [$y1, $y2, $d] = [$this->buatPengguna(), $this->buatPengguna(), $this->buatPengguna()];
+        $this->tugaskan($y1, $pemilikTagihan);
+        $this->tugaskan($y2, $pemilikDeposit);
+        $pengelola = $this->pengelola();
+        $this->masukSebagai($pengelola);
+        $tugas = fn () => $this->minta('POST', "/api/v1/akun/{$d->id}/penugasan", ['peran_id' => $z->id, 'cakupan_jenis' => 'rs', 'dasar_pemberian' => self::DASAR])
+            ->assertStatus(202)->json('data.id');
+
+        // A: izin sensitif milik pemilik data lain ditambahkan ke peran selagi penugasannya menunggu.
+        $penugasan = $tugas();
+        $izinZ = ['kasir.tagihan.input', 'kasir.tagihan.lihat', 'kasir.tagihan.perbaiki', 'kasir.deposit.lihat', 'kasir.deposit.perbaiki'];
+        $izinPeran = $this->mintaDenganVersi('PUT', "/api/v1/peran/{$z->id}/izin", (string) $z->refresh()->revisi, ['izin' => $izinZ, 'dasar_perubahan' => self::DASAR])
+            ->assertOk()->json('perubahan.menunggu_persetujuan.0.id');
+        $this->masukSebagai($y2);
+        $this->minta('POST', "/api/v1/persetujuan-akses/$izinPeran/setujui")->assertOk()->assertJsonPath('data.diterapkan', true);
+        $this->masukSebagai($y1);
+        $this->minta('POST', "/api/v1/persetujuan-akses/$penugasan/setujui")->assertStatus(409)->assertJsonPath('error.kode', 'tidak_bisa_diterapkan');
+        $this->assertSame(0, PenggunaPeran::query()->where('pengguna_id', $d->id)->count());
+
+        // B: peran dijadikan penyetuju izin sensitif selagi penugasannya menunggu → kini butuh superadmin juga.
+        $this->masukSebagai($pengelola);
+        $penugasan = $tugas();
+        $this->assertSame(2, PersetujuanAkses::query()->where('grup_id', PersetujuanAkses::query()->findOrFail($penugasan)->grup_id)->count());
+        [$a, $rahasiaA] = $this->superadminBerMfa();
+        [$b, $rahasiaB] = $this->superadminBerMfa();
+        $this->jadikanSensitif('kasir.deposit.input', null);
+        $this->masukSebagai($a, $rahasiaA);
+        $penyetujuIzin = $this->minta('PUT', '/api/v1/izin/kasir.deposit.input/penyetuju', ['peran_id' => $z->id, 'dasar_perubahan' => self::DASAR])
+            ->assertStatus(202)->json('data.id');
+        $this->masukSebagai($b, $rahasiaB);
+        $this->minta('POST', "/api/v1/persetujuan-akses/$penyetujuIzin/setujui")->assertOk();
+        $grup = PersetujuanAkses::query()->where('grup_id', PersetujuanAkses::query()->findOrFail($penugasan)->grup_id)->get()->keyBy('penyetuju_peran_id');
+        $this->masukSebagai($y2);
+        $this->minta('POST', '/api/v1/persetujuan-akses/'.$grup[$pemilikDeposit->id]->id.'/setujui')->assertOk()->assertJsonPath('data.diterapkan', false);
+        $this->masukSebagai($y1);
+        $this->minta('POST', '/api/v1/persetujuan-akses/'.$grup[$pemilikTagihan->id]->id.'/setujui')
+            ->assertStatus(409)->assertJsonPath('error.kode', 'tidak_bisa_diterapkan');
+        $this->assertSame(0, PenggunaPeran::query()->where('pengguna_id', $d->id)->count());
+    }
+
+    public function test_izin_menunggu_yang_dikeluarkan_dari_matriks_ditarik(): void
+    {
+        $pemilik = $this->buatPeran(['igd.papan']);
+        $this->jadikanSensitif('kasir.deposit.perbaiki', $pemilik);
+        $kasir = $this->buatPeran(['kasir.tagihan']);
+        $this->masukSebagai($this->pengelola());
+        $dasar = ['kasir.tagihan.input', 'kasir.tagihan.lihat', 'kasir.tagihan.perbaiki', 'kasir.deposit.lihat'];
+
+        $id = $this->mintaDenganVersi('PUT', "/api/v1/peran/{$kasir->id}/izin", (string) $kasir->refresh()->revisi,
+            ['izin' => [...$dasar, 'kasir.deposit.perbaiki'], 'dasar_perubahan' => self::DASAR])->assertOk()->json('perubahan.menunggu_persetujuan.0.id');
+        $this->mintaDenganVersi('PUT', "/api/v1/peran/{$kasir->id}/izin", (string) $kasir->refresh()->revisi, ['izin' => $dasar, 'dasar_perubahan' => self::DASAR])
+            ->assertOk()->assertJsonPath('data.izin_menunggu', []);
+        $this->assertSame('dibatalkan', PersetujuanAkses::query()->findOrFail($id)->status);
+    }
+
     public function test_ditolak_dibatalkan_kedaluwarsa_dan_tidak_bisa_diterapkan(): void
     {
         $pemilik = $this->buatPeran(['igd.papan']);
