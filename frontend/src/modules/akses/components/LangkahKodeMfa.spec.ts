@@ -53,7 +53,7 @@ describe('LangkahKodeMfa', () => {
   it('beralih ke kode cadangan bila ditawarkan server', async () => {
     vi.mocked(kirimKodeMfa).mockResolvedValue({ status: 'masuk' })
     const { w } = pasang()
-    await w.get('button.tautan').trigger('click')
+    await w.get('button.tombol-tautan').trigger('click')
 
     expect(w.get('h1').text()).toBe('Masukkan kode cadangan')
     await w.get('#kode-mfa').setValue(' abcde-fghjk ')
@@ -64,7 +64,7 @@ describe('LangkahKodeMfa', () => {
 
   it('tanpa kode cadangan dari server: pilihan itu tidak ditampilkan', () => {
     const { w } = pasang(['totp'])
-    expect(w.find('button.tautan').exists()).toBe(false)
+    expect(w.find('button.tombol-tautan').exists()).toBe(false)
   })
 
   it('kode salah: pesan di atas form, kolom dikosongkan dan difokuskan', async () => {

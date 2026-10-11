@@ -2,6 +2,9 @@
 import { computed, nextTick, onMounted, ref, useTemplateRef } from 'vue'
 import { profilRsDariEnv } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
+import Pesan from '@/design-system/components/Pesan.vue'
+import Tombol from '@/design-system/components/Tombol.vue'
+import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { konfirmasiDaftarMfa, mintaRahasiaMfa, type RahasiaMfa } from '../api'
 import type { Langkah, LangkahTampil } from '../alurMasuk'
 import { tindakanMfaError } from '../mfaError'
@@ -128,17 +131,11 @@ async function selesai(): Promise<void> {
     </p>
 
     <div role="alert" class="wadah-error">
-      <p v-if="error" class="pesan pesan-error" data-testid="error-mfa">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" />
-          <path d="M8 4.5v4M8 11h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-        </svg>
-        <span>{{ error }}</span>
-      </p>
+      <Pesan v-if="error" jenis="error" class="pesan-atas" data-testid="error-mfa">{{ error }}</Pesan>
     </div>
 
     <p v-if="tahap === 'memuat' && !error" class="memuat" role="status">Menyiapkan kode QR…</p>
-    <button v-if="tahap === 'memuat' && error" type="button" class="tombol-kedua" @click="muatRahasia">Coba lagi</button>
+    <Tombol v-if="tahap === 'memuat' && error" @click="muatRahasia">Coba lagi</Tombol>
 
     <template v-if="tahap === 'pindai' && rahasia">
       <div class="qr">
@@ -151,13 +148,12 @@ async function selesai(): Promise<void> {
       </details>
 
       <form novalidate @submit.prevent="konfirmasi">
-        <div class="field">
-          <label for="kode-daftar-mfa">Kode verifikasi</label>
+        <KolomIsian id="kode-daftar-mfa" v-slot="a" label="Kode verifikasi" :error="errorKode ?? undefined">
           <input
-            id="kode-daftar-mfa"
+            v-bind="a"
             ref="inputKode"
             v-model="kode"
-            class="kode"
+            class="isian isian-besar isian-kode"
             name="kode"
             type="text"
             inputmode="numeric"
@@ -166,16 +162,12 @@ async function selesai(): Promise<void> {
             autocapitalize="none"
             autocorrect="off"
             spellcheck="false"
-            :aria-invalid="errorKode ? 'true' : undefined"
-            :aria-describedby="errorKode ? 'kode-daftar-mfa-error' : undefined"
           />
-          <p v-if="errorKode" id="kode-daftar-mfa-error" class="error-field">{{ errorKode }}</p>
-        </div>
+        </KolomIsian>
 
-        <button type="submit" class="tombol-utama" :class="{ proses }" :disabled="proses">
-          <span v-if="proses" class="spinner" aria-hidden="true"></span>
-          <span>{{ proses ? 'Memeriksa…' : 'Aktifkan' }}</span>
-        </button>
+        <Tombol type="submit" varian="utama" ukuran="besar" penuh class="tombol-kirim" :sibuk="proses" :disabled="proses">
+          {{ proses ? 'Memeriksa…' : 'Aktifkan' }}
+        </Tombol>
       </form>
     </template>
   </section>
@@ -193,7 +185,7 @@ async function selesai(): Promise<void> {
     </ol>
 
     <div class="aksi-salin">
-      <button type="button" class="tombol-kedua" @click="salin">Salin semua kode</button>
+      <Tombol @click="salin">Salin semua kode</Tombol>
       <span v-if="tersalin" role="status" class="petunjuk">Kode tersalin.</span>
     </div>
 
@@ -202,10 +194,9 @@ async function selesai(): Promise<void> {
       <span>Saya sudah menyimpan kode cadangan ini</span>
     </label>
 
-    <button type="button" class="tombol-utama" :class="{ proses }" :disabled="!sudahDisimpan || proses" @click="selesai">
-      <span v-if="proses" class="spinner" aria-hidden="true"></span>
-      <span>Lanjut ke aplikasi</span>
-    </button>
+    <Tombol varian="utama" ukuran="besar" penuh class="tombol-kirim" :sibuk="proses" :disabled="!sudahDisimpan || proses" @click="selesai">
+      Lanjut ke aplikasi
+    </Tombol>
   </section>
 </template>
 
@@ -271,6 +262,7 @@ async function selesai(): Promise<void> {
 }
 .centang {
   display: flex;
+  margin-bottom: 6px;
   align-items: flex-start;
   gap: var(--space-2);
   font-size: 13px;

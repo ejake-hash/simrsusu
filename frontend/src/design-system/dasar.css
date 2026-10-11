@@ -37,12 +37,12 @@
   opacity: 0.55;
 }
 .tombol-utama {
-  border-color: var(--brand-600);
+  /* Transparan: latar mengisi sampai tepi, sudut membulat tanpa garis anti-alias tambahan. */
+  border-color: transparent;
   background: var(--brand-600);
   color: var(--surface);
 }
 .tombol-utama:hover:not(:disabled) {
-  border-color: var(--brand-700);
   background: var(--brand-700);
 }
 /* Nonaktif tanpa sibuk (mis. tertahan hitung mundur): tampak mati, bukan sedang memproses. */
@@ -59,7 +59,9 @@
   gap: var(--space-2);
   font-size: inherit;
 }
+/* Lebar penuh sebagai blok: inline-flex di kotak baris menambah ruang baseline di bawahnya. */
 .tombol-penuh {
+  display: flex;
   width: 100%;
 }
 .tombol-sibuk:disabled {
@@ -67,7 +69,6 @@
   cursor: progress;
 }
 .tombol-utama.tombol-sibuk:disabled {
-  border-color: var(--brand-700);
   background: var(--brand-700);
 }
 .tombol-pemutar {
@@ -96,11 +97,19 @@
   background: var(--danger-bg);
 }
 .tombol-tautan {
+  display: inline;
   min-height: auto;
   padding: 0;
   border: 0;
   background: none;
   color: var(--brand-600);
+  font-weight: var(--font-weight-regular);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: normal;
+}
+.tombol-tautan:focus-visible {
+  border-radius: 4px;
 }
 
 /* ── Isian (input, select, textarea) ── */
@@ -270,6 +279,10 @@ textarea.isian {
 @media (min-width: 768px) and (max-width: 1279.98px) {
   .tombol {
     min-height: 44px;
+  }
+  /* Tautan di dalam kalimat: dikecualikan dari target 44 px (WCAG 2.5.8 inline), agar teks tidak melompat. */
+  .tombol-tautan {
+    min-height: auto;
   }
   .isian {
     min-height: 44px;

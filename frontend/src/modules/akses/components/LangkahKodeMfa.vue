@@ -2,6 +2,9 @@
 import { computed, nextTick, onMounted, ref, useTemplateRef } from 'vue'
 import { profilRsDariEnv } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
+import Pesan from '@/design-system/components/Pesan.vue'
+import Tombol from '@/design-system/components/Tombol.vue'
+import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { kirimKodeMfa } from '../api'
 import type { Langkah, LangkahTampil, MetodeMfa } from '../alurMasuk'
 import { tindakanMfaError } from '../mfaError'
@@ -85,23 +88,16 @@ async function kirim(): Promise<void> {
     </p>
 
     <div role="alert" class="wadah-error">
-      <p v-if="error" class="pesan pesan-error" data-testid="error-mfa">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" />
-          <path d="M8 4.5v4M8 11h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-        </svg>
-        <span>{{ error }}</span>
-      </p>
+      <Pesan v-if="error" jenis="error" class="pesan-atas" data-testid="error-mfa">{{ error }}</Pesan>
     </div>
 
     <form novalidate @submit.prevent="kirim">
-      <div class="field">
-        <label for="kode-mfa">{{ cadangan ? 'Kode cadangan' : 'Kode verifikasi' }}</label>
+      <KolomIsian id="kode-mfa" v-slot="a" :label="cadangan ? 'Kode cadangan' : 'Kode verifikasi'" :error="errorKode ?? undefined">
         <input
-          id="kode-mfa"
+          v-bind="a"
           ref="inputKode"
           v-model="kode"
-          class="kode"
+          class="isian isian-besar isian-kode"
           name="kode"
           type="text"
           :inputmode="cadangan ? 'text' : 'numeric'"
@@ -110,24 +106,20 @@ async function kirim(): Promise<void> {
           autocapitalize="none"
           autocorrect="off"
           spellcheck="false"
-          :aria-invalid="errorKode ? 'true' : undefined"
-          :aria-describedby="errorKode ? 'kode-mfa-error' : undefined"
         />
-        <p v-if="errorKode" id="kode-mfa-error" class="error-field">{{ errorKode }}</p>
-      </div>
+      </KolomIsian>
 
       <p v-if="metodeTersedia.includes('kode_cadangan')" class="petunjuk">
         <template v-if="cadangan">Ponsel sudah tersedia?</template>
         <template v-else>Tidak punya akses ke aplikasi autentikator?</template>
-        <button type="button" class="tautan" @click="gantiMetode">
+        <Tombol varian="tautan" @click="gantiMetode">
           {{ cadangan ? 'Pakai kode dari aplikasi autentikator' : 'Gunakan kode cadangan' }}
-        </button>
+        </Tombol>
       </p>
 
-      <button type="submit" class="tombol-utama" :class="{ proses }" :disabled="proses">
-        <span v-if="proses" class="spinner" aria-hidden="true"></span>
-        <span>{{ proses ? 'Memeriksa…' : 'Verifikasi' }}</span>
-      </button>
+      <Tombol type="submit" varian="utama" ukuran="besar" penuh class="tombol-kirim" :sibuk="proses" :disabled="proses">
+        {{ proses ? 'Memeriksa…' : 'Verifikasi' }}
+      </Tombol>
     </form>
   </section>
 </template>
