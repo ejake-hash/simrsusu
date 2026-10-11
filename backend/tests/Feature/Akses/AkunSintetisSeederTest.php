@@ -34,7 +34,7 @@ class AkunSintetisSeederTest extends TestCase
 
         $akun = Pengguna::query()->where('nama_pengguna', 'like', 'contoh.%')->get();
         $this->assertEqualsCanonicalizing(
-            ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci', 'contoh.mfa', 'contoh.mfa.baru', 'contoh.superadmin', 'contoh.superadmin.dua', 'contoh.tanpa.peran', 'contoh.data.induk'],
+            ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci', 'contoh.mfa', 'contoh.mfa.baru', 'contoh.superadmin', 'contoh.superadmin.dua', 'contoh.tanpa.peran', 'contoh.data.induk', 'contoh.sdm'],
             $akun->pluck('nama_pengguna')->all(),
         );
         foreach ($akun as $pengguna) {
@@ -121,6 +121,29 @@ class AkunSintetisSeederTest extends TestCase
         $this->assertTrue($evaluator->bolehMenu($akun('contoh.perawat'), 'rawat_inap.pemberian_obat'));
         $this->assertFalse($evaluator->bolehMenu($akun('contoh.mfa'), 'igd.papan'));
         $this->assertSame(1, PenggunaPeran::query()->where('pengguna_id', $akun('contoh.dokter')->id)->count());
+    }
+
+    public function test_admin_sdm_sintetis_dengan_mfa_dan_izin_terpilih(): void
+    {
+        config([
+            'autentikasi.akun_sintetis_sandi' => 'kuda-lumping-biru-29',
+            'autentikasi.akun_sintetis_sdm_mfa_rahasia' => 'ONSG2YLEMJUW4U3ENVQWI3LJNZJWI3LB',
+        ]);
+        $this->seed(AkunSintetisSeeder::class);
+        $this->seed(AkunSintetisSeeder::class);
+        $evaluator = app(AccessEvaluator::class);
+        $sdm = Pengguna::query()->where('nama_pengguna', 'contoh.sdm')->firstOrFail();
+
+        $this->assertTrue($sdm->mfaAktif());
+        $this->assertSame('ONSG2YLEMJUW4U3ENVQWI3LJNZJWI3LB', $sdm->mfa_rahasia_enkripsi);
+        foreach (['sdm.pegawai.perbaiki', 'sdm.kredensial.input', 'master_data.organisasi.lihat', 'pengaturan.akun.input'] as $kode) {
+            $this->assertTrue($evaluator->boleh($sdm, $kode), $kode);
+        }
+        foreach (['sdm.pegawai.identitas.lihat', 'pengaturan.akun.perbaiki', 'pengaturan.peran.lihat', 'master_data.organisasi.input'] as $kode) {
+            $this->assertFalse($evaluator->boleh($sdm, $kode), $kode);
+        }
+        $this->assertTrue($evaluator->bolehMenu($sdm, 'sdm.pegawai'));
+        $this->assertSame(1, PenggunaPeran::query()->where('pengguna_id', $sdm->id)->count());
     }
 
     public function test_menolak_sandi_akun_sintetis_yang_lemah(): void

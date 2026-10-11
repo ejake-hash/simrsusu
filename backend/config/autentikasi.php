@@ -57,5 +57,7 @@ return [
     'akun_sintetis_superadmin_mfa_rahasia' => env('AKUN_SINTETIS_SUPERADMIN_MFA_RAHASIA'),
     // Superadmin sintetis kedua (tiket 1.2d, e2e kontrol ganda); kosong = acak, dicetak sekali.
     'akun_sintetis_superadmin_dua_mfa_rahasia' => env('AKUN_SINTETIS_SUPERADMIN_DUA_MFA_RAHASIA'),
+    // Admin SDM sintetis contoh.sdm (tiket 1.8d, e2e Data pegawai); kosong = acak, dicetak sekali.
+    'akun_sintetis_sdm_mfa_rahasia' => env('AKUN_SINTETIS_SDM_MFA_RAHASIA'),
 
 ];
