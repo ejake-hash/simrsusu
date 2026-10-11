@@ -1302,7 +1302,7 @@ components:
         mfa_aktif: { type: boolean }
     Penugasan:
       type: object
-      required: [id, peran, cakupan_jenis, cakupan_id, cakupan_label, berlaku_dari, berlaku_sampai, dasar_pemberian, alasan, diberikan_oleh, status, berlaku_sekarang, alasan_batal, dibatalkan_oleh, dibatalkan_pada, dibuat_pada]
+      required: [id, peran, cakupan_jenis, cakupan_id, berlaku_dari, berlaku_sampai, dasar_pemberian, alasan, diberikan_oleh, status, berlaku_sekarang, alasan_batal, dibatalkan_oleh, dibatalkan_pada, dibuat_pada]
       properties:
         id: { type: string, format: uuid }
         peran:
@@ -1314,7 +1314,7 @@ components:
             nama: { type: string }
         cakupan_jenis: { $ref: '#/components/schemas/CakupanJenis' }
         cakupan_id: { type: [string, 'null'], format: uuid }
-        cakupan_label: { type: [string, 'null'], description: "Nama unit untuk cakupan `unit` (dengan kode), null untuk `rs`; tidak perlu permintaan per baris (tiket 1.8a)" }
+        cakupan_label: { type: [string, 'null'], description: "Nama unit untuk cakupan `unit` (dengan kode), null untuk `rs`; tidak perlu permintaan per baris. Dikirim sejak backend 1.8a (tidak di-`required` agar kontrak ini tetap cocok dengan backend sebelumnya)" }
         berlaku_dari: { type: string, format: date-time }
         berlaku_sampai: { type: [string, 'null'], format: date-time }
         dasar_pemberian: { type: string }
