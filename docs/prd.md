@@ -6,13 +6,13 @@
 
 | Atribut | Nilai |
 |---|---|
-| Versi dokumen | 0.10.3 |
+| Versi dokumen | 0.10.4 |
 | Tanggal | 10 Oktober 2026 |
 | Penyusun | Eza (Karyasistemnusantara) · disusun bersama Claude |
 | Sumber konteks | Lampiran 1 *Visual Layar SIMRS* (15 layar), Lampiran 2 *Visual Dasbor Berjenjang* (7 dasbor + contoh kewenangan), HTML *Dasbor Berjenjang Karsitara*, *Pedoman Identitas USU* (2021) dan folder Logo |
 | Tech stack | Laravel 12 (PHP 8.3+) · Vue 3 + TypeScript · PostgreSQL 16 · Redis · Laravel Reverb |
 | Status | **Produk generik** (3.4). Fase 0 mode produk selesai dengan satu gerbang tertunda: uji SUS (16.1). Keputusan yang biasanya diambil RS dicatat sebagai keputusan produk di 17.2 dan dikonfirmasi tiap RS saat implementasi |
-| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · v0.10.1 hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) · v0.10.2 kontrak autentikasi dan MFA (10.3.2) · **v0.10.3** header Retry-After (10.3.2) |
+| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · v0.10.1 hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) · v0.10.2 kontrak autentikasi dan MFA (10.3.2) · v0.10.3 header Retry-After (10.3.2) · **v0.10.4** nama modul bahasa Indonesia (10.3, 10.4, D.3), menu *Segera hadir* (10.4), alur kerja per halaman (D.5) |
 
 > **Konvensi penandaan sumber**
 > - **[K]** = fitur/aturan tertulis eksplisit di dokumen konteks (Lampiran 1/2/HTML).
@@ -1792,23 +1792,25 @@ flowchart LR
 app/
   Core/                 # shared kernel: Money, Ulid, Clock, Audit, Tenancy(Profil RS)
   Modules/
-    Registration/       # 01
+    Pendaftaran/        # 01
       Domain/           # Entities, ValueObjects, Events, Policies (aturan bisnis murni)
-      Application/      # Actions/UseCases (RegisterPatient, IssueSep), DTO
+      Application/      # Actions/UseCases (DaftarkanPasien, TerbitkanSep), DTO
       Infrastructure/   # Eloquent models, Repositories, external adapters
       Http/             # Controllers, FormRequests, Resources (API)
       Database/         # migrations, seeders, factories
       routes.php
       ModuleServiceProvider.php
-    Queue/              # 02
-    Emergency/          # 03
+    Antrean/            # 02
+    Igd/                # 03
+    Akses/  Sdm/        # 54, 39 (sudah ada)
     ...                 # satu folder per modul
-    Integration/
+    Integrasi/
       Bpjs/  SatuSehat/  Sirs/  Siranap/  Sisrute/  Sipnap/ ...
   Shared/
     Signing/  (TTE)   Notification/   Workflow/ (approval & escalation engine)
     FormBuilder/      Reporting/      Terminology/ (ICD, LOINC, KFA)
 ```
+- **Nama modul bahasa Indonesia** (keputusan 11 Okt 2026): nama folder modul diambil dari nama modul di Bagian 6, PascalCase tanpa spasi di backend (`RawatJalan`, `KamarOperasi`, `CasemixKlaim`) dan kebab-case di frontend (`rawat-jalan`). Nama lapisan teknis tetap mengikuti konvensi Laravel/arsitektur (`Core`, `Shared`, `Domain`, `Application`, `Infrastructure`, `Http`, `Models`, `Database`). Nama kelas aturan bisnis bahasa Indonesia (`DaftarkanPasien`, `MasukPengguna`).
 - Komunikasi antar-modul **hanya** lewat *Application service interface* atau **domain event** (mis. `ResepDisetujui` → modul Tagihan membuat item tagihan; `EncounterSigned` → SATUSEHAT outbox). Dilarang query langsung tabel modul lain dari modul lain (kecuali read model di skema `analitik`).
 - Paket yang dipertimbangkan: `spatie/laravel-permission` (diperluas untuk scope & masa berlaku), `spatie/laravel-activitylog` atau audit kustom, `laravel/sanctum`, `laravel/horizon`, `laravel/reverb`, `laravel/octane` (Swoole/FrankenPHP), `spatie/laravel-data`, `maatwebsite/excel`, `barryvdh/laravel-dompdf` atau Gotenberg untuk PDF, `dcarbone/php-fhir` (atau DTO FHIR kustom). Versi pasti dipilih saat kickoff — **perlu verifikasi kompatibilitas Laravel 12**.
 
@@ -1863,13 +1865,15 @@ src/
   layouts/        # AppShell, AuthLayout, KioskLayout (APM/display)
   design-system/  # tokens.css, komponen dasar (Button, Input, DataTable, Badge...)
   modules/
-    registration/ emergency/ outpatient/ inpatient/ ...  # pages, components, api, stores per modul
+    akses/ beranda/ pendaftaran/ antrean/ igd/ rawat-jalan/ rawat-inap/ ...  # pages/<Nama>Page.vue, components, api, stores per modul
   shared/
     composables/  # usePermission, usePatientContext, useRealtime, useHotkeys
     api/          # axios instance, interceptors, error mapping
     utils/        # format Rupiah, tanggal Indonesia, umur
 ```
 - **Library:** Vue 3.5, Vue Router 4, Pinia, TanStack Query (cache & sinkron server), VeeValidate + Zod, Tailwind CSS 4 + komponen headless (**Reka UI / shadcn-vue**) atau PrimeVue mode *unstyled* — dipilih agar tampilan minimalis bisa dikendalikan penuh; **Apache ECharts** untuk grafik; `laravel-echo` + `pusher-js` protokol untuk Reverb; Vitest + Playwright.
+- Halaman disimpan sebagai Vue SFC `modules/<modul>/pages/<Nama>Page.vue` (contoh: `akses/pages/MasukPage.vue`).
+- **Menu yang modulnya belum dibangun** tetap tampil dengan tombolnya dan membuka `SegeraHadirPage` (nama modul, fase rencana, tombol kembali), dengan penanda *Segera hadir* di menu. Status ini dikendalikan `inti.modul_aktif`/konfigurasi: di instalasi produksi, modul yang belum aktif **disembunyikan**, bukan ditampilkan sebagai *Segera hadir*. Menu yang tidak diizinkan untuk akun tetap tidak tampil sama sekali (9.2.5).
 - Rute dilindungi `meta.permission`; menu dari API; komponen `PermissionGate` / directive `v-can`.
 - **PWA** untuk tablet ruang (cache shell; mode *read-only offline* untuk daftar pasien ruangan) [I].
 
@@ -2991,26 +2995,26 @@ Lampiran ini menjelaskan **cara memakai** PRD dan prototipe saat membangun. Isin
 
 | Layar prototipe | Modul (10.3) | Kebutuhan utama | Fase (16) |
 |---|---|---|---|
-| `login.html` | Core/Auth | 14.2, FR-57-01 | 1 |
-| `home.html` | Shared/Notification | FR-53-01…09 | 1 |
-| `masterdata.html` | Core/Access, MasterData | FR-09-01…15, FR-54-01…07 | 1 |
-| `pendaftaran.html` | Registration, Queue | FR-01, FR-02, FR-00-01, FR-50-01 | 2 |
-| `anjungan.html` | Registration (KioskLayout) | FR-01-23…30, FR-02-08, FR-02-10 | 2 |
-| `displayantrean.html` | Queue (KioskLayout) | FR-02-04, FR-02-15, FR-02-17 | 2 |
-| `rekammedis.html` | MedicalRecord | FR-26-01, 26-09…14, 26-17, 26-26…29 | 2 |
-| `igd.html` | Emergency | FR-03, FR-00-06, FR-26-23 | 2 |
-| `rawatjalan.html` | Outpatient | FR-07-01…28, FR-26-23 | 2 |
-| `rawatinap.html` | Inpatient | FR-08, FR-26-02…05, FR-05 | 2 |
-| `penunjang.html` | Laboratory, Radiology | FR-19, FR-20 (PA dan bank darah fase 3) | 2–3 |
-| `farmasi.html` | Pharmacy | FR-22 | 2 |
-| `kasir.html` | Billing | FR-28 | 2 |
-| `kamaroperasi.html` | Surgery, Anesthesia | FR-10, FR-11, FR-26-24…25 | 3 |
-| `casemixdanclaim.html` | Casemix | FR-27, FR-29 | 3 |
-| `mutu.html` | Quality, Incident, Ppi | FR-32…34, FR-37 | 4 |
-| `sdm.html` | Hr, Credentialing | FR-39, FR-40 | 4 (FR-40-01…03 dibutuhkan sejak fase 1 untuk lapis 5 hak akses) |
-| `logistik.html` | Logistics, Maintenance | FR-42, FR-43 | 4 |
-| `integrasi.html` | Integration | FR-49…51 | 1–4 bertahap |
-| `penelitian.html` | Research | FR-47 | 5 |
+| `login.html` | Akses | 14.2, FR-57-01 | 1 |
+| `home.html` | Beranda (Shared/Notification) | FR-53-01…09 | 1 |
+| `masterdata.html` | Akses, DataInduk | FR-09-01…15, FR-54-01…07 | 1 |
+| `pendaftaran.html` | Pendaftaran, Antrean | FR-01, FR-02, FR-00-01, FR-50-01 | 2 |
+| `anjungan.html` | Pendaftaran (KioskLayout) | FR-01-23…30, FR-02-08, FR-02-10 | 2 |
+| `displayantrean.html` | Antrean (KioskLayout) | FR-02-04, FR-02-15, FR-02-17 | 2 |
+| `rekammedis.html` | RekamMedis | FR-26-01, 26-09…14, 26-17, 26-26…29 | 2 |
+| `igd.html` | Igd | FR-03, FR-00-06, FR-26-23 | 2 |
+| `rawatjalan.html` | RawatJalan | FR-07-01…28, FR-26-23 | 2 |
+| `rawatinap.html` | RawatInap | FR-08, FR-26-02…05, FR-05 | 2 |
+| `penunjang.html` | Laboratorium, Radiologi | FR-19, FR-20 (PA dan bank darah fase 3) | 2–3 |
+| `farmasi.html` | Farmasi | FR-22 | 2 |
+| `kasir.html` | Kasir | FR-28 | 2 |
+| `kamaroperasi.html` | KamarOperasi, Anestesi | FR-10, FR-11, FR-26-24…25 | 3 |
+| `casemixdanclaim.html` | CasemixKlaim | FR-27, FR-29 | 3 |
+| `mutu.html` | Mutu, Insiden, Ppi | FR-32…34, FR-37 | 4 |
+| `sdm.html` | Sdm, Kredensial | FR-39, FR-40 | 4 (FR-40-01…03 dibutuhkan sejak fase 1 untuk lapis 5 hak akses) |
+| `logistik.html` | Logistik, Pemeliharaan | FR-42, FR-43 | 4 |
+| `integrasi.html` | Integrasi | FR-49…51 | 1–4 bertahap |
+| `penelitian.html` | Penelitian | FR-47 | 5 |
 
 ### D.4 Komponen bersama: dibuat sekali, dipakai semua modul
 
@@ -3037,6 +3041,17 @@ Bangun **per irisan vertikal** (satu alur pengguna utuh dari database sampai lay
 4. Endpoint API, *FormRequest*, *Resource* yang dibentuk sesuai izin (bagian tanpa izin tidak dikirim).
 5. Halaman Vue memakai komponen bersama D.4.
 6. Uji: unit untuk aturan bisnis, uji API untuk izin ditolak (403) dan IDOR, Playwright untuk alur utama.
+
+**Alur kerja per halaman** (berlaku sejak 11 Okt 2026). Satu irisan = satu halaman prototipe, atau satu sub-menu bila halamannya besar:
+
+| Tahap | Pelaku | Hasil |
+|---|---|---|
+| 0. Paket halaman | Pemilik produk + penyusun PRD | Bagian di `docs/backlog-fase1.md` (atau backlog fase terkait): kontrak API di `docs/api/openapi.yaml`, daftar bagian prototipe **wajib / dibuang / diubah**, temuan heuristik halaman itu (Lampiran E), kode menu dan izin, data induk yang dibutuhkan |
+| 1. Paralel | Sesi backend dan sesi frontend, worktree masing-masing | Backend mengikuti kontrak; frontend memakai data tiruan yang dibuat dari kontrak yang sama |
+| 2. Integrasi | Sesi frontend | Data tiruan diganti API asli; e2e; tangkapan layar berdampingan dengan prototipe; cek aksesibilitas |
+| 3. Selesai | Keduanya | Merge setelah CI hijau; status backlog diperbarui; baru pindah ke halaman berikutnya |
+
+Urutan mengikuti ketergantungan, bukan urutan berkas HTML. Menu ke modul yang belum dibangun disediakan sebagai *Segera hadir* (10.4).
 
 Urutan irisan pertama yang disarankan: login + MFA → menu dinamis + Lihat sebagai → aktivasi dan penandatanganan T1 → cari/daftar pasien + episode → CPPT rawat jalan. Setelah lima irisan ini jalan, modul lain tinggal memakai fondasinya.
 
