@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property string $pelaksana_jenis pengguna | peran | unit
  * @property string $pelaksana_id
  * @property string|null $unit_id
+ * @property string|null $unit_eskalasi_id
  * @property Carbon $tenggat_pada
  * @property Carbon $pengingat_pada
  * @property Carbon $teguran_pada

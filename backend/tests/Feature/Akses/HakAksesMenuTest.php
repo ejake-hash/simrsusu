@@ -198,10 +198,11 @@ class HakAksesMenuTest extends TestCase
         $this->tugaskan($pengguna, $peran);
         $sebelum = $this->masukLaluMenu($pengguna)->assertOk();
         $versi = $sebelum->json('data.versi');
-        $this->assertSame('"'.$versi.'"', $sebelum->headers->get('ETag'));
+        // ETag = versi + lencana tugas Beranda: tugas baru mengubah ETag tanpa mengubah versi.
+        $this->assertSame('"'.$versi.'-0"', $sebelum->headers->get('ETag'));
 
         // ETag yang sama → 304 tanpa isi.
-        $this->headerTambahan = ['If-None-Match' => '"'.$versi.'"'];
+        $this->headerTambahan = ['If-None-Match' => (string) $sebelum->headers->get('ETag')];
         $this->minta('GET', '/api/v1/saya/menu')->assertStatus(304)->assertContent('');
         $this->headerTambahan = [];
 

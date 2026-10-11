@@ -53,6 +53,17 @@ class KotakKerjaTest extends TestCase
         $this->assertSesuaiKontrak($this->minta('POST', "/api/v1/saya/notifikasi/{$notif->id}/dibaca")->assertOk()->assertJsonPath('data.id', $notif->id),
             'POST', '/saya/notifikasi/{id}/dibaca');
         $this->minta('GET', '/api/v1/saya/notifikasi?status=belum_dibaca')->assertJsonPath('meta.jumlah_belum_dibaca', 0);
+
+        // Penguncian berulang dalam satu jam tidak menambah notifikasi kritis; akun lain tidak bisa menandai milik akun ini.
+        $this->mulaiSesiSpa();
+        foreach (range(1, (int) config('autentikasi.penguncian.maks_gagal')) as $_) {
+            $this->minta('POST', '/api/v1/autentikasi/masuk', ['nama_pengguna' => $akun->nama_pengguna, 'sandi' => 'sandi-salah-sekali']);
+        }
+        $this->assertSame(1, DB::table('notifikasi.notifikasi')->where('pengguna_id', $akun->id)->where('jenis', 'AKUN_TERKUNCI')->count());
+        DB::table('notifikasi.notifikasi')->where('id', $notif->id)->update(['dibaca_pada' => null]);
+        $this->masukSebagai($this->buatPengguna());
+        $this->minta('POST', "/api/v1/saya/notifikasi/{$notif->id}/dibaca")->assertNotFound();
+        $this->assertNull(DB::table('notifikasi.notifikasi')->where('id', $notif->id)->value('dibaca_pada'));
     }
 
     public function test_tugas_dibuat_dieskalasi_tiga_tingkat_lalu_selesai_oleh_kejadian(): void
@@ -116,6 +127,12 @@ class KotakKerjaTest extends TestCase
         $this->minta('GET', '/api/v1/saya/tugas?tab=unit')->assertOk()->assertJsonPath('data.0.id', $tugas->id);
         $this->masukSebagai($this->buatPengguna());
         $this->minta('GET', "/api/v1/tugas/{$tugas->id}")->assertNotFound();
+        // Kepala unit lain tidak melihat tugas IGD.
+        [$kepalaLain, $akunLain] = $this->pegawaiBerakun('dr. Lain');
+        UnitOrganisasi::query()->create(['kode' => 'LAB', 'nama' => 'Laboratorium', 'jenis' => 'instalasi', 'berlaku_dari' => '2026-01-01', 'kepala_pegawai_id' => $kepalaLain->id]);
+        $this->masukSebagai($akunLain);
+        $this->minta('GET', '/api/v1/saya/tugas?tab=unit')->assertOk()->assertJsonCount(0, 'data');
+        $this->minta('GET', "/api/v1/tugas/{$tugas->id}")->assertNotFound();
 
         // Kejadian penyelesai menutup tugas; riwayat lengkap.
         DB::transaction(fn () => PersetujuanDitutup::dispatch([$persetujuanId], 'disetujui'));
@@ -127,19 +144,62 @@ class KotakKerjaTest extends TestCase
         $this->minta('GET', '/api/v1/saya/tugas?tab=selesai')->assertOk()->assertJsonPath('data.0.id', $tugas->id);
     }
 
-    public function test_permintaan_akses_membuat_tugas_untuk_superadmin_dan_selesai_saat_ditolak(): void
+    public function test_permintaan_akses_membuat_tugas_untuk_pemegang_izin_akun_dan_selesai_saat_ditolak(): void
     {
         Queue::fake();
         [$superadmin, $rahasia] = $this->superadminBerMfa();
+        // Peran admin lain yang memegang pengaturan.akun.perbaiki ikut menerima tugas; peran tanpa izin itu tidak.
+        $adminAkun = $this->buatPeran(['pengaturan.akun']);
+        $tanpaIzin = $this->buatPeran(['pengaturan.peran']);
         $pemohon = $this->buatPengguna();
         $this->masukSebagai($pemohon);
         $id = $this->minta('POST', '/api/v1/permintaan-akses', ['sasaran_jenis' => 'menu', 'sasaran_kode' => 'kasir.tagihan', 'alasan' => 'Butuh untuk tugas'])
             ->assertCreated()->json('data.id');
 
+        $pelaksana = Tugas::query()->where('objek_id', $id)->pluck('pelaksana_id')->all();
+        $this->assertContains($adminAkun->id, $pelaksana);
+        $this->assertNotContains($tanpaIzin->id, $pelaksana);
+
         $this->masukSebagai($superadmin, $rahasia);
         $this->minta('GET', '/api/v1/saya/tugas?tab=saya')->assertOk()->assertJsonPath('data.0.objek.id', $id)->assertJsonPath('data.0.jenis.kode', 'PERMINTAAN_AKSES');
         $this->minta('POST', "/api/v1/permintaan-akses/$id/tolak", ['alasan' => 'Bukan tugas unitnya'])->assertOk();
         $this->minta('GET', '/api/v1/saya/tugas?tab=saya')->assertOk()->assertJsonCount(0, 'data');
+        $this->assertSame(['selesai'], Tugas::query()->where('objek_id', $id)->pluck('status')->unique()->values()->all());
+    }
+
+    public function test_tugas_idempoten_ikut_rollback_dan_memakai_aturan_saat_dibuat(): void
+    {
+        Queue::fake();
+        $peran = $this->buatPeran(['igd.papan']);
+        $this->tugaskan($pelaksana = $this->buatPengguna(), $peran);
+
+        // Transaksi pemanggil gagal → tidak ada tugas maupun notifikasi.
+        $gagal = (string) Str::uuid7();
+        try {
+            DB::transaction(function () use ($gagal, $peran) {
+                PersetujuanDiajukan::dispatch($gagal, 'PSA-2026-000009', $peran->id);
+                throw new \RuntimeException('gagal');
+            });
+        } catch (\RuntimeException) {
+        }
+        $this->assertFalse(Tugas::query()->where('objek_id', $gagal)->exists());
+        $this->assertFalse(DB::table('notifikasi.notifikasi')->where('pengguna_id', $pelaksana->id)->exists());
+
+        // Kejadian ganda → satu tugas.
+        $id = (string) Str::uuid7();
+        DB::transaction(fn () => PersetujuanDiajukan::dispatch($id, 'PSA-2026-000010', $peran->id));
+        DB::transaction(fn () => PersetujuanDiajukan::dispatch($id, 'PSA-2026-000010', $peran->id));
+        $tugas = Tugas::query()->where('objek_id', $id)->sole();
+
+        // Jenis tugas diubah sesudahnya (unit eskalasi, kritis) → tugas terbuka tetap memakai aturan saat dibuat.
+        [$kepala, $akunKepala] = $this->pegawaiBerakun('dr. Komite');
+        $komite = UnitOrganisasi::query()->create(['kode' => 'KMT', 'nama' => 'Komite', 'jenis' => 'bagian', 'berlaku_dari' => '2026-01-01', 'kepala_pegawai_id' => $kepala->id]);
+        JenisTugas::query()->where('kode', 'PERSETUJUAN_AKSES_MENUNGGU')->update(['unit_eskalasi_id' => $komite->id, 'kritis' => true]);
+        $this->travel(4)->days();
+        $this->artisan('notifikasi:proses-eskalasi')->assertSuccessful();
+        $this->assertSame(3, $tugas->refresh()->tingkat_saat_ini);
+        $this->assertFalse(DB::table('notifikasi.notifikasi')->where('pengguna_id', $akunKepala->id)->exists());
+        $this->assertFalse(DB::table('notifikasi.notifikasi')->where('tugas_id', $tugas->id)->where('prioritas', 'kritis')->exists());
     }
 
     public function test_etag_polling_latar_dan_preferensi(): void

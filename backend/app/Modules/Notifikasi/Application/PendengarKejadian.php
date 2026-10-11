@@ -2,7 +2,6 @@
 
 namespace App\Modules\Notifikasi\Application;
 
-use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Events\AkunTerkunci;
 use App\Modules\Akses\Events\PermintaanAksesDibuat;
 use App\Modules\Akses\Events\PermintaanAksesDitutup;
@@ -14,6 +13,7 @@ use App\Modules\Sdm\Events\IzinPraktikDicatat;
 use App\Modules\Sdm\Models\IzinPraktik;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Kejadian domain → tugas dan notifikasi (tiket 1.7). Sinkron di dalam transaksi pemanggil: tugas lahir dan selesai
@@ -43,10 +43,12 @@ final class PendengarKejadian
 
     public function permintaanDibuat(PermintaanAksesDibuat $e): void
     {
-        // Pemberi kewenangan akses: pemegang peran superadmin (bawaan pemegang pengaturan.akun.perbaiki).
-        $superadmin = Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->value('id');
-        if ($superadmin !== null) {
-            $this->kotakKerja->buat('PERMINTAAN_AKSES', $e->permintaanId, "Permintaan akses {$e->nomor} menunggu tindak lanjut", ['peran', (string) $superadmin]);
+        // Pemberi kewenangan akses: setiap peran aktif yang memegang pengaturan.akun.perbaiki (satu tugas per peran).
+        $peran = Peran::query()->where('status', 'aktif')->whereIn('id', DB::table('akses.peran_izin')->where('status', 'aktif')
+            ->whereIn('izin_id', DB::table('akses.izin')->where('kode', 'pengaturan.akun.perbaiki')->select('id'))->select('peran_id'))
+            ->orderBy('kode')->pluck('id');
+        foreach ($peran as $id) {
+            $this->kotakKerja->buat('PERMINTAAN_AKSES', $e->permintaanId, "Permintaan akses {$e->nomor} menunggu tindak lanjut", ['peran', (string) $id]);
         }
     }
 
@@ -71,13 +73,19 @@ final class PendengarKejadian
         $this->kotakKerja->selesaikan('IZIN_PRAKTIK_BERAKHIR', $e->izinPraktikId, 'Catatan izin dibatalkan', 'batal');
     }
 
-    /** Pemberitahuan ke pemilik akun (issue #11): kritis; email paling banyak satu per jam per akun. */
+    /**
+     * Pemberitahuan ke pemilik akun (issue #11): kritis, paling banyak satu per jam per akun (in-app dan email), agar
+     * penguncian sengaja berulang tidak membanjiri pemilik dengan notifikasi kritis yang tidak bisa dibaca-semua.
+     */
     public function akunTerkunci(AkunTerkunci $e): void
     {
+        if (! Cache::add('notifikasi:akun_terkunci:'.$e->penggunaId, 1, 3600)) {
+            return;
+        }
         $sampai = Carbon::parse($e->terkunciSampai)->setTimezone((string) config('instalasi.zona_waktu'))->format('H:i');
-        $email = Cache::add('notifikasi:akun_terkunci:'.$e->penggunaId, 1, 3600);
+        // Penghitung yang sama menghitung sandi dan kode MFA yang salah: pesan tidak menyebut sandi saja.
         $this->pemberitahu->kirim([$e->penggunaId], self::AKUN_TERKUNCI, 'Akun Anda terkunci sementara',
-            "Akun Anda terkunci sampai pukul {$sampai} karena sandi salah beberapa kali. Bila itu bukan Anda, segera hubungi admin.",
-            null, 'kritis', null, $email);
+            "Akun Anda terkunci sampai pukul {$sampai} karena sandi atau kode verifikasi salah beberapa kali. Bila itu bukan Anda, segera ganti sandi dan hubungi admin.",
+            null, 'kritis', null, true);
     }
 }

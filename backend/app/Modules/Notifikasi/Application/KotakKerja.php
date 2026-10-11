@@ -4,6 +4,7 @@ namespace App\Modules\Notifikasi\Application;
 
 use App\Modules\Notifikasi\Models\JenisTugas;
 use App\Modules\Notifikasi\Models\Tugas;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -36,8 +37,9 @@ final class KotakKerja
         if ($jenis === null) {
             return null;
         }
-        $ada = Tugas::query()->where('jenis_tugas_id', $jenis->id)->where('objek_jenis', $jenis->objek_jenis)->where('objek_id', $objekId)
+        $terbuka = fn () => Tugas::query()->where('jenis_tugas_id', $jenis->id)->where('objek_jenis', $jenis->objek_jenis)->where('objek_id', $objekId)
             ->where('pelaksana_jenis', $pelaksana[0])->where('pelaksana_id', $pelaksana[1])->where('status', 'terbuka')->first();
+        $ada = $terbuka();
         if ($ada !== null) {
             return $ada;
         }
@@ -49,14 +51,20 @@ final class KotakKerja
         $tugas = new Tugas([
             'jenis_tugas_id' => $jenis->id, 'objek_jenis' => $jenis->objek_jenis, 'objek_id' => $objekId, 'judul' => $judul, 'tautan' => $tautan,
             'pelaksana_jenis' => $pelaksana[0], 'pelaksana_id' => $pelaksana[1], 'unit_id' => $unitId ?? $jenis->unit_teguran_id,
+            'unit_eskalasi_id' => $jenis->unit_eskalasi_id,
             'tenggat_pada' => $tenggat, 'pengingat_pada' => $tenggat->copy()->addMinutes($jenis->pengingat_menit),
             'teguran_pada' => $tenggat->copy()->addMinutes($jenis->teguran_menit), 'eskalasi_pada' => $tenggat->copy()->addMinutes($jenis->eskalasi_menit),
             'kritis' => $jenis->kritis,
         ]);
-        $tugas->save();
+        try {
+            // Savepoint: balapan dua kejadian yang sama ditangkap indeks unik tanpa membatalkan transaksi pemanggil.
+            DB::transaction(fn () => $tugas->save());
+        } catch (UniqueConstraintViolationException) {
+            return $terbuka();
+        }
         $penerima = $this->penerima->pelaksana(...$pelaksana);
         $kanal = $this->pemberitahu->kirim($penerima, $jenis->kode, $judul, 'Tugas baru: '.$judul.'. Tenggat '.$this->waktu($tenggat).'.',
-            $tautan, $jenis->kritis ? 'kritis' : 'biasa', $tugas->id);
+            $tautan, $tugas->kritis ? 'kritis' : 'biasa', $tugas->id);
         $this->kejadian($tugas, 'dibuat', 0, $penerima, $kanal, null);
         // Pengingat yang waktunya sudah lewat saat dibuat (tenggat dekat) dikirim sekarang.
         $this->naikkan($tugas, $jenis);
@@ -119,7 +127,7 @@ final class KotakKerja
                 default => 'Eskalasi: '.$tugas->judul.' belum diselesaikan',
             };
             $kanal = $this->pemberitahu->kirim($penerima, $jenis->kode, $judul, $judul.'. Tenggat '.$this->waktu($tugas->tenggat_pada).'.',
-                $tugas->tautan, $jenis->kritis ? 'kritis' : self::PRIORITAS[$tingkat], $tugas->id);
+                $tugas->tautan, $tugas->kritis ? 'kritis' : self::PRIORITAS[$tingkat], $tugas->id);
             $tugas->forceFill(['tingkat_saat_ini' => $tingkat])->save();
             $this->kejadian($tugas, $jenisKejadian, $tingkat, $penerima, $kanal, $catatan);
             $berubah = true;
@@ -134,8 +142,7 @@ final class KotakKerja
         if ($tingkat === 1) {
             return [$this->penerima->pelaksana($tugas->pelaksana_jenis, $tugas->pelaksana_id), null];
         }
-        $unitTeguran = $tugas->unit_id ?? $jenis->unit_teguran_id;
-        $unit = $tingkat === 2 ? $unitTeguran : ($jenis->unit_eskalasi_id ?? $this->penerima->induk($unitTeguran));
+        $unit = $tingkat === 2 ? $tugas->unit_id : ($tugas->unit_eskalasi_id ?? $this->penerima->induk($tugas->unit_id));
         $penerima = $this->penerima->kepalaUnit($unit);
 
         return [$penerima, $penerima === [] ? ($unit === null ? 'Tanpa penerima: unit belum ditetapkan.' : 'Tanpa penerima: kepala unit belum ditetapkan.') : null];

@@ -49,7 +49,8 @@ return new class extends Migration
             $table->text('tautan');
             $table->text('pelaksana_jenis')->comment('pengguna | peran | unit');
             $table->uuid('pelaksana_id');
-            $table->uuid('unit_id')->nullable()->comment('Unit untuk eskalasi tingkat 2-3 (kepala unit, kepala unit induk)');
+            $table->uuid('unit_id')->nullable()->comment('Unit teguran tingkat 2 (kepala unit); induknya untuk tingkat 3 bila unit_eskalasi_id kosong');
+            $table->uuid('unit_eskalasi_id')->nullable()->comment('Unit eskalasi tingkat 3, dipotret dari jenis_tugas saat dibuat');
             $table->timestampTz('tenggat_pada');
             $table->timestampTz('pengingat_pada')->comment('Dihitung saat dibuat dari jenis_tugas');
             $table->timestampTz('teguran_pada');

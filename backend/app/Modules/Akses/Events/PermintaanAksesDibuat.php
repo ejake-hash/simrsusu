@@ -4,7 +4,7 @@ namespace App\Modules\Akses\Events;
 
 use Illuminate\Foundation\Events\Dispatchable;
 
-/** Permintaan akses baru dari layar Akses ditolak. Didengar sinkron (di dalam transaksi pemanggil) oleh modul Notifikasi (tiket 1.7). */
+/** Permintaan akses baru dari akun yang aksesnya ditolak (layar Akses ditolak). Didengar sinkron (di dalam transaksi pemanggil) oleh modul Notifikasi (tiket 1.7). */
 final class PermintaanAksesDibuat
 {
     use Dispatchable;

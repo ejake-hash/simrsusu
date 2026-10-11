@@ -17,6 +17,16 @@ final class KueriKotakKerja implements JumlahTugasSaya
 {
     public const TAB = ['saya', 'unit', 'dieskalasi', 'selesai'];
 
+    /**
+     * Memo per instans (satu permintaan HTTP): identitas pelaksana dan unit dikepalai dipakai di setiap tab.
+     *
+     * @var array<string, list<array{0: string, 1: string}>>
+     */
+    private array $identitas = [];
+
+    /** @var array<string, list<string>> */
+    private array $unit = [];
+
     public function __construct(private readonly PenerimaTugas $penerima) {}
 
     /** @return Builder<Tugas> */
@@ -63,7 +73,7 @@ final class KueriKotakKerja implements JumlahTugasSaya
     private function milik(Builder $q, Pengguna $pengguna): void
     {
         $q->where(function ($q) use ($pengguna) {
-            foreach ($this->penerima->identitasPelaksana($pengguna) as [$jenis, $id]) {
+            foreach ($this->identitas[$pengguna->id] ??= $this->penerima->identitasPelaksana($pengguna) as [$jenis, $id]) {
                 $q->orWhere(fn ($q) => $q->where('pelaksana_jenis', $jenis)->where('pelaksana_id', $id));
             }
         });
@@ -72,7 +82,7 @@ final class KueriKotakKerja implements JumlahTugasSaya
     /** @param  Builder<Tugas>  $q */
     private function unitAtauEskalasi(Builder $q, Pengguna $pengguna): void
     {
-        $unit = $this->penerima->unitDikepalai($pengguna);
+        $unit = $this->unit[$pengguna->id] ??= $this->penerima->unitDikepalai($pengguna);
         $q->whereIn('unit_id', $unit)->orWhereIn('id', DB::table('inti.tugas_kejadian')->where('tingkat', '>=', 2)
             ->whereRaw('penerima @> ?::jsonb', [json_encode([$pengguna->id])])->select('tugas_id'));
     }
