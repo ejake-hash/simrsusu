@@ -1,6 +1,6 @@
 import type { AxiosResponse } from 'axios'
 import { klien } from '@/shared/api/klien'
-import type { Halaman, PohonMenu } from './tipePengaturan'
+import type { Halaman } from './tipePengaturan'
 import type { PermintaanAkses, PersetujuanAkses, RingkasPeran, SaranPeran, StatusPermintaan, StatusPersetujuan, TabPersetujuan } from './tipePersetujuan'
 
 /** Klien persetujuan dan permintaan akses (docs/api/openapi.yaml v0.4.0, tiket 1.2d). */
@@ -51,16 +51,4 @@ export async function aturPenyetujuIzin(
 }
 export async function ambilSaranPeran(): Promise<SaranPeran[]> {
   return data(await klien.get('/akun/saran-peran'))
-}
-
-/** Penyetuju izin sensitif dari pohon menu (NodeMenu.izin[].penyetuju_peran), dibaca tanpa permintaan baru. */
-export function petaPenyetuju(pohon: PohonMenu): Map<string, RingkasPeran | null> {
-  const peta = new Map<string, RingkasPeran | null>()
-  const jalan = (n: PohonMenu['grup'][number]['menu']) =>
-    n.forEach((m) => {
-      m.izin.forEach((i) => i.sensitif && peta.set(i.kode, i.penyetuju_peran ?? null))
-      jalan(m.anak)
-    })
-  pohon.grup.forEach((g) => jalan(g.menu))
-  return peta
 }

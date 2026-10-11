@@ -6,7 +6,7 @@ import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
 import { formatTanggalWaktu } from '@/shared/utils/waktu'
 import { ambilPeran, gantiIzinPeran, type PeranBerversi } from '../../apiPengaturan'
-import { bandingkan, kodeDariRincian, labelIzin, periksa, type IndeksMatriks } from '../../matriks'
+import { bandingkan, kodeAksi, kodeDariRincian, labelIzin, periksa, type IndeksMatriks } from '../../matriks'
 import { errorKolom, KUNCI, pesanError } from '../../pengaturan'
 import DialogInfoPeran from './DialogInfoPeran.vue'
 import DialogSimpanIzin from './DialogSimpanIzin.vue'
@@ -43,9 +43,26 @@ const basis = computed(() => (peran.value ? [...peran.value.izin, ...menunggu.va
 const selisih = computed(() => (peran.value ? bandingkan(props.indeks, basis.value, izin.value) : { ditambah: [], dicabut: [] }))
 const adaPerubahan = computed(() => selisih.value.ditambah.length + selisih.value.dicabut.length > 0)
 
+/**
+ * Izin menunggu beserta prasyaratnya (lihat node itu dan lihat sub-menu induk untuk bagian): tidak boleh terlepas lewat
+ * aksi berantai (mis. lihat induk dicabut), agar simpan tidak ditolak 422 lihat_wajib/induk_belum_diberikan.
+ */
+function denganMenunggu(himpunan: Iterable<string>, kodeMenunggu: Iterable<string>): Set<string> {
+  const hasil = new Set(himpunan)
+  for (const k of kodeMenunggu) {
+    hasil.add(k)
+    const b = props.indeks.perKode.get(k)?.baris
+    const lihat = b ? kodeAksi(b.node, 'lihat') : undefined
+    const lihatInduk = b?.subInduk ? kodeAksi(b.subInduk, 'lihat') : undefined
+    if (lihat) hasil.add(lihat)
+    if (lihatInduk) hasil.add(lihatInduk)
+  }
+  return hasil
+}
+
 function terapkanDasar(b: PeranBerversi, izinBaru: Set<string>) {
   dasar.value = b
-  izin.value = new Set([...izinBaru, ...(b.peran.izin_menunggu ?? []).map((m) => m.kode)])
+  izin.value = denganMenunggu(izinBaru, (b.peran.izin_menunggu ?? []).map((m) => m.kode))
   sorot.value = new Set()
   errorEditor.value = null
   peringatan.value = null
@@ -81,8 +98,8 @@ const KETERANGAN_KUNCI = {
 } as const
 
 function ubahIzin(baru: Set<string>) {
-  // Izin menunggu tidak bisa terlepas lewat aksi berantai (mis. lihat dicabut).
-  izin.value = new Set([...baru, ...menunggu.value.keys()])
+  // Izin menunggu (dan prasyaratnya) tidak bisa terlepas lewat aksi berantai (mis. lihat dicabut).
+  izin.value = denganMenunggu(baru, menunggu.value.keys())
   pesan.value = null
 }
 
@@ -98,8 +115,36 @@ const sibuk = ref(false)
 const errorDialog = ref<string | null>(null)
 const formSimpan = ref<InstanceType<typeof DialogSimpanIzin> | null>(null)
 
-function bukaSimpan() {
+/**
+ * Sebelum ringkasan simpan, periksa versi terbaru: tolak/tarik/kedaluwarsa tidak menaikkan versi peran, jadi izin yang
+ * tidak lagi menunggu harus dilepas dari suntingan — bila tidak, izin itu terkirim lagi dan diam-diam diajukan ulang.
+ * Versi berbeda (mis. disetujui orang lain) = bentrok seperti 412.
+ */
+async function bukaSimpan() {
   errorDialog.value = null
+  const lama = dasar.value
+  if (lama) {
+    try {
+      const segar = await ambilPeran(props.peranId)
+      if (segar.peran.versi !== lama.peran.versi) {
+        bentrok.value = segar
+        return
+      }
+      const masih = new Set((segar.peran.izin_menunggu ?? []).map((m) => m.kode))
+      const basi = (lama.peran.izin_menunggu ?? []).map((m) => m.kode).filter((k) => !masih.has(k))
+      if (basi.length) {
+        dasar.value = segar
+        qc.setQueryData(KUNCI.peran(props.peranId), segar)
+        const sisa = new Set(izin.value)
+        basi.forEach((k) => sisa.delete(k))
+        izin.value = sisa
+        peringatan.value = `Tidak lagi menunggu persetujuan (ditolak, ditarik, atau kedaluwarsa): ${basi.map((k) => labelIzin(props.indeks, k)).join('; ')}. Izin itu dilepas dari suntingan; centang lagi bila ingin mengajukan ulang, lalu simpan.`
+        return
+      }
+    } catch {
+      // Gagal memeriksa: tetap lanjut; server tetap memeriksa versi (412) saat simpan.
+    }
+  }
   dialogSimpan.value = true
 }
 

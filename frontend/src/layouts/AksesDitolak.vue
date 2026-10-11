@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed, ref, useId } from 'vue'
+import { computed, nextTick, ref, useId } from 'vue'
 import Tombol from '@/design-system/components/Tombol.vue'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import Ikon from '@/design-system/ikon/Ikon.vue'
@@ -32,6 +32,20 @@ const errorAlasan = ref<string | undefined>()
 const error = ref<string | null>(null)
 const sibuk = ref(false)
 const terkirim = ref<PermintaanAkses | null>(null)
+const tombolMinta = ref<HTMLButtonElement | null>(null)
+const pesanTerkirim = ref<HTMLElement | null>(null)
+
+/** Fokus mengikuti bagian yang tampil (tombol ↔ formulir ↔ pesan terkirim), tidak jatuh ke body. */
+async function bukaFormulir() {
+  formulir.value = true
+  await nextTick()
+  document.getElementById(idAlasan)?.focus()
+}
+async function batal() {
+  formulir.value = false
+  await nextTick()
+  tombolMinta.value?.focus()
+}
 
 async function kirim() {
   const a = alasan.value.trim()
@@ -46,6 +60,8 @@ async function kirim() {
     terkirim.value = await buatPermintaan({ sasaran_jenis: 'menu', sasaran_kode: props.kodeSubMenu, alasan: a })
     formulir.value = false
     void qc.invalidateQueries({ queryKey: KUNCI.permintaan })
+    await nextTick()
+    pesanTerkirim.value?.focus()
   } catch (e) {
     if (e instanceof ApiError && e.kode === 'permintaan_ganda') void kueri.refetch()
     error.value = pesanError(e)
@@ -61,7 +77,7 @@ async function kirim() {
     <h1 id="judul-ditolak">Akses ditolak</h1>
     <p>Akun Anda belum punya akses ke <b>{{ judul }}</b>. Akses diberikan pengelola akses sesuai tugas Anda.</p>
 
-    <p v-if="terkirim" class="catatan catatan-info" role="status">
+    <p v-if="terkirim" ref="pesanTerkirim" class="catatan catatan-info" role="status" tabindex="-1">
       <Ikon nama="centang" :ukuran="16" />
       <span>Permintaan {{ terkirim.nomor }} terkirim ke pengelola akses. Halaman ini terbuka setelah akses diberikan.</span>
     </p>
@@ -78,13 +94,13 @@ async function kirim() {
         <span>{{ error }}</span>
       </p>
       <div class="aksi">
-        <button type="button" class="tombol" :disabled="sibuk" @click="formulir = false">Batal</button>
+        <button type="button" class="tombol" :disabled="sibuk" @click="batal">Batal</button>
         <Tombol type="submit" varian="utama" :sibuk="sibuk">{{ sibuk ? 'Mengirim…' : 'Kirim permintaan' }}</Tombol>
       </div>
     </form>
     <div v-else class="aksi">
       <RouterLink to="/" class="tombol">Kembali ke Beranda</RouterLink>
-      <button type="button" class="tombol tombol-utama" @click="formulir = true">Minta akses</button>
+      <button ref="tombolMinta" type="button" class="tombol tombol-utama" @click="bukaFormulir">Minta akses</button>
     </div>
   </section>
 </template>

@@ -73,8 +73,9 @@ const wajibBatas = computed(() => (dipilih.value?.sensitif ?? false) && values.e
 watch(buka, (b) => {
   if (!b) return
   error.value = null
-  cari.value = ''
   const pm = props.permintaan
+  // Tindak lanjut: sasaran permintaan langsung terlihat (daftar dibatasi 40 butir).
+  cari.value = pm?.sasaran_kode ?? ''
   resetForm({
     values: pm
       ? { efek: 'tambah', sasaran: `${pm.sasaran_jenis}:${pm.sasaran_kode}`, berlaku_sampai: '', dasar_pemberian: pm.nomor, alasan: pm.alasan.length >= 5 ? pm.alasan : '' }
@@ -116,6 +117,10 @@ const kirim = handleSubmit(async (v) => {
 <template>
   <Dialog v-model:open="buka" :judul="`Pengecualian untuk ${namaAkun}`" uraian="Tambah atau cabut akses satu akun di luar perannya. Cabut selalu menang." :sibuk="sibuk" lebar="lebar">
     <form id="form-izin-khusus" novalidate @submit.prevent="kirim">
+      <p v-if="permintaan" class="catatan catatan-info tindak-lanjut">
+        <Ikon nama="info" :ukuran="16" />
+        <span>Menindaklanjuti permintaan {{ permintaan.nomor }}: <b>{{ permintaan.sasaran_label }}</b>. Alasan pemohon: {{ permintaan.alasan }}</span>
+      </p>
       <fieldset class="efek">
         <legend>Jenis</legend>
         <label class="pilihan"><input v-model="efek" type="radio" value="cabut" /> Cabut</label>
@@ -141,7 +146,7 @@ const kirim = handleSubmit(async (v) => {
 
       <p v-if="dipilih?.sensitif && efek === 'tambah'" class="catatan catatan-peringatan">
         <Ikon nama="gembok" :ukuran="16" />
-        <span>Menambah sasaran sensitif butuh persetujuan pemilik data. Sampai alur persetujuan tersedia, server menolak permintaan ini.</span>
+        <span>Menambah sasaran sensitif tidak langsung berlaku: menunggu persetujuan pemilik datanya (penyetuju izin itu).</span>
       </p>
 
       <KolomIsian
@@ -172,6 +177,9 @@ const kirim = handleSubmit(async (v) => {
 </template>
 
 <style scoped>
+.tindak-lanjut {
+  margin: 0 0 var(--space-4);
+}
 fieldset {
   margin: 0 0 var(--space-4);
   padding: 0;

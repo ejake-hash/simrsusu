@@ -36,7 +36,7 @@ export const router = createRouter({
       component: () => import('@/layouts/AppShell.vue'),
       children: [
         { path: '', name: 'beranda', component: () => import('@/modules/beranda/pages/BerandaPage.vue'), meta: { judul: 'Beranda' } },
-        // Gerbang izin di HalamanModul (tanpa pengaturan.<sub>.lihat → Halaman tidak ditemukan).
+        // Gerbang izin di HalamanModul (tanpa <menu>.<sub>.lihat → Akses ditolak + Minta akses, tiket 1.2d).
         { path: 'pengaturan/peran', name: 'pengaturan-peran', component: () => import('@/modules/akses/pages/PeranPage.vue'), meta: { judul: 'Peran & izin' } },
         { path: 'pengaturan/akun', name: 'pengaturan-akun', component: () => import('@/modules/akses/pages/AkunPage.vue'), meta: { judul: 'Akun & akses' } },
         { path: 'pengaturan/persetujuan', name: 'pengaturan-persetujuan', component: () => import('@/modules/akses/pages/PersetujuanPage.vue'), meta: { judul: 'Persetujuan akses' } },

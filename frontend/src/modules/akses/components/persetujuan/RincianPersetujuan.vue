@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useSesiStore } from '@/app/sesi'
 import { tampilkanToast } from '@/design-system/components/toast'
 import Ikon from '@/design-system/ikon/Ikon.vue'
@@ -18,7 +18,7 @@ import DialogKeputusan from './DialogKeputusan.vue'
  * hanya bila server menyatakan `dapat_diputuskan` (penyetuju yang ditunjuk; MD-4) — superadmin yang bukan penyetujunya
  * tidak melihat tombol itu. Pengaju bisa menarik pengajuannya selama masih menunggu.
  */
-const props = defineProps<{ id: string }>()
+const props = withDefaults(defineProps<{ id: string; fokusSaatMuat?: boolean }>(), { fokusSaatMuat: false })
 const emit = defineEmits<{ tutup: [] }>()
 const qc = useQueryClient()
 const sesi = useSesiStore()
@@ -27,6 +27,16 @@ const kueri = useQuery({ queryKey: computed(() => KUNCI.rinciPersetujuan(props.i
 const p = computed(() => kueri.data.value ?? null)
 const tidakDitemukan = computed(() => (kueri.error.value as { status?: number } | null)?.status === 404)
 const milikSaya = computed(() => p.value?.diajukan_oleh?.id === sesi.pengguna?.id)
+// Layar sempit: fokus pindah ke judul rincian sesudah datanya termuat (bukan tertinggal di daftar).
+watch(
+  () => !!p.value,
+  async (ada) => {
+    if (!ada || !props.fokusSaatMuat) return
+    await nextTick()
+    document.getElementById('judul-rincian-persetujuan')?.focus()
+  },
+  { immediate: true },
+)
 
 const LABEL_JENIS: Record<PersetujuanAkses['jenis'], string> = {
   izin_sensitif: 'Izin sensitif',
@@ -47,7 +57,10 @@ function putuskan(m: 'setujui' | 'tolak') {
   mode.value = m
   dialogKeputusan.value = true
 }
-/** Dilempar sebagai Error berpesan agar tampil di dialog; 409 tidak_bisa_diterapkan memuat ulang rincian. */
+/**
+ * Galat lain dilempar sebagai Error berpesan agar tampil di dialog. 409 (tidak_bisa_diterapkan, sudah_diputuskan):
+ * keadaan pengajuan berubah, jadi dialog ditutup, rincian dan daftar dimuat ulang, dan alasannya tampil sebagai toast.
+ */
 async function aksiKeputusan(teks: string | null) {
   const x = p.value!
   try {
@@ -61,7 +74,12 @@ async function aksiKeputusan(teks: string | null) {
           : `${baru.nomor} disetujui; menunggu ${baru.grup.jumlah - baru.grup.disetujui} penyetuju lain.`,
     )
   } catch (e) {
-    if (e instanceof ApiError && e.status === 409) void kueri.refetch()
+    if (e instanceof ApiError && e.status === 409) {
+      void kueri.refetch()
+      void qc.invalidateQueries({ queryKey: KUNCI.persetujuan, predicate: (q) => q.queryKey[2] === 'daftar' })
+      tampilkanToast(pesanError(e), 'error')
+      return
+    }
     throw new Error(pesanError(e))
   }
 }
