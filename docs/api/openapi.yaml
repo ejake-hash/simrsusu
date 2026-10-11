@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.7.0
+  version: 0.8.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -32,6 +32,11 @@ info:
     v0.7.0: Notifikasi, kotak kerja, eskalasi (tiket 1.7): /saya/notifikasi (ETag/304), /saya/tugas, /tugas/{id},
     /jenis-tugas (tanpa POST), /saya/preferensi-notifikasi; header X-Permintaan-Latar untuk polling (tidak memperbarui
     waktu aktif sesi).
+    v0.8.0: Tanda tangan elektronik T1 (tiket 1.6): /saya/ttd/aktivasi, /saya/ttd/pin, /ttd/{pengguna}/reset (persetujuan akses
+    `reset_ttd` dengan penyetuju orang: atasan langsung), /ttd/tandatangani, /ttd/verifikasi/{objek_jenis}/{objek_id};
+    Saya.ttd; PersetujuanAkses.penyetuju_pengguna. Penyelarasan 1.7-be (#53): ETag /saya/menu = `versi` + jumlah tugas
+    Beranda; `jumlah_tugas` null di /akun/{id}/menu; AKUN_TERKUNCI paling banyak satu per jam (in-app dan email);
+    pelaksana PERMINTAAN_AKSES = peran pemegang pengaturan.akun.perbaiki.
 servers:
   - url: /api/v1
 security:
@@ -79,7 +84,8 @@ paths:
         - Menu tampil bila minimal satu bagiannya boleh dilihat.
         - Modul yang belum dibangun/aktif dikirim dengan status "segera" HANYA bila konfigurasi
           `menu.tampilkan_segera_hadir` = true (pengembangan/demo); di produksi tidak dikirim.
-        - Respons di-cache per akun (Valkey cache) dan memakai ETag dari `versi`.
+        - Respons di-cache per akun (Valkey cache). ETag = `versi` + jumlah tugas Beranda (`"<versi>-<n>"`, sejak 1.7):
+          tugas baru mengubah ETag tanpa mengubah `versi`.
       parameters:
         - in: header
           name: If-None-Match
@@ -375,7 +381,8 @@ paths:
       operationId: menuAkun
       summary: Lihat sebagai — menu efektif dan izin akun lain, dihitung AccessEvaluator yang sama dengan /saya/menu
       description: |
-        Izin: pengaturan.akun.lihat. Bentuk respons = MenuSaya. Hanya pratinjau: tidak membuat sesi atas nama akun itu.
+        Izin: pengaturan.akun.lihat. Bentuk respons = MenuSaya, dengan `jumlah_tugas` selalu null (jumlah tugas akun lain tidak
+        dikirim). Hanya pratinjau: tidak membuat sesi atas nama akun itu.
         Status "segera" mengikuti aturan yang sama dengan /saya/menu. Audit `akses.lihat_sebagai`.
       responses:
         '200':
@@ -968,7 +975,8 @@ paths:
   # Persetujuan akses dan permintaan akses (tiket 1.2d; PRD 9.2.3–9.2.4, 9.3; keputusan K3, K4, K13)
   # Pemberian berisiko tidak langsung berlaku: dicatat sebagai persetujuan menunggu dan diterapkan (dalam transaksi
   # yang sama dengan keputusan) saat semua penyetuju yang dibutuhkan menyetujui. Penyetuju = pemegang peran penyetuju
-  # yang berlaku; tidak pernah pengaju dan tidak pernah akun penerima akses. Kedaluwarsa 7 hari.
+  # yang berlaku, atau orang tertentu (`penyetuju_pengguna`, sejak 1.6: reset TTE oleh atasan langsung); tidak pernah
+  # pengaju dan tidak pernah akun penerima akses. Kedaluwarsa 7 hari.
   # Jalan masuk layar: sub-menu `pengaturan.persetujuan` (izin `pengaturan.persetujuan.lihat`, tidak sensitif) diberikan
   # **lewat peran** seperti menu lain: bawaan untuk superadmin; untuk pemilik data, admin memberikannya ke peran penyetujunya.
   # Endpoint /persetujuan-akses sendiri tidak butuh izin (hanya data yang relevan bagi akun itu). Usulan sub-menu otomatis
@@ -976,7 +984,7 @@ paths:
   # Tidak ada POST /persetujuan-akses: persetujuan dibuat oleh endpoint pemberian (PUT izin peran, penugasan, izin khusus,
   # pengakhiran penugasan superadmin, penyetuju izin).
   # Aturan penyetuju (diperiksa server):
-  # - memegang peran penyetuju yang berlaku; bukan pengaju (403 pengaju_sendiri);
+  # - memegang peran penyetuju yang berlaku (atau = penyetuju_pengguna); bukan pengaju (403 pengaju_sendiri);
   # - bukan penerima (403 penerima_sendiri): untuk penugasan/izin khusus = akun sasaran; untuk izin peran = semua pemegang
   #   peran sasaran (penugasan aktif); untuk penyetuju izin = pemegang peran yang ditunjuk;
   # - kontrol ganda K3/K13 tidak bisa dilewati satu superadmin: menunjuk penyetuju izin (PUT /izin/{kode}/penyetuju) dan
@@ -994,7 +1002,8 @@ paths:
       summary: Antrean persetujuan akses untuk akun yang sedang masuk (paginasi kursor, terbaru dulu)
       description: |
         Tanpa izin khusus: hanya data yang relevan bagi akun ini.
-        - `tab=perlu_saya_putuskan`: status menunggu, akun ini memegang peran penyetujunya, bukan pengaju, bukan penerima.
+        - `tab=perlu_saya_putuskan`: status menunggu, akun ini memegang peran penyetujunya (atau akun ini `penyetuju_pengguna`),
+          bukan pengaju, bukan penerima.
         - `tab=saya_ajukan`: diajukan akun ini (semua status).
       parameters:
         - $ref: '#/components/parameters/Kursor'
@@ -1020,7 +1029,7 @@ paths:
     get:
       operationId: rinciPersetujuanAkses
       summary: Rincian persetujuan (siapa, apa, dasar, dampak)
-      description: "Hanya pengaju, penerima, atau pemegang peran penyetujunya; selain itu 404."
+      description: "Hanya pengaju, penerima, pemegang peran penyetujunya, atau penyetuju_pengguna; selain itu 404."
       responses:
         '200':
           description: Rincian
@@ -1036,7 +1045,7 @@ paths:
       operationId: setujuiPersetujuanAkses
       summary: Setujui; perubahan diterapkan bila semua penyetuju dalam grup sudah setuju
       description: |
-        - 403 `bukan_penyetuju`: tidak memegang peran penyetuju; 403 `pengaju_sendiri`: pengaju tidak bisa menyetujui
+        - 403 `bukan_penyetuju`: tidak memegang peran penyetuju (atau bukan `penyetuju_pengguna`); 403 `pengaju_sendiri`: pengaju tidak bisa menyetujui
           permintaannya sendiri; 403 `penerima_sendiri`: akun penerima akses tidak bisa menyetujui.
         - 409 `sudah_diputuskan` (bukan menunggu, termasuk kedaluwarsa/dibatalkan).
         - 409 `tidak_bisa_diterapkan`: keadaan berubah sejak diajukan (mis. peran nonaktif, akun nonaktif, penugasan
@@ -2571,8 +2580,9 @@ paths:
   #   `unit` = tugas terbuka bukan milik akun ini di unit yang dikepalainya (termasuk turunan) atau yang eskalasinya dikirim
   #   ke akun ini; `selesai` = tugas akun ini dan unitnya yang selesai bulan ini. Tugas di tab mana pun bisa dibuka di
   #   /tugas/{id}.
-  # - Pemberitahuan AKUN_TERKUNCI (issue #11) bukan jenis tugas (tidak ada di /jenis-tugas): selalu kritis, email paling
-  #   banyak satu per jam per akun agar penguncian sengaja tidak membanjiri kotak masuk.
+  # - Pemberitahuan AKUN_TERKUNCI (issue #11) bukan jenis tugas (tidak ada di /jenis-tugas): selalu kritis, paling banyak
+  #   satu per jam per akun (in-app dan email) agar penguncian sengaja tidak membanjiri pemilik. TTD_TERKUNCI (1.6): ke
+  #   pemilik dan atasan langsung, juga kritis.
   # - Kanal (K2): in-app selalu; email (antrean `notifikasi`) bila akun punya email dan preferensinya menyala; WA/SMS
   #   lewat adapter dengan driver `log` di fase 1. Notifikasi kritis tidak bisa dimatikan preferensi (FR-53-09).
   # ---------------------------------------------------------------------------
@@ -2846,6 +2856,233 @@ paths:
         '412': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '428': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # Tanda tangan elektronik T1 (tiket 1.6; PRD 7.57.1–7.57.2, FR-57-01…03/05, 11.2 ttd.*; keputusan K10).
+  # - Pasangan kunci Ed25519 per akun; kunci privat dibungkus kunci turunan PIN (Argon2id + garam per akun) DAN kunci
+  #   server (env/vault, bukan di DB), PIN hanya hash berlada kunci server: salinan DB saja tidak cukup untuk menebak PIN
+  #   atau membuka kunci. Tidak ada jalur admin untuk menandatangani atas nama orang lain: penanda tangan = akun yang masuk.
+  # - Isi yang ditandatangani dihitung SERVER dari objeknya (JSON kanonik, kunci terurut) → SHA-256 → tanda tangan; klien
+  #   tidak pernah mengirim isi. Cap waktu = waktu server (NTP). Setiap objek = satu baris tanda tangan.
+  # - Isi kanonik hanya dari kolom tersimpan yang tidak berubah sesudah objek final (id, kode, nilai, waktu), bukan dari
+  #   label/nama yang disusun saat dibaca: mengganti nama peran, label izin, atau nama pegawai tidak membuat tanda tangan
+  #   lama `isi_berubah`.
+  # - Aturan PIN: tepat 6 angka; ditolak bila semua angka sama (111111), pola 2 atau 3 angka berulang (121212, 123123),
+  #   atau setiap angka naik tepat 1 atau turun tepat 1 tanpa melingkar (012345, 123456, 987654). Format salah juga
+  #   `pin_lemah` (bukan `validasi_gagal`). Kesalahan PIN memakai `rincian[]` = `{kolom, kode, pesan}`:
+  #   `pin_lemah` (kolom `pin` | `pin_baru`), `pin_tidak_sama` (kolom `pin_ulang`), `pin_salah` (kolom `pin` | `pin_lama`,
+  #   ditambah `sisa_percobaan`: integer ≥ 1).
+  # - Penguncian: PIN salah ke-5 (konfigurasi) langsung 403 `ttd_terkunci` dengan header `Retry-After` (detik); terkunci
+  #   15 menit (konfigurasi), sesi tanda tangan berakhir, pemilik dan atasan langsung diberi notifikasi kritis (1.7).
+  #   PIN tidak pernah di log/audit/URL; respons /saya/ttd/* dan /ttd/tandatangani `Cache-Control: no-store`.
+  # - Sesi tanda tangan: 15 menit tetap (tidak bergeser) sejak PIN benar terakhir di /ttd/tandatangani, dalam sesi login yang
+  #   sama: penandatanganan berikutnya boleh tanpa PIN, tetap satu baris per objek. Aktivasi dan ganti PIN tidak memulai
+  #   sesi; sesi berakhir saat keluar, ganti sandi, ganti PIN, terkunci, atau TTE dicabut. Klien yang menerima 422
+  #   `pin_wajib` menampilkan kolom PIN dan mengirim ulang.
+  # - Objek yang bisa ditandatangani di fase 1: `persetujuan_akses`, oleh akun pemutusnya (`diputuskan_oleh.id` = Saya.id)
+  #   sesudah diputuskan; klien memanggil verifikasi di rincian untuk tahu apakah sudah ditandatangani. Fase 1 tidak punya
+  #   endpoint "minta tanda tangan" (penanda tangan lain): mode itu di TtdModal hanya komponen dengan handler pemanggil.
+  #   `usulan_data_induk` menyusul 1.8c. Aturan tingkat per jenis objek (FR-57-05) adalah data induk; fase 1 hanya T1.
+  # - T2/PSrE: antarmuka + simulator untuk uji alur asinkron, tanpa endpoint publik dan tanpa penyedia nyata (K10); mode
+  #   T2 TtdModal di luar 1.6-fe. Semua endpoint ini memakai batas laju `throttle:api` (429).
+  # ---------------------------------------------------------------------------
+  /saya/ttd/aktivasi:
+    post:
+      operationId: aktivasiTtd
+      summary: Aktivasi T1 — buat pasangan kunci dan tetapkan PIN
+      description: |
+        Tanpa izin khusus (akun yang masuk). Sandi akun wajib: sesi yang ditinggal terbuka tidak bisa membuat TTE atas nama
+        pemilik (PRD 7.57.2 huruf b). Juga untuk aktivasi ulang sesudah reset.
+        - 422 `sandi_salah` (`rincian` kolom `sandi`; dibatasi laju per akun seperti /saya/sandi: 429 sesudah 5 kali per 15 menit);
+        - 409 `ttd_sudah_aktif`; 422 `pin_lemah`, `pin_tidak_sama` (lihat aturan PIN di atas); 403 `wajib_ganti_sandi`.
+        Audit `ttd.diaktifkan` (sidik kunci, tanpa PIN). Status tampil di `Saya.ttd`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sandi, pin, pin_ulang]
+              properties:
+                sandi: { type: string, maxLength: 200 }
+                pin: { type: string, maxLength: 20, description: "6 angka; format lain → 422 pin_lemah" }
+                pin_ulang: { type: string, maxLength: 20 }
+      responses:
+        '201':
+          description: TTE aktif
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/StatusTtd' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /saya/ttd/pin:
+    put:
+      operationId: gantiPinTtd
+      summary: Ganti PIN (pasangan kunci tetap; kunci privat dibungkus ulang)
+      description: |
+        - 422 `pin_salah` (kolom `pin_lama`, dihitung ke penguncian), `pin_lemah` (kolom `pin_baru`), `pin_tidak_sama`;
+        - 409 `ttd_belum_aktif`; 403 `ttd_terkunci` (Retry-After).
+        Sesi tanda tangan berakhir. Audit `ttd.pin_diganti`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pin_lama, pin_baru, pin_ulang]
+              properties:
+                pin_lama: { type: string, maxLength: 20 }
+                pin_baru: { type: string, maxLength: 20 }
+                pin_ulang: { type: string, maxLength: 20 }
+      responses:
+        '200':
+          description: PIN diganti
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/StatusTtd' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /ttd/{pengguna}/reset:
+    parameters:
+      - { in: path, name: pengguna, required: true, schema: { type: string, format: uuid }, description: "id akun (akses.pengguna) pemilik TTE, bukan id kredensial" }
+    post:
+      operationId: ajukanResetTtd
+      summary: Ajukan reset TTE (PIN lupa) — diajukan SDM, disetujui atasan lewat persetujuan akses (1.2d)
+      description: |
+        Izin: sdm.kredensial.perbaiki, cakupan `rs`. Reset = TTE lama dicabut (tanda tangan lama tetap terverifikasi
+        dengan kunci publik lama); pemilik mengaktifkan ulang sendiri dengan sandi, pasangan kunci, dan PIN baru. Tidak ada
+        yang menetapkan PIN untuk orang lain.
+        Tafsiran PRD 7.57.2 huruf b "oleh atasan + SDM": satu persetujuan dengan dua orang — pengaju (SDM, sesudah
+        verifikasi identitas tatap muka, dicatat di `dasar`) dan penyetuju = atasan langsung pemilik, sebagai persetujuan
+        akses `jenis = reset_ttd` dengan `penyetuju_pengguna` (`objek.jenis = reset_ttd`, `objek.akun` = pemilik;
+        `peran`, `izin`, `cakupan_label`, `berlaku_sampai` null). Atasan = akun aktif kepala unit pegawainya; bila kepala
+        itu pemilik sendiri, pengaju, atau tanpa akun aktif, naik ke kepala unit induk, dan seterusnya sampai unit akar.
+        - 202 = persetujuan menunggu (PersetujuanAkses); berlaku saat disetujui: TTE lama dicabut, pemilik diberi notifikasi.
+          Audit `ttd.dicabut` saat diterapkan (pengajuannya diaudit `akses.persetujuan_diajukan`).
+        - 403 `diri_sendiri` (mengajukan untuk akun sendiri); 404 akun tidak ada; 409 `ttd_belum_aktif`;
+          409 `persetujuan_ganda` (reset untuk akun ini masih menunggu);
+          422 `atasan_belum_ditetapkan` (pegawai tanpa unit, atau sampai unit akar tidak ada kepala lain berakun aktif,
+          mis. TTE Direktur: jalur puncak menunggu keputusan pemilik produk, lihat backlog 1.6).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alasan, dasar]
+              properties:
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+                dasar: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '202':
+          description: Menunggu persetujuan atasan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PersetujuanAkses' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /ttd/tandatangani:
+    post:
+      operationId: tandatangani
+      summary: Tandatangani satu atau banyak objek dengan T1 (isi kanonik dihitung server)
+      description: |
+        Penanda tangan = akun yang masuk. `pin` wajib kecuali sesi tanda tangan masih berlaku (422 `pin_wajib`).
+        Semua objek diperiksa dulu; satu yang tidak boleh → tidak ada yang ditandatangani: 422 `objek_tidak_bisa_ditandatangani`,
+        `rincian[]` = `{kolom: "objek.<i>", kode, pesan}` dengan `kode` ∈ `tidak_ditemukan` (tidak ada atau tidak boleh dilihat),
+        `belum_diputuskan`, `bukan_pemutus`. Id ganda dalam satu permintaan → 422 `validasi_gagal` (kolom `objek.<i>.id`).
+        `data` selalu sepanjang dan seurut `objek`: objek yang sudah ditandatangani akun ini tidak digandakan, isinya tanda
+        tangan lama dengan `baru: false` (kirim ulang aman, pengganti Idempotency-Key).
+        - 422 `pin_salah` (kolom `pin`, `sisa_percobaan`); 403 `ttd_terkunci` (Retry-After); 409 `ttd_belum_aktif`;
+          422 `validasi_gagal` bila `pernyataan_disetujui` bukan true.
+        Audit `ttd.ditandatangani` per objek baru (hash isi, sidik kunci; tanpa isi).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [objek, pernyataan_disetujui]
+              properties:
+                objek:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    type: object
+                    required: [jenis, id]
+                    properties:
+                      jenis: { type: string, enum: [persetujuan_akses] }
+                      id: { type: string, format: uuid }
+                pin: { type: [string, 'null'], maxLength: 20 }
+                pernyataan_disetujui:
+                  type: boolean
+                  const: true
+                  description: "Akun menyetujui kalimat \"Saya menyatakan isi ini benar dan saya menandatanganinya\" (PRD 7.57.2 huruf f) yang ditampilkan klien bersama ringkasan isi"
+      responses:
+        '200':
+          description: Tanda tangan per objek (urutan sama dengan permintaan)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/TandaTangan'
+                        - type: object
+                          required: [baru]
+                          properties:
+                            baru: { type: boolean, description: "false = tanda tangan lama akun ini untuk objek itu" }
+                  meta:
+                    type: object
+                    required: [sesi_berlaku_sampai]
+                    properties:
+                      sesi_berlaku_sampai: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /ttd/verifikasi/{objek_jenis}/{objek_id}:
+    parameters:
+      - { in: path, name: objek_jenis, required: true, schema: { type: string, enum: [persetujuan_akses] } }
+      - { in: path, name: objek_id, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: verifikasiTtd
+      summary: Verifikasi ulang semua tanda tangan sebuah objek (integritas isi + keaslian tanda tangan)
+      description: |
+        Hanya akun yang boleh melihat objek itu (persetujuan_akses: aturan /persetujuan-akses/{id}); selain itu 404.
+        Urutan pemeriksaan: keaslian dulu (`tanda_tangan_tidak_sah` bila tanda tangan tidak cocok dengan hash tersimpan dan
+        kunci publik yang dipakai, mis. baris palsu), lalu isi (`isi_berubah` bila hash isi kanonik objek saat ini berbeda
+        dari saat ditandatangani). Waktu di isi kanonik selalu UTC dengan presisi mikrodetik (tidak bergantung zona waktu
+        instalasi).
+        Bukan endpoint daftar: paling banyak satu baris per penanda tangan objek itu, urut `ditandatangani_pada`.
+        Hasil kosong = belum ada tanda tangan.
+      responses:
+        '200':
+          description: Hasil verifikasi
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, maxItems: 100, items: { $ref: '#/components/schemas/TandaTangan' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -2906,6 +3143,7 @@ components:
         login_terakhir_pada: { type: [string, 'null'], format: date-time, description: "Masuk yang memulai sesi ini" }
         mfa_aktif: { type: boolean }
         wajib_ganti_sandi: { type: boolean, description: "Selalu dikirim di /saya sejak 1.8d (tidak ada di respons masuk PRD 10.3.2). true = arahkan ke layar ganti sandi; endpoint bersesi lain 403 wajib_ganti_sandi" }
+        ttd: { $ref: '#/components/schemas/StatusTtd', description: "Selalu dikirim di /saya sejak 1.6 (tidak ada di respons masuk)" }
         pegawai:
           type: [object, 'null']
           required: [id, nama]
@@ -3571,14 +3809,14 @@ components:
       properties:
         id: { type: string, format: uuid }
         nomor: { type: string, examples: ['PSA-2026-000012'], description: "Dipakai sebagai dasar pemberian" }
-        jenis: { type: string, enum: [izin_sensitif, peran_superadmin, pengecualian] }
+        jenis: { type: string, enum: [izin_sensitif, peran_superadmin, pengecualian, reset_ttd] }
         ringkasan: { type: string, examples: ["Tambah izin Kasir → Tagihan pasien → Batal ke peran Kasir Rawat Jalan"] }
         objek:
           type: object
           required: [jenis]
           description: "Perubahan yang akan diterapkan bila disetujui"
           properties:
-            jenis: { type: string, enum: [izin_peran, penugasan, pengakhiran_penugasan, izin_khusus, penyetuju_izin] }
+            jenis: { type: string, enum: [izin_peran, penugasan, pengakhiran_penugasan, izin_khusus, penyetuju_izin, reset_ttd] }
             penugasan_id: { type: [string, 'null'], format: uuid, description: "Untuk pengakhiran_penugasan" }
             peran: { $ref: '#/components/schemas/RingkasPeran' }
             akun:
@@ -3596,7 +3834,10 @@ components:
                 label: { type: string }
             cakupan_label: { type: [string, 'null'] }
             berlaku_sampai: { type: [string, 'null'], format: date-time }
-        penyetuju_peran: { $ref: '#/components/schemas/RingkasPeran' }
+        penyetuju_peran: { $ref: '#/components/schemas/RingkasPeran', description: "null bila penyetujunya orang (penyetuju_pengguna)" }
+        penyetuju_pengguna:
+          $ref: '#/components/schemas/Pelaku'
+          description: "Sejak 1.6, selalu dikirim. Penyetuju orang tertentu (reset_ttd: atasan langsung pemilik TTE, ditetapkan saat diajukan); null = penyetujunya pemegang penyetuju_peran"
         status: { $ref: '#/components/schemas/StatusPersetujuan' }
         diterapkan: { type: boolean, description: "true = perubahan sudah berlaku (semua persetujuan dalam grup disetujui)" }
         diajukan_oleh: { $ref: '#/components/schemas/Pelaku' }
@@ -3617,6 +3858,46 @@ components:
             disetujui: { type: integer, minimum: 0 }
         akun_terdampak: { type: integer, minimum: 0 }
         dapat_diputuskan: { type: boolean, description: "Akun yang sedang masuk boleh menyetujui/menolak ini sekarang" }
+    StatusTtd:
+      type: object
+      required: [aktif, diaktifkan_pada, dicabut_pada, terkunci_sampai, sesi_berlaku_sampai, reset_menunggu]
+      description: "TTE T1 akun yang sedang masuk (tiket 1.6). Tidak memuat kunci publik/privat maupun PIN."
+      properties:
+        aktif: { type: boolean, description: "false = belum diaktifkan, atau dicabut karena reset (aktifkan ulang dengan PIN baru)" }
+        diaktifkan_pada: { type: [string, 'null'], format: date-time }
+        dicabut_pada: { type: [string, 'null'], format: date-time, description: "Terisi bila TTE terakhir dicabut karena reset dan belum diaktifkan ulang (null = belum pernah aktif, atau aktif)" }
+        terkunci_sampai: { type: [string, 'null'], format: date-time, description: "Terisi selama terkunci karena 5 PIN salah" }
+        sesi_berlaku_sampai: { type: [string, 'null'], format: date-time, description: "Sesi tanda tangan (15 menit sesudah PIN benar, sesi login yang sama): tandatangani tanpa PIN sampai waktu ini" }
+        reset_menunggu: { type: boolean, description: "Ada persetujuan reset_ttd menunggu untuk akun ini" }
+    TandaTangan:
+      type: object
+      required: [id, objek_jenis, objek_id, penanda_tangan, tingkat, metode, hash_isi, sidik_kunci, kredensial_dicabut, ditandatangani_pada, verifikasi]
+      properties:
+        id: { type: string, format: uuid }
+        objek_jenis: { type: string, enum: [persetujuan_akses] }
+        objek_id: { type: string, format: uuid }
+        penanda_tangan:
+          type: object
+          required: [id, nama, nip]
+          properties:
+            id: { type: string, format: uuid, description: "id akun" }
+            nama: { type: string, description: "Nama pegawai (nama pengguna bila akun tanpa pegawai)" }
+            nip: { type: [string, 'null'] }
+        tingkat: { type: string, enum: [T1] }
+        metode: { type: string, enum: [pin] }
+        hash_isi: { type: string, pattern: '^[0-9a-f]{64}$', description: "SHA-256 isi kanonik saat ditandatangani" }
+        sidik_kunci: { type: string, pattern: '^[0-9a-f]{16}$', description: "16 hex awal SHA-256 kunci publik yang dipakai" }
+        kredensial_dicabut: { type: boolean, description: "true = kunci yang dipakai sudah diganti karena reset (tanda tangan tetap bisa sah)" }
+        ditandatangani_pada: { type: string, format: date-time, description: "Cap waktu server" }
+        verifikasi:
+          type: object
+          required: [status, diperiksa_pada]
+          properties:
+            status:
+              type: string
+              enum: [sah, isi_berubah, tanda_tangan_tidak_sah]
+              description: "sah = isi saat ini sama dengan yang ditandatangani dan tanda tangan cocok dengan kunci publiknya (juga bila kredensial itu sudah dicabut karena reset)"
+            diperiksa_pada: { type: string, format: date-time }
     StatusPermintaan:
       type: string
       enum: [menunggu, ditindaklanjuti, ditolak]
