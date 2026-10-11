@@ -12,6 +12,7 @@ use App\Modules\Akses\Models\PemberianAkses;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaIzinKhusus;
 use App\Modules\Akses\Models\PenggunaPeran;
+use App\Modules\Akses\Models\PersetujuanAkses;
 use App\Modules\Sdm\Application\RingkasanPegawai;
 use Illuminate\Support\Collection;
 
@@ -27,6 +28,7 @@ final class AkunPresenter
         private readonly KebijakanMfa $kebijakanMfa,
         private readonly PenjagaPenyunting $penjaga,
         private readonly DataUnit $dataUnit,
+        private readonly PersetujuanPresenter $persetujuan,
     ) {}
 
     /** @var array<string, string> label unit cakupan penugasan yang sedang dibentuk */
@@ -77,6 +79,9 @@ final class AkunPresenter
             'mfa' => $this->statusMfa($akun, $penyunting),
             'penugasan' => $penugasan->map(fn (PenggunaPeran $p) => $this->penugasan($p, $pelaku))->values()->all(),
             'izin_khusus' => $khusus->map(fn (PenggunaIzinKhusus $k) => $this->izinKhusus($k, $pelaku, $menu))->values()->all(),
+            // Satu baris per pengajuan (grup), meski butuh beberapa penyetuju (tiket 1.2d).
+            'menunggu_persetujuan' => $this->persetujuan->daftar(PersetujuanAkses::query()->menunggu()->where('sasaran_pengguna_id', $akun->id)
+                ->whereIn('objek_jenis', ['penugasan', 'pengakhiran_penugasan', 'izin_khusus'])->orderBy('id')->get()->unique('grup_id')->values(), $penyunting),
         ];
     }
 

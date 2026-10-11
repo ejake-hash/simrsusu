@@ -181,9 +181,8 @@ class PengaturanAkunTest extends TestCase
 
         foreach ([
             [$pengelola, ['peran_id' => $biasa->id], 403, 'diri_sendiri'],
-            [$akun, ['peran_id' => $this->superadmin()->id], 409, 'peran_bawaan_terkunci'],
             [$akun, ['peran_id' => $nonaktif->id], 409, 'peran_nonaktif'],
-            [$akun, ['peran_id' => $sensitif->id, 'berlaku_sampai' => now()->addDay()->toIso8601String()], 409, 'butuh_persetujuan'],
+            [$akun, ['peran_id' => $sensitif->id, 'berlaku_sampai' => now()->addDay()->toIso8601String()], 422, 'penyetuju_belum_ditetapkan'],
             [$akun, ['peran_id' => $biasa->id, 'cakupan_jenis' => 'poli', 'cakupan_id' => (string) Str::uuid7()], 422, 'cakupan_belum_didukung'],
             [$akun, ['peran_id' => $biasa->id, 'cakupan_jenis' => 'unit', 'cakupan_id' => (string) Str::uuid7()], 422, 'cakupan_tidak_valid'],
             [$akun, ['peran_id' => $biasa->id, 'cakupan_jenis' => 'unit'], 422, 'cakupan_tidak_valid'],
@@ -243,7 +242,7 @@ class PengaturanAkunTest extends TestCase
         foreach ([
             [$pengelola, ['sasaran_kode' => 'kasir.tagihan.lihat'], 403, 'diri_sendiri'],
             [$akun, ['sasaran_kode' => 'kasir.tagihan.batal'], 422, 'berlaku_sampai_wajib'],
-            [$akun, ['sasaran_kode' => 'kasir.tagihan.batal', 'berlaku_sampai' => now()->addWeek()->toIso8601String()], 409, 'butuh_persetujuan'],
+            [$akun, ['sasaran_kode' => 'kasir.tagihan.batal', 'berlaku_sampai' => now()->addWeek()->toIso8601String()], 422, 'penyetuju_belum_ditetapkan'],
             [$akun, ['sasaran_kode' => 'tidak.ada.lihat'], 422, 'sasaran_tidak_dikenal'],
             [$akun, ['sasaran_jenis' => 'menu', 'sasaran_kode' => 'kasir'], 422, 'sasaran_tidak_dikenal'],
         ] as [$ke, $isi, $status, $kode]) {
@@ -367,13 +366,13 @@ class PengaturanAkunTest extends TestCase
         $this->assertTrue($superadmin->refresh()->mfaAktif());
         $this->assertSame(0, PenggunaIzinKhusus::query()->where('pengguna_id', $id)->count());
 
-        // Superadmin lain boleh (yang tetap terkunci sampai 1.2d: penugasan peran superadmin itu sendiri).
+        // Superadmin lain boleh; mengakhiri penugasan superadmin ditolak selama superadmin aktif tinggal 2 (PRD 9.2.4).
         [$lain, $rahasiaLain] = $this->superadminBerMfa();
         $this->masukSebagai($lain, $rahasiaLain);
         $this->minta('GET', "/api/v1/akun/$id")->assertOk()->assertJsonPath('data.mfa.dapat_direset', true)
             ->assertJsonPath('data.dapat_diubah', true);
         $this->minta('POST', "/api/v1/akun/$id/penugasan/{$penugasanSuperadmin->id}/batal", ['alasan_batal' => 'Coba cabut'])
-            ->assertStatus(409)->assertJsonPath('error.kode', 'peran_bawaan_terkunci');
+            ->assertStatus(409)->assertJsonPath('error.kode', 'superadmin_minimal');
         $this->minta('POST', "/api/v1/akun/$id/mfa/reset", ['alasan' => 'Ponsel hilang', 'dasar' => self::DASAR])->assertOk();
     }
 

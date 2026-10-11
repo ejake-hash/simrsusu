@@ -3,6 +3,7 @@
 namespace App\Modules\Akses\Database;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
@@ -18,13 +19,13 @@ final class MenuBawaan
     public const PERAN_SUPERADMIN = 'superadmin';
 
     /** Halaman yang sudah dibangun; menu lain tampil sebagai Segera hadir atau disembunyikan. */
-    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.profil_rs', 'master_data.organisasi'];
+    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'master_data.organisasi'];
 
     /** Aksi dasar Permenkes 24/2022 Ps. 30 ayat 3 untuk setiap sub-menu (FR-09-03). */
     public const AKSI_DASAR = ['lihat', 'input', 'perbaiki'];
 
     /** Superadmin mengelola peran, akun, dan profil RS (wizard langkah 2); tidak membuka rekam medis, rupiah, atau data induk milik unit (PRD 9.2.4, FR-54-01). */
-    public const SUB_MENU_SUPERADMIN = ['pengaturan.peran', 'pengaturan.akun', 'pengaturan.profil_rs'];
+    public const SUB_MENU_SUPERADMIN = ['pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs'];
 
     /**
      * Izin yang setara kuasa superadmin (membuat/mengubah peran, memberi akses): sensitif, jadi tidak bisa
@@ -186,6 +187,7 @@ final class MenuBawaan
             'pengaturan' => ['Pengaturan Sistem', 1, 54, [
                 'akun' => ['Akun & akses', 54],
                 'peran' => ['Peran & izin', 54],
+                'persetujuan' => ['Persetujuan akses', 54],
                 'menu' => ['Pengaturan menu', 54],
                 'audit' => ['Jejak audit', 54],
                 'integrasi' => ['Konfigurasi integrasi', 54],
@@ -230,6 +232,7 @@ final class MenuBawaan
         DB::table('akses.izin')->whereIn('kode', self::IZIN_SENSITIF)->where('sensitif', false)
             ->update(['sensitif' => true, 'diubah_pada' => now()]);
         self::pasangSuperadmin();
+        self::pasangPenyetujuBawaan();
     }
 
     /**
@@ -272,6 +275,21 @@ final class MenuBawaan
     {
         DB::table('akses.izin')->insertOrIgnore([
             'id' => (string) Str::uuid7(), 'kode' => $kode, 'menu_id' => $menuId, 'jenis_aksi' => $aksi,
+        ]);
+    }
+
+    /**
+     * Data awal K13: penyetuju izin pengelola akses = peran superadmin (superadmin selain pengaju). Hanya bila
+     * belum ada penyetuju, jadi tidak menimpa penyetuju yang sudah diubah admin.
+     */
+    private static function pasangPenyetujuBawaan(): void
+    {
+        if (! Schema::hasColumn('akses.izin', 'peran_penyetuju_id')) {
+            return;
+        }
+        DB::table('akses.izin')->whereIn('kode', self::IZIN_SENSITIF)->whereNull('peran_penyetuju_id')->update([
+            'peran_penyetuju_id' => DB::table('akses.peran')->where('kode', self::PERAN_SUPERADMIN)->value('id'),
+            'diubah_pada' => now(),
         ]);
     }
 

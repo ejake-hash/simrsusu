@@ -6,6 +6,7 @@ use App\Modules\Akses\Application\PenjagaPenyunting;
 use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Peran;
+use App\Modules\Akses\Models\PersetujuanAkses;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -32,10 +33,28 @@ final class PeranRinciResource extends JsonResource
             'versi' => self::versi($peran),
             'izin' => $izin->pluck('kode')->sort()->values()->all(),
             'wajib_mfa_terkunci' => $peran->kode === MenuBawaan::PERAN_SUPERADMIN || $izin->contains(fn (Izin $i) => $i->sensitif),
+            'izin_menunggu' => self::izinMenunggu($peran),
             'dapat_disunting' => $alasanTerkunci === null,
             'alasan_terkunci' => $alasanTerkunci,
             'diubah_pada' => $peran->diubah_pada->toIso8601String(),
         ];
+    }
+
+    /**
+     * Izin sensitif yang menunggu persetujuan untuk peran ini (tiket 1.2d); belum termasuk di `izin`.
+     *
+     * @return list<array{kode: string, persetujuan_id: string, penyetuju_peran: array{id: string, kode: string, nama: string}, kedaluwarsa_pada: string}>
+     */
+    private static function izinMenunggu(Peran $peran): array
+    {
+        return PersetujuanAkses::query()->menunggu()->where('objek_jenis', 'izin_peran')->where('peran_id', $peran->id)
+            ->with(['izin:id,kode', 'penyetujuPeran:id,kode,nama'])->orderBy('id')->get()
+            ->map(fn (PersetujuanAkses $p) => [
+                'kode' => (string) $p->izin?->kode,
+                'persetujuan_id' => $p->id,
+                'penyetuju_peran' => ['id' => $p->penyetujuPeran->id, 'kode' => $p->penyetujuPeran->kode, 'nama' => $p->penyetujuPeran->nama],
+                'kedaluwarsa_pada' => $p->kedaluwarsa_pada->toIso8601String(),
+            ])->sortBy('kode')->values()->all();
     }
 
     public static function versi(Peran $peran): string

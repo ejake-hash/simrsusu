@@ -4,6 +4,7 @@ namespace App\Modules\Akses\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
+use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\PemberianAkses;
@@ -11,6 +12,7 @@ use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaIzinKhusus;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\Peran;
+use App\Modules\Akses\Models\PersetujuanAkses;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -32,10 +34,16 @@ final class KelolaAksesAkun
         private readonly CatatAktivitas $audit,
         private readonly PenjagaPenyunting $penjaga,
         private readonly DataUnit $dataUnit,
+        private readonly AlurPersetujuan $alur,
+        private readonly KelolaPermintaanAkses $permintaan,
     ) {}
 
-    /** @param  array{peran_id: string, cakupan_jenis: string, cakupan_id?: string|null, berlaku_dari?: string|null, berlaku_sampai?: string|null, dasar_pemberian: string, alasan?: string|null}  $isi */
-    public function tugaskan(Pengguna $penyunting, Pengguna $akun, array $isi): PenggunaPeran
+    /**
+     * Penugasan langsung, atau pengajuan persetujuan (1.2d) untuk peran superadmin (K4) dan peran berizin sensitif (K3).
+     *
+     * @param  array{peran_id: string, cakupan_jenis: string, cakupan_id?: string|null, berlaku_dari?: string|null, berlaku_sampai?: string|null, dasar_pemberian: string, alasan?: string|null, permintaan_akses_id?: string|null}  $isi
+     */
+    public function tugaskan(Pengguna $penyunting, Pengguna $akun, array $isi): PenggunaPeran|PersetujuanAkses
     {
         $this->penjaga->pastikanBolehMengubahAkun($penyunting, $akun);
         $cakupanId = $this->pastikanCakupan($isi['cakupan_jenis'], $isi['cakupan_id'] ?? null);
@@ -47,20 +55,34 @@ final class KelolaAksesAkun
             // Dikunci: penonaktifan peran yang bersamaan tidak bisa lolos dari cek status di bawah.
             $peran = Peran::query()->lockForUpdate()->findOrFail($isi['peran_id']);
 
-            if ($peran->bawaan_sistem) {
-                throw new ApiError(409, 'peran_bawaan_terkunci', 'Peran superadmin hanya diberikan lewat konsol server sampai persetujuan superadmin lain tersedia.');
-            }
             if ($peran->status !== 'aktif') {
                 throw new ApiError(409, 'peran_nonaktif', 'Peran ini nonaktif dan tidak bisa ditugaskan.');
-            }
-            if ($peran->memuatIzinSensitif()) {
-                throw new ApiError(409, 'butuh_persetujuan', 'Peran ini memuat izin sensitif; penugasannya butuh persetujuan pemilik data.');
             }
             $ganda = PenggunaPeran::query()->where('pengguna_id', $akun->id)->where('peran_id', $peran->id)
                 ->where('cakupan_jenis', $isi['cakupan_jenis'])
                 ->when($cakupanId, fn ($q, $id) => $q->where('cakupan_id', $id), fn ($q) => $q->whereNull('cakupan_id'));
             if ($ganda->masihAktif()->exists()) {
                 throw new ApiError(409, 'penugasan_ganda', 'Akun ini sudah punya penugasan aktif untuk peran dan cakupan yang sama.');
+            }
+            $this->permintaan->tindaklanjuti($isi['permintaan_akses_id'] ?? null, $akun, $penyunting);
+
+            // Menunggu persetujuan, satu baris per peran penyetuju: superadmin (K4); peran berizin sensitif (K3, pemilik
+            // data tiap izin); peran yang menjadi penyetuju izin sensitif (superadmin lain, K13: satu superadmin tidak
+            // bisa membuat penyetuju sendiri lalu menyetujui lewat peran itu). Dihitung ulang saat diterapkan.
+            $penyetuju = $this->alur->penyetujuPenugasan($peran);
+            if ($penyetuju !== []) {
+                $menunggu = PersetujuanAkses::query()->menunggu()->where('objek_jenis', 'penugasan')->where('sasaran_pengguna_id', $akun->id)
+                    ->where('peran_id', $peran->id)->get()->contains(fn (PersetujuanAkses $p) => $p->objek['cakupan_jenis'] === $isi['cakupan_jenis']
+                        && ($p->objek['cakupan_id'] ?? null) === $cakupanId);
+                if ($menunggu) {
+                    throw $this->persetujuanGanda();
+                }
+
+                return $this->alur->ajukan($penyunting, $peran->kode === MenuBawaan::PERAN_SUPERADMIN ? 'peran_superadmin' : 'izin_sensitif', 'penugasan', [
+                    'pengguna_id' => $akun->id, 'peran_id' => $peran->id, 'cakupan_jenis' => $isi['cakupan_jenis'], 'cakupan_id' => $cakupanId,
+                    'berlaku_dari' => $dari->toIso8601String(), 'berlaku_sampai' => $sampai?->toIso8601String(),
+                    'dasar_pemberian' => $isi['dasar_pemberian'], 'alasan' => $isi['alasan'] ?? null,
+                ], $penyetuju, ['peran_id' => $peran->id, 'sasaran_pengguna_id' => $akun->id], $isi['dasar_pemberian'], $isi['alasan'] ?? null)[0];
             }
 
             $penugasan = new PenggunaPeran([
@@ -78,14 +100,27 @@ final class KelolaAksesAkun
         });
     }
 
-    public function batalkanPenugasan(Pengguna $penyunting, Pengguna $akun, PenggunaPeran $penugasan, string $alasan): PenggunaPeran
+    /** Penugasan superadmin: pengajuan persetujuan superadmin lain (K4), minimal 2 superadmin tetap (PRD 9.2.4). */
+    public function batalkanPenugasan(Pengguna $penyunting, Pengguna $akun, PenggunaPeran $penugasan, string $alasan): PenggunaPeran|PersetujuanAkses
     {
         $this->penjaga->pastikanBolehMengubahAkun($penyunting, $akun);
 
         return DB::transaction(function () use ($penyunting, $akun, $penugasan, $alasan) {
             $penugasan = PenggunaPeran::query()->whereKey($penugasan->id)->lockForUpdate()->firstOrFail();
-            if ($penugasan->peran->bawaan_sistem) {
-                throw new ApiError(409, 'peran_bawaan_terkunci', 'Penugasan superadmin hanya diakhiri dengan persetujuan superadmin lain.');
+            if ($penugasan->peran->kode === MenuBawaan::PERAN_SUPERADMIN && $penugasan->status === 'aktif') {
+                DB::select("SELECT pg_advisory_xact_lock(hashtext('akses.superadmin_pertama'))");
+                if (app(SuperadminPertama::class)->jumlahAktif() <= SuperadminPertama::BATAS) {
+                    throw new ApiError(409, 'superadmin_minimal', 'Superadmin aktif tinggal '.SuperadminPertama::BATAS.'; tambahkan superadmin lain lebih dulu (PRD 9.2.4).');
+                }
+                $menunggu = PersetujuanAkses::query()->menunggu()->where('objek_jenis', 'pengakhiran_penugasan')
+                    ->where('sasaran_pengguna_id', $akun->id)->get()->contains(fn (PersetujuanAkses $p) => $p->objek['penugasan_id'] === $penugasan->id);
+                if ($menunggu) {
+                    throw $this->persetujuanGanda();
+                }
+
+                return $this->alur->ajukan($penyunting, 'peran_superadmin', 'pengakhiran_penugasan',
+                    ['penugasan_id' => $penugasan->id, 'pengguna_id' => $akun->id, 'peran_id' => $penugasan->peran_id, 'alasan_batal' => $alasan],
+                    [$this->alur->peranSuperadmin()], ['peran_id' => $penugasan->peran_id, 'sasaran_pengguna_id' => $akun->id], $alasan, $alasan)[0];
             }
             $this->batalkan($penugasan, $penyunting, $alasan);
             $this->audit->catat('akses.penugasan_dibatalkan', $penyunting->id, 'akses.pengguna', $akun->id, [
@@ -96,8 +131,12 @@ final class KelolaAksesAkun
         });
     }
 
-    /** @param  array{efek: string, sasaran_jenis: string, sasaran_kode: string, berlaku_sampai?: string|null, dasar_pemberian: string, alasan: string}  $isi */
-    public function buatIzinKhusus(Pengguna $penyunting, Pengguna $akun, array $isi): PenggunaIzinKhusus
+    /**
+     * Pengecualian langsung, atau pengajuan persetujuan pemilik data (1.2d) untuk `tambah` izin sensitif.
+     *
+     * @param  array{efek: string, sasaran_jenis: string, sasaran_kode: string, berlaku_sampai?: string|null, dasar_pemberian: string, alasan: string, permintaan_akses_id?: string|null}  $isi
+     */
+    public function buatIzinKhusus(Pengguna $penyunting, Pengguna $akun, array $isi): PenggunaIzinKhusus|PersetujuanAkses
     {
         $this->penjaga->pastikanBolehMengubahAkun($penyunting, $akun);
         [$dari, $sampai] = $this->masaBerlaku($isi);
@@ -117,20 +156,31 @@ final class KelolaAksesAkun
                 ['kolom' => 'berlaku_sampai', 'pesan' => 'Isi tanggal berakhir untuk izin sensitif.'],
             ]);
         }
-        if ($sensitif && $isi['efek'] === 'tambah') {
-            throw new ApiError(409, 'butuh_persetujuan', 'Izin sensitif hanya bisa diberikan dengan persetujuan pemilik data.', [
-                ['kode' => $izin->kode, 'pesan' => 'Izin sensitif'],
-            ]);
-        }
+        $butuhPersetujuan = $sensitif && $isi['efek'] === 'tambah';
+        $penyetuju = $butuhPersetujuan ? $this->alur->penyetujuIzin(collect([$izin])) : [];
 
         [$kolomSasaran, $idSasaran] = $izin !== null ? ['izin_id', $izin->id] : ['menu_id', $menuId];
 
-        return DB::transaction(function () use ($penyunting, $akun, $isi, $dari, $sampai, $menuId, $izin, $kolomSasaran, $idSasaran) {
+        return DB::transaction(function () use ($penyunting, $akun, $isi, $dari, $sampai, $menuId, $izin, $kolomSasaran, $idSasaran, $penyetuju) {
             Pengguna::query()->whereKey($akun->id)->lockForUpdate()->first();
             $ganda = PenggunaIzinKhusus::query()->where('pengguna_id', $akun->id)->where('efek', $isi['efek'])
                 ->where($kolomSasaran, $idSasaran);
             if ($ganda->masihAktif()->exists()) {
                 throw new ApiError(409, 'pengecualian_ganda', 'Pengecualian yang sama untuk akun ini masih aktif.');
+            }
+            $this->permintaan->tindaklanjuti($isi['permintaan_akses_id'] ?? null, $akun, $penyunting);
+
+            if ($penyetuju !== [] && $izin !== null) {
+                if (PersetujuanAkses::query()->menunggu()->where('objek_jenis', 'izin_khusus')->where('sasaran_pengguna_id', $akun->id)
+                    ->where('izin_id', $izin->id)->exists()) {
+                    throw $this->persetujuanGanda();
+                }
+
+                return $this->alur->ajukan($penyunting, 'pengecualian', 'izin_khusus', [
+                    'pengguna_id' => $akun->id, 'izin_id' => $izin->id, 'efek' => $isi['efek'],
+                    'berlaku_dari' => $dari->toIso8601String(), 'berlaku_sampai' => $sampai?->toIso8601String(),
+                    'dasar_pemberian' => $isi['dasar_pemberian'], 'alasan' => $isi['alasan'],
+                ], array_values($penyetuju), ['izin_id' => $izin->id, 'sasaran_pengguna_id' => $akun->id], $isi['dasar_pemberian'], $isi['alasan'])[0];
             }
 
             $khusus = new PenggunaIzinKhusus([
@@ -214,6 +264,11 @@ final class KelolaAksesAkun
 
             return $akun;
         });
+    }
+
+    private function persetujuanGanda(): ApiError
+    {
+        return new ApiError(409, 'persetujuan_ganda', 'Pengajuan yang sama masih menunggu persetujuan.');
     }
 
     /** Cakupan yang didukung: seluruh RS, atau unit aktif (tiket 1.8a). @return string|null cakupan_id */

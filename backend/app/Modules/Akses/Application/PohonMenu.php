@@ -4,6 +4,7 @@ namespace App\Modules\Akses\Application;
 
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Menu;
+use App\Modules\Akses\Models\Peran;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -18,10 +19,13 @@ final class PohonMenu
     public function semua(): array
     {
         $modulAktif = DB::table('inti.modul_aktif')->whereNull('unit_organisasi_id')->pluck('modul_no')->map(fn ($n) => (int) $n)->flip();
-        $izin = Izin::query()->orderBy('kode')->get(['kode', 'menu_id', 'jenis_aksi', 'sensitif'])->groupBy('menu_id');
+        $izin = Izin::query()->orderBy('kode')->get(['kode', 'menu_id', 'jenis_aksi', 'sensitif', 'peran_penyetuju_id'])->groupBy('menu_id');
+        // Penyetuju izin sensitif (K3, tiket 1.2d); null = belum ditetapkan atau izin tidak sensitif.
+        $penyetuju = Peran::query()->whereIn('id', Izin::query()->whereNotNull('peran_penyetuju_id')->select('peran_penyetuju_id'))
+            ->get(['id', 'kode', 'nama'])->mapWithKeys(fn (Peran $p) => [$p->id => ['id' => $p->id, 'kode' => $p->kode, 'nama' => $p->nama]]);
         $anak = Menu::query()->where('aktif', true)->orderBy('urutan')->orderBy('kode')->get()->toBase()->groupBy(fn (Menu $m) => (string) $m->induk_id);
 
-        $node = function (Menu $m) use (&$node, $anak, $izin, $modulAktif): array {
+        $node = function (Menu $m) use (&$node, $anak, $izin, $modulAktif, $penyetuju): array {
             return [
                 'id' => $m->id,
                 'kode' => $m->kode,
@@ -34,6 +38,7 @@ final class PohonMenu
                 'ikut_induk' => $m->ikut_induk,
                 'izin' => ($izin[$m->id] ?? collect())->map(fn (Izin $i) => [
                     'kode' => $i->kode, 'jenis_aksi' => $i->jenis_aksi, 'sensitif' => $i->sensitif,
+                    'penyetuju_peran' => $i->sensitif && $i->peran_penyetuju_id !== null ? ($penyetuju[$i->peran_penyetuju_id] ?? null) : null,
                 ])->values()->all(),
                 'anak' => $this->anak($anak, $m->id)->map($node)->values()->all(),
             ];
