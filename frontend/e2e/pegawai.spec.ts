@@ -150,7 +150,8 @@ test('buat akun dari pegawai: sandi awal sekali tampil; masuk pertama dipaksa ga
   await dialog(page).getByLabel('Dasar pemberian').fill('Surat permintaan akun uji e2e')
   await dialog(page).getByRole('button', { name: 'Buat akun' }).click()
   await expect(dialog(page).getByRole('heading', { name: 'Akun dibuat' })).toBeVisible()
-  await expect(dialog(page).locator('code.sandi')).toHaveText(/^•+$/)
+  await expect(dialog(page).locator('code.sandi')).toHaveCount(0)
+  await expect(dialog(page).locator('.sandi')).toContainText('Disembunyikan')
   await dialog(page).getByRole('button', { name: 'Tampilkan' }).click()
   sandiAwal = (await dialog(page).locator('code.sandi').textContent()) ?? ''
   expect(sandiAwal.length).toBeGreaterThanOrEqual(16)
@@ -171,8 +172,11 @@ test('buat akun dari pegawai: sandi awal sekali tampil; masuk pertama dipaksa ga
   await p.getByLabel('Sandi awal', { exact: true }).fill(sandiAwal)
   await p.getByLabel('Sandi baru', { exact: true }).fill(`${NAMA_PENGGUNA}-panjang-sekali`)
   await p.getByLabel('Ulangi sandi baru', { exact: true }).fill(`${NAMA_PENGGUNA}-panjang-sekali`)
+  const ditolak = p.waitForResponse((r) => r.url().endsWith('/api/v1/saya/sandi'))
   await p.getByRole('button', { name: 'Simpan sandi baru' }).click()
-  await expect(p.getByText(/nama pengguna/i).first()).toBeVisible()
+  expect((await ditolak).status()).toBe(422)
+  // Pesan dari rincian server di kolom sandi baru (bukan petunjuk statis kolom itu).
+  await expect(p.getByText('Sandi tidak boleh memuat nama pengguna, nama rumah sakit, atau nama aplikasi.')).toBeVisible()
   await expect(p).toHaveURL(/\/ganti-sandi/)
 
   const sandiBaru = `Lembah-Hijau-${AKHIRAN}-Sintetis!`

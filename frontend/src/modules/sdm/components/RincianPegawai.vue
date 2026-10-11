@@ -137,13 +137,15 @@ const tgl = (t: string | null) => (t ? formatTanggal(`${t}T00:00:00`) : null)
 
 <template>
   <section class="kartu rincian" aria-labelledby="judul-rincian-pegawai" :aria-busy="kueri.isFetching.value || undefined">
-    <div v-if="kueri.isPending.value" class="kartu-isi keadaan" role="status">Memuat pegawai…</div>
-    <div v-else-if="kueri.isError.value" class="kartu-isi" role="alert">
+    <!-- Data yang sudah ada tetap tampil bila muat ulang gagal: dialog yang terbuka (mis. sandi awal sekali tampil) tidak
+         boleh ikut dilepas. -->
+    <div v-if="!p && kueri.isPending.value" class="kartu-isi keadaan" role="status">Memuat pegawai…</div>
+    <div v-else-if="!p" class="kartu-isi" role="alert">
       <p class="catatan catatan-bahaya">{{ tidakDitemukan ? 'Pegawai tidak ditemukan atau tidak boleh Anda lihat.' : pesanError(kueri.error.value) }}</p>
       <button v-if="tidakDitemukan" type="button" class="tombol" @click="emit('tutup')">Tutup</button>
       <button v-else type="button" class="tombol" @click="kueri.refetch()">Coba lagi</button>
     </div>
-    <template v-else-if="p">
+    <template v-else>
       <div class="kartu-kepala">
         <div>
           <h2 id="judul-rincian-pegawai" tabindex="-1">{{ p.nama }}</h2>
@@ -152,6 +154,11 @@ const tgl = (t: string | null) => (t ? formatTanggal(`${t}T00:00:00`) : null)
         <span class="pil" :class="PIL_STATUS_PEGAWAI[p.status]">{{ LABEL_STATUS_PEGAWAI[p.status] }}</span>
       </div>
       <div class="kartu-isi">
+        <p v-if="kueri.isError.value && !tidakDitemukan" class="catatan catatan-peringatan" role="alert">
+          <Ikon nama="peringatan" :ukuran="16" />
+          <span>Gagal memuat ulang; data di bawah mungkin bukan yang terbaru.</span>
+          <button type="button" class="tombol tombol-tautan" @click="kueri.refetch()">Coba lagi</button>
+        </p>
         <div v-if="boleh('sdm.pegawai.perbaiki')" class="aksi-atas">
           <button type="button" class="tombol" @click="bukaUbah('ubah')">Ubah data</button>
           <button v-if="p.status !== 'keluar'" type="button" class="tombol" :class="{ 'tombol-bahaya': p.status === 'aktif' }" @click="bukaUbah('keluar')">

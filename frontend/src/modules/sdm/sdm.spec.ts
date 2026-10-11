@@ -215,15 +215,38 @@ describe('Rincian pegawai', () => {
     await isi('Dasar pemberian', 'Surat permintaan akun 01/2026')
     await kirim('form-buat-akun')
     expect(dialog()?.querySelector('h2')?.textContent).toBe('Akun dibuat')
-    const kode = dialog()!.querySelector('.sandi')!
-    expect(kode.textContent).toMatch(/^•+$/)
+    expect(dialog()!.querySelector('code.sandi')).toBeNull()
+    expect(dialog()!.querySelector('.sandi')?.textContent).toMatch(/^•+Disembunyikan$/)
     await klik(tombol('Tampilkan', dialog()!))
-    const sandi = kode.textContent!
+    const sandi = dialog()!.querySelector('code.sandi')!.textContent!
     expect(sandi).toMatch(/^[A-Za-z0-9-]{16,}$/)
     await klik(tombol('Selesai', dialog()!))
     expect(document.body.textContent).not.toContain(sandi)
     expect(tombol('Buat akun', rincian())).toBeUndefined()
     expect(rincian().textContent).toContain('contoh.bidan.baru')
+  })
+})
+
+describe('Buat akun saat muat ulang gagal', () => {
+  it('rincian gagal dimuat ulang sesudah akun dibuat: dialog sandi awal tetap ada, data lama tetap tampil dengan peringatan', async () => {
+    let gagal = false
+    const tangani = server.tangani
+    server.tangani = (r: PermintaanTiruan) => {
+      if (gagal && r.metode === 'get' && r.jalur === `/pegawai/${server.sdm.contoh.bidan}`) return { status: 500, isi: { error: { kode: 'kesalahan_server', pesan: 'Galat server.', rincian: [] } } }
+      const h = tangani(r)
+      if (r.metode === 'post' && r.jalur.endsWith('/akun')) gagal = true
+      return h
+    }
+    await pasang(RincianPegawai, { pegawaiId: server.sdm.contoh.bidan })
+    await klik(tombol('Buat akun', rincian()))
+    await isi('Dasar pemberian', 'Surat permintaan akun 02/2026')
+    await kirim('form-buat-akun')
+    await tenang(50)
+    expect(dialog()?.querySelector('h2')?.textContent).toBe('Akun dibuat')
+    await klik(tombol('Tampilkan', dialog()!))
+    expect(dialog()!.querySelector('code.sandi')?.textContent).toMatch(/^[A-Za-z0-9-]{16,}$/)
+    expect(rincian().querySelector('h2')?.textContent).toBe('Contoh Bidan Baru')
+    expect(rincian().textContent).toContain('Gagal memuat ulang')
   })
 })
 

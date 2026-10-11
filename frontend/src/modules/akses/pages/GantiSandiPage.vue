@@ -77,6 +77,8 @@ function tampilkanError(err: unknown) {
   if (err.kode === 'validasi_gagal' && err.rincian.length) {
     const pesan = (k: string) => err.rincian.filter((r) => r.kolom === k).map((r) => r.pesan).join(' ') || undefined
     kesalahan.value = { lama: pesan('sandi_lama'), baru: pesan('sandi_baru') }
+    const lain = err.rincian.filter((r) => r.kolom !== 'sandi_lama' && r.kolom !== 'sandi_baru').map((r) => r.pesan)
+    if (lain.length) error.value = { pesan: lain.join(' '), sampai: null }
     if (kesalahan.value.baru) inputBaru.value?.fokus()
     return
   }

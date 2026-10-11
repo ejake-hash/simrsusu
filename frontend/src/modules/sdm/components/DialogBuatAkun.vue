@@ -106,7 +106,8 @@ async function salin() {
         <div>
           <dt>Sandi awal</dt>
           <dd>
-            <code class="sandi" :aria-label="sandiTampil ? undefined : 'Sandi awal disembunyikan'">{{ sandiTampil ? hasil.sandi : '•'.repeat(hasil.sandi.length) }}</code>
+            <code v-if="sandiTampil" class="sandi">{{ hasil.sandi }}</code>
+            <span v-else class="sandi"><span aria-hidden="true">{{ '•'.repeat(hasil.sandi.length) }}</span><span class="sr-only">Disembunyikan</span></span>
           </dd>
         </div>
       </dl>

@@ -68,7 +68,12 @@ async function kirim() {
     emit('selesai', hasil)
   } catch (err) {
     const kolom = errorKolom(err, ['tanggal_keluar', 'alasan_keluar', 'dasar_perubahan'])
-    if (Object.keys(kolom).length) kesalahan.value = kolom
+    if (Object.keys(kolom).length) {
+      kesalahan.value = kolom
+      // Saat membatalkan rencana, kolom tanggal/alasan tidak dirender: pesannya tampil sebagai pesan umum.
+      const tersembunyi = batalkan.value ? [kolom.tanggal_keluar, kolom.alasan_keluar].filter(Boolean) : []
+      if (tersembunyi.length) error.value = tersembunyi.join(' ')
+    }
     else if (err instanceof ApiError && err.status === 412) {
       versiBerubah.value = true
       error.value = 'Data pegawai ini diubah orang lain sejak dibuka. Muat ulang, lalu ulangi.'

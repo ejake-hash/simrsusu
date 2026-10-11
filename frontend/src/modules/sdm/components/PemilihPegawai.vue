@@ -117,6 +117,7 @@ function tekan(e: KeyboardEvent) {
         </template>
         <span v-else class="utama">{{ opsiKosong }}</span>
       </li>
+      <li v-if="(hasil.data.value?.length ?? 0) >= 20" class="status" role="presentation">Menampilkan 20 pegawai teratas; ketik nama atau NIP lebih lengkap.</li>
       <li v-if="hasil.isFetching.value && !pilihan.length" class="status" role="presentation">Mencari…</li>
       <li v-else-if="hasil.isError.value" class="status" role="presentation">Gagal memuat pegawai. Ketik lagi untuk mencoba.</li>
       <li v-else-if="!pilihan.length" class="status" role="presentation">Tidak ada pegawai aktif yang cocok.</li>
