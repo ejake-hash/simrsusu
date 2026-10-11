@@ -3,12 +3,14 @@
 namespace App\Modules\Akses\Models;
 
 use App\Modules\Akses\Application\CacheHakAkses;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
 /**
  * @property string $id
  * @property string $peran_id
+ * @property string $status aktif | batal (dicabut dari peran, tidak dihapus)
  * @property string $menu_id
  */
 final class PeranMenu extends Model
@@ -25,6 +27,9 @@ final class PeranMenu extends Model
 
     protected static function booted(): void
     {
+        // Baris yang dicabut tetap ada sebagai riwayat; tidak pernah ikut memberi akses.
+        self::addGlobalScope('aktif', fn (Builder $q) => $q->where($q->qualifyColumn('status'), 'aktif'));
+
         // Peran dipakai banyak akun: semua cache hak akses dianggap usang.
         self::saved(fn () => app(CacheHakAkses::class)->lupakanSemua());
     }

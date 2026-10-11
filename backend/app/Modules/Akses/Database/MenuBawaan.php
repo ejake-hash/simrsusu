@@ -18,13 +18,33 @@ final class MenuBawaan
     public const PERAN_SUPERADMIN = 'superadmin';
 
     /** Halaman yang sudah dibangun; menu lain tampil sebagai Segera hadir atau disembunyikan. */
-    public const TERSEDIA = ['beranda', 'master_data.peran', 'master_data.akun'];
+    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun'];
 
     /** Aksi dasar Permenkes 24/2022 Ps. 30 ayat 3 untuk setiap sub-menu (FR-09-03). */
     public const AKSI_DASAR = ['lihat', 'input', 'perbaiki'];
 
     /** Superadmin mengelola peran dan akun; tidak membuka rekam medis atau rupiah (PRD 9.2.4). */
-    public const SUB_MENU_SUPERADMIN = ['master_data.peran', 'master_data.akun'];
+    public const SUB_MENU_SUPERADMIN = ['pengaturan.peran', 'pengaturan.akun'];
+
+    /**
+     * Izin yang setara kuasa superadmin (membuat/mengubah peran, memberi akses): sensitif, jadi tidak bisa
+     * dibagikan lewat peran biasa atau per akun tanpa persetujuan (tiket 1.2d) dan pemegangnya wajib MFA
+     * (PRD 9.2.4, 10.3.2). pasang() hanya menyalakan tanda ini, tidak pernah mematikannya.
+     */
+    public const IZIN_SENSITIF = [
+        'pengaturan.peran.input', 'pengaturan.peran.perbaiki', 'pengaturan.akun.input', 'pengaturan.akun.perbaiki',
+    ];
+
+    /**
+     * Kode yang pindah tempat (lama => baru), diganti di tempat sebelum pohon dipasang agar id, peran,
+     * dan pengecualian per akun ikut menunjuk kode baru. Hanya bila kode baru belum ada; aman diulang.
+     * Tiket 1.2c: peran, akun, dan jejak audit pindah dari Master Data ke Pengaturan Sistem (PRD 9.1).
+     */
+    public const KODE_PINDAH = [
+        'master_data.peran' => 'pengaturan.peran',
+        'master_data.akun' => 'pengaturan.akun',
+        'master_data.audit' => 'pengaturan.audit',
+    ];
 
     /**
      * Kode menu = kode prototipe, juga nama ikon di frontend/src/design-system/ikon/ikon.ts.
@@ -161,12 +181,12 @@ final class MenuBawaan
             'master_data' => ['Master Data', 1, 54, [
                 'katalog' => ['Data induk', 54],
                 'usulan' => ['Usulan perubahan', 54],
-                'peran' => ['Peran & menu', 54],
-                'akun' => ['Akun & akses', 54],
-                'audit' => ['Jejak audit', 54],
             ]],
             'pengaturan' => ['Pengaturan Sistem', 1, 54, [
+                'akun' => ['Akun & akses', 54],
+                'peran' => ['Peran & izin', 54],
                 'menu' => ['Pengaturan menu', 54],
+                'audit' => ['Jejak audit', 54],
                 'integrasi' => ['Konfigurasi integrasi', 54],
                 'profil_rs' => ['Profil rumah sakit', 54],
             ]],
@@ -175,6 +195,10 @@ final class MenuBawaan
 
     public static function pasang(): void
     {
+        foreach (self::KODE_PINDAH as $lama => $baru) {
+            self::pindahKode($lama, $baru);
+        }
+
         $urutanGrup = 0;
         foreach (self::POHON as $kodeGrup => [$labelGrup, $daftarMenu]) {
             $idGrup = self::simpanMenu($kodeGrup, null, 'grup', ['label' => $labelGrup, 'urutan' => ++$urutanGrup]);
@@ -202,7 +226,30 @@ final class MenuBawaan
             }
         }
 
+        DB::table('akses.izin')->whereIn('kode', self::IZIN_SENSITIF)->where('sensitif', false)
+            ->update(['sensitif' => true, 'diubah_pada' => now()]);
         self::pasangSuperadmin();
+    }
+
+    /**
+     * Ganti kode node beserta bagian dan izin di bawahnya; induk dan rute diperbaiki simpanMenu().
+     * Awalan dicocokkan persis dengan starts_with(), bukan LIKE (`_` di LIKE cocok dengan karakter apa pun).
+     */
+    private static function pindahKode(string $lama, string $baru): void
+    {
+        $ada = fn (string $kode) => DB::table('akses.menu')->where('kode', $kode)->exists();
+        if (! $ada($lama) || $ada($baru)) {
+            return;
+        }
+
+        DB::update(
+            'UPDATE akses.menu SET kode = ? || substr(kode, ?), diubah_pada = now() WHERE kode = ? OR starts_with(kode, ?)',
+            [$baru, strlen($lama) + 1, $lama, $lama.'.'],
+        );
+        DB::update(
+            'UPDATE akses.izin SET kode = ? || substr(kode, ?), diubah_pada = now() WHERE starts_with(kode, ?)',
+            [$baru, strlen($lama) + 1, $lama.'.'],
+        );
     }
 
     /** @param  array<string, mixed>  $isi */

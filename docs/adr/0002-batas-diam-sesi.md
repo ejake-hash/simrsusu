@@ -65,7 +65,28 @@ laju per nama pengguna dan per IP (`config/autentikasi.php`).
 - Satu query tambahan per permintaan bersesi (memuat akun), yang memang sudah dilakukan guard.
 - Pencabutan berlaku pada permintaan berikutnya. Sesi lain milik akun yang sama tetap ada di Redis
   sampai kedaluwarsa, tetapi tidak bisa dipakai.
-- Pencabutan saat **peran** berubah (PRD 14.2) belum ditangani; menyusul di tiket menu/peran (1.2).
+- Pencabutan saat **peran** berubah (PRD 14.2): lihat bagian "Pencabutan sesi oleh admin" di bawah (tiket 1.2c).
 - Saat registri perangkat dibangun, cukup ganti binding `PendaftaranPerangkat`. Sumber kebenaran
   harus di server (misalnya sertifikat klien MDM atau token perangkat yang diterbitkan admin).
 - Belum ada "ganti pengguna cepat" di komputer ruangan (PRD 14.2); menyusul bersama registri perangkat.
+
+## Pencabutan sesi oleh admin (tiket 1.2c, 11 Okt 2026)
+
+Tetap tanpa indeks sesi per akun. Kolom `akses.pengguna.sesi_dicabut_pada` (mikrodetik) menandai waktu
+cabut, dan `SesiPengguna::mulai()` menyimpan waktu masuk sesi (`autentikasi.masuk_pada`, mikrodetik).
+Setiap permintaan, sesi yang dimulai sebelum `sesi_dicabut_pada`, atau sesi lama tanpa waktu masuk,
+diakhiri dengan `401 sesi_dicabut`. Pemeriksaannya tanpa query tambahan, karena baris akun memang
+sudah dimuat guard.
+
+| Kejadian | Sesi akun diputus? | Alasan |
+|---|---|---|
+| Reset MFA (`POST /akun/{id}/mfa/reset`) | Ya | Autentikator lama dianggap bocor atau hilang; akun mendaftar ulang dari jaringan RS |
+| Wajib MFA dinyalakan untuk akun yang belum punya MFA | Ya | Sesi berjalan belum pernah lolos MFA |
+| Wajib MFA dinyalakan untuk akun yang sudah punya MFA | Tidak | Kewajiban berlaku saat masuk berikutnya |
+| Peran, isi peran, penugasan, atau pengecualian per akun berubah | Tidak | Izin dihitung ulang tiap permintaan (`AccessEvaluator`); cukup cache hak akses dihapus, jadi perubahan berlaku pada permintaan berikutnya |
+| Akun dinonaktifkan | Ya (sudah sejak awal) | Status dibaca ulang tiap permintaan |
+
+Celah yang diterima: peran yang `wajib_mfa`-nya dinyalakan tidak memutus sesi pemegangnya yang belum
+punya MFA; kewajiban berlaku saat masuk berikutnya. MFA ulang untuk aksi sensitif menyusul di tiket 1.5
+(keputusan bawaan K11).
+

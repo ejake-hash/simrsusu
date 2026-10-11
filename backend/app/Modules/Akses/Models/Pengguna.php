@@ -21,6 +21,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $mfa_rahasia_enkripsi sudah didekripsi oleh cast `encrypted`
  * @property Carbon|null $mfa_aktif_pada
  * @property bool $wajib_mfa
+ * @property Carbon|null $sesi_dicabut_pada sesi yang dimulai sebelumnya diakhiri (ADR 0002)
+ * @property Carbon $dibuat_pada
  */
 final class Pengguna extends Authenticatable
 {
@@ -53,6 +55,7 @@ final class Pengguna extends Authenticatable
             'mfa_aktif_pada' => 'datetime',
             'mfa_langkah_terakhir' => 'integer',
             'wajib_mfa' => 'boolean',
+            'sesi_dicabut_pada' => 'datetime',
         ];
     }
 
@@ -63,7 +66,20 @@ final class Pengguna extends Authenticatable
 
     public function mfaAktif(): bool
     {
-        return $this->mfa_aktif_pada !== null && $this->mfa_rahasia_enkripsi !== null;
+        // Nilai mentah: daftar akun tidak perlu mendekripsi rahasia TOTP tiap baris.
+        return $this->mfa_aktif_pada !== null && ($this->getAttributes()['mfa_rahasia_enkripsi'] ?? null) !== null;
+    }
+
+    /**
+     * Akhiri semua sesi akun ini pada permintaan berikutnya (SesiPengguna, ADR 0002). Ditulis dengan
+     * mikrodetik: binding tanggal bawaan Laravel memotong ke detik, sehingga sesi yang dimulai di detik
+     * yang sama tidak ikut terputus.
+     */
+    public function cabutSesi(): void
+    {
+        $sekarang = now();
+        self::query()->whereKey($this->id)->update(['sesi_dicabut_pada' => $sekarang->format('Y-m-d H:i:s.uP')]);
+        $this->setRawAttributes([...$this->getAttributes(), 'sesi_dicabut_pada' => $sekarang->format('Y-m-d H:i:s.uP')], true);
     }
 
     public function terkunci(): bool

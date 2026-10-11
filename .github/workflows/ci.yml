@@ -117,6 +117,9 @@ jobs:
       # Rahasia TOTP sintetis akun contoh.mfa (Base32), juga sekali pakai; bukan rahasia.
       AKUN_SINTETIS_MFA_RAHASIA: KRSXG5CTMVRXEZLUKRSXG5CTMVRXEZLU
       E2E_MFA_RAHASIA: KRSXG5CTMVRXEZLUKRSXG5CTMVRXEZLU
+      # Rahasia TOTP sintetis akun contoh.superadmin (Base32), sekali pakai; bukan rahasia.
+      AKUN_SINTETIS_SUPERADMIN_MFA_RAHASIA: MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U
+      E2E_SUPERADMIN_MFA_RAHASIA: MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U
       # Proksi Vite (127.0.0.1) dipercaya agar e2e bisa meniru akses dari luar jaringan RS lewat
       # X-Forwarded-For (tiket 1.1c). Variabel lingkungan mengalahkan .env.
       TRUSTED_PROXIES: 127.0.0.1

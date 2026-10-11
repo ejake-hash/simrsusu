@@ -2,14 +2,14 @@
 
 namespace App\Modules\Akses\Database\Seeders;
 
+use App\Modules\Akses\Application\CacheHakAkses;
+use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Domain\Totp;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\Peran;
-use App\Modules\Akses\Models\PeranIzin;
-use App\Modules\Akses\Models\PeranMenu;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +32,8 @@ final class AkunSintetisSeeder extends Seeder
         'contoh.mfa' => 'Contoh Akun MFA',
         // MFA wajib tetapi belum terdaftar: masuk → perlu_daftar_mfa. Seeding ulang mengosongkannya lagi.
         'contoh.mfa.baru' => 'Contoh Akun MFA Baru',
+        // Superadmin sintetis untuk e2e Pengaturan (tiket 1.2c), MFA aktif dengan rahasia yang diketahui e2e.
+        'contoh.superadmin' => 'Contoh Superadmin',
     ];
 
     /**
@@ -57,12 +59,9 @@ final class AkunSintetisSeeder extends Seeder
         }
         Validator::make(['sandi' => $sandi], ['sandi' => ['required', Password::defaults()]])->validate();
 
-        $rahasiaMfa = strtoupper((string) config('autentikasi.akun_sintetis_mfa_rahasia'));
-        $rahasiaMfaAcak = $rahasiaMfa === '';
-        if ($rahasiaMfaAcak) {
-            $rahasiaMfa = Totp::rahasiaBaru();
-        }
-        Totp::base32Dekode($rahasiaMfa);
+        [$rahasiaMfa, $rahasiaMfaAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_mfa_rahasia');
+        [$rahasiaSuperadmin, $rahasiaSuperadminAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_superadmin_mfa_rahasia');
+        $rahasia = ['contoh.mfa' => $rahasiaMfa, 'contoh.superadmin' => $rahasiaSuperadmin];
 
         $urutan = 0;
         foreach (self::AKUN as $namaPengguna => $nama) {
@@ -79,9 +78,10 @@ final class AkunSintetisSeeder extends Seeder
                 'percobaan_gagal' => 0,
                 'terkunci_sampai' => null,
                 'wajib_mfa' => str_starts_with($namaPengguna, 'contoh.mfa'),
-                'mfa_rahasia_enkripsi' => $namaPengguna === 'contoh.mfa' ? $rahasiaMfa : null,
-                'mfa_aktif_pada' => $namaPengguna === 'contoh.mfa' ? now() : null,
+                'mfa_rahasia_enkripsi' => $rahasia[$namaPengguna] ?? null,
+                'mfa_aktif_pada' => isset($rahasia[$namaPengguna]) ? now() : null,
                 'mfa_langkah_terakhir' => null,
+                'sesi_dicabut_pada' => null,
             ])->save();
         }
 
@@ -92,11 +92,13 @@ final class AkunSintetisSeeder extends Seeder
             ->update(['dibatalkan_pada' => now()]);
 
         $this->pasangPeranContoh();
+        $this->tugaskan('contoh.superadmin', Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->firstOrFail());
 
         $this->command?->info('Akun sintetis: '.implode(', ', array_keys(self::AKUN)).'.');
         $sekaliTampil = array_filter([
             $dibuatAcak ? "Sandi acak (hanya ditampilkan sekali): {$sandi}" : null,
             $rahasiaMfaAcak ? "Rahasia TOTP contoh.mfa (hanya ditampilkan sekali): {$rahasiaMfa}" : null,
+            $rahasiaSuperadminAcak ? "Rahasia TOTP contoh.superadmin (hanya ditampilkan sekali): {$rahasiaSuperadmin}" : null,
         ]);
         foreach ($sekaliTampil as $pesan) {
             $this->command?->warn($pesan);
@@ -110,18 +112,48 @@ final class AkunSintetisSeeder extends Seeder
 
             $subMenu = Menu::query()->where('tingkat', 'sub_menu')
                 ->whereIn('induk_id', Menu::query()->whereIn('kode', $daftarMenu)->select('id'))->pluck('id');
+            // Keadaan awal yang sama tiap seeding: izin yang dicabut lewat layar (status batal) aktif lagi.
             foreach ($subMenu as $menuId) {
-                PeranMenu::query()->firstOrCreate(['peran_id' => $peran->id, 'menu_id' => $menuId]);
+                $this->aktifkan('akses.peran_menu', ['peran_id' => $peran->id, 'menu_id' => $menuId]);
             }
             foreach (Izin::query()->whereIn('menu_id', $subMenu)->pluck('id') as $izinId) {
-                PeranIzin::query()->firstOrCreate(['peran_id' => $peran->id, 'izin_id' => $izinId]);
+                $this->aktifkan('akses.peran_izin', ['peran_id' => $peran->id, 'izin_id' => $izinId]);
             }
+            app(CacheHakAkses::class)->lupakanSemua();
 
-            $pengguna = Pengguna::query()->where('nama_pengguna', $namaPengguna)->firstOrFail();
-            PenggunaPeran::query()->firstOrCreate(
-                ['pengguna_id' => $pengguna->id, 'peran_id' => $peran->id, 'status' => 'aktif'],
-                ['dasar_pemberian' => 'Data sintetis (AkunSintetisSeeder)'],
-            );
+            $this->tugaskan($namaPengguna, $peran);
         }
+    }
+
+    private function tugaskan(string $namaPengguna, Peran $peran): void
+    {
+        $pengguna = Pengguna::query()->where('nama_pengguna', $namaPengguna)->firstOrFail();
+        PenggunaPeran::query()->firstOrCreate(
+            ['pengguna_id' => $pengguna->id, 'peran_id' => $peran->id, 'status' => 'aktif'],
+            ['dasar_pemberian' => 'Data sintetis (AkunSintetisSeeder)'],
+        );
+    }
+
+    /** @param  array<string, string>  $kunci */
+    private function aktifkan(string $tabel, array $kunci): void
+    {
+        DB::table($tabel)->upsert(
+            [['id' => (string) Str::uuid7(), ...$kunci, 'status' => 'aktif', 'alasan_batal' => null, 'dibatalkan_oleh' => null, 'dibatalkan_pada' => null]],
+            array_keys($kunci),
+            ['status', 'alasan_batal', 'dibatalkan_oleh', 'dibatalkan_pada'],
+        );
+    }
+
+    /** @return array{0: string, 1: bool} rahasia Base32 dan apakah dibuat acak */
+    private function rahasiaTotp(string $kunciConfig): array
+    {
+        $rahasia = strtoupper((string) config($kunciConfig));
+        $acak = $rahasia === '';
+        if ($acak) {
+            $rahasia = Totp::rahasiaBaru();
+        }
+        Totp::base32Dekode($rahasia);
+
+        return [$rahasia, $acak];
     }
 }
