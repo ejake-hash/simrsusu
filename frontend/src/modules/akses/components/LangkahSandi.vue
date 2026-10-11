@@ -4,6 +4,10 @@ import { profilRsDariEnv } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
 import { ApiError } from '@/shared/api/klien'
 import { formatSisaWaktu } from '@/shared/utils/waktu'
+import Pesan from '@/design-system/components/Pesan.vue'
+import Tombol from '@/design-system/components/Tombol.vue'
+import IsianKataSandi from '@/design-system/form/IsianSandi.vue'
+import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { kirimSandi } from '../api'
 import type { Langkah, LangkahTampil } from '../alurMasuk'
 import { validasiIsianSandi, type FieldError, type IsianSandi } from '../validasi'
@@ -22,10 +26,8 @@ const fieldError = ref<FieldError>({})
 /** tunggu = error kunci/rate limit: punya baris "Coba lagi …" sendiri dan menahan tombol Masuk. */
 const error = ref<{ pesan: string; tunggu: boolean; cobaLagiSampai: number | null } | null>(null)
 const proses = ref(false)
-const tampilkanSandi = ref(false)
-const capsLock = ref(false)
 const inputNama = useTemplateRef<HTMLInputElement>('inputNama')
-const inputSandi = useTemplateRef<HTMLInputElement>('inputSandi')
+const inputSandi = useTemplateRef<InstanceType<typeof IsianKataSandi>>('inputSandi')
 
 // Kalimat milik frontend: pesan server untuk kode ini sudah memuat "Coba lagi …", sedangkan sisa
 // waktunya ditulis sekali di baris sendiri.
@@ -73,7 +75,7 @@ async function kirim(): Promise<void> {
 
   fieldError.value = validasiIsianSandi(isian)
   if (fieldError.value.nama_pengguna) return inputNama.value?.focus()
-  if (fieldError.value.sandi) return inputSandi.value?.focus()
+  if (fieldError.value.sandi) return inputSandi.value?.fokus()
 
   proses.value = true
   error.value = null
@@ -109,17 +111,8 @@ function tampilkanError(e: unknown): void {
 
   if (e.kode === 'kredensial_salah') {
     isian.sandi = ''
-    inputSandi.value?.focus()
+    inputSandi.value?.fokus()
   }
-}
-
-function periksaCapsLock(e: KeyboardEvent): void {
-  capsLock.value = e.getModifierState?.('CapsLock') ?? false
-}
-
-function ubahTampilanSandi(): void {
-  tampilkanSandi.value = !tampilkanSandi.value
-  inputSandi.value?.focus()
 }
 </script>
 
@@ -129,106 +122,48 @@ function ubahTampilanSandi(): void {
     <h1 id="judul-masuk">Masuk ke akun Anda</h1>
     <p class="lead">Gunakan nama pengguna yang diberikan {{ unitAdmin }}.</p>
 
-    <p v-if="sesi.pesanBerakhir && !error" class="pesan pesan-info" role="status">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" />
-        <path d="M8 7.5v4M8 5h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-      </svg>
-      <span>{{ sesi.pesanBerakhir }}</span>
-    </p>
+    <Pesan v-if="sesi.pesanBerakhir && !error" jenis="info" class="pesan-atas" role="status">{{ sesi.pesanBerakhir }}</Pesan>
 
     <!-- Wadah alert selalu ada agar isi baru dibacakan; hitung mundur di dalamnya tidak dibacakan ulang. -->
     <div role="alert" class="wadah-error">
-      <p v-if="error" class="pesan pesan-error" data-testid="error-masuk">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" />
-          <path d="M8 4.5v4M8 11h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-        </svg>
-        <span>
-          {{ error.pesan }}
-          <span v-if="barisTunggu" id="baris-tunggu" class="baris-tunggu" aria-live="off">{{ barisTunggu }}</span>
-        </span>
-      </p>
+      <Pesan v-if="error" jenis="error" class="pesan-atas" data-testid="error-masuk">
+        {{ error.pesan }}
+        <span v-if="barisTunggu" id="baris-tunggu" class="baris-tunggu" aria-live="off">{{ barisTunggu }}</span>
+      </Pesan>
     </div>
 
     <form novalidate @submit.prevent="kirim">
-      <div class="field">
-        <label for="nama-pengguna">Nama pengguna</label>
+      <KolomIsian id="nama-pengguna" v-slot="a" label="Nama pengguna" :error="fieldError.nama_pengguna">
         <input
-          id="nama-pengguna"
+          v-bind="a"
           ref="inputNama"
           v-model="isian.nama_pengguna"
+          class="isian isian-besar"
           name="nama_pengguna"
           type="text"
           autocomplete="username"
           autocapitalize="none"
           autocorrect="off"
           spellcheck="false"
-          :aria-invalid="fieldError.nama_pengguna ? 'true' : undefined"
-          :aria-describedby="fieldError.nama_pengguna ? 'nama-pengguna-error' : undefined"
         />
-        <p v-if="fieldError.nama_pengguna" id="nama-pengguna-error" class="error-field">{{ fieldError.nama_pengguna }}</p>
-      </div>
+      </KolomIsian>
 
-      <div class="field">
-        <label for="sandi">Kata sandi</label>
-        <div class="dengan-tombol">
-          <input
-            id="sandi"
-            ref="inputSandi"
-            v-model="isian.sandi"
-            name="sandi"
-            :type="tampilkanSandi ? 'text' : 'password'"
-            autocomplete="current-password"
-            autocapitalize="none"
-            autocorrect="off"
-            spellcheck="false"
-            :aria-invalid="fieldError.sandi ? 'true' : undefined"
-            :aria-describedby="[fieldError.sandi && 'sandi-error', capsLock && 'sandi-caps'].filter(Boolean).join(' ') || undefined"
-            @keydown="periksaCapsLock"
-            @keyup="periksaCapsLock"
-            @blur="capsLock = false"
-          />
-          <button
-            type="button"
-            class="tombol-lihat"
-            aria-controls="sandi"
-            aria-label="Tampilkan kata sandi"
-            :aria-pressed="tampilkanSandi"
-            @click="ubahTampilanSandi"
-          >
-            <svg v-if="!tampilkanSandi" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-            <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M3 3l18 18" />
-              <path d="M10.6 10.6a3 3 0 0 0 4.2 4.2" />
-              <path d="M9.4 5.2A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.1 6.6C3.6 8.3 2 12 2 12s3.5 7 10 7c1.6 0 3-.4 4.3-1" />
-            </svg>
-          </button>
-        </div>
-        <p v-if="fieldError.sandi" id="sandi-error" class="error-field">{{ fieldError.sandi }}</p>
-        <div aria-live="polite">
-          <p v-if="capsLock" id="sandi-caps" class="caps">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M8 2 2 8h3v4h6V8h3L8 2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" />
-            </svg>
-            Caps Lock aktif
-          </p>
-        </div>
-      </div>
+      <KolomIsian id="sandi" v-slot="a" label="Kata sandi" :error="fieldError.sandi">
+        <IsianKataSandi v-bind="a" ref="inputSandi" v-model="isian.sandi" name="sandi" />
+      </KolomIsian>
 
-      <button
+      <Tombol
         type="submit"
-        class="tombol-utama"
-        :class="{ menunggu }"
+        varian="utama"
+        ukuran="besar"
+        penuh
+        class="tombol-masuk"
+        :sibuk="proses"
         :disabled="proses || menunggu"
         :aria-describedby="menunggu ? 'baris-tunggu' : undefined"
       >
-        <span v-if="proses" class="spinner" aria-hidden="true"></span>
-        <span>{{ proses ? 'Memproses…' : 'Masuk' }}</span>
-      </button>
+        {{ proses ? 'Memproses…' : 'Masuk' }}
+      </Tombol>
     </form>
 
     <p class="bantuan">
@@ -259,176 +194,22 @@ h1 {
   margin: 0 0 28px;
   color: var(--muted);
 }
-
-.pesan {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+.pesan-atas {
   margin: 0 0 18px;
-  padding: 10px 12px;
-  border-radius: var(--radius-input);
-  font-size: 13px;
 }
-.pesan svg {
-  flex: none;
-  margin-top: 2px;
-}
-.pesan-error {
-  background: var(--danger-bg);
-  color: var(--danger);
-}
-.pesan-info {
-  background: var(--info-bg);
-  color: var(--info);
-}
-
-.field {
-  margin-bottom: var(--space-4);
-}
-label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 13px;
-  font-weight: var(--font-weight-medium);
-}
-input {
-  box-sizing: border-box;
-  width: 100%;
-  height: 44px;
-  padding: 0 14px;
-  border: 1px solid var(--border-input);
-  border-radius: var(--radius-input);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  /* 16px di layar sentuh mencegah zoom otomatis iOS saat fokus. */
-  font-size: max(16px, var(--text-base));
-}
-@media (pointer: fine) {
-  input {
-    font-size: var(--text-base);
-  }
-}
-input:hover {
-  border-color: var(--subtle);
-}
-input:focus-visible {
-  outline: none;
-  border-color: var(--brand-600);
-  box-shadow: var(--ring);
-}
-input[aria-invalid='true'] {
-  border-color: var(--danger);
-}
-.dengan-tombol {
-  position: relative;
-}
-.dengan-tombol input {
-  padding-right: 48px;
-}
-.tombol-lihat {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-.tombol-lihat:hover {
-  color: var(--text);
-}
-.tombol-lihat:focus-visible {
-  outline: none;
-  box-shadow: var(--ring);
-}
-.error-field {
-  margin: 6px 0 0;
-  color: var(--danger);
-  font-size: 12px;
-}
-.caps {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: var(--space-2) 0 0;
-  padding: 4px var(--space-2);
-  border-radius: 6px;
-  background: var(--warn-bg);
-  color: var(--warn);
-  font-size: 12px;
-}
-
 .bantuan {
   margin: var(--space-4) 0 0;
   color: var(--muted);
   font-size: 13px;
   text-align: center;
 }
-
 .baris-tunggu {
   display: block;
 }
 .kontak {
   white-space: nowrap;
 }
-
-.tombol-utama {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  width: 100%;
-  height: 44px;
+.tombol-masuk {
   margin-top: var(--space-6);
-  border: 0;
-  border-radius: var(--radius-input);
-  background: var(--brand-600);
-  color: var(--surface);
-  font: inherit;
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.tombol-utama:hover {
-  background: var(--brand-700);
-}
-.tombol-utama:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand-600);
-}
-.tombol-utama:disabled {
-  background: var(--brand-700);
-  cursor: progress;
-}
-/* Tertahan hitung mundur: tampak nonaktif, bukan sedang memproses. */
-.tombol-utama.menunggu:disabled {
-  border: 1px solid var(--border-input);
-  background: var(--bg);
-  color: var(--muted);
-  cursor: not-allowed;
-}
-.spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid color-mix(in srgb, currentColor 45%, transparent);
-  border-top-color: currentColor;
-  border-radius: 50%;
-  animation: putar 0.7s linear infinite;
-}
-@keyframes putar {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation-duration: 2s;
-  }
 }
 </style>

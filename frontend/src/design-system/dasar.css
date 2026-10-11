@@ -22,6 +22,7 @@
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
+  touch-action: manipulation;
 }
 .tombol:hover:not(:disabled) {
   background: var(--bg);
@@ -36,12 +37,64 @@
   opacity: 0.55;
 }
 .tombol-utama {
-  border-color: var(--brand-600);
+  /* Transparan: latar mengisi sampai tepi, sudut membulat tanpa garis anti-alias tambahan. */
+  border-color: transparent;
   background: var(--brand-600);
   color: var(--surface);
 }
 .tombol-utama:hover:not(:disabled) {
   background: var(--brand-700);
+}
+/* Cincin berjarak: tepi tombol utama sewarna latarnya, jadi cincin transparan saja tidak cukup kontras. */
+.tombol-utama:focus-visible,
+.tombol-bahaya:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--brand-600);
+}
+/* Nonaktif tanpa sibuk (mis. tertahan hitung mundur): tampak mati, bukan sedang memproses. */
+.tombol-utama:disabled:not(.tombol-sibuk) {
+  border-color: var(--border-input);
+  background: var(--bg);
+  color: var(--muted);
+  opacity: 1;
+}
+/* 44 px untuk formulir masuk dan ponsel; ukuran huruf mengikuti teks dasar. */
+.tombol-besar {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  gap: var(--space-2);
+  font-size: inherit;
+}
+/* Lebar penuh sebagai blok: inline-flex di kotak baris menambah ruang baseline di bawahnya. */
+.tombol-penuh {
+  display: flex;
+  width: 100%;
+}
+.tombol-sibuk:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+.tombol-utama.tombol-sibuk:disabled {
+  background: var(--brand-700);
+}
+.tombol-pemutar {
+  width: 16px;
+  height: 16px;
+  border: 2px solid color-mix(in srgb, currentColor 45%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: tombol-putar 0.7s linear infinite;
+}
+@keyframes tombol-putar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tombol-pemutar {
+    animation-duration: 2s;
+  }
 }
 .tombol-bahaya {
   border-color: var(--danger);
@@ -51,11 +104,19 @@
   background: var(--danger-bg);
 }
 .tombol-tautan {
+  display: inline;
   min-height: auto;
   padding: 0;
   border: 0;
   background: none;
   color: var(--brand-600);
+  font-weight: var(--font-weight-regular);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: normal;
+}
+.tombol-tautan:focus-visible {
+  border-radius: 4px;
 }
 
 /* ── Isian (input, select, textarea) ── */
@@ -84,6 +145,33 @@ textarea.isian {
 .isian:disabled {
   background: var(--bg);
   color: var(--muted);
+}
+.isian[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+/* Isian 44 px (formulir masuk, ponsel). 16 px di layar sentuh mencegah zoom otomatis iOS saat fokus. */
+.isian-besar {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: max(16px, var(--text-base));
+}
+@media (pointer: fine) {
+  .isian-besar {
+    font-size: var(--text-base);
+  }
+}
+.isian-besar:hover:not(:focus) {
+  border-color: var(--subtle);
+}
+.isian-besar[aria-invalid='true']:hover:not(:focus) {
+  border-color: var(--danger);
+}
+/* Kode verifikasi/nomor: huruf rata lebar agar mudah dicocokkan. */
+.isian-kode {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3em;
 }
 
 /* ── Pil status (selalu bersama teks, PRD 5.1 butir 4) ── */
@@ -198,6 +286,10 @@ textarea.isian {
 @media (min-width: 768px) and (max-width: 1279.98px) {
   .tombol {
     min-height: 44px;
+  }
+  /* Tautan di dalam kalimat: dikecualikan dari target 44 px (WCAG 2.5.8 inline), agar teks tidak melompat. */
+  .tombol-tautan {
+    min-height: auto;
   }
   .isian {
     min-height: 44px;

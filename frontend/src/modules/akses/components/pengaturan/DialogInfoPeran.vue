@@ -3,6 +3,7 @@ import { useForm } from 'vee-validate'
 import { computed, ref, watch } from 'vue'
 import { z } from 'zod'
 import Dialog from '@/design-system/components/Dialog.vue'
+import Tombol from '@/design-system/components/Tombol.vue'
 import Sakelar from '@/design-system/components/Sakelar.vue'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { skemaZod } from '@/design-system/form/skemaZod'
@@ -150,9 +151,9 @@ const kirim = handleSubmit(async (v) => {
     </form>
     <template #aksi>
       <button type="button" class="tombol" :disabled="sibuk" @click="buka = false">Batal</button>
-      <button type="submit" form="form-info-peran" class="tombol tombol-utama" :disabled="sibuk">
+      <Tombol type="submit" form="form-info-peran" varian="utama" :sibuk="sibuk">
         {{ sibuk ? 'Menyimpan…' : mode === 'ubah' ? 'Simpan' : 'Buat peran' }}
-      </button>
+      </Tombol>
     </template>
   </Dialog>
 </template>

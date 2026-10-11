@@ -83,7 +83,7 @@ describe('LangkahDaftarMfa', () => {
 
     expect(w.get('[role="alert"]').text()).toContain('Tidak dapat terhubung ke server.')
     vi.mocked(mintaRahasiaMfa).mockResolvedValue(RAHASIA)
-    await w.get('button.tombol-kedua').trigger('click')
+    await w.get('button.tombol:not(.tombol-utama)').trigger('click')
     await flushPromises()
     expect(w.find('img').exists()).toBe(true)
   })

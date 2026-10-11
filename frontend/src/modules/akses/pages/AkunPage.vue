@@ -57,14 +57,14 @@ async function pilih(id: string | null) {
 }
 .panel {
   min-width: 0;
-  scroll-margin-top: 76px;
+  scroll-margin-top: calc(var(--tinggi-atas-lekat, 60px) + var(--space-4));
 }
 /* Desktop: rincian tetap terlihat saat daftar akun panjang digulir. */
 @media (min-width: 1280px) {
   .panel {
     position: sticky;
-    top: 76px;
-    max-height: calc(100vh - 92px);
+    top: calc(var(--tinggi-atas-lekat, 60px) + var(--space-4));
+    max-height: calc(100vh - var(--tinggi-atas-lekat, 60px) - var(--space-8));
     overflow-y: auto;
     border-radius: var(--radius-card);
   }

@@ -10,9 +10,15 @@ declare module 'vue-router' {
   }
 }
 
+// Katalog komponen (tiket 1.11) hanya di mode pengembangan; cabang ini dan halamannya dibuang dari build produksi.
+const ruteDev = import.meta.env.DEV
+  ? [{ path: '/katalog', name: 'katalog', component: () => import('@/design-system/katalog/KatalogPage.vue'), meta: { publik: true, judul: 'Katalog komponen' } }]
+  : []
+
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
+    ...ruteDev,
     {
       path: '/masuk',
       component: () => import('@/layouts/AuthLayout.vue'),
