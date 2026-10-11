@@ -120,8 +120,15 @@ const kirim = handleSubmit(async (v) => {
     emit('selesai', hasil)
   } catch (e) {
     const kolom = errorKolom(e, ['jenis', 'induk_id', 'kode', 'nama', 'fungsi', 'unit_organisasi_id', 'dasar_perubahan'])
-    if (Object.keys(kolom).length) setErrors(kolom)
-    else if (e instanceof ApiError && e.status === 412) {
+    if (Object.keys(kolom).length) {
+      setErrors(kolom)
+      // Kolom yang tidak dirender di mode ini (induk saat tambah, jenis saat ubah, fungsi selain ruang) tampil sebagai
+      // pesan umum, mis. 422 induk_tidak_aktif bila induk ditutup sesi lain selagi panel belum dimuat ulang.
+      const tersembunyi = props.mode === 'buat' ? ['induk_id'] : ['jenis']
+      if (jenis.value !== 'ruang') tersembunyi.push('fungsi')
+      const pesanLain = tersembunyi.map((k) => kolom[k]).filter(Boolean)
+      if (pesanLain.length) error.value = pesanLain.join(' ')
+    } else if (e instanceof ApiError && e.status === 412) {
       versiBerubah.value = true
       error.value = 'Lokasi ini diubah orang lain sejak dibuka. Muat ulang, lalu ulangi perubahan.'
     } else error.value = pesanError(e)

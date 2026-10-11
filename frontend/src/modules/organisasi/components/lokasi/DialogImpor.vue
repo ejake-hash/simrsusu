@@ -13,13 +13,15 @@ import type { HasilImporLokasi, KesalahanBarisImpor } from '../../tipeLokasi'
 /**
  * Impor lokasi, kamar, dan TT dari CSV (POST /lokasi/impor): unduh templat → pilih berkas → pratinjau (tidak menyimpan
  * apa pun; baris salah beserta alasannya) → terapkan (semua atau tidak sama sekali). Batas 5.000 baris / 2 MB,
- * sinkron. Templat dibuat di klien dari daftar kolom kontrak; berisi contoh sintetis yang boleh dihapus.
+ * sinkron. Templat dibuat di klien dari daftar kolom kontrak; berisi contoh sintetis yang boleh dihapus. Contoh TT
+ * tidak disertakan: TT butuh ruang yang menjadi kamar (kolom bangsal) dan kode kelas rawat milik RS, sehingga contoh
+ * apa adanya akan ditolak.
  */
 const buka = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ selesai: [hasil: HasilImporLokasi] }>()
 
 const JUDUL = 'jenis,kode,induk,nama,fungsi,unit,bangsal,kelas_rawat,kapasitas_maksimum,ekstra'
-const CONTOH = ['gedung,C,,Gedung C (contoh),,,,,,', 'lantai,1,C,Lantai 1,,,,,,', 'ruang,101,C-1,Ruang 101 (contoh),rawat_inap,,,,,', 'tempat_tidur,1,C-1-101,,,,,,,tidak']
+const CONTOH = ['gedung,C,,Gedung C (contoh),,,,,,', 'lantai,1,C,Lantai 1,,,,,,', 'ruang,101,C-1,Ruang 101 (contoh),rawat_inap,,,,,']
 const BATAS_BYTE = 2 * 1024 * 1024
 
 const berkas = ref<File | null>(null)
@@ -51,7 +53,8 @@ function unduhTemplat() {
   a.href = url
   a.download = 'templat-impor-lokasi.csv'
   a.click()
-  URL.revokeObjectURL(url)
+  // Dilepas sesudah peramban sempat memulai unduhan.
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 function pilihBerkas(e: Event) {
   const f = (e.target as HTMLInputElement).files?.[0] ?? null

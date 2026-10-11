@@ -95,7 +95,7 @@ async function kirim() {
       emit('selesai', hasil, hasil.peringatan)
     }
   } catch (err) {
-    const kolom = errorKolom(err, ['kode', 'kelas_rawat_id', 'berlaku_dari', 'dasar_perubahan', 'kamar_id'])
+    const kolom = errorKolom(err, ['kode', 'kelas_rawat_id', 'aturan_jenis_kelamin', 'berlaku_dari', 'dasar_perubahan', 'kamar_id'])
     if (Object.keys(kolom).length) {
       kesalahan.value = kolom
       if (kolom.kamar_id) error.value = kolom.kamar_id

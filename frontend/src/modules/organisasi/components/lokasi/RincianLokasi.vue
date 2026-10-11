@@ -131,7 +131,7 @@ const ttNode = computed(() => tt.data.value ?? null)
         </div>
         <div>
           <dt>Status berlaku sejak</dt>
-          <dd>{{ formatTanggal(l.status_berlaku_dari) ?? '—' }}</dd>
+          <dd>{{ formatTanggal(l.status_berlaku_dari ? `${l.status_berlaku_dari}T00:00:00` : null) ?? '—' }}</dd>
         </div>
         <div v-if="l.jenis !== 'tempat_tidur'">
           <dt>Anak langsung</dt>

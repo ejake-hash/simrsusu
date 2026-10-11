@@ -10,8 +10,11 @@ import { buatServerGabungan } from '@/modules/akses/tiruan/serverGabungan'
 import { ID_SUPERADMIN, type PermintaanTiruan } from '@/modules/akses/tiruan/serverTiruan'
 import { klien } from '@/shared/api/klien'
 import { aturIzin, vCan } from '@/shared/composables/usePermission'
+import { ambilLokasi, daftarLokasi, ubahLokasi } from './apiLokasi'
+import DialogLokasi from './components/lokasi/DialogLokasi.vue'
 import TabBangsal from './components/lokasi/TabBangsal.vue'
 import TabLokasi from './components/lokasi/TabLokasi.vue'
+import { hariIniLokal } from './lokasi'
 
 const adapterAsli = klien.defaults.adapter
 let router: Router
@@ -32,10 +35,11 @@ afterEach(() => {
 })
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function pasang(komponen: any, jalur = '/') {
+async function pasang(komponen: any, jalur = '/', props: Record<string, unknown> = {}) {
   router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] })
   await router.push(jalur)
   const w = mount(komponen, {
+    props,
     attachTo: document.body,
     global: { plugins: [router, [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]], directives: { can: vCan } },
   })
@@ -135,6 +139,24 @@ describe('Tab lokasi & tempat tidur', () => {
     await klik(hasil[0] as HTMLElement)
     await tenang()
     expect(item('Ruang Poli Anak')?.getAttribute('aria-selected')).toBe('true')
+  })
+})
+
+describe('Dialog lokasi', () => {
+  it('tambah di bawah induk yang sudah ditutup sesi lain → error kolom induk tampil sebagai pesan umum', async () => {
+    const gedungB = (await daftarLokasi({ akar: true })).data.find((l) => l.kode === 'B')!
+    const segar = await ambilLokasi(gedungB.id)
+    await ubahLokasi(gedungB.id, segar.etag, { status: 'ditutup', status_berlaku_dari: hariIniLokal(), dasar_perubahan: 'SK Direktur 22/2026' })
+    // Panel masih memegang data lama (status aktif): dialog tetap dibuka dengan induk itu.
+    const w = await pasang(DialogLokasi, '/', { mode: 'buat', lokasi: null, induk: gedungB, open: false })
+    await w.setProps({ open: true })
+    await tenang()
+    await isi('Jenis', 'lantai')
+    await isi('Kode', '1')
+    await isi('Nama', 'Lantai 1')
+    await isi('Dasar perubahan', 'SK Direktur 23/2026')
+    await klik(document.querySelector<HTMLButtonElement>('button[form="form-lokasi"]')!)
+    expect(document.querySelector('[role="dialog"] [role="alert"]')?.textContent).toContain('Induk ditutup.')
   })
 })
 
