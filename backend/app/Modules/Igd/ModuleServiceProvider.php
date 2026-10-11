@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\Registration;
+namespace App\Modules\Igd;
 
 use Illuminate\Support\ServiceProvider;
 
