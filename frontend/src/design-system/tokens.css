@@ -83,6 +83,8 @@
 
   /* ── Bayangan ── */
   --shadow: 0 1px 2px rgb(0 0 0 / .05);
+  --shadow-laci: 0 10px 40px rgb(16 32 22 / .18);  /* laci menu, panel samping */
+  --tirai: rgb(16 32 22 / .3);                       /* latar redup di belakang laci */
 
   /* Mode gelap: DITUNDA sampai setelah go-live pertama (PRD 5.3.3). Nilainya dirancang dan
      diuji kontras tersendiri di blok [data-theme="dark"], bukan inversi otomatis. */
@@ -101,4 +103,22 @@ body {
 .num,
 table {
   font-variant-numeric: tabular-nums;
+}
+
+/* v-can memakai atribut hidden; jangan sampai kalah oleh `display` milik komponen. */
+[hidden] {
+  display: none !important;
+}
+
+/* Teks untuk pembaca layar saja. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
