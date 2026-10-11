@@ -634,7 +634,7 @@ components:
           description: "Masuk berhasil sebelum sesi ini (\"apakah ini Anda?\"). null = ini masuk pertama."
         masuk_sebelumnya_dari_jaringan_rs:
           type: [boolean, 'null']
-          description: "Apakah masuk sebelumnya dari jaringan RS (AUTENTIKASI_MFA_JARINGAN_RS). null bila masuk_sebelumnya_pada null."
+          description: "Apakah masuk sebelumnya dari jaringan RS (AUTENTIKASI_MFA_JARINGAN_RS). null = tidak diketahui: masuk pertama, atau masuk sebelumnya terjadi sebelum fitur ini ada."
         instalasi_demo:
           type: boolean
           description: "Instalasi demo/pelatihan berisi data sintetis (FR-54-10): frontend memasang pita \"DEMO — data fiktif\" di setiap layar. Dari konfigurasi instalasi (INSTALASI_DEMO, bawaan false), bukan dari APP_ENV."
