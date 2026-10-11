@@ -73,13 +73,14 @@ async function tarik(alasan: string) {
   margin-bottom: var(--space-2);
 }
 .baris-menunggu {
+  flex-direction: column;
   border-style: dashed;
   background: var(--bg);
 }
+/* Panel rincian akun sempit: tombol di bawah teks, bukan menekan teks menjadi kolom sempit. */
 .aksi {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  flex: none;
 }
 </style>

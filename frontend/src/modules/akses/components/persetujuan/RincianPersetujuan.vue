@@ -179,6 +179,9 @@ async function tarik(alasan: string) {
 </template>
 
 <style scoped>
+.rincian {
+  scroll-margin-top: calc(var(--tinggi-atas-lekat, 60px) + var(--space-3));
+}
 .kepala {
   align-items: flex-start;
 }

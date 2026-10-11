@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Tabs from '@/design-system/components/Tabs.vue'
 import HalamanModul from '@/layouts/HalamanModul.vue'
@@ -35,6 +35,13 @@ const tab = computed({
 const terpilih = computed({
   get: () => (typeof route.query.id === 'string' ? route.query.id : null),
   set: (id: string | null) => void router.replace({ query: { ...route.query, id: id ?? undefined } }),
+})
+// Layar sempit: rincian ada di bawah daftar, jadi digulir ke tampilan saat pengajuan dipilih.
+watch(terpilih, async (id) => {
+  if (!id || !window.matchMedia?.('(max-width: 1023.98px)').matches) return
+  await nextTick()
+  // Bagian rinci sudah terpasang walau datanya masih dimuat (judul baru ada sesudahnya).
+  document.querySelector('section[aria-labelledby="judul-rincian-persetujuan"]')?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
 })
 </script>
 
