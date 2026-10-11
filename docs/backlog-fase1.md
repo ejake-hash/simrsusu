@@ -34,7 +34,7 @@
 | 1.7 | Notifikasi dasar (PRD 7.53), jenis bawaan pertama: pemberitahuan akun terkunci | Menunggu 1.2 | — |
 | 1.8 | Wizard penyiapan instalasi kosong dan paket referensi (FR-54-08…10) | Menunggu 1.2 | — |
 | 1.10 | SSO (OIDC/SAML) ke penyedia identitas RS/universitas; tombol tampil hanya bila dikonfigurasi | **Terhambat**: perlu data IdP dari RS/USU | — |
-| 1.9 | Gateway integrasi dasar + sandbox BPJS/SATUSEHAT (kriteria keluar fase 1) | Menunggu dokumen resmi | — |
+| 1.9 | Gateway integrasi dasar + sandbox BPJS/SATUSEHAT (kriteria keluar fase 1). Rujukan: `docs/integrasi/catatan-lapangan-bridging.md` (catatan lapangan aplikasi lain, bukan spesifikasi; perlu verifikasi). Catatan: dibangun dengan server tiruan sampai kredensial sandbox RS mitra tersedia | Menunggu dokumen resmi | — |
 
 ## Utang dan keputusan tertunda
 

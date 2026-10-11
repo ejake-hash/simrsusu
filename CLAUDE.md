@@ -35,6 +35,37 @@ Beberapa sesi (orang atau agen) bisa bekerja bersamaan di mesin yang sama. Atura
    - `docker compose -p <proyek> down` untuk stack tambahan yang dibuat tiket (tanpa `-v`);
    - laporan akhir menyertakan `git worktree list` (hanya folder utama) dan daftar database yang tersisa.
 
+## Kerja berkelanjutan
+
+Tujuan: sesi tidak berhenti menunggu manusia selama ada tiket yang bisa dikerjakan. Pemilik repo meninjau setelah
+merge (bisa revert); proteksi cabang tidak aktif (GitHub Free), jadi aturan ini dijaga oleh sesi sendiri.
+
+1. **Ambil tiket sendiri.** Setelah tiket selesai dan bersih, ambil tiket berikutnya di docs/backlog-fase1.md yang
+   berstatus "Siap dikerjakan" dan semua prasyaratnya Selesai. Commit pertama PR mengubah statusnya menjadi
+   "Dikerjakan sesi <n>" agar tidak diambil sesi lain. Jalur: sesi 1 backend/dokumen, sesi 2 frontend; bila jalur
+   sendiri kosong, boleh mengambil jalur lain.
+2. **Merge sendiri** setiap PR bila semua terpenuhi:
+   - `gh pr checks <no> --watch` selesai dan semua check hijau;
+   - tinjauan oleh **subagen baru** (konteks bersih, tidak ikut menulis kode) atau oleh sesi lain, terhadap uji
+     penerimaan tiket dan DoD PRD D.7, tertulis sebagai komentar PR berawalan "Tinjauan:" dengan hasil
+     "Disetujui". Temuan diperbaiki dulu, lalu ditinjau ulang;
+   - lalu `gh pr merge <no> --squash --delete-branch`, tunggu CI main hijau, lalu bersih-bersih tiket.
+3. **Pengecualian: tunggu pemilik repo** bila PR
+   - mengubah docs/prd.md dengan isi yang **dikarang sesi sendiri** (salinan berkas dari
+     "/Users/ejake/Documents/SIMRS Tipe B" dengan md5 yang cocok boleh merge sendiri);
+   - mengubah docs/api/openapi.yaml di luar endpoint yang tercantum di tiket yang disetujui. Kontrak untuk endpoint
+     yang tercantum di tiket ("kontrak dulu", backlog bagian Jalur kerja) boleh merge sendiri setelah ditinjau sesi
+     pemakai (frontend) dan subagen;
+   - melonggarkan aturan keamanan (MFA, hak akses, audit, penyamaran log, batas laju), atau memuat migrasi yang
+     menghapus data/kolom berisi data;
+   - menambah dependensi baru di luar yang disebut tiket, atau menaikkan versi mayor.
+   Tandai PR dengan judul berawalan "[Perlu pemilik]" dan lanjutkan tiket lain yang tidak bergantung padanya.
+4. **Berhenti dan laporkan** bila: butuh keputusan produk di luar PRD/tiket; butuh data/kredensial pihak luar;
+   CI gagal 3 kali untuk penyebab yang sama; atau tidak ada tiket Siap. Laporan berisi apa yang dibutuhkan dan dari siapa.
+5. **Serah terima.** Setiap PR memuat: yang selesai, utang baru (juga ditulis ke backlog), dan langkah berikutnya —
+   cukup untuk sesi baru melanjutkan setelah konteks dibersihkan.
+6. **Sesi menganggur** meninjau PR sesi lain sebelum mengambil tiket baru.
+
 <!-- simrs-skills -->
 ## Konvensi wajib (ringkasan PRD)
 
