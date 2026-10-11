@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\Queue;
+namespace App\Modules\Antrean;
 
 use Illuminate\Support\ServiceProvider;
 

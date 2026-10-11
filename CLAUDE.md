@@ -11,6 +11,7 @@
 - Database: **PostgreSQL 16**, satu database `simrs`, skema per domain (PRD 11.1). Redis 7 untuk cache, sesi, antrean.
 - Frontend: **Vue 3 + TypeScript + Vite** (SPA, Vue Router, Pinia) di `frontend/` (PRD 10.4). **Bukan** Blade, Livewire, atau Inertia.
 - Token desain: `frontend/src/design-system/tokens.css` (dari PRD 5.3). Jangan menulis warna HEX langsung di komponen. Lihat @DESIGN.md.
+- **Nama modul bahasa Indonesia** (PRD 10.3, 10.4): backend PascalCase (`app/Modules/RawatJalan`), frontend kebab-case (`src/modules/rawat-jalan`). Nama lapisan teknis tetap: `Core`, `Shared`, `Domain`, `Application`, `Infrastructure`, `Http`, `Models`, `Database`.
 
 ## Kerja paralel
 Beberapa sesi (orang atau agen) bisa bekerja bersamaan di mesin yang sama. Aturannya:

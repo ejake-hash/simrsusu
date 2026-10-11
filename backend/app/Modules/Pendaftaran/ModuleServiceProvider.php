@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\Emergency;
+namespace App\Modules\Pendaftaran;
 
 use Illuminate\Support\ServiceProvider;
 
