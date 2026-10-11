@@ -2,7 +2,9 @@
 
 namespace App\Modules\Akses\Http\Resources;
 
+use App\Core\Http\ApiError;
 use App\Modules\Akses\Application\KebijakanMfa;
+use App\Modules\Akses\Application\PenjagaPenyunting;
 use App\Modules\Akses\Application\PohonMenu;
 use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\PemberianAkses;
@@ -22,6 +24,7 @@ final class AkunPresenter
     public function __construct(
         private readonly RingkasanPegawai $pegawai,
         private readonly KebijakanMfa $kebijakanMfa,
+        private readonly PenjagaPenyunting $penjaga,
     ) {}
 
     /**
@@ -94,8 +97,19 @@ final class AkunPresenter
             'aktif_pada' => $akun->mfa_aktif_pada?->toIso8601String(),
             'wajib_akun' => $akun->wajib_mfa,
             'sumber_wajib' => $this->kebijakanMfa->sumberWajib($akun),
-            'dapat_direset' => $akun->mfaAktif() && $akun->id !== $penyunting->id,
+            'dapat_direset' => $akun->mfaAktif() && $this->bolehMengubah($penyunting, $akun),
         ];
+    }
+
+    private function bolehMengubah(Pengguna $penyunting, Pengguna $akun): bool
+    {
+        try {
+            $this->penjaga->pastikanBolehMengubahAkun($penyunting, $akun);
+
+            return true;
+        } catch (ApiError) {
+            return false;
+        }
     }
 
     /**

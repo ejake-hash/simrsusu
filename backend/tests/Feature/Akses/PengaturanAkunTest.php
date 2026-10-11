@@ -191,10 +191,8 @@ class PengaturanAkunTest extends TestCase
         }
         $this->assertSame(0, PenggunaPeran::query()->where('pengguna_id', $akun->id)->count());
 
-        // Penugasan superadmin yang sudah ada tidak diakhiri dari layar; penugasan akun lain tidak ditemukan.
+        // Penugasan akun lain tidak ditemukan lewat akun ini.
         $superadminLain = $this->tugaskan($this->buatPengguna(), $this->superadmin());
-        $this->minta('POST', "/api/v1/akun/{$superadminLain->pengguna_id}/penugasan/{$superadminLain->id}/batal", ['alasan_batal' => 'Coba cabut'])
-            ->assertStatus(409)->assertJsonPath('error.kode', 'peran_bawaan_terkunci');
         $this->minta('POST', "/api/v1/akun/{$akun->id}/penugasan/{$superadminLain->id}/batal", ['alasan_batal' => 'Salah akun'])
             ->assertNotFound();
     }
@@ -334,6 +332,36 @@ class PengaturanAkunTest extends TestCase
         $this->minta('POST', "/api/v1/akun/{$pengelola->id}/izin-khusus", [
             'efek' => 'tambah', 'sasaran_jenis' => 'menu', 'sasaran_kode' => 'kasir.tagihan', 'dasar_pemberian' => self::DASAR, 'alasan' => 'Naikkan diri',
         ])->assertForbidden()->assertJsonPath('error.kode', 'diri_sendiri');
+    }
+
+    public function test_akun_superadmin_hanya_diubah_superadmin_lain(): void
+    {
+        [$superadmin] = $this->superadminBerMfa();
+        $penugasanSuperadmin = PenggunaPeran::query()->where('pengguna_id', $superadmin->id)->firstOrFail();
+        $peran = $this->buatPeran(['igd.papan']);
+        $this->masukSebagai($this->pengelola());
+        $id = $superadmin->id;
+
+        $this->minta('GET', "/api/v1/akun/$id")->assertOk()->assertJsonPath('data.mfa.dapat_direset', false);
+        foreach ([
+            ['POST', "/akun/$id/penugasan", '/akun/{id}/penugasan', ['peran_id' => $peran->id, 'cakupan_jenis' => 'rs', 'dasar_pemberian' => self::DASAR]],
+            ['POST', "/akun/$id/izin-khusus", '/akun/{id}/izin-khusus', ['efek' => 'cabut', 'sasaran_jenis' => 'menu', 'sasaran_kode' => 'pengaturan.akun', 'dasar_pemberian' => self::DASAR, 'alasan' => 'Kunci superadmin']],
+            ['PUT', "/akun/$id/wajib-mfa", '/akun/{id}/wajib-mfa', ['wajib_mfa' => true, 'alasan' => 'Coba ubah']],
+            ['POST', "/akun/$id/mfa/reset", '/akun/{id}/mfa/reset', ['alasan' => 'Coba reset', 'dasar' => self::DASAR]],
+        ] as [$metode, $uri, $path, $data]) {
+            $respons = $this->minta($metode, '/api/v1'.$uri, $data)->assertForbidden()->assertJsonPath('error.kode', 'akun_superadmin');
+            $this->assertSesuaiKontrak($respons, $metode, $path);
+        }
+        $this->assertTrue($superadmin->refresh()->mfaAktif());
+        $this->assertSame(0, PenggunaIzinKhusus::query()->where('pengguna_id', $id)->count());
+
+        // Superadmin lain boleh (yang tetap terkunci sampai 1.2d: penugasan peran superadmin itu sendiri).
+        [$lain, $rahasiaLain] = $this->superadminBerMfa();
+        $this->masukSebagai($lain, $rahasiaLain);
+        $this->minta('GET', "/api/v1/akun/$id")->assertOk()->assertJsonPath('data.mfa.dapat_direset', true);
+        $this->minta('POST', "/api/v1/akun/$id/penugasan/{$penugasanSuperadmin->id}/batal", ['alasan_batal' => 'Coba cabut'])
+            ->assertStatus(409)->assertJsonPath('error.kode', 'peran_bawaan_terkunci');
+        $this->minta('POST', "/api/v1/akun/$id/mfa/reset", ['alasan' => 'Ponsel hilang', 'dasar' => self::DASAR])->assertOk();
     }
 
     public function test_daftar_seribu_akun_tetap_cepat(): void

@@ -4,6 +4,7 @@ namespace Tests\Support;
 
 use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Domain\Cakupan;
+use App\Modules\Akses\Domain\Totp;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
@@ -62,12 +63,32 @@ trait AksesUji
         return $pengguna;
     }
 
-    /** Peramban baru lalu masuk dengan sandi (tanpa MFA). */
-    protected function masukSebagai(Pengguna $pengguna): void
+    /** Peramban baru lalu masuk dengan sandi, ditambah kode TOTP bila $rahasiaMfa diisi. */
+    protected function masukSebagai(Pengguna $pengguna, ?string $rahasiaMfa = null): void
     {
         $this->mulaiSesiSpa();
-        $this->minta('POST', '/api/v1/autentikasi/masuk', ['nama_pengguna' => $pengguna->nama_pengguna, 'sandi' => self::SANDI_UJI])
-            ->assertOk()->assertJsonPath('status', 'masuk');
+        $sandi = $this->minta('POST', '/api/v1/autentikasi/masuk', ['nama_pengguna' => $pengguna->nama_pengguna, 'sandi' => self::SANDI_UJI])->assertOk();
+        if ($rahasiaMfa === null) {
+            $sandi->assertJsonPath('status', 'masuk');
+
+            return;
+        }
+
+        $sandi->assertJsonPath('status', 'perlu_mfa');
+        $this->minta('POST', '/api/v1/autentikasi/mfa', [
+            'challenge_id' => $sandi->json('challenge_id'), 'metode' => 'totp', 'kode' => Totp::kode($rahasiaMfa, Totp::langkah(now()->getTimestamp())),
+        ])->assertOk()->assertJsonPath('status', 'masuk');
+    }
+
+    /** @return array{0: Pengguna, 1: string} superadmin ber-MFA dan rahasia TOTP-nya */
+    protected function superadminBerMfa(): array
+    {
+        $rahasia = Totp::rahasiaBaru();
+        $pengguna = $this->buatPengguna();
+        $pengguna->forceFill(['mfa_rahasia_enkripsi' => $rahasia, 'mfa_aktif_pada' => now()])->save();
+        $this->tugaskan($pengguna, $this->superadmin());
+
+        return [$pengguna, $rahasia];
     }
 
     /** @param  array<string, mixed>  $data */

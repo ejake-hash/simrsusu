@@ -18,7 +18,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * Pengaturan → Akun & akses (tiket 1.2c-be, PRD 9.2.3–9.3, 10.3.2, kontrak /akun/{id}/*).
  *
- * - Penyunting tidak pernah mengubah akses akunnya sendiri (403 diri_sendiri, PRD 9.2.4).
+ * - Penyunting tidak pernah mengubah akses akunnya sendiri (403 diri_sendiri), dan akun superadmin hanya
+ *   diubah superadmin lain (403 akun_superadmin, PRD 9.2.4).
  * - Hanya cakupan seluruh RS sampai inti.unit_organisasi ada (tiket 1.8a).
  * - Peran superadmin dan izin sensitif tidak diberikan dari layar sampai alur persetujuan (tiket 1.2d).
  * - Mengakhiri penugasan/pengecualian = status batal dengan alasan; barisnya tetap sebagai riwayat (MD-1).
@@ -36,7 +37,7 @@ final class KelolaAksesAkun
     /** @param  array{peran_id: string, cakupan_jenis: string, berlaku_dari?: string|null, berlaku_sampai?: string|null, dasar_pemberian: string, alasan?: string|null}  $isi */
     public function tugaskan(Pengguna $penyunting, Pengguna $akun, array $isi): PenggunaPeran
     {
-        $this->penjaga->pastikanBukanDiriSendiri($penyunting, $akun);
+        $this->penjaga->pastikanBolehMengubahAkun($penyunting, $akun);
         $this->pastikanCakupanRs($isi['cakupan_jenis']);
         [$dari, $sampai] = $this->masaBerlaku($isi);
 
@@ -77,7 +78,7 @@ final class KelolaAksesAkun
 
     public function batalkanPenugasan(Pengguna $penyunting, Pengguna $akun, PenggunaPeran $penugasan, string $alasan): PenggunaPeran
     {
-        $this->penjaga->pastikanBukanDiriSendiri($penyunting, $akun);
+        $this->penjaga->pastikanBolehMengubahAkun($penyunting, $akun);
 
         return DB::transaction(function () use ($penyunting, $akun, $penugasan, $alasan) {
             $penugasan = PenggunaPeran::query()->whereKey($penugasan->id)->lockForUpdate()->firstOrFail();
@@ -96,7 +97,7 @@ final class KelolaAksesAkun
     /** @param  array{efek: string, sasaran_jenis: string, sasaran_kode: string, berlaku_sampai?: string|null, dasar_pemberian: string, alasan: string}  $isi */
     public function buatIzinKhusus(Pengguna $penyunting, Pengguna $akun, array $isi): PenggunaIzinKhusus
     {
-        $this->penjaga->pastikanBukanDiriSendiri($penyunting, $akun);
+        $this->penjaga->pastikanBolehMengubahAkun($penyunting, $akun);
         [$dari, $sampai] = $this->masaBerlaku($isi);
 
         [$menuId, $izin] = $isi['sasaran_jenis'] === 'menu'
@@ -148,7 +149,7 @@ final class KelolaAksesAkun
 
     public function batalkanIzinKhusus(Pengguna $penyunting, Pengguna $akun, PenggunaIzinKhusus $khusus, string $alasan): PenggunaIzinKhusus
     {
-        $this->penjaga->pastikanBukanDiriSendiri($penyunting, $akun);
+        $this->penjaga->pastikanBolehMengubahAkun($penyunting, $akun);
 
         return DB::transaction(function () use ($penyunting, $akun, $khusus, $alasan) {
             $khusus = PenggunaIzinKhusus::query()->whereKey($khusus->id)->lockForUpdate()->firstOrFail();
@@ -164,7 +165,7 @@ final class KelolaAksesAkun
     /** Sakelar tingkat akun; kewajiban dari peran, izin sensitif, dan akses luar jaringan RS tetap berlaku. */
     public function aturWajibMfa(Pengguna $penyunting, Pengguna $akun, bool $wajib, string $alasan): Pengguna
     {
-        $this->penjaga->pastikanBukanDiriSendiri($penyunting, $akun);
+        $this->penjaga->pastikanBolehMengubahAkun($penyunting, $akun);
 
         return DB::transaction(function () use ($penyunting, $akun, $wajib, $alasan) {
             $akun = Pengguna::query()->whereKey($akun->id)->lockForUpdate()->firstOrFail();
@@ -187,7 +188,7 @@ final class KelolaAksesAkun
     /** Autentikator hilang/ganti ponsel: rahasia dan kode cadangan dibatalkan, semua sesi akun diputus. */
     public function resetMfa(Pengguna $penyunting, Pengguna $akun, string $alasan, string $dasar): Pengguna
     {
-        $this->penjaga->pastikanBukanDiriSendiri($penyunting, $akun);
+        $this->penjaga->pastikanBolehMengubahAkun($penyunting, $akun);
 
         return DB::transaction(function () use ($penyunting, $akun, $alasan, $dasar) {
             $akun = Pengguna::query()->whereKey($akun->id)->lockForUpdate()->firstOrFail();

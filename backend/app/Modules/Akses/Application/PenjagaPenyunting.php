@@ -3,8 +3,10 @@
 namespace App\Modules\Akses\Application;
 
 use App\Core\Http\ApiError;
+use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaPeran;
+use App\Modules\Akses\Models\Peran;
 use Illuminate\Http\Request;
 
 /**
@@ -13,11 +15,26 @@ use Illuminate\Http\Request;
  */
 final class PenjagaPenyunting
 {
-    public function pastikanBukanDiriSendiri(Pengguna $penyunting, Pengguna $akun): void
+    /**
+     * Semua perubahan akses akun: bukan akun sendiri, dan akun pemegang peran superadmin hanya diubah
+     * oleh superadmin lain (PRD 9.2.4), bukan oleh admin yang izinnya lebih sempit.
+     */
+    public function pastikanBolehMengubahAkun(Pengguna $penyunting, Pengguna $akun): void
     {
         if ($penyunting->id === $akun->id) {
             throw new ApiError(403, 'diri_sendiri', 'Perubahan akses akun sendiri dilakukan superadmin lain.');
         }
+        if ($this->superadmin($akun) && ! $this->superadmin($penyunting)) {
+            throw new ApiError(403, 'akun_superadmin', 'Akses akun superadmin hanya diubah oleh superadmin lain.');
+        }
+    }
+
+    /** Memegang peran superadmin yang sedang atau akan berlaku. */
+    public function superadmin(Pengguna $pengguna): bool
+    {
+        $peranId = Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->value('id');
+
+        return $peranId !== null && $this->memegangPeran($pengguna, $peranId);
     }
 
     /** Penugasan aktif yang sedang atau akan berlaku; yang sudah lewat masanya tidak dihitung. */

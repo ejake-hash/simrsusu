@@ -15,7 +15,8 @@ info:
     v0.2.1: istilah umum (tiket 1.0g, PRD 10.3.3): skema dan kunci respons `error`, field menu `jumlah_tugas`,
     kode menu `master_data`.
     v0.2.2: penyelarasan 1.2c-be: 409 `butuh_persetujuan` pada penugasan peran berizin sensitif, 409 `peran_bawaan_terkunci`
-    saat mengakhiri penugasan superadmin, bentuk `rincian` error matriks, arti `versi` peran.
+    saat mengakhiri penugasan superadmin, 403 `akun_superadmin` pada semua perubahan /akun/{id}/* atas akun superadmin oleh
+    bukan superadmin (PRD 9.2.4), bentuk `rincian` error matriks, arti `versi` peran.
 servers:
   - url: /api/v1
 security:
@@ -330,6 +331,8 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+  # Semua perubahan /akun/{id}/* (penugasan, izin khusus, wajib MFA, reset MFA): 403 `diri_sendiri` untuk akun sendiri,
+  # 403 `akun_superadmin` bila akun memegang peran superadmin dan penyunting bukan superadmin (PRD 9.2.4).
   /akun/{id}/penugasan:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -735,7 +738,7 @@ components:
               jenis: { type: string, enum: [akun, peran, superadmin, izin_sensitif] }
               label: { type: string, examples: ["Peran Superadmin", "Sakelar akun"] }
               dapat_dimatikan: { type: boolean }
-        dapat_direset: { type: boolean, description: "false bila MFA belum aktif atau akun milik penyunting" }
+        dapat_direset: { type: boolean, description: "false bila MFA belum aktif, akun milik penyunting, atau akun superadmin dan penyunting bukan superadmin" }
     AkunRingkas:
       type: object
       required: [id, nama_pengguna, nama, status, terkunci_sampai, login_terakhir_pada, peran, pengecualian, mfa_aktif]
