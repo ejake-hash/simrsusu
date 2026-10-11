@@ -27,14 +27,68 @@
 | 1.0g | Istilah umum: ganti kata baku yang jarang dipakai (galat, surel, jangkar, dll.) dengan istilah yang lazim, di kode, kontrak, PRD, dan layar; glosarium di PRD 10.3.3. Catatan: PRD v0.10.11 dipisah ke #39 (menunggu pemilik; sampai itu glosarium = badan tiket ini), kontrak v0.2.1; kolom `akses.pengguna.email`; kode menu `master_data.*`; variabel .env berganti nama (daftar di PR #29); migrasi lama dan ADR 0003 tetap memuat istilah lama sebagai sejarah | Selesai | #29 |
 | 1.2c-be | Backend Pengaturan → Peran & izin, Akun & akses: pindah kode menu ke `pengaturan.*`, endpoint kontrak v0.2.0, wajib MFA per peran/akun, reset MFA, larangan diri sendiri. Kode lain yang semula `data_induk.*` kini `master_data.*` (1.0g). Catatan: kontrak v0.2.2; izin/sub-menu yang dicabut dari peran berstatus batal (kolom pembatalan di `peran_izin`/`peran_menu`); versi peran = kolom `revisi`; pencabutan sesi lewat `akses.pengguna.sesi_dicabut_pada` (ADR 0002); akun `contoh.superadmin` + `AKUN_SINTETIS_SUPERADMIN_MFA_RAHASIA` untuk e2e | Selesai | #32 |
 | **1.2c-fe** | Frontend halaman Peran & izin, Akun & akses (`masterdata.html`, temuan MD-1…MD-4), navigasi sub-menu di halaman induk modul | **Siap dikerjakan** setelah PR dokumen (paralel dengan 1.2c-be, data tiruan dari kontrak) | — |
-| 1.2d | Persetujuan akses: izin sensitif oleh pemilik data, peran superadmin oleh superadmin lain, permintaan akses dari layar "Akses ditolak", pembuatan/penonaktifan akun | Menunggu 1.2c | — |
 | **1.2e** | Beranda: modul saya, keamanan akun, pencarian menu, aksesibilitas (`home.html`); tanpa angka tiruan | Menunggu 1.2c-fe (be kecil bisa setelah 1.2c-be) | — |
-| 1.5 | Lapis 4–5 hak akses (label sensitivitas, SIP/SPK, MFA aksi sensitif) | Menunggu 1.2 | — |
-| 1.6 | TTE T1: aktivasi PIN, `TtdModal`, kunci Ed25519 | Menunggu 1.2 | — |
-| 1.7 | Notifikasi dasar (PRD 7.53), jenis bawaan pertama: pemberitahuan akun terkunci | Menunggu 1.2 | — |
-| 1.8 | Wizard penyiapan instalasi kosong dan paket referensi (FR-54-08…10) | Menunggu 1.2 | — |
+| 1.2d-be / 1.2d-fe | Persetujuan akses (izin sensitif, superadmin), permintaan akses dari layar "Akses ditolak" | Siap setelah 1.2c dan 1.8a | — |
+| 1.8a-be / 1.8a-fe | Profil RS dan paket identitas, unit organisasi, KSM (ganti `VITE_RS_*`) | be: **Dikerjakan sesi 1** (kontrak #37, branch `feat/organisasi-be`); fe: **Dikerjakan sesi 2** (branch `feat/organisasi-fe`) | — |
+| 1.8b-be / 1.8b-fe | Lokasi fisik bertingkat, bangsal/kamar/TT, kelas rawat, poliklinik, impor CSV | Siap setelah 1.8a | — |
+| 1.8c-be / 1.8c-fe | Usulan perubahan data induk berjenjang (mesin generik), dipakai pertama oleh TT | Siap setelah 1.7 | — |
+| 1.8d-be / 1.8d-fe | Pegawai, izin praktik (STR/SIP/SPK), RKK minimal, akun dibuat dari pegawai | Siap setelah 1.8a | — |
+| 1.8e-be | Pemuat paket referensi (`inti.paket_referensi`) | Siap setelah 1.8a | — |
+| 1.8f-be / 1.8f-fe | Wizard penyiapan instalasi kosong (FR-54-08) | Siap setelah 1.8a–e | — |
+| 1.7-be / 1.7-fe | Notifikasi, kotak kerja, jenis tugas, eskalasi 3 tingkat | Siap setelah 1.8a, 1.8d, 1.2d | — |
+| 1.6-be / 1.6-fe | TTE T1: aktivasi PIN, kunci Ed25519, TtdModal, verifikasi, tanda tangan massal; adapter PSrE + simulator | Siap setelah 1.7 | — |
+| 1.5-be / 1.5-fe | Lapis 4 (label sensitivitas) dan 5 (izin praktik, RKK, MFA ulang) | Siap setelah 1.8d, 1.2d, 1.6 | — |
+| 1.9-be / 1.9-fe | Gateway integrasi: outbox, adapter BPJS/SATUSEHAT/Aplicares, simulator, layar Konfigurasi & status | Siap setelah 1.8b, 1.8f | — |
+| 1.11 | Design system: komponen inti PRD 5.4 yang dipakai fase 1, katalog komponen (dev) | **Dikerjakan sesi 2** (branch `feat/design-system`, ditumpuk di atas #35) | — |
+| 1.12 | Gerbang keluar Fase 1: uji beban, cek keamanan, runbook instalasi, perubahan PRD 16 | Siap setelah semua | — |
 | 1.10 | SSO (OIDC/SAML) ke penyedia identitas RS/universitas; tombol tampil hanya bila dikonfigurasi | **Terhambat**: perlu data IdP dari RS/USU | — |
-| 1.9 | Gateway integrasi dasar + sandbox BPJS/SATUSEHAT (kriteria keluar fase 1). Rujukan: `docs/integrasi/catatan-lapangan-bridging.md` (catatan lapangan aplikasi lain, bukan spesifikasi; perlu verifikasi). Catatan: dibangun dengan server tiruan sampai kredensial sandbox RS mitra tersedia | Menunggu dokumen resmi | — |
+
+## Jalur kerja sampai Fase 1 selesai
+
+Sesi 1 = backend, kontrak, dokumen. Sesi 2 = frontend. Tiket `-be` dan `-fe` dengan nomor sama berjalan paralel dari
+kontrak yang sama. Bila jalur sendiri kosong, ambil tiket jalur lain atau tinjau PR.
+
+| Urutan | Sesi 1 (backend) | Sesi 2 (frontend) | Prasyarat |
+|---|---|---|---|
+| 1 | 1.0g Istilah umum | Persiapan 1.2c-fe | — |
+| 2 | 1.2c-be | 1.2c-fe | 1.0g |
+| 3 | 1.2e-be | 1.2e-fe Beranda | 1.2c |
+| 4 | 1.8a-be Profil RS, unit, KSM | 1.11 Design system | 1.2c |
+| 5 | 1.2d-be Persetujuan akses | 1.8a-fe | 1.8a-be (kontrak) |
+| 6 | 1.8b-be Lokasi, ruang, TT | 1.2d-fe | 1.8a |
+| 7 | 1.8d-be Pegawai, izin praktik, akun dari pegawai | 1.8b-fe | 1.8a |
+| 8 | 1.7-be Notifikasi, tugas, eskalasi | 1.8d-fe | 1.8a, 1.8d, 1.2d |
+| 9 | 1.6-be TTE T1 | 1.7-fe | 1.7 |
+| 10 | 1.8c-be Usulan data induk berjenjang | 1.6-fe | 1.7 |
+| 11 | 1.5-be Lapis 4–5 hak akses | 1.8c-fe | 1.8d, 1.2d, 1.6 |
+| 12 | 1.8e-be Paket referensi + 1.8f-be Wizard | 1.5-fe | 1.8a–d |
+| 13 | 1.9-be Gateway integrasi + simulator | 1.8f-fe Wizard | 1.8b, 1.8f |
+| 14 | 1.12 Gerbang keluar Fase 1 (be) | 1.9-fe Integrasi | semua di atas |
+| 15 | — | 1.12 (fe: e2e menyeluruh, axe) | — |
+
+**Kontrak dulu.** Setiap tiket `-be` dimulai dengan PR kontrak `docs/api/openapi.yaml` berisi endpoint yang tercantum di
+tiket. PR kontrak ditinjau sesi 2 (pemakai) + subagen, lalu boleh merge sendiri karena mengikuti tiket yang disetujui.
+Endpoint di luar tiket = "[Perlu pemilik]". Sesi 2 memakai data tiruan dari kontrak sampai `-be` merge.
+
+## Keputusan bawaan (berlaku kecuali pemilik produk mengubahnya)
+
+| # | Pokok | Keputusan bawaan | Alasan / risiko |
+|---|---|---|---|
+| K1 | Notifikasi real-time | Fase 1: polling 30 detik dengan ETag; Reverb (WebSocket) di fase 2 bersama papan IGD/peta TT | Lebih sedikit komponen; terlambat ≤ 30 detik untuk notifikasi non-kritis |
+| K2 | Kanal notifikasi fase 1 | In-app + email (SMTP dari konfigurasi). WhatsApp/SMS: antarmuka adapter dengan driver `log` saja | Gateway WA/SMS butuh kontrak pihak ketiga |
+| K3 | Pemilik data izin sensitif | Ditetapkan per izin sensitif sebagai **peran penyetuju** di data induk. Izin sensitif tanpa penyetuju tidak bisa diberikan | PRD 9.2.4; tanpa penyetuju = kontrol ganda tidak mungkin |
+| K4 | Perubahan terkait superadmin | Disetujui superadmin lain (bukan pengaju); permintaan kedaluwarsa 7 hari | PRD 9.2.4 |
+| K5 | Pembuatan akun | Akun dibuat dari data pegawai (1.8d). Akun peserta didik menunggu modul 46 (fase 5) | Satu akun = satu pegawai (11.2) |
+| K6 | Wizard langkah 6–7 (penjamin, tarif, formularium) | Kerangka langkah dibuat di 1.8f, isinya di awal fase 2 (sebelum pendaftaran). Instalasi tetap "belum bisa melayani pasien" sampai langkah itu lengkap | Tarif adalah modul besar milik fase 2 |
+| K7 | Paket referensi | Dikemas: wilayah, UCUM, subset LOINC (atribusi), kode variabel RME. ICD-10/ICD-9-CM: **tidak dikemas**, diimpor dari berkas milik RS (mis. dari E-Klaim) | Lisensi WHO perlu verifikasi (FR-54-09) |
+| K8 | Kriteria keluar Fase 1 tanpa RS | Sandbox BPJS/SATUSEHAT diganti **simulator + uji kontrak** berbasis `docs/integrasi/catatan-lapangan-bridging.md`. Sambungan sandbox nyata dipindah menjadi syarat **masuk pilot fase 2** bersama SUS dan design partner. PRD 16/16.1 diubah di tiket 1.12 ("[Perlu pemilik]") | Kredensial sandbox diberikan ke faskes, bukan vendor [Medium] |
+| K9 | Kredensial integrasi | Tabel `integrasi.kredensial_api` terenkripsi dengan **kunci khusus** `KREDENSIAL_KUNCI` (bukan APP_KEY, bisa dirotasi), tidak pernah dikirim ke layar (hanya 4 karakter terakhir), antarmuka `PenyimpanRahasia` agar vault bisa dipasang kemudian | Menyelaraskan FR-54-08 ("vault") dengan 11.2 (`kredensial_api`) untuk instalasi on-premise tanpa vault |
+| K10 | TTE fase 1 | T1 (PIN + Ed25519) penuh. T2/PSrE: antarmuka adapter + simulator saja; penyedia dipilih saat kontrak PSrE | PRD 7.57.3: API PSrE belum diverifikasi |
+| K11 | MFA ulang untuk aksi sensitif | Izin `butuh_mfa` meminta TOTP bila verifikasi MFA terakhir di sesi > 15 menit | Lapis 5 (9.2.2); angka di konfigurasi |
+| K12 | Akses darurat (break-glass) | Ditunda ke fase 2 bersama RME (FR-26-12), karena butuh data pasien | Tidak ada data pasien di fase 1 |
+| K13 | Penyetuju izin pengelola akses | Izin `pengaturan.peran.*` dan `pengaturan.akun.*` aksi input/perbaiki (sensitif sejak 1.2c, `MenuBawaan::IZIN_SENSITIF`): penyetujunya **superadmin selain pengaju**. Dipasang sebagai data awal di 1.2d | Ketentuan pemilik produk 11 Okt 2026; kuasa setara superadmin hanya diberikan dengan kontrol ganda (PRD 9.2.4) |
+
+Bila pemilik produk mengubah keputusan, perubahan ditulis ke tabel ini lewat PR dan tiket terkait disesuaikan.
 
 ## Utang dan keputusan tertunda
 
@@ -45,21 +99,22 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
 - Superadmin dari `akses:superadmin-pertama` ditandai lewat audit `akses.superadmin_dibuat` (tanpa kolom baru) → tiket 1.2 memetakannya ke peran superadmin dan mengganti hitungan batas 2 di `SuperadminPertama`.
 - Registri perangkat terdaftar: sampai ada, semua sesi memakai batas diam 15 menit (`PerangkatBelumTerdaftar`). Belum ada tiket (ADR 0002).
 - Ganti pengguna cepat di komputer ruangan (kartu pegawai/PIN, PRD 14.2). Belum ada tiket (ADR 0002).
-- Cek sandi kontekstual (sandi memuat nama pengguna, nama RS, atau nama produk) saat fitur ganti sandi dibuat (ADR 0001).
+- Cek sandi kontekstual (sandi memuat nama pengguna, nama RS, atau nama produk) saat fitur ganti sandi dibuat (ADR 0001) → tiket 1.8d.
 
 **Syarat sebelum go-live**
-- Uji beban penulisan audit: semua penulisan antre di satu kunci rantai sampai commit (ADR 0003, PRD 14.1).
-- `AUDIT_JANGKAR_DISK` ke penyimpanan terpisah yang tidak bisa ditimpa (mis. MinIO object lock) dan channel log `audit_jangkar` ke SIEM (ADR 0003).
-- Cron `php artisan schedule:run` di server (partisi audit, jangkar per jam; ADR 0003).
+- Uji beban penulisan audit: semua penulisan antre di satu kunci rantai sampai commit (ADR 0003, PRD 14.1) → tiket 1.12.
+- `AUDIT_ANCHOR_DISK` ke penyimpanan terpisah yang tidak bisa ditimpa (mis. MinIO object lock) dan channel log `audit_anchor` ke SIEM (ADR 0003).
+- Cron `php artisan schedule:run` di server (partisi audit, anchor per jam; ADR 0003).
 - `AUTENTIKASI_MFA_JARINGAN_RS` diisi jaringan RS yang sebenarnya (PRD 10.3.2; ditegakkan di tiket 1.1c).
 - Daftar sandi bocor diperbarui dari SecLists terbaru (ADR 0001, `SUMBER.md`).
 
 **Repo dan teknis**
 - Aturan cabang `main` (merge hanya lewat PR, check `backend`/`frontend`/`e2e` wajib hijau) **belum aktif**: GitHub Free menolak proteksi cabang dan rulesets untuk repo privat. Perlu GitHub Pro atau repo dipindah ke organisasi berpaket Team. Sampai itu, merge setelah CI hijau dijaga lewat kebiasaan kerja.
 - Dependensi frontend tertinggal satu-dua versi mayor (per 11 Okt 2026): `vite` 6 → 8, `@vitejs/plugin-vue` 5 → 6, `typescript` 5.8 → 7, `vue-tsc` 2 → 3, `vue-router` 4 → 5, `@vue/tsconfig` 0.7 → 0.9. Naikkan dalam tiket sendiri, bukan sambil lalu.
-- Profil RS di frontend sementara dari variabel Vite (`VITE_RS_NAMA`, `VITE_RS_LOGO`, `VITE_RS_MOTIF`, `VITE_RS_FOTO`, `VITE_RS_UNIT_ADMIN`, `VITE_RS_KONTAK_ADMIN`; `frontend/src/app/profilRs.ts`). Nilai contoh RS USU hanya di `frontend/.env.development`; build produksi tanpa nilai ini tidak menampilkan kartu RS, motif, dan foto gedung. Ganti dengan `inti.profil_rs` lewat API di tiket 1.8.
+- Profil RS di frontend sementara dari variabel Vite (`VITE_RS_NAMA`, `VITE_RS_LOGO`, `VITE_RS_MOTIF`, `VITE_RS_FOTO`, `VITE_RS_UNIT_ADMIN`, `VITE_RS_KONTAK_ADMIN`; `frontend/src/app/profilRs.ts`). Nilai contoh RS USU hanya di `frontend/.env.development`; build produksi tanpa nilai ini tidak menampilkan kartu RS, motif, dan foto gedung. Ganti dengan `inti.profil_rs` lewat API di tiket 1.8a.
 - Dari library PRD 10.4, baru axios dan TanStack Query (1.2b) yang dipakai. VeeValidate + Zod dan Tailwind/Reka UI belum dipasang; pasang saat halaman pertama yang membutuhkannya, bukan sekaligus.
 - Hak akses 1.2a yang belum lengkap: `peran_menu.tingkat_akses/urutan_khusus/label_khusus` (PRD 11.2, layar 9.3) belum dibuat, aksi diambil dari `peran_izin`; cakupan `pasien_dirawat` belum dievaluasi (butuh relasi perawatan); `inti.modul_aktif.unit_organisasi_id` belum berkunci tamu dan modul per unit belum dipakai (menunggu `inti.unit_organisasi`); persetujuan pemilik data untuk izin sensitif dan perubahan peran superadmin di 1.2d (sampai itu ditolak dengan 409 `butuh_persetujuan`/`peran_bawaan_terkunci`, bukan disimpan diam-diam).
+- Hak akses 1.2a yang belum lengkap: `peran_menu.tingkat_akses/urutan_khusus/label_khusus` (PRD 11.2, layar 9.3) belum dibuat, aksi diambil dari `peran_izin`; cakupan `pasien_dirawat` belum dievaluasi (butuh relasi perawatan); `inti.modul_aktif.unit_organisasi_id` belum berkunci tamu dan modul per unit belum dipakai (menunggu `inti.unit_organisasi`, tiket 1.8a); larangan memberi akses ke diri sendiri dikerjakan di 1.2c-be; persetujuan pemilik data untuk izin sensitif dan perubahan peran superadmin di 1.2d (sampai itu ditolak dengan 409 `butuh_persetujuan`/`peran_bawaan_terkunci`, bukan disimpan diam-diam).
 - Sesudah 1.0g: worktree yang dibuat sebelum #29 merge (mis. 1.2c-fe) perlu rebase ke `main` dan mengganti `GalatApi`/`galat` → `ApiError`/`error`, `lencana` → `jumlah_tugas`, `tantangan_id` → `challenge_id`, rute `/data-induk` → `/master-data`, ikon `data_induk` → `master_data`; `.env` lokal mengganti variabel yang berganti nama (daftar di PR #29). Berkas anchor audit lokal lama ada di `storage/app/audit/jangkar`: pindahkan isinya ke `storage/app/audit/anchor` bila ingin tetap diverifikasi.
 - Sesudah 1.2c-be: data tiruan dan uji unit frontend (`frontend/src/modules/akses/tiruan/menuSaya.ts`, `menu.spec.ts`, `SidebarMenu.spec.ts`, `HalamanMenu.spec.ts`, `usePermission.spec.ts`) masih memakai `master_data.peran|akun` dan rute `/master-data/peran|akun`; backend kini `pengaturan.*` → diganti di 1.2c-fe. Peran yang `wajib_mfa`-nya dinyalakan tidak memutus sesi pemegang tanpa MFA (ADR 0002) → MFA ulang di tiket 1.5 (K11). Penugasan peran berizin sensitif dan pengakhiran penugasan superadmin ditolak 409 sampai tiket 1.2d.
 - Izin pengelola akses `pengaturan.{peran,akun}.{input,perbaiki}` ditandai sensitif oleh `MenuBawaan::IZIN_SENSITIF` (1.2c, dari tinjauan #32; PRD 9.2.4): tidak bisa dibagikan lewat peran biasa atau per akun sampai 1.2d, dan pemegangnya wajib MFA. Tiket 1.2d perlu menetapkan peran penyetujunya (K3); admin delegasi per unit (FR-09-07) memakai izin terpisah, bukan izin ini.
@@ -67,8 +122,8 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
 - Teks yang sengaja masih memuat istilah lama: migrasi yang sudah berjalan (sejarah, maju saja), ADR 0003 (diberi catatan nama baru), `docs/fase0/`, prototipe `docs/html/`, badan tiket lama di backlog, dan bagian "Kerja berkelanjutan" di CLAUDE.md (teks disetujui pemilik repo apa adanya).
 - Nama ikon yang dikenal frontend = kode menu prototipe (`frontend/src/design-system/ikon/ikon.ts`: `beranda`, `pendaftaran`, `igd`, `rawat_jalan`, `rawat_inap`, `kamar_operasi`, `penunjang`, `farmasi`, `rekam_medis`, `kasir`, `casemix`, `mutu`, `sdm`, `logistik`, `penelitian`, `pendidikan`, `integrasi`, `dasbor`, `master_data`, `pengaturan`). Seeder menu 1.2a memakai nama ini; nama lain tampil sebagai ikon umum.
 - Sidebar ringkas 64 px (tablet mendatar) tidak menampilkan sub-menu. Halaman induk setiap modul wajib menampilkan navigasi sub-menunya sendiri (komponen bersama dibuat di 1.2c-fe, wajib dipakai modul berikutnya).
-- Pemilih unit kerja dan lonceng notifikasi di header prototipe belum dibuat: unit kerja menunggu `inti.unit_organisasi` (cakupan penugasan per unit sudah ada sejak 1.2a), notifikasi di tiket 1.7.
-- Tombol, kolom isian, dan pesan galat di halaman masuk masih ditulis per komponen (`LangkahSandi.vue` dan `components/langkah-mfa.css` bergaya sama). Pindahkan ke `frontend/src/design-system/` saat komponen dasar dibuat (DESIGN.md).
+- Pemilih unit kerja dan lonceng notifikasi di header prototipe belum dibuat: unit kerja menunggu `inti.unit_organisasi` (tiket 1.8a; cakupan penugasan per unit sudah ada sejak 1.2a), notifikasi di tiket 1.7.
+- Tombol, kolom isian, dan pesan error di halaman masuk masih ditulis per komponen (`LangkahSandi.vue` dan `components/langkah-mfa.css` bergaya sama). Pindahkan ke `frontend/src/design-system/` saat komponen dasar dibuat (DESIGN.md) → tiket 1.11.
 
 Branch `lampiran/pr-1.4b` berisi gambar yang dirujuk deskripsi PR #10; jangan dihapus selama gambar itu masih dibutuhkan.
 
@@ -423,13 +478,44 @@ Di luar lingkup tiket: antrean persetujuan dan permintaan akses (1.2d), label se
 favorit menu.
 ```
 
-## [SIMRS] Akses · 1.2d Persetujuan akses (garis besar, dirinci setelah 1.2c)
+## [SIMRS] Akses · 1.2d Persetujuan akses
 
 ```
-Isi        : persetujuan_akses (izin sensitif → pemilik data; peran/penugasan superadmin → superadmin lain),
-             permintaan_akses dari layar "Akses ditolak", pembuatan/penonaktifan akun terhubung sdm.pegawai,
-             saran jadikan peran (FR-09-15). Menggantikan 409 butuh_persetujuan dan peran_bawaan_terkunci 1.2c.
-Butuh dulu : siapa "pemilik data" per izin sensitif (data induk), notifikasi 1.7 untuk penyetuju.
+Tujuan     : Pemberian akses berisiko tidak pernah aktif tanpa persetujuan orang yang berwenang, dan pengguna bisa
+             meminta akses yang ia butuhkan tanpa telepon ke TI.
+FR         : PRD 9.2.3, 9.2.4, 9.3 (antrean persetujuan, permintaan akses), FR-09-06, FR-09-15; keputusan K3, K4
+Tabel      : akses.persetujuan_akses (jenis: izin_sensitif | peran_superadmin | pengecualian; objek; diajukan_oleh;
+             penyetuju_peran_id/penyetuju_id; status menunggu/disetujui/ditolak/kedaluwarsa; alasan; diputuskan_pada),
+             akses.permintaan_akses (11.2), kolom akses.izin.peran_penyetuju_id
+API (be)   : GET/POST /persetujuan-akses (daftar "untuk saya putuskan" dan "yang saya ajukan"), POST .../{id}/setujui,
+             POST .../{id}/tolak (alasan wajib); POST /permintaan-akses (dari layar Akses ditolak: menu/izin yang
+             diminta + alasan), GET /permintaan-akses; PUT /izin/{kode}/penyetuju (atur peran penyetuju izin sensitif)
+Pekerjaan  :
+  be 1. Ganti penolakan 409 butuh_persetujuan dan peran_bawaan_terkunci dari 1.2c: perubahan disimpan sebagai
+        persetujuan menunggu, baru berlaku saat disetujui (dalam transaksi yang sama dengan penerapannya).
+     2. Penyetuju: izin sensitif → pemegang peran penyetuju izin itu; superadmin → superadmin lain. Pengaju tidak
+        pernah bisa menyetujui permintaannya sendiri (cek di server). Kedaluwarsa 7 hari (jadwal harian).
+     3. Permintaan akses diteruskan ke pemberi kewenangan; bila disetujui, pemberi membuat pengecualian/penugasan
+        dengan dasar = nomor permintaan.
+     4. Saran jadikan peran bila pengecualian yang sama dipakai ≥ 5 akun (FR-09-15): endpoint saran di daftar akun.
+     5. Setiap keputusan: audit + hapus cache menu akun terdampak. Notifikasi ke penyetuju lewat 1.7 (sebelum 1.7
+        ada: hanya tampil di antrean).
+     6. Data awal (K13): penyetuju izin pengelola akses (`pengaturan.peran.*`, `pengaturan.akun.*` aksi input/perbaiki)
+        = peran superadmin, dengan pengaju tidak boleh menyetujui sendiri (butir be 2). Dipasang lewat migrasi/MenuBawaan,
+        aman diulang, tidak menimpa penyetuju yang sudah diubah admin.
+  fe 1. Layar Pengaturan → Persetujuan (tab "Perlu saya putuskan" / "Yang saya ajukan"), kartu rinci: siapa, apa,
+        dasar, dampak (akun terdampak), tombol Setujui/Tolak hanya untuk penyetuju yang ditunjuk (MD-4).
+     2. Halaman "Akses ditolak" (403 dari rute/halaman) dengan tombol "Minta akses" (satu klik + alasan).
+     3. Di editor peran dan akun 1.2c: izin sensitif yang ditambah tampil "Menunggu persetujuan <peran>" alih-alih error.
+Uji penerimaan:
+  - Izin sensitif tanpa penyetuju → tidak bisa dipilih (422 penyetuju_belum_ditetapkan).
+  - Data awal K13: superadmin A menambah `pengaturan.akun.perbaiki` ke peran X → menunggu; superadmin B menyetujui → berlaku;
+    A tidak bisa menyetujui permintaannya sendiri.
+  - Pengaju menyetujui sendiri → 403; penyetuju lain → berlaku, akun terdampak melihat menu baru.
+  - Superadmin A menugaskan peran superadmin ke akun C → menunggu; superadmin B menyetujui → berlaku; A tidak bisa.
+  - Permintaan kedaluwarsa setelah 7 hari tanpa keputusan (uji dengan waktu dimajukan).
+  - e2e: pengguna tanpa izin membuka rute → Akses ditolak → minta akses → admin melihat permintaan.
+Di luar lingkup tiket: admin delegasi per unit (FR-09-07, fase 2), tinjauan akses 6 bulanan (fase 4).
 ```
 
 ## [SIMRS] Platform · 1.2e Beranda
@@ -478,8 +564,331 @@ Di luar lingkup tiket: isi kotak kerja dan lonceng (1.7), pemilih unit kerja (me
 favorit menu, pencarian pasien (fase 2).
 ```
 
-<!-- Catatan untuk tiket 1.8 (wizard penyiapan): langkah 3 kini mencakup lokasi fisik bertingkat (PRD FR-54-11…14)
-     dan kamar/TT dengan atribut standar (FR-08-16…19); impor CSV lokasi wajib. -->
+## [SIMRS] Master Data · 1.8a Profil RS, unit organisasi, KSM
+
+```
+Tujuan     : Identitas RS dan struktur organisasi datang dari data, bukan variabel build; dasar untuk cakupan akses,
+             atasan (eskalasi), lokasi, dan pegawai.
+FR         : PRD 3.4 (paket identitas), FR-54-01, FR-54-08 langkah 2–3, 11.2 inti.profil_rs, unit_organisasi, ksm
+API (be)   : GET /profil-rs (publik terbatas: nama, logo, warna, kontak admin — untuk halaman masuk), PUT /profil-rs;
+             unggah logo/motif/foto ke MinIO (tipe dan ukuran dibatasi, dipindai tipe sebenarnya);
+             CRUD /unit-organisasi (pohon, induk, jenis, kepala_pegawai_id menyusul 1.8d, status, berlaku_dari);
+             CRUD /ksm
+Pekerjaan  :
+  be 1. Tabel dan endpoint di atas; warna merek diuji kontras otomatis (teks di latar putih ≥ 4,5:1, isian ≥ 3:1 →
+        422 kontras_kurang) (FR-54-08 langkah 2).
+     2. Cakupan penugasan `unit` (1.2c: 422 cakupan_belum_didukung) kini didukung untuk unit; AccessEvaluator lapis 3
+        memakai pohon unit (unit induk mencakup turunannya).
+     3. inti.modul_aktif.unit_organisasi_id berkunci tamu (utang 1.2a).
+     4. Izin menu master_data.organisasi.* dan profil di pengaturan.profil_rs.*.
+  fe 1. Halaman profil RS (pratinjau halaman masuk dan sidebar dengan identitas baru) dan pohon unit + KSM.
+     2. Ganti `frontend/src/app/profilRs.ts` (VITE_RS_*) dengan GET /profil-rs; build produksi tanpa variabel tetap
+        bekerja. Pemilih unit kerja di header (utang 1.2b) bila akun punya penugasan ber-cakupan unit.
+Uji penerimaan:
+  - Logo baru tampil di halaman masuk tanpa build ulang; logo SVG berisi skrip ditolak.
+  - Warna dengan kontras kurang ditolak dengan pesan rasio.
+  - Penugasan cakupan unit "Instalasi Rawat Inap" memberi akses data unit turunannya saja (uji AccessEvaluator).
+  - Pohon unit 500 node: daftar memakai paginasi/lazy load, P95 < 300 ms lokal.
+Di luar lingkup tiket: pusat biaya (fase 4), SATUSEHAT Organization (1.9).
+```
+
+## [SIMRS] Master Data · 1.8b Lokasi fisik, ruang, dan tempat tidur
+
+```
+Tujuan     : RS sebesar apa pun bisa memetakan gedung → lantai → ruang → TT, mengubah jumlah TT dengan aman, dan
+             setiap kunjungan nanti punya lokasi nyata (SATUSEHAT Encounter.location).
+FR         : PRD FR-54-11…14, FR-08-16…20 (kecuali usulan berjenjang = 1.8c), 11.2 lokasi, bangsal/kamar/tempat_tidur,
+             kapasitas_tempat_tidur_harian, kelas_rawat, poliklinik
+API (be)   : CRUD /lokasi (pohon; pindah induk; status dengan berlaku_dari), POST /lokasi/impor (CSV, mode
+             pratinjau dulu lalu terapkan), CRUD /bangsal, /kamar, /tempat-tidur, /kelas-rawat, /poliklinik;
+             GET /kapasitas-tempat-tidur?tanggal=
+Pekerjaan  :
+  be 1. Validasi: kode unik per induk, tanpa siklus, TT hanya di bawah ruang, jenis anak sesuai jenis induk.
+     2. Kode TT tidak pernah dihapus/dipakai ulang; penutupan lewat status_operasional dan berlaku_sampai.
+        TT terisi/dipesan tidak bisa ditutup (aturan siap, karena penempatan pasien baru ada di fase 2: sediakan
+        antarmuka `PemeriksaPenempatan` yang di fase 1 selalu "kosong").
+     3. Tugas harian mengisi kapasitas_tempat_tidur_harian (jumlah tersedia dan ekstra per bangsal/kelas).
+     4. Atribut standar kamar (FR-08-19) sebagai daftar periksa data induk; peringatan bila TT > kapasitas maksimum.
+     5. Impor CSV: templat diunduh dari layar; pratinjau menampilkan baris salah beserta alasannya; terapkan
+        dalam satu transaksi; 5.000 baris < 30 detik (lewat queue `dokumen` bila perlu).
+     6. Kejadian `KapasitasTempatTidurBerubah` (dipakai Aplicares di 1.9).
+  fe 1. Layar Master Data → Organisasi, Unit, Ruang & Tempat Tidur: pohon lokasi (lipat, cari kode), panel rinci,
+        tambah/ubah/tutup dengan tanggal berlaku, impor CSV dengan pratinjau.
+     2. Ringkasan per bangsal: jumlah TT per kelas, ekstra, ditutup; peringatan kapasitas kamar.
+Uji penerimaan:
+  - Impor 3 gedung × 8 lantai × 30 ruang × 4 TT dari CSV berhasil; CSV dengan siklus/duplikat ditolak per baris.
+  - Menutup TT dengan berlaku_dari besok: hari ini masih dihitung, besok tidak (kapasitas harian).
+  - Kode TT yang ditutup tidak bisa dipakai untuk TT baru.
+  - Tablet 1024 px: pohon dan panel rinci berdampingan tanpa gulir horizontal halaman.
+Di luar lingkup tiket: peta TT dan penempatan pasien (fase 2), denah gambar (FR-54-13, S → fase 2), sinkron Aplicares (1.9).
+```
+
+## [SIMRS] Master Data · 1.8c Usulan perubahan data induk berjenjang
+
+```
+Tujuan     : Setelah instalasi melayani pasien, perubahan data induk penting (TT, nanti tarif, formularium) lewat usulan
+             → verifikasi → persetujuan → berlaku pada tanggalnya, dengan versi dan jejak.
+FR         : PRD FR-54-01, FR-54-02, FR-08-16; prototipe masterdata.html bagian Usulan (U-0405 dsb.)
+API (be)   : POST /usulan-data-induk (jenis_data, objek, nilai_lama, nilai_baru, berlaku_dari, alasan, dasar),
+             GET /usulan-data-induk (filter tahap), POST .../{id}/verifikasi | setujui | kembalikan (catatan wajib),
+             POST .../{id}/kirim-ulang; GET /data-induk/{jenis}/{id}/riwayat-versi
+Pekerjaan  :
+  be 1. Mesin generik: alur per jenis data induk di konfigurasi (pemilik, pemverifikasi, penyetuju — peran);
+        pengusul tidak boleh memverifikasi/menyetujui usulannya sendiri.
+     2. Penerapan otomatis pada berlaku_dari pukul 00.00 waktu RS (tugas terjadwal, idempoten); versi lama tersimpan.
+     3. Jenis pertama: ruang dan TT (tambah/kurangi/tutup) memakai aturan 1.8b. Setelah status instalasi
+        "melayani", perubahan TT langsung dari 1.8b ditolak (409 harus_lewat_usulan) kecuali status darurat lonjakan
+        (TT ekstra) yang tetap tercatat.
+     4. Notifikasi ke pemverifikasi/penyetuju lewat 1.7.
+  fe 1. Layar Master Data → Usulan perubahan (seperti prototipe, tanpa tombol "Peragaan"): daftar, rinci dengan
+        perbedaan lama → baru, alur bertahap, kembalikan dengan catatan, riwayat versi.
+Uji penerimaan:
+  - Usulan ICU 12 → 16 TT disetujui untuk tanggal besok: berlaku otomatis besok, kapasitas harian berubah besok.
+  - Pengusul mencoba menyetujui → 403. Dikembalikan → pengusul memperbaiki dan kirim ulang.
+  - Penerapan terjadwal yang dijalankan dua kali tidak menggandakan perubahan.
+Di luar lingkup tiket: jenis data tarif/formularium (fase 2–3, memakai mesin ini).
+```
+
+## [SIMRS] SDM · 1.8d Pegawai, izin praktik, akun dari pegawai
+
+```
+Tujuan     : Setiap akun milik pegawai yang tercatat, dan syarat profesi (STR/SIP/SPK/RKK) tersedia untuk lapis 5
+             hak akses dan pengingat.
+FR         : PRD 11.2 sdm.pegawai, izin_praktik, kewenangan_klinis; FR-54-08 langkah 5; 9.2.6; keputusan K5
+API (be)   : CRUD /pegawai (paginasi; NIK disimpan terenkripsi, ditampilkan dengan masking kecuali izin khusus),
+             CRUD /pegawai/{id}/izin-praktik (unggah dokumen), CRUD /pegawai/{id}/kewenangan-klinis (minimal: daftar
+             kode tindakan + masa berlaku), POST /pegawai/{id}/akun (buat akun: nama pengguna, sandi awal sekali
+             tampil atau tautan aktivasi; wajib ganti sandi saat masuk pertama), POST /akun/{id}/nonaktifkan
+             dan /aktifkan (alasan wajib)
+Pekerjaan  :
+  be 1. Tabel dan endpoint; kepala unit (unit_organisasi.kepala_pegawai_id) untuk eskalasi 1.7.
+     2. Pegawai berstatus keluar → akun nonaktif otomatis dan sesi diputus (9.2.6); tercatat audit.
+     3. Ganti sandi (fitur pertama): aturan sandi PRD 14.2 + cek sandi bocor + cek kontekstual (utang ADR 0001:
+        memuat nama pengguna, nama RS, atau nama produk → ditolak).
+     4. Akun sintetis tetap dari seeder, kini dengan pegawai sintetis lengkap.
+  fe 1. Layar SDM → Pegawai (daftar, rinci, izin praktik dengan status berlaku/akan habis/habis), tombol "Buat akun".
+     2. Layar ganti sandi (dipaksa saat masuk pertama) dan dari menu akun.
+     3. Di Pengaturan → Akun: tombol Nonaktifkan/Aktifkan dengan dialog alasan.
+Uji penerimaan:
+  - Membuat akun dari pegawai → masuk pertama dipaksa ganti sandi; sandi berisi nama pengguna ditolak.
+  - Pegawai diubah menjadi keluar → akun nonaktif, sesi berjalan diputus di permintaan berikutnya.
+  - NIK tidak pernah muncul utuh di daftar maupun log.
+Di luar lingkup tiket: jadwal dinas, kredensial lengkap komite (fase 4), peserta didik (fase 5).
+```
+
+## [SIMRS] Master Data · 1.8e Pemuat paket referensi
+
+```
+Tujuan     : Instalasi baru bisa memuat data rujukan nasional dengan sumber dan versi yang jelas, tanpa menghapus kode lama.
+FR         : PRD FR-54-09 (tabel paket), keputusan K7
+Pekerjaan  : 1. inti.paket_referensi + perintah `php artisan referensi:muat <paket> <berkas>` dan endpoint unggah untuk
+                wizard; tiap paket punya pemeta kolom dan validasi.
+             2. Paket dikemas: wilayah, UCUM, subset LOINC (atribusi Regenstrief di layar Tentang), kode variabel RME.
+                Sumber dan versi ditulis di berkas SUMBER.md per paket; versi terbaru perlu dicek saat rilis.
+             3. ICD-10/ICD-9-CM: hanya pemuat dari berkas yang disediakan RS; tidak ada berkas ICD di repo.
+             4. Pembaruan versi: kode yang hilang ditandai tidak aktif, tetap terbaca di data historis.
+Uji penerimaan: memuat ulang versi sama idempoten; versi baru menonaktifkan kode yang hilang; berkas rusak ditolak
+             dengan nomor baris.
+Di luar lingkup tiket: KFA dan referensi BPJS (ditarik lewat API di 1.9), SNOMED CT.
+```
+
+## [SIMRS] Platform · 1.8f Wizard penyiapan instalasi kosong
+
+```
+Tujuan     : Instalasi baru dipandu langkah demi langkah sampai siap, dan tidak bisa melayani pasien sebelum syarat lengkap.
+FR         : PRD FR-54-08 (9 langkah), 3.4, keputusan K6
+API (be)   : GET /penyiapan (status tiap langkah: belum/sebagian/selesai + apa yang kurang), POST /penyiapan/{langkah}/selesai
+Pekerjaan  :
+  be 1. Status penyiapan di inti.profil_rs; langkah 1 dicek dari jumlah superadmin ber-MFA (≥ 2), langkah 2 dari
+        1.8a, langkah 3 dari 1.8a/1.8b, langkah 4 dari 1.8e, langkah 5 dari 1.8d, langkah 6–7 kerangka (K6), langkah 8
+        dari 1.9 (uji koneksi atau ditandai "dilewati: belum ada kredensial"), langkah 9 modul aktif.
+     2. Penjaga `instalasi.siap_melayani`: dipakai modul fase 2 untuk menolak transaksi pasien sebelum langkah 1–6 lengkap.
+     3. Setiap langkah tercatat audit; bisa diulang.
+  fe 1. Layar Pengaturan → Penyiapan: daftar langkah dengan status dan tautan ke layar pengisinya (bukan formulir
+        duplikat), indikator "Instalasi belum bisa melayani pasien" di Beranda superadmin.
+Uji penerimaan: instalasi kosong menampilkan 9 langkah belum selesai; setelah data sintetis lengkap, langkah 1–5 dan 9
+             selesai, 6–7 "menunggu fase 2", penjaga siap_melayani = false sampai 6 lengkap.
+```
+
+## [SIMRS] Platform · 1.7 Notifikasi, kotak kerja, dan eskalasi
+
+```
+Tujuan     : Tugas yang tertinggal dikejar sistem (pengingat → teguran → eskalasi), dan setiap pengguna punya satu tempat
+             untuk melihat apa yang harus ia kerjakan.
+FR         : PRD 7.53 (FR-53-01…09), 14.2 (pemberitahuan akun terkunci, issue #11); keputusan K1, K2
+Tabel      : notifikasi.notifikasi (partisi), tugas.jenis_tugas (tenggat, tingkat, penerima per tingkat, kritis),
+             tugas.tugas (jenis, objek, pelaksana/unit, tenggat, status, tingkat_saat_ini), tugas.riwayat_tugas,
+             notifikasi.preferensi
+API (be)   : GET /saya/notifikasi (kursor, ETag; belum dibaca dulu), POST /saya/notifikasi/{id}/dibaca, POST .../semua-dibaca;
+             GET /saya/tugas?tab=saya|unit|dieskalasi|selesai; GET /tugas/{id} (riwayat); CRUD /jenis-tugas (data induk);
+             GET/PUT /saya/preferensi-notifikasi
+Pekerjaan  :
+  be 1. Mesin tugas: dibuat dari kejadian domain; tugas selesai otomatis saat kejadian penyelesai datang (bukan
+        tombol manual); tautan langsung ke layar penyelesaian.
+     2. Eskalasi terjadwal (queue `notifikasi`): tingkat 1 ke pelaksana sebelum tenggat, tingkat 2 ke kepala unit
+        (1.8a/1.8d) saat lewat, tingkat 3 ke kepala bidang + penanda dasbor Direktur. Tenggat dan tingkat dari
+        jenis_tugas (konfigurasi, FR-53-04).
+     3. Jenis bawaan fase 1: akun terkunci (pemberitahuan ke pemilik akun — issue #11), persetujuan akses menunggu
+        (1.2d), permintaan akses, usulan data induk menunggu (1.8c), SIP/STR berakhir 30 hari (1.8d). Jenis klinis
+        FR-53-05 lainnya dibuat modulnya di fase 2+.
+     4. Kanal: in-app (polling 30 dtk + ETag), email (Mailable, queue `notifikasi`), adapter WA/SMS driver `log`.
+        Notifikasi kritis tidak bisa dimatikan preferensi. Isi notifikasi tanpa data pasien di email/SMS.
+  fe 1. Lonceng di header (jumlah belum dibaca, daftar ringkas), halaman notifikasi.
+     2. Kotak kerja di Beranda (komponen dari 1.2e) dengan tab Tugas saya / Unit saya / Sudah dieskalasi / Selesai
+        bulan ini, setiap tugas berisi tenggat, tingkat, tombol ke layar penyelesaian; riwayat tugas.
+     3. Layar data induk Jenis tugas & tenggat (Master Data). Preferensi notifikasi di menu akun.
+     4. Ponsel < 768 px: kotak kerja ringkas dan notifikasi wajib berfungsi (PRD 5.5).
+Uji penerimaan:
+  - Akun terkunci → pemilik akun menerima notifikasi in-app dan email (tanpa sandi/IP lengkap di isi).
+  - Tugas dengan tenggat 1 jam: pengingat, lalu teguran ke kepala unit setelah lewat, lalu eskalasi (waktu dimajukan).
+  - Kejadian penyelesai menutup tugas otomatis; riwayat lengkap.
+  - 10.000 notifikasi untuk satu akun: daftar tetap paginasi kursor, P95 < 200 ms; polling dengan ETag menjawab 304.
+Di luar lingkup tiket: WebSocket/Reverb (fase 2), push mobile, kinerja tindak lanjut unit FR-53-08 (fase 4 dasbor).
+```
+
+## [SIMRS] TTE · 1.6 Tanda tangan elektronik T1
+
+```
+Tujuan     : Setiap pengesahan di SIMRS ditandatangani oleh orangnya sendiri dengan cara yang memenuhi enam syarat
+             PP 71/2019 Ps. 59 ayat 3, dan bisa diverifikasi kapan saja.
+FR         : PRD 7.57.1–7.57.2, FR-57-01…03, FR-57-05; 11.2 ttd.*; keputusan K10
+API (be)   : POST /saya/ttd/aktivasi (buat pasangan kunci + PIN), PUT /saya/ttd/pin (ganti), POST /ttd/{pengguna}/reset
+             (oleh atasan + SDM, dua persetujuan lewat 1.2d), POST /ttd/tandatangani (satu atau banyak objek; isi kanonik
+             dihitung server, bukan dikirim klien), GET /ttd/verifikasi/{objek_jenis}/{objek_id}
+Pekerjaan  :
+  be 1. Ed25519 (ext-sodium); kunci privat dibungkus kunci turunan PIN (Argon2id + garam per pengguna); PIN hanya
+        hash. Tidak ada jalur admin untuk menandatangani atas nama orang lain (uji negatif).
+     2. Isi kanonik JSON (urutan kunci tetap) → SHA-256 → tanda tangan; disimpan dengan cap waktu server (NTP).
+     3. PIN: 6 digit, tolak berurutan/berulang; 5 salah → kunci 15 menit + notifikasi ke atasan (1.7).
+        Sesi tanda tangan 15 menit (konfigurasi), setiap objek tetap tercatat terpisah.
+     4. Reset PIN membuat pasangan kunci baru; tanda tangan lama tetap terverifikasi dengan kunci publik lama.
+     5. Aturan tingkat tanda tangan per jenis dokumen (FR-57-05) sebagai data induk; fase 1 hanya T1 aktif.
+     6. Antarmuka `PenyediaTte` + `SimulatorTte` (T2) untuk uji alur asinkron (menunggu → ditandatangani via webhook
+        tiruan); tidak ada penyedia nyata.
+     7. Objek pertama yang memakai TTE: persetujuan akses (1.2d) dan usulan data induk (1.8c).
+  fe 1. Aktivasi TTE (menu akun): buat PIN dua kali, penjelasan singkat arti tanda tangan.
+     2. `TtdModal` di design-system (dari prototipe common.js yang sudah diperbaiki: menampilkan ringkasan isi dan
+        identitas penanda tangan = akun yang masuk, kalimat persetujuan, PIN, Esc/fokus terjebak); mode massal
+        dengan daftar objek. Penanda tangan ≠ akun masuk → mode "minta tanda tangan", tidak bisa menandatangani.
+     3. Badge "Ditandatangani <nama>, <waktu> · terverifikasi" dengan tombol verifikasi ulang.
+Uji penerimaan:
+  - Isi diubah setelah ditandatangani → verifikasi gagal dan ditandai.
+  - Admin dengan akses DB tidak bisa membuat tanda tangan valid tanpa PIN (uji: kunci terbungkus tidak bisa dibuka).
+  - 5 PIN salah → terkunci, atasan menerima notifikasi.
+  - Tanda tangan massal 12 objek = 12 baris ttd.tanda_tangan dengan hash masing-masing.
+Di luar lingkup tiket: PSrE nyata, segel elektronik RS, halaman verifikasi publik ber-QR, tanda tangan pasien di
+tablet (fase 2 bersama dokumen dan persetujuan tindakan).
+```
+
+## [SIMRS] Akses · 1.5 Lapis 4–5 hak akses
+
+```
+Tujuan     : Data paling sensitif dan aksi klinis hanya terbuka bila syarat yang tidak bisa diberikan admin terpenuhi.
+FR         : PRD 9.2.2 lapis 4–5, 9.2.5, FR-09-05, FR-09-14; 11.2 label_sensitivitas, pengguna_label; keputusan K11, K12
+Pekerjaan  :
+  be 1. Label sensitivitas (data induk) dan pengguna_label dengan persetujuan pejabat PDP lewat 1.2d; wajib berbatas waktu.
+     2. AccessEvaluator lapis 4: antarmuka `PemeriksaLabel` (objek berlabel → akun punya izin label DAN relasi
+        perawatan; relasi perawatan fase 1 = antarmuka yang selalu "tidak merawat" sampai fase 2). Respons API
+        objek berlabel tanpa izin = penanda "Terbatas", bukan isi.
+     3. Lapis 5: izin dengan butuh_kewenangan_klinis ditolak bila SIP/SPK tidak berlaku atau RKK tidak memuat kode
+        tindakan (data 1.8d); izin dengan butuh_mfa meminta MFA ulang bila verifikasi terakhir > 15 menit (403
+        mfa_ulang_diperlukan + alur verifikasi TOTP tanpa keluar). Lapis 5 mengalahkan semua pemberian.
+     4. Pengingat SIP akan habis (jenis tugas 1.7) dan penguncian otomatis aksi klinis pada tanggal habis.
+  fe 1. Dialog MFA ulang (dipakai klien API saat menerima mfa_ulang_diperlukan, lalu mengulang permintaan).
+     2. Layar izin label di Pengaturan → Akun (tab baru) dan penanda "Terbatas" di komponen bersama.
+Uji penerimaan:
+  - Dokter dengan SIP habis kemarin → aksi klinis contoh (endpoint uji ber-izin butuh_kewenangan_klinis) 403
+    izin_praktik_tidak_berlaku walau perannya memberi.
+  - Aksi butuh_mfa 20 menit setelah MFA → diminta MFA ulang; setelah lolos, permintaan diulang otomatis.
+  - Izin label tanpa persetujuan PDP tidak aktif.
+Di luar lingkup tiket: akses darurat (K12), rotasi peserta didik (fase 5).
+```
+
+## [SIMRS] Integrasi · 1.9 Gateway integrasi dan simulator
+
+```
+Tujuan     : Semua kiriman ke BPJS/SATUSEHAT melewati satu gerbang yang tahan sistem luar mati, tercatat aman, dan
+             siap disambungkan ke sandbox/produksi begitu kredensial RS tersedia.
+FR         : PRD 10 (Integration Gateway + outbox), pola teknis wajib (adapter ExternalGateway, circuit breaker, retry
+             eksponensial, idempotency key, outbox, log dengan masking, dasbor kesehatan, sandbox & mock),
+             FR-49-01, 04, 05, 06, 07; FR-50-01 (baca saja), 03, 07, 08; 11.2 integrasi.*; keputusan K8, K9
+Rujukan    : docs/integrasi/catatan-lapangan-bridging.md (perilaku nyata dan jebakan; ikuti bagian "Selisih dengan PRD")
+API (be)   : GET /integrasi/sistem (status per sistem: lingkungan, kredensial terisi, circuit breaker, queue, error
+             terakhir), PUT /integrasi/sistem/{kode}/kredensial (tulis saja; respons hanya 4 karakter terakhir),
+             POST /integrasi/sistem/{kode}/uji-koneksi, GET /integrasi/kotak-keluar (kursor; filter status/tujuan),
+             POST /integrasi/kotak-keluar/{id}/kirim-ulang, GET /integrasi/log (dengan masking)
+Pekerjaan  :
+  be 1. Outbox integrasi.kotak_keluar (partisi) + pekerja queue `integrasi`: idempotency key, retry eksponensial
+        dengan batas, status tertahan bila data induk kurang (dengan penyebab dan pemilik unit, FR-49-04), kirim
+        ulang otomatis setelah data induk diperbaiki (FR-49-05). Circuit breaker per sistem.
+     2. Kredensial sesuai K9; lingkungan sandbox/produksi per sistem; perintah konsol untuk rotasi kunci.
+     3. Klien BPJS: header cons-id/timestamp/signature/user_key, dekripsi AES-256-CBC + LZString dengan timestamp
+        permintaan itu sendiri, parser metaData/metadata, kode 201 yang berarti sukses ditangani per endpoint.
+        Endpoint baca: peserta (nik/nokartu), rujukan dengan fallback FKTP → RS, referensi (dengan cache), uji koneksi
+        `referensi/propinsi`. Endpoint tulis (SEP, rujukan keluar, kontrol, SPRI) di fase 2 bersama pendaftaran.
+     4. Klien SATUSEHAT: token OAuth2 di cache (TTL expires_in − 60 dtk, kunci per client+lingkungan), pencarian IHS
+        Patient/Practitioner by NIK (hasil di cache tabel), registrasi Organization dan Location dari 1.8a/1.8b
+        (physicalType sesuai jenis lokasi, partOf berjenjang; duplikat 20002 dianggap wajar), pencarian KFA.
+        Bundle Encounter dsb. di fase 2.
+     5. Aplicares: kejadian KapasitasTempatTidurBerubah (1.8b) → outbox → bed/update; ruang tanpa kode kelas
+        Aplicares tertahan dengan penyebab.
+     6. Simulator (server tiruan dalam repo, jalan di CI dan lokal) untuk BPJS dan SATUSEHAT yang meniru: enkripsi,
+        bentuk respons, error, dan jebakan di catatan lapangan (path case-sensitive, metaData/metadata, 201 sukses,
+        Location duplikat, token kedaluwarsa, 5xx dan timeout untuk menguji circuit breaker).
+     7. Log integrasi.log_api: permintaan/respons di-masking (NIK, nama, no kartu, tanggal lahir), akses terbatas
+        izin integrasi.log.lihat, masa simpan di konfigurasi. Tidak ada payload utuh di log aplikasi.
+     8. Ubah catatan nomor 1 di bagian "Selisih dengan PRD" catatan lapangan agar merujuk keputusan K9.
+  fe 1. Layar Integrasi dan Laporan → Konfigurasi & status (prototipe integrasi.html): kartu per sistem (status, lingkungan,
+        circuit breaker, queue), formulir kredensial tulis-saja, tombol Uji koneksi, kotak keluar dengan filter dan kirim
+        ulang, log dengan masking. Tanpa angka tiruan.
+Uji penerimaan:
+  - Semua uji klien lulus terhadap simulator di CI; simulator mati → circuit breaker terbuka, kiriman menumpuk di
+    outbox, pekerja jenis lain tetap jalan; simulator hidup kembali → terkirim tanpa duplikat (idempotency).
+  - Kredensial tidak pernah muncul di respons API, log, atau pesan error.
+  - Location SATUSEHAT terdaftar berjenjang gedung → lantai → ruang dari data 1.8b (terhadap simulator).
+  - Perubahan kapasitas TT menghasilkan kiriman Aplicares; ruang tanpa kode kelas tertahan dengan penyebab.
+  - Dengan kredensial sandbox nyata (bila kelak tersedia): uji koneksi BPJS dan SATUSEHAT berhasil tanpa ubah kode.
+Di luar lingkup tiket: SEP dan transaksi BPJS tulis, bundle FHIR klinis, E-Klaim, Antrean Online, Apotek Online,
+i-Care (fase 2–3, memakai gateway ini).
+```
+
+## [SIMRS] Platform · 1.11 Design system
+
+```
+Tujuan     : Komponen yang dipakai berulang dibuat sekali, konsisten, dan dapat diakses, sebelum modul fase 2 menulis
+             ratusan layar.
+FR         : PRD 5.3 (token), 5.4 (komponen inti), 5.5, DESIGN.md; utang "komponen halaman masuk per komponen"
+Pekerjaan  : 1. Komponen yang dibutuhkan fase 1–2 awal: DataTable (kursor "Muat lagi", kolom prioritas di tablet,
+                virtual scroll), KpiCard (hanya dari data asli), PohonData (pohon lipat, keyboard), FormulirBertahap,
+                Badge/Pil status, KeadaanKosong, NotifikasiToast, PencarianMenu (dari 1.2e) — sisanya dibuat saat
+                modulnya membutuhkan.
+             2. Pindahkan tombol/isian/pesan error halaman masuk ke design-system (utang 1.4b).
+             3. Halaman katalog komponen hanya di mode pengembangan (tidak ikut build produksi), tiap komponen dengan
+                contoh keadaan normal/kosong/error/memuat, dan uji axe.
+Uji penerimaan: tidak ada HEX di komponen (lint), axe tanpa pelanggaran serius di katalog, unit test per komponen,
+             halaman masuk tetap identik secara visual (tangkapan layar sebelum/sesudah).
+Di luar lingkup tiket: PatientHeader/SafetyChips/GlobalPatientSearch (fase 2 bersama data pasien).
+```
+
+## [SIMRS] Platform · 1.12 Gerbang keluar Fase 1
+
+```
+Tujuan     : Bukti bahwa fondasi siap dipakai modul fase 2 dan dipasang di RS.
+FR         : PRD 16 kriteria keluar fase 1, 14.1.1, 14.2, D.7; keputusan K8
+Pekerjaan  :
+  be 1. Uji beban k6 profil PRD 14.1.1 terhadap endpoint fase 1 (masuk, menu, daftar akun/pegawai/lokasi, notifikasi
+        polling) di lingkungan lokal setara produksi kecil; laporkan P95/P99 dan titik jenuh.
+     2. Uji beban penulisan audit (utang ADR 0003): N penulis bersamaan, laporkan latensi kunci rantai.
+     3. Daftar periksa keamanan: OWASP ASVS L2 bagian autentikasi, sesi, kontrol akses, validasi, log — hasil per
+        butir (lulus/tidak/n.a.) di docs/keamanan/asvs-fase1.md; temuan tinggi diperbaiki sebelum tiket selesai.
+     4. Runbook instalasi on-premise (docs/operasional/): kebutuhan server, compose produksi, cron schedule:run,
+        cadangan + pemulihan teruji (restore ke DB kosong), AUDIT_ANCHOR_DISK ke penyimpanan terpisah,
+        AUTENTIKASI_MFA_JARINGAN_RS, superadmin pertama, wizard.
+     5. PR "[Perlu pemilik]": PRD 16/16.1 sesuai K8 (simulator sebagai kriteria keluar fase 1; sandbox nyata, SUS ≥ 70,
+        dan design partner sebagai syarat masuk pilot fase 2), status semua tiket fase 1 di backlog.
+  fe 1. e2e menyeluruh semua layar fase 1 di 1440/1024/768/390 + axe; tangkapan layar ke docs/lampiran/fase1/.
+Uji penerimaan: semua butir di atas terdokumentasi; tidak ada temuan keamanan tingkat tinggi terbuka; CI hijau.
+```
 
 ## [SIMRS] Akses · 1.10 SSO universitas (terhambat)
 
