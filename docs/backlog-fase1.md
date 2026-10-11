@@ -24,7 +24,7 @@
 | 1.2a | Backend akses: tabel menu/peran/izin/penugasan, seeder menu dari prototipe, `AccessEvaluator` lapis 1–3, `GET /api/v1/saya/menu`, superadmin sementara → peran. Catatan: menu bawaan di `MenuBawaan` (dipasang migrasi), halaman yang sudah dibangun ditandai `TERSEDIA`; izin lewat `can:<menu>.<sub_menu>.<aksi>`; e2e kerangka kini ke backend asli dengan `contoh.dokter` | Selesai | #27 |
 | 1.2b | Frontend kerangka aplikasi: `AppShell` + `SidebarMenu` dinamis (kontrak `docs/api/openapi.yaml`), `SegeraHadirPage`, responsif PRD 5.5. Catatan: menu aktif tanpa halaman frontend juga ke `SegeraHadirPage`; jalur di luar menu = *Halaman tidak ditemukan* (tidak dibedakan dari tidak diizinkan); e2e masih memakai menu tiruan (lihat utang) | Selesai | #26 |
 | — | PRD v0.10.9 (penyelarasan 1.2a, aturan layar peran/akun), kontrak `openapi.yaml` v0.2.0, paket halaman 1.2c | Selesai | #28 |
-| 1.0g | Istilah umum: ganti kata baku yang jarang dipakai (galat, surel, jangkar, dll.) dengan istilah yang lazim, di kode, kontrak, PRD, dan layar; glosarium di PRD 10.3.3. Catatan: PRD v0.10.11 dipisah ke #39 (menunggu pemilik; sampai itu glosarium = badan tiket ini), kontrak v0.2.1; kolom `akses.pengguna.email`; kode menu `master_data.*`; variabel .env berganti nama (daftar di PR #29); migrasi lama dan ADR 0003 tetap memuat istilah lama sebagai sejarah | Selesai | #29 |
+| 1.0g | Istilah umum: ganti kata baku yang jarang dipakai (galat, surel, jangkar, dll.) dengan istilah yang lazim, di kode, kontrak, PRD, dan layar; glosarium di PRD 10.3.3. Catatan: PRD v0.10.11 (glosarium) merge di #39 sesudah ditinjau pemilik, kontrak v0.2.1; kolom `akses.pengguna.email`; kode menu `master_data.*`; variabel .env berganti nama (daftar di PR #29); migrasi lama dan ADR 0003 tetap memuat istilah lama sebagai sejarah | Selesai | #29 |
 | 1.2c-be | Backend Pengaturan → Peran & izin, Akun & akses: pindah kode menu ke `pengaturan.*`, endpoint kontrak v0.2.0, wajib MFA per peran/akun, reset MFA, larangan diri sendiri. Kode lain yang semula `data_induk.*` kini `master_data.*` (1.0g). Catatan: kontrak v0.2.2; izin/sub-menu yang dicabut dari peran berstatus batal (kolom pembatalan di `peran_izin`/`peran_menu`); versi peran = kolom `revisi`; pencabutan sesi lewat `akses.pengguna.sesi_dicabut_pada` (ADR 0002); akun `contoh.superadmin` + `AKUN_SINTETIS_SUPERADMIN_MFA_RAHASIA` untuk e2e | Selesai | #32 |
 | 1.2c-fe | Frontend halaman Peran & izin, Akun & akses (`masterdata.html`, temuan MD-1…MD-4), navigasi sub-menu di halaman induk modul. Catatan: server tiruan kontrak v0.2.2; e2e `pengaturan` ke backend asli | Selesai | #30 |
 | **1.2e** | Beranda: modul saya, keamanan akun, pencarian menu, aksesibilitas (`home.html`); tanpa angka tiruan | be: Selesai (kontrak #33, backend #34). Catatan: kolom `akses.pengguna.login_terakhir_dari_jaringan_rs`, `masuk_sebelumnya_pada`, `masuk_sebelumnya_dari_jaringan_rs`; `email` tidak dikirim di `/saya` maupun respons masuk; tanda instalasi demo tidak di `/saya` (milik instalasi, ke `/profil-rs` 1.8a). fe: **Dikerjakan sesi 2** (di atas 1.2c-fe #30) | #33, #34 |
@@ -40,7 +40,7 @@
 | 1.5-be / 1.5-fe | Lapis 4 (label sensitivitas) dan 5 (izin praktik, RKK, MFA ulang) | Siap setelah 1.8d, 1.2d, 1.6 | — |
 | 1.9-be / 1.9-fe | Gateway integrasi: outbox, adapter BPJS/SATUSEHAT/Aplicares, simulator, layar Konfigurasi & status | Siap setelah 1.8b, 1.8f | — |
 | 1.11 | Design system: komponen inti PRD 5.4 yang dipakai fase 1, katalog komponen (dev) | **Dikerjakan sesi 2** (branch `feat/design-system`, ditumpuk di atas #35) | — |
-| 1.12 | Gerbang keluar Fase 1: uji beban, cek keamanan, runbook instalasi, perubahan PRD 16 | Siap setelah semua | — |
+| 1.12 | Gerbang keluar Fase 1: uji beban, cek keamanan, runbook instalasi (PRD 16 sudah di v0.10.12) | Siap setelah semua | — |
 | 1.10 | SSO (OIDC/SAML) ke penyedia identitas RS/universitas; tombol tampil hanya bila dikonfigurasi | **Terhambat**: perlu data IdP dari RS/USU | — |
 
 ## Jalur kerja sampai Fase 1 selesai
@@ -81,7 +81,7 @@ Endpoint di luar tiket = "[Perlu pemilik]". Sesi 2 memakai data tiruan dari kont
 | K5 | Pembuatan akun | Akun dibuat dari data pegawai (1.8d). Akun peserta didik menunggu modul 46 (fase 5) | Satu akun = satu pegawai (11.2) |
 | K6 | Wizard langkah 6–7 (penjamin, tarif, formularium) | Kerangka langkah dibuat di 1.8f, isinya di awal fase 2 (sebelum pendaftaran). Instalasi tetap "belum bisa melayani pasien" sampai langkah itu lengkap | Tarif adalah modul besar milik fase 2 |
 | K7 | Paket referensi | Dikemas: wilayah, UCUM, subset LOINC (atribusi), kode variabel RME. ICD-10/ICD-9-CM: **tidak dikemas**, diimpor dari berkas milik RS (mis. dari E-Klaim) | Lisensi WHO perlu verifikasi (FR-54-09) |
-| K8 | Kriteria keluar Fase 1 tanpa RS | Sandbox BPJS/SATUSEHAT diganti **simulator + uji kontrak** berbasis `docs/integrasi/catatan-lapangan-bridging.md`. Sambungan sandbox nyata dipindah menjadi syarat **masuk pilot fase 2** bersama SUS dan design partner. PRD 16/16.1 diubah di tiket 1.12 ("[Perlu pemilik]") | Kredensial sandbox diberikan ke faskes, bukan vendor [Medium] |
+| K8 | Kriteria keluar Fase 1 tanpa RS | Sandbox BPJS/SATUSEHAT diganti **simulator + uji kontrak** berbasis `docs/integrasi/catatan-lapangan-bridging.md`. Sambungan sandbox nyata dipindah menjadi syarat **masuk pilot fase 2** bersama SUS dan design partner. PRD 16/16.1 sudah diubah di PRD v0.10.12 (disetujui pemilik) | Kredensial sandbox diberikan ke faskes, bukan vendor [Medium] |
 | K9 | Kredensial integrasi | Tabel `integrasi.kredensial_api` terenkripsi dengan **kunci khusus** `KREDENSIAL_KUNCI` (bukan APP_KEY, bisa dirotasi), tidak pernah dikirim ke layar (hanya 4 karakter terakhir), antarmuka `PenyimpanRahasia` agar vault bisa dipasang kemudian | Menyelaraskan FR-54-08 ("vault") dengan 11.2 (`kredensial_api`) untuk instalasi on-premise tanpa vault |
 | K10 | TTE fase 1 | T1 (PIN + Ed25519) penuh. T2/PSrE: antarmuka adapter + simulator saja; penyedia dipilih saat kontrak PSrE | PRD 7.57.3: API PSrE belum diverifikasi |
 | K11 | MFA ulang untuk aksi sensitif | Izin `butuh_mfa` meminta TOTP bila verifikasi MFA terakhir di sesi > 15 menit | Lapis 5 (9.2.2); angka di konfigurasi |
@@ -120,7 +120,7 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
 - Isi Kotak kerja Beranda (`modules/beranda/components/KotakKerja.vue`, slot bawaan) diisi tiket 1.7.
 - Izin pengelola akses `pengaturan.{peran,akun}.{input,perbaiki}` ditandai sensitif oleh `MenuBawaan::IZIN_SENSITIF` (1.2c, dari tinjauan #32; PRD 9.2.4): tidak bisa dibagikan lewat peran biasa atau per akun sampai 1.2d, dan pemegangnya wajib MFA. Tiket 1.2d perlu menetapkan peran penyetujunya (K3); admin delegasi per unit (FR-09-07) memakai izin terpisah, bukan izin ini.
 - Kecil dari tinjauan #32: `MenuBawaan::pindahKode` melewati diam-diam bila kode lama dan baru sama-sama ada (node lama tetap aktif; hanya mungkin di DB yang disunting manual). `akun_terdampak`/`jumlah_akun` hanya menghitung penugasan yang berlaku sekarang, bukan yang akan berlaku. `berlaku_dari` penugasan boleh diisi mundur (dasar SK lama) — tinjau ulang di 1.2d. Reset MFA masih menyisakan jendela beberapa milidetik: login yang commit tepat sebelum reset bisa memulai sesi sedikit sesudah waktu cabut. Izin `pengaturan.{peran,akun}.lihat` (daftar akun, Lihat sebagai) belum sensitif — timbang di 1.2d.
-- PRD 11.2 belum memuat kolom yang ditambah 1.2c/1.2e: `akses.pengguna.sesi_dicabut_pada`, `login_terakhir_dari_jaringan_rs`, `masuk_sebelumnya_pada`, `masuk_sebelumnya_dari_jaringan_rs`, dan kolom pembatalan `akses.peran_izin`/`peran_menu` (`status`, `alasan_batal`, `dibatalkan_oleh`, `dibatalkan_pada`). Perlu PR PRD "[Perlu pemilik]" (bisa digabung dengan perubahan PRD 16 di tiket 1.12).
+- PRD 11.2 belum memuat kolom yang ditambah 1.2c/1.2e: `akses.pengguna.sesi_dicabut_pada`, `login_terakhir_dari_jaringan_rs`, `masuk_sebelumnya_pada`, `masuk_sebelumnya_dari_jaringan_rs`, dan kolom pembatalan `akses.peran_izin`/`peran_menu` (`status`, `alasan_batal`, `dibatalkan_oleh`, `dibatalkan_pada`). Perlu PR PRD "[Perlu pemilik]".
 - Sesudah 1.8a-be (#37 kontrak, PR backend):
   - Berkas paket identitas disimpan lewat disk `IDENTITAS_DISK` (bawaan lokal privat). Menyambung MinIO (adaptor S3 + layanan compose) belum dikerjakan agar tidak menambah dependensi di luar tiket → runbook 1.12. Pemindaian antivirus unggahan (PRD 14.2) belum ada.
   - **Butir terbuka (pemilik produk):** tafsiran kontras FR-54-08 langkah 2 — brand vs putih ≥ 4,5:1; accent vs tinta `#1D1D1B` ≥ 4,5:1 (`App\Core\ProfilRs\KontrasWarna`).
@@ -672,8 +672,7 @@ Uji penerimaan:
   - Menutup TT dengan berlaku_dari besok: hari ini masih dihitung, besok tidak (kapasitas harian).
   - Kode TT yang ditutup tidak bisa dipakai untuk TT baru.
   - Tablet 1024 px: pohon dan panel rinci berdampingan tanpa gulir horizontal halaman.
-Aturan rinci (kontrak v0.5.0; isi FR-54-11…14 dan FR-08-16…20 menunggu PRD v0.10.11 di #39, jadi aturan yang dipakai
-kode ditulis di sini):
+Aturan rinci (kontrak v0.5.0; FR-54-11…14 dan FR-08-16…20 ada di PRD sejak v0.10.11; rincian yang dipakai kode):
   - Izin: sub-menu yang sudah ada `master_data.organisasi` (PRD 9.1 "Organisasi, Unit, Ruang & Tempat Tidur", satu
     halaman; labelnya disamakan dengan PRD) untuk lokasi, bangsal, kamar, TT, kelas rawat, poliklinik, kapasitas. Semua
     dengan cakupan `rs`. Pemisahan pemilik data ruang & TT (FR-54-01) nanti lewat izin tingkat bagian, bukan sub-menu baru.
@@ -972,8 +971,8 @@ Pekerjaan  :
      4. Runbook instalasi on-premise (docs/operasional/): kebutuhan server, compose produksi, cron schedule:run,
         cadangan + pemulihan teruji (restore ke DB kosong), AUDIT_ANCHOR_DISK ke penyimpanan terpisah,
         AUTENTIKASI_MFA_JARINGAN_RS, superadmin pertama, wizard.
-     5. PR "[Perlu pemilik]": PRD 16/16.1 sesuai K8 (simulator sebagai kriteria keluar fase 1; sandbox nyata, SUS ≥ 70,
-        dan design partner sebagai syarat masuk pilot fase 2), status semua tiket fase 1 di backlog.
+     5. Status semua tiket fase 1 di backlog. (PRD 16/16.1 sesuai K8 — simulator sebagai kriteria keluar fase 1; sandbox
+        nyata, SUS ≥ 70, dan design partner sebagai syarat masuk pilot fase 2 — sudah disetujui pemilik di PRD v0.10.12.)
   fe 1. e2e menyeluruh semua layar fase 1 di 1440/1024/768/390 + axe; tangkapan layar ke docs/lampiran/fase1/.
 Uji penerimaan: semua butir di atas terdokumentasi; tidak ada temuan keamanan tingkat tinggi terbuka; CI hijau.
 ```
