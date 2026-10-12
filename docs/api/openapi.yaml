@@ -3110,7 +3110,11 @@ paths:
   # - Tahap: diusulkan → diverifikasi → disetujui (terjadwal) → berlaku. Pemverifikasi/penyetuju bisa mengembalikan
   #   (catatan wajib) → `dikembalikan` → pengusul memperbaiki dan kirim ulang (kembali ke `diusulkan`, putaran +1).
   #   Gagal saat diterapkan (objek berubah sejak diusulkan, atau aturan 1.8b tidak terpenuhi lagi) → `gagal_diterapkan`
-  #   dengan alasan; pengusul diberi tahu (usulan baru dibuat bila masih perlu).
+  #   dengan alasan; pengusul diberi tahu. `gagal_diterapkan` dan `berlaku` final (tidak bisa dikirim ulang; usulan baru
+  #   dibuat bila masih perlu).
+  # - Tampilan diff: `tampilan[]` (label isian, nilai lama/baru siap tampil, mis. nama kelas/bangsal/unit) disusun server
+  #   saat dibaca; hanya untuk layar, tidak masuk isi kanonik TTE. `nilai_lama`/`nilai_baru` mentah untuk kirim ulang.
+  # - Tautan tugas/notifikasi usulan: `/master-data/usulan?usulan={id}` (rute layar).
   # - Izin sub-menu `master_data.usulan` (cakupan rs): `lihat` (semua usulan), `input` (mengusulkan dan kirim ulang
   #   usulan sendiri), `verifikasi`, `setujui`. Alur per jenis data (`inti.alur_usulan`, data induk; layar menyusul) bisa
   #   mempersempit pemverifikasi/penyetuju ke satu peran (mis. ruang & TT: Keperawatan → Yanmed). Tiga orang berbeda:
@@ -3121,7 +3125,8 @@ paths:
   #   hari ini saat disetujui, langsung diterapkan. Semua butir satu usulan diterapkan dalam satu transaksi. Setiap
   #   perubahan data induk (lewat usulan maupun langsung) menyimpan versi (riwayat-versi).
   # - Setelah instalasi siap melayani (penjaga `instalasi.siap_melayani`, tiket 1.8f; sampai 1.8f selalu belum),
-  #   perubahan langsung ruang/kamar/TT di 1.8b ditolak 409 `harus_lewat_usulan`, kecuali TT ekstra (darurat lonjakan).
+  #   perubahan langsung ruang/kamar/TT di 1.8b ditolak 409 `harus_lewat_usulan` (`rincian` kosong; `pesan` siap
+  #   ditampilkan sebagai banner dengan tautan ke /master-data/usulan), kecuali TT ekstra (darurat lonjakan).
   # - Notifikasi/tugas (1.7) jenis USULAN_DATA_INDUK ke pemverifikasi, penyetuju, atau pengusul sesuai tahap. Usulan
   #   bisa ditandatangani (TTE T1, 1.6) oleh pengusul, pemverifikasi, dan penyetujunya (`objek_jenis = usulan_data_induk`).
   # ---------------------------------------------------------------------------
@@ -3130,9 +3135,11 @@ paths:
       operationId: daftarUsulanDataInduk
       summary: Daftar usulan (paginasi kursor, terbaru dulu)
       description: |
-        Izin: master_data.usulan.lihat. `tahap=terbuka` = diusulkan, diverifikasi, disetujui, dikembalikan, gagal_diterapkan
-        (yang belum berlaku). `perlu_saya=true` = usulan yang akun ini bisa tindak lanjuti sekarang (`dapat.*`).
-        `meta.jumlah` = jumlah per tahap untuk kartu ringkasan (mengikuti filter `jenis_data`).
+        Izin: master_data.usulan.lihat. `tahap=terbuka` = diusulkan, diverifikasi, disetujui, dikembalikan (tahap final
+        `berlaku` dan `gagal_diterapkan` tidak termasuk). `perlu_saya=true` = usulan yang akun ini bisa tindak lanjuti
+        sekarang (`dapat.verifikasi|setujui|kembalikan|kirim_ulang`). Semua filter digabung (AND). Urutan: waktu usulan
+        pertama kali diajukan (tidak berubah saat kirim ulang), terbaru dulu. `meta.jumlah` = jumlah per tahap untuk kartu
+        ringkasan (mengikuti filter `jenis_data` saja); `gagal_diterapkan` = 30 hari terakhir.
       parameters:
         - $ref: '#/components/parameters/Kursor'
         - $ref: '#/components/parameters/Batas'
@@ -3175,7 +3182,8 @@ paths:
         - 422 `perubahan_tidak_valid`: `rincian[]` = `{kolom: "perubahan.<i>[.<isian>]", kode, pesan}`, kode dari aturan 1.8b
           (mis. `kode_sudah_dipakai`, `kelas_rawat_tidak_valid`, `sudah_ditutup`, `jenis_induk_tidak_sesuai`) atau
           `objek_tidak_ditemukan`, `aksi_tidak_dikenal`.
-        - 409 `objek_sedang_diusulkan`: objek yang sama ada di usulan lain yang belum berlaku (`rincian` menyebut nomornya).
+        - 409 `objek_sedang_diusulkan`: objek yang sama ada di usulan lain yang belum final; `rincian[]` =
+          `{kolom: "perubahan.<i>", kode: "objek_sedang_diusulkan", pesan, usulan: {id, nomor}}`.
         Audit `master_data.usulan_diajukan`.
       requestBody:
         required: true
@@ -3296,8 +3304,9 @@ paths:
       description: |
         Hanya pengusulnya, dengan izin master_data.usulan.input (selain itu 403 `bukan_pengusul`). Isi menggantikan isi
         sebelumnya (bentuk sama dengan POST, kecuali `jenis_data` tetap); `nilai_lama` dipotret ulang; putaran +1; tanda
-        tangan putaran sebelumnya menjadi `isi_berubah`. 409 `tahap_tidak_sesuai`; 409 `objek_sedang_diusulkan`;
-        422 seperti POST. Audit `master_data.usulan_dikirim_ulang`.
+        tangan putaran sebelumnya menjadi `isi_berubah`. 409 `tahap_tidak_sesuai` (bukan tahap dikembalikan, termasuk
+        bila sudah dikirim ulang dari tab lain); 409 `objek_sedang_diusulkan`; 422 seperti POST. Audit
+        `master_data.usulan_dikirim_ulang`.
       requestBody:
         required: true
         content:
@@ -4176,6 +4185,7 @@ components:
     TahapUsulan:
       type: string
       enum: [diusulkan, diverifikasi, disetujui, berlaku, dikembalikan, gagal_diterapkan]
+      description: "berlaku dan gagal_diterapkan final"
     IsianUsulanDataInduk:
       type: object
       required: [jenis_data, perubahan, berlaku_dari, alasan, dasar]
@@ -4208,7 +4218,7 @@ components:
           nilai_baru: { type: object, additionalProperties: true }
     ButirUsulan:
       type: object
-      required: [objek_jenis, aksi, objek_id, objek_label, nilai_lama, nilai_baru]
+      required: [objek_jenis, aksi, objek_id, objek_label, nilai_lama, nilai_baru, tampilan]
       properties:
         objek_jenis: { $ref: '#/components/schemas/ObjekDataInduk' }
         aksi: { type: string, enum: [tambah, ubah, tutup] }
@@ -4216,6 +4226,16 @@ components:
         objek_label: { type: string, examples: ['ICU · Intensive care unit', 'TT B-3-304-2'] }
         nilai_lama: { type: [object, 'null'], additionalProperties: true, description: "Dipotret server saat diusulkan; null untuk tambah. Hanya isian yang diubah" }
         nilai_baru: { type: object, additionalProperties: true }
+        tampilan: { type: array, items: { $ref: '#/components/schemas/TampilanIsian' } }
+    TampilanIsian:
+      type: object
+      required: [isian, label_isian, lama, baru]
+      description: "Satu baris diff siap tampil, disusun server saat dibaca (bukan isi kanonik TTE)"
+      properties:
+        isian: { type: string, examples: [kelas_rawat_id] }
+        label_isian: { type: string, examples: ['Kelas rawat'] }
+        lama: { type: [string, 'null'], examples: ['Kelas 3'], description: "null = belum ada (tambah)" }
+        baru: { type: [string, 'null'], examples: ['Kelas 1'], description: "null = dihapus/ditutup" }
     RiwayatUsulan:
       type: object
       required: [aksi, oleh, pada, catatan, putaran]
@@ -4244,19 +4264,20 @@ components:
         diverifikasi_oleh: { $ref: '#/components/schemas/Pelaku', description: "Putaran ini; null bila belum" }
         disetujui_oleh: { $ref: '#/components/schemas/Pelaku' }
         gagal_alasan: { type: [string, 'null'] }
-        riwayat: { type: array, items: { $ref: '#/components/schemas/RiwayatUsulan' } }
+        riwayat: { type: array, maxItems: 200, items: { $ref: '#/components/schemas/RiwayatUsulan' }, description: "Urut waktu; paling banyak 200 kejadian terakhir" }
         dapat:
           type: object
-          required: [verifikasi, setujui, kembalikan, kirim_ulang]
+          required: [verifikasi, setujui, kembalikan, kirim_ulang, tandatangani]
           description: "Tindakan yang boleh dilakukan akun yang sedang masuk sekarang"
           properties:
             verifikasi: { type: boolean }
             setujui: { type: boolean }
             kembalikan: { type: boolean }
             kirim_ulang: { type: boolean }
+            tandatangani: { type: boolean, description: "Akun ini pengusul/pemverifikasi/penyetuju putaran ini sesudah tindakannya, dan belum menandatangani isi saat ini" }
     VersiDataInduk:
       type: object
-      required: [id, versi, objek_jenis, objek_id, berlaku_dari, sebelum, sesudah, usulan, dasar, diubah_oleh, diubah_pada]
+      required: [id, versi, objek_jenis, objek_id, berlaku_dari, sebelum, sesudah, tampilan, usulan, dasar, diubah_oleh, diubah_pada]
       properties:
         id: { type: string, format: uuid }
         versi: { type: integer, minimum: 1 }
@@ -4265,6 +4286,7 @@ components:
         berlaku_dari: { type: string, format: date }
         sebelum: { type: [object, 'null'], additionalProperties: true, description: "null = objek dibuat" }
         sesudah: { type: object, additionalProperties: true }
+        tampilan: { type: array, items: { $ref: '#/components/schemas/TampilanIsian' }, description: "Isian yang berubah, siap tampil" }
         usulan:
           type: [object, 'null']
           required: [id, nomor]

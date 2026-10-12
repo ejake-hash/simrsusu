@@ -755,7 +755,9 @@ Aturan rinci (kontrak v0.9.0):
     diisi setiap perubahan ruang/kamar/TT, lewat usulan maupun langsung (1.8b).
   - Penjaga `instalasi.siap_melayani` (antarmuka; 1.8f mengisinya, sampai itu selalu false): sesudah siap melayani,
     POST/PATCH ruang/kamar/TT langsung 409 `harus_lewat_usulan`, kecuali POST TT `ekstra` (darurat lonjakan).
-  - Tugas 1.7 jenis USULAN_DATA_INDUK: pelaksana tahap diusulkan = peran pemverifikasi alur (atau peran pemegang
+  - Tahap `berlaku` dan `gagal_diterapkan` final. Diff tampil dari `tampilan[]` yang disusun server (label isian dan
+    nilai siap tampil, mis. nama kelas/bangsal/unit), bukan isi kanonik TTE.
+  - Tugas 1.7 jenis USULAN_DATA_INDUK (tautan `/master-data/usulan?usulan={id}`): pelaksana tahap diusulkan = peran pemverifikasi alur (atau peran pemegang
     `master_data.usulan.verifikasi`), tahap diverifikasi = penyetuju, dikembalikan/gagal = pengusul; tugas tahap
     sebelumnya selesai saat tahap berganti.
   - TTE (1.6): objek `usulan_data_induk`, ditandatangani pengusul/pemverifikasi/penyetuju putaran itu. Isi kanonik:
