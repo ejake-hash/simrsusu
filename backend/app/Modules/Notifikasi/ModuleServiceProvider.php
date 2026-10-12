@@ -8,6 +8,7 @@ use App\Modules\Akses\Events\PermintaanAksesDibuat;
 use App\Modules\Akses\Events\PermintaanAksesDitutup;
 use App\Modules\Akses\Events\PersetujuanDiajukan;
 use App\Modules\Akses\Events\PersetujuanDitutup;
+use App\Modules\MasterData\Events\UsulanTahapBerubah;
 use App\Modules\Notifikasi\Application\KueriKotakKerja;
 use App\Modules\Notifikasi\Application\PendengarKejadian;
 use App\Modules\Notifikasi\Console\PeriksaIzinPraktik;
@@ -46,6 +47,7 @@ class ModuleServiceProvider extends ServiceProvider
         Event::listen(IzinPraktikDicatat::class, [PendengarKejadian::class, 'izinPraktikDicatat']);
         Event::listen(IzinPraktikDibatalkan::class, [PendengarKejadian::class, 'izinPraktikDibatalkan']);
         Event::listen(TtdTerkunci::class, [PendengarKejadian::class, 'ttdTerkunci']);
+        Event::listen(UsulanTahapBerubah::class, [PendengarKejadian::class, 'usulanTahapBerubah']);
         Event::listen(TtdDicabut::class, [PendengarKejadian::class, 'ttdDicabut']);
 
         if ($this->app->runningInConsole()) {

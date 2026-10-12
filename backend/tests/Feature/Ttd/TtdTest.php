@@ -276,17 +276,23 @@ class TtdTest extends TestCase
         $tanpaPin()->assertStatus(422)->assertJsonPath('error.kode', 'pin_wajib');
     }
 
-    public function test_kirim_ulang_memverifikasi_ulang_tanda_tangan_lama(): void
+    public function test_kirim_ulang_dedup_per_isi(): void
     {
         [, $atasan, $sdm] = $this->organisasi();
         $this->aktifkan($sdm);
         $id = $this->persetujuanDiputuskan($sdm, $atasan);
         $objek = [['jenis' => 'persetujuan_akses', 'id' => $id]];
         $this->masukSebagai($sdm);
-        $this->minta('POST', '/api/v1/ttd/tandatangani', ['objek' => $objek, 'pin' => self::PIN, 'pernyataan_disetujui' => true])->assertOk();
+        $pertama = $this->minta('POST', '/api/v1/ttd/tandatangani', ['objek' => $objek, 'pin' => self::PIN, 'pernyataan_disetujui' => true])->assertOk();
+        // Isi sama → tidak digandakan.
+        $this->minta('POST', '/api/v1/ttd/tandatangani', ['objek' => $objek, 'pernyataan_disetujui' => true])
+            ->assertOk()->assertJsonPath('data.0.baru', false)->assertJsonPath('data.0.id', $pertama->json('data.0.id'));
+        // Isi berubah → tanda tangan baru; yang lama tetap ada dan terverifikasi isi_berubah (kontrak v0.9.0).
         PersetujuanAkses::query()->whereKey($id)->update(['catatan_keputusan' => 'Diubah sesudah ditandatangani']);
         $this->minta('POST', '/api/v1/ttd/tandatangani', ['objek' => $objek, 'pernyataan_disetujui' => true])
-            ->assertOk()->assertJsonPath('data.0.baru', false)->assertJsonPath('data.0.verifikasi.status', 'isi_berubah');
+            ->assertOk()->assertJsonPath('data.0.baru', true)->assertJsonPath('data.0.verifikasi.status', 'sah');
+        $status = array_column(array_column($this->minta('GET', "/api/v1/ttd/verifikasi/persetujuan_akses/{$id}")->assertOk()->json('data'), 'verifikasi'), 'status');
+        $this->assertSame(['isi_berubah', 'sah'], $status);
         // Huruf besar id ganda tetap dianggap ganda.
         $this->minta('POST', '/api/v1/ttd/tandatangani', ['pernyataan_disetujui' => true, 'objek' => [
             ['jenis' => 'persetujuan_akses', 'id' => $id], ['jenis' => 'persetujuan_akses', 'id' => strtoupper($id)],

@@ -24,6 +24,11 @@ final class MenuBawaan
     /** Aksi dasar Permenkes 24/2022 Ps. 30 ayat 3 untuk setiap sub-menu (FR-09-03). */
     public const AKSI_DASAR = ['lihat', 'input', 'perbaiki'];
 
+    /** Aksi selain aksi dasar per sub-menu (PRD 9.2 JenisAksi): mis. alur usulan data induk berjenjang (tiket 1.8c). */
+    public const AKSI_TAMBAHAN = [
+        'master_data.usulan' => ['verifikasi', 'setujui'],
+    ];
+
     /** Superadmin mengelola peran, akun, dan profil RS (wizard langkah 2); tidak membuka rekam medis, rupiah, atau data induk milik unit (PRD 9.2.4, FR-54-01). */
     public const SUB_MENU_SUPERADMIN = ['pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs'];
 
@@ -238,7 +243,7 @@ final class MenuBawaan
                         'label' => $sub[0], 'rute' => $rute.'/'.Str::replace('_', '-', $kodeSub), 'modul_no' => $sub[1],
                         'fase' => $sub[2] ?? $fase, 'urutan' => ++$urutanSub, 'tersedia' => in_array($kode, self::TERSEDIA, true),
                     ]);
-                    foreach (self::AKSI_DASAR as $aksi) {
+                    foreach ([...self::AKSI_DASAR, ...(self::AKSI_TAMBAHAN[$kode] ?? [])] as $aksi) {
                         self::simpanIzin("$kode.$aksi", $idSub, $aksi);
                     }
                     $urutanBagian = 0;

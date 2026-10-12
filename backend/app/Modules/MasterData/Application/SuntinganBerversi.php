@@ -46,8 +46,30 @@ final class SuntinganBerversi
         }
     }
 
+    /** Hari acuan aturan tanggal; diganti sementara saat uji kering usulan bertanggal mendatang (1.8c). */
+    private static ?string $hariAcuan = null;
+
     public static function hariIni(): string
     {
-        return now(config('instalasi.zona_waktu'))->toDateString();
+        return self::$hariAcuan ?? now(config('instalasi.zona_waktu'))->toDateString();
+    }
+
+    /**
+     * Jalankan $kerja seolah hari ini = $tanggal (uji kering usulan, kontrak v0.9.0: `berlaku_dari` sebagai hari acuan).
+     *
+     * @template T
+     *
+     * @param  callable(): T  $kerja
+     * @return T
+     */
+    public static function denganHariAcuan(string $tanggal, callable $kerja): mixed
+    {
+        $lama = self::$hariAcuan;
+        self::$hariAcuan = $tanggal;
+        try {
+            return $kerja();
+        } finally {
+            self::$hariAcuan = $lama;
+        }
     }
 }

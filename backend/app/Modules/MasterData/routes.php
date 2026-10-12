@@ -8,13 +8,15 @@ use App\Modules\MasterData\Http\Controllers\KelasRawatController;
 use App\Modules\MasterData\Http\Controllers\KsmController;
 use App\Modules\MasterData\Http\Controllers\LokasiController;
 use App\Modules\MasterData\Http\Controllers\PoliklinikController;
+use App\Modules\MasterData\Http\Controllers\RiwayatVersiController;
 use App\Modules\MasterData\Http\Controllers\TempatTidurController;
 use App\Modules\MasterData\Http\Controllers\UnitOrganisasiController;
+use App\Modules\MasterData\Http\Controllers\UsulanDataIndukController;
 use Illuminate\Support\Facades\Route;
 
 // Organisasi, unit & KSM (tiket 1.8a). Izin dan lapis 3 diperiksa di controller lewat Gate → AccessEvaluator:
 // daftar unit boleh untuk dua izin (data induk ATAU pengelola akun), dan cakupan `unit` = subpohon.
-Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->whereUuid(['unit', 'ksm', 'lokasi', 'bangsal', 'kamar', 'tempatTidur', 'kelasRawat', 'poliklinik'])->group(function () {
+Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->whereUuid(['unit', 'ksm', 'lokasi', 'bangsal', 'kamar', 'tempatTidur', 'kelasRawat', 'poliklinik', 'usulan', 'objekId'])->group(function () {
     Route::get('unit-organisasi', [UnitOrganisasiController::class, 'index']);
     Route::post('unit-organisasi', [UnitOrganisasiController::class, 'store'])->middleware('can:master_data.organisasi.input');
     Route::get('unit-organisasi/{unit}', [UnitOrganisasiController::class, 'show']);
@@ -53,4 +55,14 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::get('poliklinik/{poliklinik}', [PoliklinikController::class, 'show']);
     Route::patch('poliklinik/{poliklinik}', [PoliklinikController::class, 'update']);
     Route::get('kapasitas-tempat-tidur', KapasitasTempatTidurController::class);
+
+    // Usulan perubahan data induk berjenjang (tiket 1.8c): izin master_data.usulan.* cakupan rs, diperiksa di controller/mesin.
+    Route::get('usulan-data-induk', [UsulanDataIndukController::class, 'index']);
+    Route::post('usulan-data-induk', [UsulanDataIndukController::class, 'store']);
+    Route::get('usulan-data-induk/{usulan}', [UsulanDataIndukController::class, 'show']);
+    Route::post('usulan-data-induk/{usulan}/verifikasi', [UsulanDataIndukController::class, 'verifikasi']);
+    Route::post('usulan-data-induk/{usulan}/setujui', [UsulanDataIndukController::class, 'setujui']);
+    Route::post('usulan-data-induk/{usulan}/kembalikan', [UsulanDataIndukController::class, 'kembalikan']);
+    Route::post('usulan-data-induk/{usulan}/kirim-ulang', [UsulanDataIndukController::class, 'kirimUlang']);
+    Route::get('data-induk/{jenis}/{objekId}/riwayat-versi', RiwayatVersiController::class)->whereIn('jenis', ['ruang', 'kamar', 'tempat_tidur']);
 });

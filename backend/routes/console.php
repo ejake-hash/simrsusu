@@ -17,6 +17,8 @@ Schedule::command('audit:ekspor-anchor')->hourlyAt(5)->onOneServer();
 Schedule::command('akses:kedaluwarsakan-persetujuan')->dailyAt('01:00')->timezone(config('instalasi.zona_waktu'))->onOneServer();
 
 // Kapasitas TT harian per bangsal dan kelas, penyebut BOR/BTO/TOI (tiket 1.8b, FR-08-18).
+// Usulan data induk berjenjang (1.8c): terapkan yang jatuh tempo pukul 00.00 zona RS, sebelum rekaman kapasitas 00.05.
+Schedule::command('master-data:terapkan-usulan')->dailyAt('00:00')->timezone(config('instalasi.zona_waktu'))->onOneServer();
 Schedule::command('master-data:rekam-kapasitas-tt')->dailyAt('00:05')->timezone(config('instalasi.zona_waktu'))->onOneServer();
 
 // Pegawai yang tanggal keluarnya tercapai: akun nonaktif, sesi diputus (tiket 1.8d, PRD 9.2.6).

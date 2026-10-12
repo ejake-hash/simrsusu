@@ -3,6 +3,7 @@
 namespace App\Modules\MasterData\Http\Controllers;
 
 use App\Modules\MasterData\Application\ImporLokasi;
+use App\Modules\MasterData\Application\PenjagaUsulan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -15,6 +16,7 @@ final class ImporLokasiController
     public function __invoke(Request $request, ImporLokasi $impor): JsonResponse
     {
         $this->izin('input');
+        app(PenjagaUsulan::class)->pastikanBolehLangsung();
         $isi = $request->validate([
             'berkas' => ['required', 'file', 'max:2048'],
             'mode' => ['required', Rule::in(['pratinjau', 'terapkan'])],

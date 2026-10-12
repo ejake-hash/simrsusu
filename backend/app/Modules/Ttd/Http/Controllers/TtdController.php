@@ -57,7 +57,7 @@ final class TtdController
         $isi = $request->validate([
             'objek' => ['required', 'array', 'min:1', 'max:50'],
             'objek.*' => ['required', 'array:jenis,id'],
-            'objek.*.jenis' => ['required', 'string', 'in:persetujuan_akses'],
+            'objek.*.jenis' => ['required', 'string', 'in:persetujuan_akses,usulan_data_induk'],
             'objek.*.id' => ['required', 'uuid', 'distinct:ignore_case'],
             'pin' => ['nullable', 'string', 'max:20'],
             'pernyataan_disetujui' => ['required', 'boolean', 'accepted'],

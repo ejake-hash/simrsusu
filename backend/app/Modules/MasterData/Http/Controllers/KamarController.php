@@ -6,6 +6,7 @@ use App\Core\Database\Like;
 use App\Core\Http\IfMatch;
 use App\Core\Http\Paginasi;
 use App\Modules\MasterData\Application\KelolaRawatInap;
+use App\Modules\MasterData\Application\PenjagaUsulan;
 use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Http\Resources\LokasiResource;
 use App\Modules\MasterData\Models\Kamar;
@@ -62,6 +63,7 @@ final class KamarController
             'dasar_perubahan' => IsianOrganisasi::DASAR,
         ]);
         $this->pastikanAtribut($isi);
+        app(PenjagaUsulan::class)->pastikanBolehLangsung();
 
         return $this->satu($kelola->buatKamar($request->user(), $isi), 201);
     }
@@ -77,6 +79,7 @@ final class KamarController
         ]);
         $this->minimalSatuPerubahan($isi);
         $this->pastikanAtribut($isi);
+        app(PenjagaUsulan::class)->pastikanBolehLangsung();
 
         return $this->satu($kelola->ubahKamar($request->user(), $kamar, IfMatch::versi($request), $isi));
     }
