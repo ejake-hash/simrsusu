@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.8.0
+  version: 0.9.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -37,6 +37,9 @@ info:
     Saya.ttd; PersetujuanAkses.penyetuju_pengguna. Penyelarasan 1.7-be (#53): ETag /saya/menu = `versi` + jumlah tugas
     Beranda; `jumlah_tugas` null di /akun/{id}/menu; AKUN_TERKUNCI paling banyak satu per jam (in-app dan email);
     pelaksana PERMINTAAN_AKSES = peran pemegang pengaturan.akun.perbaiki.
+    v0.9.0: Usulan perubahan data induk berjenjang (tiket 1.8c): /usulan-data-induk (+ verifikasi, setujui, kembalikan,
+    kirim-ulang), /data-induk/{jenis}/{id}/riwayat-versi; 409 `harus_lewat_usulan` di 1.8b sesudah instalasi siap
+    melayani; TTE objek `usulan_data_induk`.
 servers:
   - url: /api/v1
 security:
@@ -72,6 +75,8 @@ paths:
                   peran: [{ id: 01a12988-996f-723e-8a2c-fdff428f4a96, nama: Contoh Dokter }]
                   masuk_sebelumnya_pada: "2026-10-10T23:48:02+00:00"
                   masuk_sebelumnya_dari_jaringan_rs: true
+                  wajib_ganti_sandi: false
+                  ttd: { aktif: true, diaktifkan_pada: "2026-10-12T01:15:00+00:00", dicabut_pada: null, terkunci_sampai: null, sesi_berlaku_sampai: null, reset_menunggu: false }
         '401': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/Error' }
   /saya/menu:
@@ -1396,7 +1401,8 @@ paths:
       summary: Ubah, pindah induk, atau ubah status lokasi
       description: |
         Izin: master_data.organisasi.perbaiki. Wajib If-Match. Kirim minimal satu isian selain `dasar_perubahan`.
-        Lokasi jenis `tempat_tidur`: 422 `kelola_lewat_tempat_tidur`. `jenis` tidak bisa diubah.
+        Lokasi jenis `tempat_tidur`: 422 `kelola_lewat_tempat_tidur`. `jenis` tidak bisa diubah. Lokasi jenis `ruang`
+        sesudah instalasi siap melayani: 409 `harus_lewat_usulan` (1.8c).
         - Pindah induk (`induk_id`): 422 `siklus` (induk baru = lokasi itu atau turunannya), 422 `jenis_induk_tidak_sesuai`,
           422 `induk_tidak_aktif`;
           `kode_lengkap` lokasi dan seluruh turunannya dihitung ulang (409 `kode_sudah_dipakai` bila bentrok). Kode TT
@@ -1404,7 +1410,7 @@ paths:
         - Status (`status` + `status_berlaku_dari`, tanggal ≤ hari ini zona RS, selain itu 422 `tanggal_tidak_valid`;
           kosong = hari ini): perpindahan dan syaratnya di blok aturan di atas (409 `lokasi_masih_dipakai`,
           422 `induk_tidak_aktif`).
-          Penjadwalan status ke tanggal mendatang lewat usulan berjenjang (1.8c).
+          Penjadwalan status ke tanggal mendatang lewat usulan berjenjang (/usulan-data-induk).
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -1626,7 +1632,8 @@ paths:
       operationId: buatKamar
       summary: Jadikan sebuah ruang kamar rawat dalam bangsal
       description: |
-        Izin: master_data.organisasi.input. `lokasi_id` = lokasi jenis ruang yang aktif (422 `bukan_ruang`); satu ruang paling
+        Izin: master_data.organisasi.input. 409 `harus_lewat_usulan` sesudah instalasi siap melayani (1.8c).
+        `lokasi_id` = lokasi jenis ruang yang aktif (422 `bukan_ruang`); satu ruang paling
         banyak satu kamar (409 `ruang_sudah_kamar`); 422 `bangsal_tidak_valid` (tidak ada atau nonaktif).
       requestBody:
         required: true
@@ -1665,7 +1672,8 @@ paths:
       operationId: ubahKamar
       summary: Ubah bangsal, kapasitas maksimum, atau atribut standar kamar
       description: |
-        Izin: master_data.organisasi.perbaiki. Wajib If-Match. 422 `bangsal_tidak_valid`. `atribut_standar` mengganti seluruh
+        Izin: master_data.organisasi.perbaiki. Wajib If-Match. 409 `harus_lewat_usulan` sesudah instalasi siap melayani (1.8c).
+        422 `bangsal_tidak_valid`. `atribut_standar` mengganti seluruh
         objek (bukan menggabung). Kapasitas di bawah jumlah TT aktif
         tetap disimpan; kamar ditandai `melebihi_kapasitas` (peringatan, bukan penolakan).
       parameters:
@@ -1728,7 +1736,8 @@ paths:
       operationId: buatTempatTidur
       summary: Tambah TT di sebuah kamar (sekaligus node lokasi jenis tempat_tidur di bawah ruangnya)
       description: |
-        Izin: master_data.organisasi.input. Kode TT = `kode_lengkap` ruang + "-" + `kode`; 409 `kode_sudah_dipakai` bila kode
+        Izin: master_data.organisasi.input. Sesudah instalasi siap melayani hanya TT `ekstra` (darurat lonjakan, tetap
+        tercatat); lainnya 409 `harus_lewat_usulan` (1.8c). Kode TT = `kode_lengkap` ruang + "-" + `kode`; 409 `kode_sudah_dipakai` bila kode
         itu pernah dipakai TT mana pun (termasuk yang ditutup) atau lokasi lain. 422 `kamar_tidak_valid` (ruangnya tidak
         aktif atau bangsalnya nonaktif), 422 `kelas_rawat_tidak_valid`; 422 `tanggal_tidak_valid` (`berlaku_dari` sebelum hari ini).
         Bila TT aktif melebihi kapasitas maksimum kamar: tetap dibuat, `peringatan` berisi `melebihi_kapasitas`.
@@ -1774,7 +1783,7 @@ paths:
       operationId: ubahTempatTidur
       summary: Ubah kelas rawat, aturan jenis kelamin, isolasi, atau penanda ekstra
       description: |
-        Izin: master_data.organisasi.perbaiki. Wajib If-Match. Kode dan kamar tidak bisa diubah (pindah kamar = tutup lalu buat
+        Izin: master_data.organisasi.perbaiki. Wajib If-Match. 409 `harus_lewat_usulan` sesudah instalasi siap melayani (1.8c). Kode dan kamar tidak bisa diubah (pindah kamar = tutup lalu buat
         TT baru). 409 `sudah_ditutup`: TT yang sudah ditutup atau dijadwalkan tutup (`akan_ditutup`) tidak bisa diubah;
         422 `kelas_rawat_tidak_valid`. Perubahan kelas/ekstra berlaku untuk kapasitas mulai
         hari ini; hari yang sudah lewat tetap memakai rekaman kapasitas harian.
@@ -1821,7 +1830,8 @@ paths:
         - 409 `tempat_tidur_terisi`: TT terisi atau dipesan pada tanggal itu (penempatan pasien di fase 2; di fase 1 selalu
           kosong). Penandaan "akan ditutup setelah kosong" (FR-08-17) dibangun bersama penempatan pasien.
         - 409 `sudah_ditutup` (termasuk yang sudah dijadwalkan tutup).
-        Tutup sementara (renovasi singkat) dan pembukaan kembali lewat usulan berjenjang (1.8c).
+        Tutup sementara (renovasi singkat) dan pembukaan kembali lewat usulan berjenjang (menyusul, lihat backlog 1.8c).
+        409 `harus_lewat_usulan` sesudah instalasi siap melayani (1.8c).
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -2124,7 +2134,8 @@ paths:
       summary: Daftar pegawai (paginasi kursor), terbaru dicatat dulu
       description: |
         Izin: sdm.pegawai.lihat, cakupan `rs`. `cari` cocok sebagian pada nama atau NIP (NIK tidak bisa dicari lewat URL).
-        Tidak diurut nama: kursor ada di query string dan tidak boleh memuat data pribadi; klien mengurutkan tampilan.
+        Tidak diurut nama: kursor ada di query string dan tidak boleh memuat data pribadi. Klien menampilkan urutan server
+        (terbaru dicatat dulu) dan memakai `cari`/filter; tidak mengurutkan ulang antarhalaman.
         Filter satu nilai; `status` kosong = semua (termasuk keluar); `unit_organisasi_id` = unit itu saja (tanpa subpohon).
         `punya_akun=false` → pegawai yang belum punya akun dan belum keluar (aktif atau akan keluar; pemilih "Buat akun").
       parameters:
@@ -2665,7 +2676,8 @@ paths:
       operationId: preferensiNotifikasiSaya
       summary: Preferensi kanal notifikasi per jenis
       description: |
-        Satu baris per jenis notifikasi yang bisa diterima akun (jenis tugas aktif + AKUN_TERKUNCI). In-app selalu menyala.
+        Satu baris per jenis notifikasi yang bisa diterima akun: AKUN_TERKUNCI (kritis), TTD_TERKUNCI (kritis, 1.6),
+        TTD_DICABUT (1.6), lalu jenis tugas aktif. In-app selalu menyala.
         Per kanal: `dapat_diubah = false` untuk jenis kritis (FR-53-09), kanal yang belum tersedia di instalasi (pesan singkat
         di fase 1 hanya driver log), atau email bila akun tidak punya alamat email.
       responses:
@@ -2884,6 +2896,8 @@ paths:
   #   `usulan_data_induk` menyusul 1.8c. Aturan tingkat per jenis objek (FR-57-05) adalah data induk; fase 1 hanya T1.
   # - T2/PSrE: antarmuka + simulator untuk uji alur asinkron, tanpa endpoint publik dan tanpa penyedia nyata (K10); mode
   #   T2 TtdModal di luar 1.6-fe. Semua endpoint ini memakai batas laju `throttle:api` (429).
+  # - 503 `ttd_belum_dikonfigurasi` (aktivasi, ganti PIN, tandatangani): kunci server `TTD_KUNCI` kosong, atau kunci yang
+  #   membungkus kredensial tidak ada lagi di `TTD_KUNCI`/`TTD_KUNCI_LAMA`. Klien menampilkan pesan server.
   # ---------------------------------------------------------------------------
   /saya/ttd/aktivasi:
     post:
@@ -2917,6 +2931,7 @@ paths:
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
   /saya/ttd/pin:
     put:
       operationId: gantiPinTtd
@@ -2947,6 +2962,7 @@ paths:
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
   /ttd/{pengguna}/reset:
     parameters:
       - { in: path, name: pengguna, required: true, schema: { type: string, format: uuid }, description: "id akun (akses.pengguna) pemilik TTE, bukan id kredensial" }
@@ -2998,8 +3014,11 @@ paths:
         Semua objek diperiksa dulu; satu yang tidak boleh → tidak ada yang ditandatangani: 422 `objek_tidak_bisa_ditandatangani`,
         `rincian[]` = `{kolom: "objek.<i>", kode, pesan}` dengan `kode` ∈ `tidak_ditemukan` (tidak ada atau tidak boleh dilihat),
         `belum_diputuskan`, `bukan_pemutus`. Id ganda dalam satu permintaan → 422 `validasi_gagal` (kolom `objek.<i>.id`).
-        `data` selalu sepanjang dan seurut `objek`: objek yang sudah ditandatangani akun ini tidak digandakan, isinya tanda
-        tangan lama dengan `baru: false` (kirim ulang aman, pengganti Idempotency-Key).
+        `data` selalu sepanjang dan seurut `objek`: objek yang sudah ditandatangani akun ini dengan isi yang sama tidak
+        digandakan, isinya tanda tangan lama dengan `baru: false` (kirim ulang aman, pengganti Idempotency-Key). Bila isi
+        objek berubah (mis. usulan dikirim ulang), tanda tangan baru dibuat; yang lama tetap ada (verifikasi: `isi_berubah`).
+        Siapa yang boleh: `persetujuan_akses` hanya akun pemutusnya sesudah diputuskan; `usulan_data_induk` (1.8c) pengusul,
+        pemverifikasi, atau penyetuju putaran itu sesudah tindakannya.
         - 422 `pin_salah` (kolom `pin`, `sisa_percobaan`); 403 `ttd_terkunci` (Retry-After); 409 `ttd_belum_aktif`;
           422 `validasi_gagal` bila `pernyataan_disetujui` bukan true.
         Audit `ttd.ditandatangani` per objek baru (hash isi, sidik kunci; tanpa isi).
@@ -3019,7 +3038,7 @@ paths:
                     type: object
                     required: [jenis, id]
                     properties:
-                      jenis: { type: string, enum: [persetujuan_akses] }
+                      jenis: { type: string, enum: [persetujuan_akses, usulan_data_induk] }
                       id: { type: string, format: uuid }
                 pin: { type: [string, 'null'], maxLength: 20 }
                 pernyataan_disetujui:
@@ -3054,9 +3073,10 @@ paths:
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
   /ttd/verifikasi/{objek_jenis}/{objek_id}:
     parameters:
-      - { in: path, name: objek_jenis, required: true, schema: { type: string, enum: [persetujuan_akses] } }
+      - { in: path, name: objek_jenis, required: true, schema: { type: string, enum: [persetujuan_akses, usulan_data_induk] } }
       - { in: path, name: objek_id, required: true, schema: { type: string, format: uuid } }
     get:
       operationId: verifikasiTtd
@@ -3083,6 +3103,253 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # Usulan perubahan data induk berjenjang (tiket 1.8c; PRD FR-54-01, FR-54-02, FR-08-16; prototipe masterdata.html "Usulan").
+  # - Mesin generik per `jenis_data`; fase 1 hanya `ruang_tt` (ruang, kamar, tempat tidur dari 1.8b). Tarif/formularium
+  #   memakai mesin yang sama di fase 2–3.
+  # - Tahap: diusulkan → diverifikasi → disetujui (terjadwal) → berlaku. Pemverifikasi/penyetuju bisa mengembalikan
+  #   (catatan wajib) → `dikembalikan` → pengusul memperbaiki dan kirim ulang (kembali ke `diusulkan`, putaran +1).
+  #   Gagal saat diterapkan (objek berubah sejak diusulkan, atau aturan 1.8b tidak terpenuhi lagi) → `gagal_diterapkan`
+  #   dengan alasan; pengusul diberi tahu (usulan baru dibuat bila masih perlu).
+  # - Izin sub-menu `master_data.usulan` (cakupan rs): `lihat` (semua usulan), `input` (mengusulkan dan kirim ulang
+  #   usulan sendiri), `verifikasi`, `setujui`. Alur per jenis data (`inti.alur_usulan`, data induk; layar menyusul) bisa
+  #   mempersempit pemverifikasi/penyetuju ke satu peran (mis. ruang & TT: Keperawatan → Yanmed). Tiga orang berbeda:
+  #   pengusul ≠ pemverifikasi ≠ penyetuju (403 `pengusul_sendiri`, `sudah_memverifikasi`).
+  # - Setiap butir `perubahan` divalidasi dengan aturan 1.8b yang sama saat diusulkan/dikirim ulang (uji kering) dan
+  #   sekali lagi saat diterapkan. `nilai_lama` dipotret server saat diusulkan (klien tidak mengirimnya).
+  # - Penerapan: otomatis pukul 00.00 zona RS pada `berlaku_dari` (tugas terjadwal, idempoten); bila `berlaku_dari` ≤
+  #   hari ini saat disetujui, langsung diterapkan. Semua butir satu usulan diterapkan dalam satu transaksi. Setiap
+  #   perubahan data induk (lewat usulan maupun langsung) menyimpan versi (riwayat-versi).
+  # - Setelah instalasi siap melayani (penjaga `instalasi.siap_melayani`, tiket 1.8f; sampai 1.8f selalu belum),
+  #   perubahan langsung ruang/kamar/TT di 1.8b ditolak 409 `harus_lewat_usulan`, kecuali TT ekstra (darurat lonjakan).
+  # - Notifikasi/tugas (1.7) jenis USULAN_DATA_INDUK ke pemverifikasi, penyetuju, atau pengusul sesuai tahap. Usulan
+  #   bisa ditandatangani (TTE T1, 1.6) oleh pengusul, pemverifikasi, dan penyetujunya (`objek_jenis = usulan_data_induk`).
+  # ---------------------------------------------------------------------------
+  /usulan-data-induk:
+    get:
+      operationId: daftarUsulanDataInduk
+      summary: Daftar usulan (paginasi kursor, terbaru dulu)
+      description: |
+        Izin: master_data.usulan.lihat. `tahap=terbuka` = diusulkan, diverifikasi, disetujui, dikembalikan, gagal_diterapkan
+        (yang belum berlaku). `perlu_saya=true` = usulan yang akun ini bisa tindak lanjuti sekarang (`dapat.*`).
+        `meta.jumlah` = jumlah per tahap untuk kartu ringkasan (mengikuti filter `jenis_data`).
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: tahap, schema: { type: string, enum: [terbuka, diusulkan, diverifikasi, disetujui, berlaku, dikembalikan, gagal_diterapkan] } }
+        - { in: query, name: jenis_data, schema: { $ref: '#/components/schemas/JenisDataInduk' } }
+        - { in: query, name: perlu_saya, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Satu halaman usulan
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/UsulanDataInduk' } }
+                  meta:
+                    allOf:
+                      - $ref: '#/components/schemas/MetaKursor'
+                      - type: object
+                        required: [jumlah]
+                        properties:
+                          jumlah:
+                            type: object
+                            required: [diusulkan, diverifikasi, disetujui, dikembalikan, gagal_diterapkan]
+                            properties:
+                              diusulkan: { type: integer, minimum: 0 }
+                              diverifikasi: { type: integer, minimum: 0 }
+                              disetujui: { type: integer, minimum: 0, description: "Terjadwal berlaku" }
+                              dikembalikan: { type: integer, minimum: 0 }
+                              gagal_diterapkan: { type: integer, minimum: 0 }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatUsulanDataInduk
+      summary: Ajukan usulan perubahan data induk
+      description: |
+        Izin: master_data.usulan.input. `berlaku_dari` ≥ hari ini zona RS (422 `tanggal_tidak_valid`).
+        - 422 `perubahan_tidak_valid`: `rincian[]` = `{kolom: "perubahan.<i>[.<isian>]", kode, pesan}`, kode dari aturan 1.8b
+          (mis. `kode_sudah_dipakai`, `kelas_rawat_tidak_valid`, `sudah_ditutup`, `jenis_induk_tidak_sesuai`) atau
+          `objek_tidak_ditemukan`, `aksi_tidak_dikenal`.
+        - 409 `objek_sedang_diusulkan`: objek yang sama ada di usulan lain yang belum berlaku (`rincian` menyebut nomornya).
+        Audit `master_data.usulan_diajukan`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianUsulanDataInduk' }
+      responses:
+        '201':
+          description: Usulan diajukan (tahap diusulkan)
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/UsulanDataInduk' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /usulan-data-induk/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciUsulanDataInduk
+      summary: Rincian usulan dengan perbedaan lama → baru dan riwayat tahap
+      description: "Izin: master_data.usulan.lihat."
+      responses:
+        '200':
+          description: Rincian
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/UsulanDataInduk' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /usulan-data-induk/{id}/verifikasi:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: verifikasiUsulanDataInduk
+      summary: Verifikasi usulan (diusulkan → diverifikasi)
+      description: |
+        Izin: master_data.usulan.verifikasi (dan peran pemverifikasi alur jenis data bila ditetapkan: 403 `bukan_pemverifikasi`).
+        403 `pengusul_sendiri`; 409 `tahap_tidak_sesuai` (bukan tahap diusulkan). Audit `master_data.usulan_diverifikasi`.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, properties: { catatan: { type: [string, 'null'], maxLength: 500 } } }
+      responses:
+        '200':
+          description: Usulan sesudah diverifikasi
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/UsulanDataInduk' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /usulan-data-induk/{id}/setujui:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: setujuiUsulanDataInduk
+      summary: Setujui usulan (diverifikasi → disetujui; langsung berlaku bila berlaku_dari ≤ hari ini)
+      description: |
+        Izin: master_data.usulan.setujui (dan peran penyetuju alur bila ditetapkan: 403 `bukan_penyetuju`).
+        403 `pengusul_sendiri`, 403 `sudah_memverifikasi` (pemverifikasi tidak menyetujui usulan yang ia verifikasi);
+        409 `tahap_tidak_sesuai`. Bila langsung diterapkan dan gagal: respons 200 dengan tahap `gagal_diterapkan` dan
+        `gagal_alasan`. Audit `master_data.usulan_disetujui` (+ `master_data.usulan_diterapkan`).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, properties: { catatan: { type: [string, 'null'], maxLength: 500 } } }
+      responses:
+        '200':
+          description: Usulan sesudah disetujui (disetujui, berlaku, atau gagal_diterapkan)
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/UsulanDataInduk' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /usulan-data-induk/{id}/kembalikan:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: kembalikanUsulanDataInduk
+      summary: Kembalikan usulan ke pengusul dengan catatan (dari tahap diusulkan atau diverifikasi)
+      description: |
+        Tahap diusulkan: izin verifikasi (peran pemverifikasi alur); tahap diverifikasi: izin setujui (peran penyetuju
+        alur). 403 `pengusul_sendiri`; 409 `tahap_tidak_sesuai`. Audit `master_data.usulan_dikembalikan`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [catatan]
+              properties:
+                catatan: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200':
+          description: Usulan sesudah dikembalikan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/UsulanDataInduk' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /usulan-data-induk/{id}/kirim-ulang:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: kirimUlangUsulanDataInduk
+      summary: Perbaiki dan kirim ulang usulan yang dikembalikan (dikembalikan → diusulkan)
+      description: |
+        Hanya pengusulnya, dengan izin master_data.usulan.input (selain itu 403 `bukan_pengusul`). Isi menggantikan isi
+        sebelumnya (bentuk sama dengan POST, kecuali `jenis_data` tetap); `nilai_lama` dipotret ulang; putaran +1; tanda
+        tangan putaran sebelumnya menjadi `isi_berubah`. 409 `tahap_tidak_sesuai`; 409 `objek_sedang_diusulkan`;
+        422 seperti POST. Audit `master_data.usulan_dikirim_ulang`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [perubahan, berlaku_dari, alasan, dasar]
+              properties:
+                perubahan: { $ref: '#/components/schemas/IsianPerubahanUsulan' }
+                berlaku_dari: { type: string, format: date }
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+                dasar: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Usulan sesudah dikirim ulang
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/UsulanDataInduk' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /data-induk/{jenis}/{id}/riwayat-versi:
+    parameters:
+      - { in: path, name: jenis, required: true, schema: { $ref: '#/components/schemas/ObjekDataInduk' } }
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: riwayatVersiDataInduk
+      summary: Riwayat versi satu objek data induk (paginasi kursor, terbaru dulu)
+      description: |
+        Izin: lihat data induk itu (ruang/kamar/tempat_tidur: master_data.organisasi.lihat). Setiap perubahan (lewat usulan
+        atau langsung) = satu versi dengan isi sebelum dan sesudah; versi tidak pernah diubah. Objek tanpa riwayat
+        (dibuat sebelum 1.8c dan belum pernah diubah) → daftar kosong.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman versi
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/VersiDataInduk' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -3687,7 +3954,7 @@ components:
       required: [id, jenis, judul, isi, tautan, prioritas, tugas_id, dibaca_pada, dibuat_pada]
       properties:
         id: { type: string, format: uuid }
-        jenis: { type: string, description: "Kode jenis tugas (mis. PERSETUJUAN_AKSES_MENUNGGU) atau jenis akun (AKUN_TERKUNCI)" }
+        jenis: { type: string, description: "Kode jenis tugas (mis. PERSETUJUAN_AKSES_MENUNGGU) atau jenis akun (AKUN_TERKUNCI, TTD_TERKUNCI, TTD_DICABUT)" }
         judul: { type: string }
         isi: { type: string, description: "Tanpa data pasien, sandi, atau alamat IP lengkap" }
         tautan: { type: [string, 'null'], description: "Rute SPA, mis. /pengaturan/persetujuan/{id}" }
@@ -3874,7 +4141,7 @@ components:
       required: [id, objek_jenis, objek_id, penanda_tangan, tingkat, metode, hash_isi, sidik_kunci, kredensial_dicabut, ditandatangani_pada, verifikasi]
       properties:
         id: { type: string, format: uuid }
-        objek_jenis: { type: string, enum: [persetujuan_akses] }
+        objek_jenis: { type: string, enum: [persetujuan_akses, usulan_data_induk] }
         objek_id: { type: string, format: uuid }
         penanda_tangan:
           type: object
@@ -3898,6 +4165,115 @@ components:
               enum: [sah, isi_berubah, tanda_tangan_tidak_sah]
               description: "sah = isi saat ini sama dengan yang ditandatangani dan tanda tangan cocok dengan kunci publiknya (juga bila kredensial itu sudah dicabut karena reset)"
             diperiksa_pada: { type: string, format: date-time }
+    JenisDataInduk:
+      type: string
+      enum: [ruang_tt]
+      description: "Kelompok data induk dengan satu alur usulan (pemilik/pemverifikasi/penyetuju). Fase 1: ruang & TT (FR-08-16)"
+    ObjekDataInduk:
+      type: string
+      enum: [ruang, kamar, tempat_tidur]
+      description: "ruang = lokasi jenis ruang (1.8b)"
+    TahapUsulan:
+      type: string
+      enum: [diusulkan, diverifikasi, disetujui, berlaku, dikembalikan, gagal_diterapkan]
+    IsianUsulanDataInduk:
+      type: object
+      required: [jenis_data, perubahan, berlaku_dari, alasan, dasar]
+      properties:
+        jenis_data: { $ref: '#/components/schemas/JenisDataInduk' }
+        perubahan: { $ref: '#/components/schemas/IsianPerubahanUsulan' }
+        berlaku_dari: { type: string, format: date, description: "≥ hari ini zona RS; diterapkan 00.00 pada tanggal ini" }
+        alasan: { type: string, minLength: 5, maxLength: 500 }
+        dasar: { $ref: '#/components/schemas/Dasar' }
+    IsianPerubahanUsulan:
+      type: array
+      minItems: 1
+      maxItems: 50
+      description: |
+        Diterapkan berurutan dalam satu transaksi. Aksi per objek dan isian `nilai_baru` (aturan 1.8b yang sama):
+        - tempat_tidur `tambah` (objek_id null): kamar_id, kode, kelas_rawat_id, aturan_jenis_kelamin, isolasi, ekstra
+          (IsianTempatTidur tanpa berlaku_dari/dasar_perubahan; TT mulai dihitung pada `berlaku_dari` usulan);
+        - tempat_tidur `ubah`: kelas_rawat_id, aturan_jenis_kelamin, isolasi, ekstra (minimal satu);
+        - tempat_tidur `tutup`: alasan (TT tidak dihitung mulai `berlaku_dari`, permanen);
+        - kamar `tambah` (objek_id null): bangsal_id, lokasi_id, kapasitas_maksimum, atribut_standar;
+        - kamar `ubah`: bangsal_id, kapasitas_maksimum, atribut_standar (minimal satu);
+        - ruang `ubah`: nama, fungsi, unit_organisasi_id, status (status berlaku pada `berlaku_dari`; minimal satu).
+      items:
+        type: object
+        required: [objek_jenis, aksi, objek_id, nilai_baru]
+        properties:
+          objek_jenis: { $ref: '#/components/schemas/ObjekDataInduk' }
+          aksi: { type: string, enum: [tambah, ubah, tutup] }
+          objek_id: { type: [string, 'null'], format: uuid, description: "Wajib untuk ubah/tutup; null untuk tambah" }
+          nilai_baru: { type: object, additionalProperties: true }
+    ButirUsulan:
+      type: object
+      required: [objek_jenis, aksi, objek_id, objek_label, nilai_lama, nilai_baru]
+      properties:
+        objek_jenis: { $ref: '#/components/schemas/ObjekDataInduk' }
+        aksi: { type: string, enum: [tambah, ubah, tutup] }
+        objek_id: { type: [string, 'null'], format: uuid, description: "Untuk tambah: terisi sesudah berlaku" }
+        objek_label: { type: string, examples: ['ICU · Intensive care unit', 'TT B-3-304-2'] }
+        nilai_lama: { type: [object, 'null'], additionalProperties: true, description: "Dipotret server saat diusulkan; null untuk tambah. Hanya isian yang diubah" }
+        nilai_baru: { type: object, additionalProperties: true }
+    RiwayatUsulan:
+      type: object
+      required: [aksi, oleh, pada, catatan, putaran]
+      properties:
+        aksi: { type: string, enum: [diajukan, diverifikasi, disetujui, dikembalikan, dikirim_ulang, diterapkan, gagal_diterapkan] }
+        oleh: { $ref: '#/components/schemas/Pelaku', description: "null = sistem (penerapan terjadwal)" }
+        pada: { type: string, format: date-time }
+        catatan: { type: [string, 'null'] }
+        putaran: { type: integer, minimum: 1 }
+    UsulanDataInduk:
+      type: object
+      required: [id, nomor, jenis_data, ringkasan, perubahan, berlaku_dari, alasan, dasar, tahap, putaran, diusulkan_oleh, diusulkan_pada, diverifikasi_oleh, disetujui_oleh, gagal_alasan, riwayat, dapat]
+      properties:
+        id: { type: string, format: uuid }
+        nomor: { type: string, examples: ['UDI-2026-000405'] }
+        jenis_data: { $ref: '#/components/schemas/JenisDataInduk' }
+        ringkasan: { type: string, examples: ['ICU: 12 → 16 TT'], description: "Disusun server dari butir dan kapasitas bangsal/kamar saat dibaca" }
+        perubahan: { type: array, items: { $ref: '#/components/schemas/ButirUsulan' } }
+        berlaku_dari: { type: string, format: date }
+        alasan: { type: string }
+        dasar: { type: string }
+        tahap: { $ref: '#/components/schemas/TahapUsulan' }
+        putaran: { type: integer, minimum: 1, description: "Naik setiap kirim ulang" }
+        diusulkan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        diusulkan_pada: { type: string, format: date-time }
+        diverifikasi_oleh: { $ref: '#/components/schemas/Pelaku', description: "Putaran ini; null bila belum" }
+        disetujui_oleh: { $ref: '#/components/schemas/Pelaku' }
+        gagal_alasan: { type: [string, 'null'] }
+        riwayat: { type: array, items: { $ref: '#/components/schemas/RiwayatUsulan' } }
+        dapat:
+          type: object
+          required: [verifikasi, setujui, kembalikan, kirim_ulang]
+          description: "Tindakan yang boleh dilakukan akun yang sedang masuk sekarang"
+          properties:
+            verifikasi: { type: boolean }
+            setujui: { type: boolean }
+            kembalikan: { type: boolean }
+            kirim_ulang: { type: boolean }
+    VersiDataInduk:
+      type: object
+      required: [id, versi, objek_jenis, objek_id, berlaku_dari, sebelum, sesudah, usulan, dasar, diubah_oleh, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        versi: { type: integer, minimum: 1 }
+        objek_jenis: { $ref: '#/components/schemas/ObjekDataInduk' }
+        objek_id: { type: string, format: uuid }
+        berlaku_dari: { type: string, format: date }
+        sebelum: { type: [object, 'null'], additionalProperties: true, description: "null = objek dibuat" }
+        sesudah: { type: object, additionalProperties: true }
+        usulan:
+          type: [object, 'null']
+          required: [id, nomor]
+          properties:
+            id: { type: string, format: uuid }
+            nomor: { type: string }
+        dasar: { type: string }
+        diubah_oleh: { $ref: '#/components/schemas/Pelaku' }
+        diubah_pada: { type: string, format: date-time }
     StatusPermintaan:
       type: string
       enum: [menunggu, ditindaklanjuti, ditolak]
