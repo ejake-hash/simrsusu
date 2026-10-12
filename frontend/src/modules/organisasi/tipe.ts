@@ -38,6 +38,13 @@ export interface IsianProfilRs {
   dasar_perubahan: string
 }
 
+/** RingkasPegawai (kontrak v0.6.0): kepala unit dan ketua KSM. */
+export interface RingkasPegawai {
+  id: string
+  nama: string
+  status: 'aktif' | 'akan_keluar' | 'keluar'
+}
+
 export type JenisBerkas = 'logo' | 'motif' | 'foto'
 export type JenisUnit = 'instalasi' | 'bidang' | 'bagian' | 'ruang' | 'poli' | 'depo'
 
@@ -49,7 +56,8 @@ export interface UnitOrganisasi {
   jenis: JenisUnit
   status: 'aktif' | 'nonaktif'
   berlaku_dari: string
-  kepala: { id: string; nama: string } | null
+  /** Kepala unit (pegawai, sejak 1.8d); `status` menandai yang sudah keluar. */
+  kepala: RingkasPegawai | null
   jumlah_anak: number
   jalur: { id: string; kode: string; nama: string }[]
   versi: string
@@ -72,6 +80,7 @@ export interface UbahUnitOrganisasi {
   jenis?: JenisUnit
   status?: 'aktif' | 'nonaktif'
   berlaku_dari?: string
+  kepala_pegawai_id?: string | null
   dasar_perubahan: string
 }
 
@@ -80,7 +89,8 @@ export interface Ksm {
   kode: string
   nama: string
   status: 'aktif' | 'nonaktif'
-  ketua: { id: string; nama: string } | null
+  /** Ketua KSM (pegawai, sejak 1.8d). */
+  ketua: RingkasPegawai | null
   versi: string
   diubah_pada: string
 }

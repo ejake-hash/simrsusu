@@ -1,5 +1,5 @@
 import type { PermintaanTiruan, ResponsTiruan } from '../../akses/tiruan/serverTiruan'
-import type { JenisUnit, Ksm, ProfilRsApi, UnitOrganisasi } from '../tipe'
+import type { JenisUnit, Ksm, ProfilRsApi, RingkasPegawai, UnitOrganisasi } from '../tipe'
 import { profilRsTiruan } from './profilRs'
 
 /**
@@ -38,6 +38,8 @@ export interface OpsiServerOrganisasi {
   /** Unit dari penugasan ber-cakupan unit milik akun yang masuk (milik_saya). */
   unitMilikSaya?: () => string[]
   sekarang?: () => Date
+  /** Pegawai dari server tiruan SDM (1.8d): kepala unit dan ketua KSM; null = tidak ada. */
+  pegawai?: (id: string) => RingkasPegawai | null
 }
 
 export function buatServerOrganisasi(opsi: OpsiServerOrganisasi = {}) {
@@ -82,10 +84,20 @@ export function buatServerOrganisasi(opsi: OpsiServerOrganisasi = {}) {
     }
     return hasil
   }
+  /** Kepala/ketua disimpan sebagai id; status pegawai dihitung saat dibaca (yang sudah keluar tetap tampil, ditandai). */
+  const ringkasPegawai = (p: RingkasPegawai | null) => (p ? (opsi.pegawai?.(p.id) ?? p) : null)
   const bentukUnit = (u: UnitOrganisasi & { v: number }): UnitOrganisasi => {
     const { v, ...isi } = u
-    return { ...isi, versi: String(v), jumlah_anak: anak(u.id).length, jalur: jalur(u) }
+    return { ...isi, kepala: ringkasPegawai(u.kepala), versi: String(v), jumlah_anak: anak(u.id).length, jalur: jalur(u) }
   }
+  /** 422 pegawai_tidak_valid bila pegawai tidak ada atau sudah keluar (kontrak v0.6.0). */
+  const pegawaiSah = (nilai: unknown, kolom: string): RingkasPegawai | null | ResponsTiruan => {
+    if (nilai === null) return null
+    const p = typeof nilai === 'string' ? opsi.pegawai?.(nilai) : null
+    if (!p || p.status === 'keluar') return error(422, 'pegawai_tidak_valid', 'Pegawai tidak ada atau sudah keluar.', [{ kolom, pesan: 'Pilih pegawai yang masih bekerja.' }])
+    return p
+  }
+  const salah = (v: unknown): v is ResponsTiruan => typeof v === 'object' && v !== null && 'status' in v && 'isi' in v
   const turunan = (uid: string): string[] => anak(uid).flatMap((a) => [a.id, ...turunan(a.id)])
 
   // ── KSM ──
@@ -100,7 +112,7 @@ export function buatServerOrganisasi(opsi: OpsiServerOrganisasi = {}) {
   }
   const bentukKsm = (k: Ksm & { v: number }): Ksm => {
     const { v, ...isi } = k
-    return { ...isi, versi: String(v) }
+    return { ...isi, ketua: ringkasPegawai(k.ketua), versi: String(v) }
   }
 
   function halaman<T>(daftar: T[], kueri: URLSearchParams): ResponsTiruan {
@@ -237,6 +249,11 @@ export function buatServerOrganisasi(opsi: OpsiServerOrganisasi = {}) {
         if (typeof isi.jenis === 'string') u.jenis = isi.jenis as JenisUnit
         if (isi.status === 'aktif' || isi.status === 'nonaktif') u.status = isi.status
         if (typeof isi.berlaku_dari === 'string') u.berlaku_dari = isi.berlaku_dari
+        if ('kepala_pegawai_id' in isi) {
+          const p = pegawaiSah(isi.kepala_pegawai_id, 'kepala_pegawai_id')
+          if (salah(p)) return p
+          u.kepala = p
+        }
         u.v++
         u.diubah_pada = iso()
         return ok({ data: bentukUnit(u) }, 200, { ETag: `"${u.v}"` })
@@ -278,6 +295,11 @@ export function buatServerOrganisasi(opsi: OpsiServerOrganisasi = {}) {
         }
         if (typeof isi.nama === 'string') k.nama = isi.nama
         if (isi.status === 'aktif' || isi.status === 'nonaktif') k.status = isi.status
+        if ('ketua_pegawai_id' in isi) {
+          const p = pegawaiSah(isi.ketua_pegawai_id, 'ketua_pegawai_id')
+          if (salah(p)) return p
+          k.ketua = p
+        }
         k.v++
         k.diubah_pada = iso()
         return ok({ data: bentukKsm(k) }, 200, { ETag: `"${k.v}"` })

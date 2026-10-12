@@ -3,7 +3,7 @@ import { createApp, watch } from 'vue'
 import { createPinia } from 'pinia'
 import '@/design-system/tokens.css'
 import '@/design-system/dasar.css'
-import { aturPenangan401, ApiError, klien } from '@/shared/api/klien'
+import { aturPenangan401, aturPenanganWajibGantiSandi, ApiError, klien } from '@/shared/api/klien'
 import { vCan } from '@/shared/composables/usePermission'
 import App from './App.vue'
 import { lupakanSesi, sambungIzin } from './menu'
@@ -31,6 +31,14 @@ aturPenangan401((error) => {
   if (sekarang.name !== 'masuk') {
     void router.replace({ name: 'masuk', query: sekarang.fullPath === '/' ? {} : { kembali: sekarang.fullPath } })
   }
+})
+
+// 403 wajib_ganti_sandi: sandi awal belum diganti (mis. sesi lama sebelum /saya dimuat ulang).
+aturPenanganWajibGantiSandi(() => {
+  const sesi = useSesiStore()
+  if (sesi.pengguna) sesi.pengguna = { ...sesi.pengguna, wajib_ganti_sandi: true }
+  const sekarang = router.currentRoute.value
+  if (sekarang.name !== 'ganti-sandi') void router.replace({ name: 'ganti-sandi', query: { kembali: sekarang.fullPath } })
 })
 
 // Keluar atau sesi berakhir: buang menu, izin, dan cache data akun ini.

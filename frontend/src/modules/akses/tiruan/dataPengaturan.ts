@@ -42,7 +42,7 @@ const POHON: [kode: string, label: string | null, menu: DefMenu[]][] = [
     'Tata Kelola',
     [
       ['mutu', 'Mutu dan Keselamatan', 4, [['indikator', 'Indikator mutu'], ['insiden', 'Insiden keselamatan'], ['ppi', 'PPI'], ['keluhan', 'Keluhan & kepuasan']]],
-      ['sdm', 'SDM', 4, [['jadwal_dinas', 'Jadwal dinas'], ['pegawai', 'Data pegawai'], ['kredensial', 'Izin & kredensial'], ['cuti', 'Cuti & presensi']]],
+      ['sdm', 'SDM', 4, [['jadwal_dinas', 'Jadwal dinas'], ['pegawai', 'Data pegawai', 1], ['kredensial', 'Izin & kredensial'], ['cuti', 'Cuti & presensi']]],
       ['logistik', 'Logistik', 4, [['gudang', 'Gudang & persediaan'], ['pengadaan', 'Pengadaan'], ['aset', 'Aset tetap'], ['pemeliharaan', 'Pemeliharaan & kalibrasi']]],
       ['integrasi', 'Integrasi dan Laporan', 2, [['satusehat', 'SATUSEHAT'], ['bpjs', 'Bridging BPJS'], ['laporan_wajib', 'Laporan wajib', 4]]],
       ['dasbor', 'Dasbor', 4, [['ringkasan_direksi', 'Ringkasan direksi'], ['keuangan', 'Keuangan'], ['pelayanan', 'Pelayanan']]],
@@ -61,16 +61,21 @@ const AKSI_KHUSUS: Record<string, [JenisAksi, boolean][]> = {
 const BAGIAN: Record<string, [kode: string, label: string, ikutInduk: boolean][]> = {
   'kasir.tagihan': [['panel_diskon', 'Panel diskon', false], ['panel_bantuan', 'Panel bantuan', true]],
   'rawat_inap.cppt': [['konfirmasi_lisan', 'Konfirmasi instruksi lisan', false]],
+  // NIK pegawai utuh (1.8d-be: MenuBawaan::BAGIAN); hanya aksi lihat.
+  'sdm.pegawai': [['identitas', 'Identitas pribadi (NIK)', false]],
 }
+const AKSI_BAGIAN: Record<string, JenisAksi[]> = { 'sdm.pegawai.identitas': ['lihat'] }
 
-export const TERSEDIA = new Set(['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'master_data.organisasi'])
+export const TERSEDIA = new Set(['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'master_data.organisasi', 'sdm.pegawai'])
 /** Modul yang dimatikan di instalasi contoh, agar penanda "modul nonaktif" ikut teruji. */
 const MODUL_NONAKTIF = new Set(['kamar_operasi'])
 
 /** Pengelola akses (input/perbaiki peran dan akun) sensitif sejak 1.2c-be: pemberiannya butuh persetujuan (1.2d). */
 const SUB_PENGELOLA_AKSES = new Set(['pengaturan.peran', 'pengaturan.akun'])
+/** Data pribadi sensitif tanpa penyetuju bawaan (1.8d-be: MenuBawaan::IZIN_DATA_PRIBADI, K3). */
+const IZIN_DATA_PRIBADI = new Set(['sdm.pegawai.identitas.lihat'])
 const izinDasar = (kode: string, aksi: JenisAksi[] = ['lihat', 'input', 'perbaiki']): IzinNode[] =>
-  aksi.map((a) => ({ kode: `${kode}.${a}`, jenis_aksi: a, sensitif: SUB_PENGELOLA_AKSES.has(kode) && a !== 'lihat' }))
+  aksi.map((a) => ({ kode: `${kode}.${a}`, jenis_aksi: a, sensitif: (SUB_PENGELOLA_AKSES.has(kode) && a !== 'lihat') || IZIN_DATA_PRIBADI.has(`${kode}.${a}`) }))
 
 export function buatPohon(): PohonMenu {
   let n = 1000
@@ -106,7 +111,7 @@ export function buatPohon(): PohonMenu {
               anak: (BAGIAN[k] ?? []).map(([kodeBagian, labelBagian, ikutInduk]) =>
                 node(`${k}.${kodeBagian}`, labelBagian, 'bagian', {
                   ikut_induk: ikutInduk,
-                  izin: ikutInduk ? [] : izinDasar(`${k}.${kodeBagian}`, ['lihat', 'perbaiki']),
+                  izin: ikutInduk ? [] : izinDasar(`${k}.${kodeBagian}`, AKSI_BAGIAN[`${k}.${kodeBagian}`] ?? ['lihat', 'perbaiki']),
                 }),
               ),
             })

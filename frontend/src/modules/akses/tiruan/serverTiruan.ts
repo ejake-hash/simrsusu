@@ -74,6 +74,9 @@ interface AkunTiruan {
   mfa_aktif_pada: string | null
   penugasan: Penugasan[]
   izin_khusus: IzinKhusus[]
+  /** Akun baru dari pegawai (1.8d): endpoint bersesi lain 403 wajib_ganti_sandi sampai POST /saya/sandi. */
+  wajib_ganti_sandi?: boolean
+  pegawai_id?: string | null
 }
 
 const error = (status: number, kode: string, pesan: string, rincian: Record<string, unknown>[] = []): ResponsTiruan => ({
@@ -102,7 +105,12 @@ export interface OpsiServerTiruan {
   /** Akun yang dianggap sedang masuk (diri_sendiri). Bawaan: contoh.superadmin. */
   penggunaId?: string
   sekarang?: () => Date
+  /** Status pegawai (server tiruan SDM, 1.8d): aktifkan akun milik pegawai `keluar` → 409 pegawai_keluar. */
+  pegawaiKeluar?: (pegawaiId: string) => boolean
 }
+
+/** Sandi akun yang masuk di server tiruan (dev/unit test saja; bukan sandi sungguhan). */
+export const SANDI_TIRUAN = 'sandi-tiruan-lokal-1'
 
 export const ID_SUPERADMIN = uid(1)
 /** Superadmin kedua (penyetuju K4/K13) dan pemilik data kasir, tiket 1.2d. */
@@ -150,6 +158,13 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   tambahPeran(uid(106), 'contoh_lama', 'Contoh Peran Lama', [], { status: 'nonaktif' })
   // Pemilik data induk organisasi (1.8a-be: akun contoh.data.induk); superadmin tidak memegangnya.
   tambahPeran(uid(107), 'contoh_data_induk', 'Contoh Admin Data Induk', ['lihat', 'input', 'perbaiki'].map((a) => `master_data.organisasi.${a}`))
+  // Pengelola data pegawai (1.8d); bagian identitas (NIK utuh) tidak ikut, diberikan tersendiri lewat persetujuan.
+  tambahPeran(uid(109), 'contoh_sdm', 'Contoh Admin SDM', [
+    ...['pegawai', 'kredensial'].flatMap((s) => ['lihat', 'input', 'perbaiki'].map((a) => `sdm.${s}.${a}`)),
+    'master_data.organisasi.lihat',
+  ])
+  // Bagian identitas (NIK utuh) untuk uji; tidak dipasang ke akun mana pun secara bawaan.
+  tambahPeran(uid(110), 'contoh_sdm_identitas', 'Contoh Pembaca NIK Pegawai', ['sdm.pegawai.lihat', 'sdm.pegawai.identitas.lihat'])
   // Pemilik data contoh (1.2d): penyetuju izin sensitif kasir; membuka antrean persetujuan lewat peran (kontrak v0.4.0).
   const KABID = uid(108)
   tambahPeran(KABID, 'contoh_kabid_keuangan', 'Contoh Kabid Keuangan', ['pengaturan.persetujuan.lihat'])
@@ -474,7 +489,8 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
           nama_pengguna: a.nama_pengguna,
           login_terakhir_pada: a.login_terakhir_pada,
           mfa_aktif: a.mfa_aktif_pada !== null,
-          pegawai: { id: uid(9000), nama: a.nama },
+          wajib_ganti_sandi: a.wajib_ganti_sandi ?? false,
+          pegawai: { id: a.pegawai_id ?? uid(9000), nama: a.nama },
           peran: peranSaya,
           masuk_sebelumnya_pada: '2026-10-09T23:48:00.000Z',
           masuk_sebelumnya_dari_jaringan_rs: true,
@@ -482,6 +498,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
       })
     }
     if (m === 'GET' && r.jalur === '/saya/menu') return ok({ data: menuEfektif(akun.get(penggunaId)!) })
+    if (m === 'POST' && r.jalur === '/saya/sandi') return gantiSandi(akun.get(penggunaId)!, isi)
     if (m === 'POST' && r.jalur === '/autentikasi/keluar') return ok(null, 204)
     if (m === 'GET' && r.jalur === '/menu') return ok({ data: pohon })
 
@@ -755,6 +772,18 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
       if (a.id === penggunaId) return error(403, 'diri_sendiri', 'Perubahan akun sendiri dilakukan superadmin lain.')
       if (terkunciSuperadmin(a)) return error(403, 'akun_superadmin', 'Akses akun superadmin hanya diubah oleh superadmin lain.')
 
+      // ── 1.8d: nonaktifkan / aktifkan dengan alasan ──
+      if (m === 'POST' && (a2 === 'nonaktifkan' || a2 === 'aktifkan') && !a3) {
+        const alasan = teks(isi, 'alasan', 5, 500)
+        if (salah(alasan)) return alasan
+        const ke = a2 === 'nonaktifkan' ? 'nonaktif' : 'aktif'
+        if (a.status === ke) return error(409, ke === 'nonaktif' ? 'sudah_nonaktif' : 'sudah_aktif', ke === 'nonaktif' ? 'Akun ini sudah nonaktif.' : 'Akun ini sudah aktif.')
+        if (superadmin(a)) return error(409, 'superadmin_aktif', 'Akun ini masih memegang peran Superadmin. Akhiri penugasannya lebih dulu lewat persetujuan superadmin lain.')
+        if (ke === 'aktif' && a.pegawai_id && opsi.pegawaiKeluar?.(a.pegawai_id)) return error(409, 'pegawai_keluar', 'Pegawai pemilik akun ini sudah keluar. Batalkan dulu tanggal keluar di data pegawai.')
+        a.status = ke
+        return ok({ data: akunRinci(a) })
+      }
+
       if (m === 'POST' && a2 === 'penugasan' && !a3) {
         const dasar = teks(isi, 'dasar_pemberian', 3, 200)
         if (salah(dasar)) return dasar
@@ -899,6 +928,49 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   }
 
   /** Dev: tambahkan peran contoh ke akun yang masuk (lihat serverGabungan). */
+  /** POST /saya/sandi (kontrak v0.6.0): aturan PRD 14.2 versi tiruan (panjang 12, kontekstual, beda dari sandi lama). */
+  function gantiSandi(a: AkunTiruan, isi: Isi): ResponsTiruan {
+    if (isi.sandi_lama !== SANDI_TIRUAN) return error(422, 'sandi_lama_salah', 'Sandi lama salah.', [{ kolom: 'sandi_lama', pesan: 'Sandi lama salah.' }])
+    const baru = typeof isi.sandi_baru === 'string' ? isi.sandi_baru : ''
+    const tolak = (pesan: string) => error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom: 'sandi_baru', pesan }])
+    if (baru.length < 12) return tolak('Sandi baru minimal 12 karakter.')
+    if (baru === isi.sandi_lama) return tolak('Sandi baru harus berbeda dari sandi lama.')
+    const kecil = baru.toLowerCase()
+    if (kecil.includes(a.nama_pengguna.toLowerCase()) || kecil.includes('karsitara')) return tolak('Sandi baru tidak boleh memuat nama pengguna, nama rumah sakit, atau nama produk.')
+    a.wajib_ganti_sandi = false
+    return tangani({ metode: 'get', jalur: '/saya', kueri: new URLSearchParams(), header: {}, isi: null })!
+  }
+
+  // ── Untuk server tiruan SDM (1.8d) ──
+  const bolehSaya = (kode: string) => izinEfektif(akun.get(penggunaId)!).has(kode)
+  const wajibGantiSandi = () => akun.get(penggunaId)?.wajib_ganti_sandi ?? false
+  const ringkasAkunPegawai = (pegawaiId: string) => {
+    const a = [...akun.values()].find((x) => x.pegawai_id === pegawaiId)
+    return a ? { id: a.id, nama_pengguna: a.nama_pengguna, status: a.status } : null
+  }
+  /** Buat akun tanpa peran, wajib ganti sandi (POST /pegawai/{id}/akun). Melempar 'nama_pengguna_dipakai'. */
+  function buatAkunPegawai(pegawaiId: string, namaPengguna: string, nama: string) {
+    if ([...akun.values()].some((x) => x.nama_pengguna === namaPengguna)) throw new Error('nama_pengguna_dipakai')
+    const id = idBaru()
+    tambahAkun(id, namaPengguna, nama, [], { login_terakhir_pada: null, wajib_ganti_sandi: true, pegawai_id: pegawaiId })
+    const a = akun.get(id)!
+    return { id: a.id, nama_pengguna: a.nama_pengguna, nama: a.nama, status: a.status, terkunci_sampai: null, login_terakhir_pada: null, peran: [], pengecualian: { tambah: 0, cabut: 0 }, mfa_aktif: false }
+  }
+  const akunSuperadminPegawai = (pegawaiId: string) => {
+    const a = [...akun.values()].find((x) => x.pegawai_id === pegawaiId)
+    return a ? superadmin(a) : false
+  }
+  /** Pegawai keluar (tanggalnya tercapai): akun nonaktif (sesi diputus di backend). */
+  function nonaktifkanAkunPegawai(pegawaiId: string) {
+    const a = [...akun.values()].find((x) => x.pegawai_id === pegawaiId)
+    if (a) a.status = 'nonaktif'
+  }
+  /** Sambungkan akun sintetis ke pegawai sintetis server SDM. */
+  function tautkanPegawai(namaPengguna: string, pegawaiId: string) {
+    const a = [...akun.values()].find((x) => x.nama_pengguna === namaPengguna)
+    if (a) a.pegawai_id = pegawaiId
+  }
+
   function tambahPenugasanDev(kodePeran: string) {
     const p = [...peran.values()].find((x) => x.kode === kodePeran)
     if (p) akun.get(penggunaId)!.penugasan.push(penugasan(p.id))
@@ -911,7 +983,12 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   function sebagai(id: string) {
     penggunaId = id
   }
-  return { tangani, pohon, tambahPenugasanDev, unitMilikSaya, sebagai }
+  return {
+    tangani, pohon, tambahPenugasanDev, unitMilikSaya, sebagai,
+    bolehSaya, wajibGantiSandi, ringkasAkunPegawai, buatAkunPegawai, akunSuperadminPegawai, nonaktifkanAkunPegawai, tautkanPegawai,
+    /** Uji: jadikan akun yang masuk wajib ganti sandi. */
+    wajibkanGantiSandi: () => void (akun.get(penggunaId)!.wajib_ganti_sandi = true),
+  }
 }
 
 export type ServerTiruan = ReturnType<typeof buatServerTiruan>

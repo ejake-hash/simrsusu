@@ -104,7 +104,12 @@ function selesai() {
       @coba-lagi="kueri.refetch()"
     >
       <template #sel-kode="{ baris: k }"><code>{{ k.kode }}</code></template>
-      <template #sel-ketua="{ baris: k }">{{ k.ketua?.nama ?? '—' }}</template>
+      <template #sel-ketua="{ baris: k }">
+        {{ k.ketua?.nama ?? '—' }}
+        <span v-if="k.ketua && k.ketua.status !== 'aktif'" class="pil" :class="k.ketua.status === 'keluar' ? 'pil-bahaya' : 'pil-peringatan'">
+          {{ k.ketua.status === 'keluar' ? 'Sudah keluar' : 'Akan keluar' }}
+        </span>
+      </template>
       <template #sel-status="{ baris: k }">
         <span class="pil" :class="k.status === 'aktif' ? 'pil-ok' : 'pil-netral'">{{ k.status === 'aktif' ? 'Aktif' : 'Nonaktif' }}</span>
       </template>

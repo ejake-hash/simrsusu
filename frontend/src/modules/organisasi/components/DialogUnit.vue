@@ -8,7 +8,9 @@ import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { skemaZod } from '@/design-system/form/skemaZod'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import { errorKolom, pesanError } from '@/modules/akses/pengaturan'
+import PemilihPegawai from '@/modules/sdm/components/PemilihPegawai.vue'
 import { ApiError } from '@/shared/api/klien'
+import { boleh } from '@/shared/composables/usePermission'
 import { buatUnit, ubahUnit, type Berversi } from '../api'
 import { DAFTAR_JENIS, labelUnit } from '../organisasi'
 import type { JenisUnit, UbahUnitOrganisasi, UnitOrganisasi } from '../tipe'
@@ -17,7 +19,8 @@ import PemilihUnit from './PemilihUnit.vue'
 /**
  * Tambah unit (di bawah induk terpilih atau sebagai unit teratas) dan ubah unit: kode, nama, jenis, induk (pindah
  * cabang), tanggal berlaku. Ubah hanya mengirim kolom yang berubah. Dasar perubahan wajib (PRD 9.3). Menonaktifkan
- * lewat DialogStatus agar alasan 409 unit_masih_dipakai tampil jelas.
+ * lewat DialogStatus agar alasan 409 unit_masih_dipakai tampil jelas. Kepala unit (pegawai, 1.8d) hanya saat ubah dan
+ * hanya bila akun boleh melihat data pegawai (sdm.pegawai.lihat; tidak ada izin silang otomatis).
  */
 const props = defineProps<{ mode: 'buat' | 'ubah'; unit: Berversi<UnitOrganisasi> | null; induk: UnitOrganisasi | null }>()
 const buka = defineModel<boolean>('open', { required: true })
@@ -47,10 +50,17 @@ const [berlaku] = defineField('berlaku_dari')
 const [dasar] = defineField('dasar_perubahan')
 
 const labelInduk = ref<string | null>(null)
+const kepalaId = ref<string | null>(null)
+const labelKepala = ref<string | null>(null)
+const kesalahanKepala = ref<string | undefined>()
+const bolehPilihKepala = computed(() => boleh('sdm.pegawai.lihat'))
 watch(buka, (b) => {
   if (!b) return
   error.value = null
   versiBerubah.value = false
+  kesalahanKepala.value = undefined
+  kepalaId.value = props.unit?.data.kepala?.id ?? null
+  labelKepala.value = props.unit?.data.kepala?.nama ?? null
   const u = props.unit?.data
   if (props.mode === 'ubah' && u) {
     const jalurInduk = u.jalur[u.jalur.length - 1]
@@ -82,6 +92,7 @@ const kirim = handleSubmit(async (v) => {
       if (v.nama !== u.nama) ubah.nama = v.nama
       if (v.jenis !== u.jenis) ubah.jenis = v.jenis as JenisUnit
       if (v.berlaku_dari && v.berlaku_dari !== u.berlaku_dari) ubah.berlaku_dari = v.berlaku_dari
+      if (bolehPilihKepala.value && kepalaId.value !== (u.kepala?.id ?? null)) ubah.kepala_pegawai_id = kepalaId.value
       if (Object.keys(ubah).length < 2) {
         error.value = 'Belum ada perubahan untuk disimpan.'
         return
@@ -100,8 +111,12 @@ const kirim = handleSubmit(async (v) => {
     buka.value = false
     emit('selesai', hasil)
   } catch (e) {
-    const kolom = errorKolom(e, ['induk_id', 'kode', 'nama', 'jenis', 'berlaku_dari', 'dasar_perubahan'])
-    if (Object.keys(kolom).length) setErrors(kolom)
+    const kolom = errorKolom(e, ['induk_id', 'kode', 'nama', 'jenis', 'berlaku_dari', 'kepala_pegawai_id', 'dasar_perubahan'])
+    if (Object.keys(kolom).length) {
+      const { kepala_pegawai_id: kepala, ...lain } = kolom
+      kesalahanKepala.value = kepala
+      setErrors(lain)
+    }
     else if (e instanceof ApiError && e.status === 412) {
       versiBerubah.value = true
       error.value = 'Unit ini diubah orang lain sejak dibuka. Muat ulang, lalu ulangi perubahan.'
@@ -134,6 +149,15 @@ const kirim = handleSubmit(async (v) => {
       </KolomIsian>
       <KolomIsian v-slot="a" label="Berlaku dari" :error="errors.berlaku_dari" :petunjuk="mode === 'buat' ? 'Kosong = hari ini.' : undefined">
         <input v-bind="a" v-model="berlaku" type="date" class="isian" />
+      </KolomIsian>
+      <KolomIsian
+        v-if="mode === 'ubah' && bolehPilihKepala"
+        v-slot="a"
+        label="Kepala unit"
+        :error="kesalahanKepala"
+        petunjuk="Pegawai yang menerima teguran eskalasi tugas unit ini."
+      >
+        <PemilihPegawai v-bind="a" v-model="kepalaId" :label-terpilih="labelKepala" opsi-kosong="Belum ditetapkan" />
       </KolomIsian>
       <KolomIsian v-slot="a" label="Dasar perubahan" :error="errors.dasar_perubahan" petunjuk="Nomor SK struktur organisasi, memo, atau persetujuan." wajib>
         <input v-bind="a" v-model="dasar" class="isian" autocomplete="off" />
