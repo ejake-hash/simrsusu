@@ -246,7 +246,7 @@ describe('Halaman tanda tangan elektronik', () => {
     await isi('PIN baru', '864201')
     await isi('Ulangi PIN baru', '864201')
     await klik(tombol('Ganti PIN'))
-    expect(document.body.textContent).toContain('Sisa 4 percobaan')
+    expect(document.body.textContent).toContain('Sisa percobaan: 4')
   })
 })
 

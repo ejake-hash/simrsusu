@@ -21,7 +21,8 @@ import DialogKeputusan from './DialogKeputusan.vue'
  * Kartu rinci satu pengajuan: siapa, apa, dasar, dampak, kedaluwarsa, dan keadaan grup penyetuju. Tombol Setujui/Tolak
  * hanya bila server menyatakan `dapat_diputuskan` (penyetuju yang ditunjuk; MD-4) — superadmin yang bukan penyetujunya
  * tidak melihat tombol itu. Pengaju bisa menarik pengajuannya selama masih menunggu. Sesudah diputuskan, pemutusnya
- * bisa menandatangani keputusan dengan TTE T1 (tiket 1.6; ditawarkan langsung sesudah memutuskan), dan semua yang
+ * bisa menandatangani keputusan dengan TTE T1 (tiket 1.6; tombol di bagian tanda tangan, tidak dipaksakan agar
+ * persetujuan beruntun tidak terpotong; fase 1 tidak mewajibkannya), dan semua yang
  * boleh melihat pengajuan melihat hasil verifikasi tanda tangannya.
  */
 const props = withDefaults(defineProps<{ id: string; fokusSaatMuat?: boolean }>(), { fokusSaatMuat: false })
@@ -85,8 +86,6 @@ async function aksiKeputusan(teks: string | null) {
   try {
     const baru = mode.value === 'setujui' ? await setujuiPersetujuan(x.id, teks) : await tolakPersetujuan(x.id, teks!)
     pasang(baru)
-    // Tawarkan tanda tangan keputusan sekarang (boleh dibatalkan; fase 1 tidak mewajibkannya).
-    if (ttdAktif.value) void nextTick(() => (dialogTtd.value = true))
     tampilkanToast(
       mode.value === 'tolak'
         ? `${baru.nomor} ditolak.`

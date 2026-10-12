@@ -104,7 +104,7 @@ export function buatServerTtd(opsi: OpsiServerTtd) {
       k.sesiSampai = null
       return tolakTerkunci(k)
     }
-    return error(422, 'pin_salah', 'PIN salah.', [{ kolom, kode: 'pin_salah', pesan: `PIN salah. Sisa ${BATAS_SALAH - k.salah} percobaan.`, sisa_percobaan: BATAS_SALAH - k.salah }])
+    return error(422, 'pin_salah', 'PIN salah.', [{ kolom, kode: 'pin_salah', pesan: `PIN salah. Sisa percobaan: ${BATAS_SALAH - k.salah}.`, sisa_percobaan: BATAS_SALAH - k.salah }])
   }
   const isiKanonik = (jenis: string, id: string) => {
     const p = jenis === 'persetujuan_akses' ? opsi.persetujuan(id) : null
