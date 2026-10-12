@@ -75,6 +75,9 @@ final class PemuatReferensi
         return DB::transaction(function () use ($sistem, $baris, $paket, $olehId, $sidik) {
             // Pemuatan besar (wilayah ±90 ribu baris) melebihi batas 5 detik role aplikasi: batas khusus transaksi ini.
             DB::statement("SET LOCAL statement_timeout = '180s'");
+            // Pemeriksaan FK induk wilayah berjalan per baris dengan rencana yang di-cache saat tabel masih kecil (seq scan):
+            // tanpa ini memuat ulang ±90 ribu baris menjadi kuadratik. Rencana custom mengikuti ukuran tabel saat itu.
+            DB::statement("SET LOCAL plan_cache_mode = 'force_custom_plan'");
             DB::statement("SELECT pg_advisory_xact_lock(hashtext('referensi:muat:' || ?))", [$sistem]);
             // Diperiksa ulang di bawah kunci: pemuatan bersamaan versi yang sama.
             if ($this->pemuatanUlang($sistem, $paket['versi'], $sidik)) {
@@ -235,25 +238,24 @@ final class PemuatReferensi
     private function bandingkan(string $sistem, array $baris, array $ada): array
     {
         $hitung = self::NOL;
-        $diBerkas = [];
         foreach ($baris as $isiBaris) {
             $b = $this->pecah($sistem, $isiBaris);
             $k = $this->kunci($sistem, $b);
-            $diBerkas[$k] = true;
             $lama = $ada[$k] ?? null;
             if ($lama === null) {
                 $hitung['baru']++;
 
                 continue;
             }
+            unset($ada[$k]); // yang tersisa = kode yang tidak ada di berkas
             if ($lama[0] !== '1') {
                 $hitung['diaktifkan_lagi']++;
             } elseif (substr($lama, 37) !== $this->isi($sistem, $b)) {
                 $hitung['diubah']++;
             }
         }
-        foreach ($ada as $k => $lama) {
-            if ($lama[0] === '1' && ! isset($diBerkas[$k])) {
+        foreach ($ada as $lama) {
+            if ($lama[0] === '1') {
                 $hitung['dinonaktifkan']++;
             }
         }
@@ -267,57 +269,69 @@ final class PemuatReferensi
      */
     private function simpan(string $sistem, array $baris, array $ada, string $versi): void
     {
-        $sekarang = now();
-        $diBerkas = [];
-        $urutan = array_keys($baris);
-        if ($sistem === 'wilayah') {
-            // Induk lebih dulu (tingkat naik; urutan berkas tetap di tiap tingkat) agar induk_id bisa diisi.
-            $tingkat = array_map(fn ($s) => substr_count((string) strstr($s, self::PEMISAH, true), '.'), $baris);
-            asort($tingkat);
-            $urutan = array_keys($tingkat);
-            unset($tingkat);
-            $id = array_map(fn ($l) => substr($l, 1, 36), $ada);
-        }
+        // Waktu dari basis data (now() = awal transaksi), bukan binding per baris: binding ikut tertahan listener debug Laravel.
+        $sekarang = DB::raw('now()');
+        $induk = []; // wilayah: kode => id, hanya tingkat yang bisa menjadi induk (provinsi s.d. kecamatan)
         [$tabel, $unik, $ubah] = match ($sistem) {
             'wilayah' => ['inti.wilayah', ['kode_kemendagri'], ['tingkat', 'nama', 'induk_id']],
             'referensi' => ['inti.referensi', ['kelompok', 'kode'], ['label']],
             default => ['inti.terminologi', ['sistem', 'kode'], ['tampilan', 'kode_induk']],
         };
+        $ubah = [...$ubah, 'aktif', 'versi_terakhir', 'dinonaktifkan_pada', 'diubah_pada'];
         $potong = [];
-        $tulis = function () use (&$potong, $tabel, $unik, $ubah) {
-            if ($potong !== []) {
-                DB::table($tabel)->upsert($potong, $unik, [...$ubah, 'aktif', 'versi_terakhir', 'dinonaktifkan_pada', 'diubah_pada']);
-                $potong = [];
-            }
-        };
-        foreach ($urutan as $n) {
-            $b = $this->pecah($sistem, $baris[$n]);
+        foreach ($this->urutan($sistem, $baris) as $isiBaris) {
+            $b = $this->pecah($sistem, $isiBaris);
             $k = $this->kunci($sistem, $b);
-            $diBerkas[$k] = true;
             $idBaris = isset($ada[$k]) ? substr($ada[$k], 1, 36) : (string) Str::uuid7();
+            unset($ada[$k]); // yang tersisa = kode yang tidak ada di berkas
             $umum = ['id' => $idBaris, 'aktif' => true, 'versi_terakhir' => $versi, 'dinonaktifkan_pada' => null, 'diubah_pada' => $sekarang];
             $potong[] = match ($sistem) {
                 'wilayah' => [...$umum, 'kode_kemendagri' => $b['kode'], 'tingkat' => self::TINGKAT[substr_count($b['kode'], '.') + 1],
-                    'nama' => $b['nama'], 'induk_id' => ($i = $this->indukWilayah($b['kode'])) === null ? null : ($id[$i] ?? null)],
+                    'nama' => $b['nama'], 'induk_id' => ($i = $this->indukWilayah($b['kode'])) === null ? null : ($induk[$i] ?? null)],
                 'referensi' => [...$umum, 'kelompok' => $b['kelompok'], 'kode' => $b['kode'], 'label' => $b['label']],
                 default => [...$umum, 'sistem' => $sistem, 'kode' => $b['kode'], 'tampilan' => $b['tampilan'], 'kode_induk' => $b['kode_induk'] !== '' ? $b['kode_induk'] : null],
             };
-            if ($sistem === 'wilayah') {
-                $id[$b['kode']] = $idBaris;
+            if ($sistem === 'wilayah' && substr_count($b['kode'], '.') < 3) {
+                $induk[$b['kode']] = $idBaris;
             }
             if (count($potong) >= self::POTONGAN) {
-                $tulis();
+                DB::table($tabel)->upsert($potong, $unik, $ubah);
+                $potong = [];
             }
         }
-        $tulis();
+        if ($potong !== []) {
+            DB::table($tabel)->upsert($potong, $unik, $ubah);
+        }
         $hilang = [];
-        foreach ($ada as $k => $lama) {
-            if ($lama[0] === '1' && ! isset($diBerkas[$k])) {
+        foreach ($ada as $lama) {
+            if ($lama[0] === '1') {
                 $hilang[] = substr($lama, 1, 36);
             }
         }
         foreach (array_chunk($hilang, self::POTONGAN) as $potong) {
             DB::table($tabel)->whereIn('id', $potong)->update(['aktif' => false, 'dinonaktifkan_pada' => $sekarang, 'diubah_pada' => $sekarang]);
+        }
+    }
+
+    /**
+     * Urutan simpan. Wilayah: induk lebih dulu (tingkat naik, urutan berkas di tiap tingkat) agar induk_id bisa diisi.
+     *
+     * @param  array<int, string>  $baris
+     * @return \Generator<int, string>
+     */
+    private function urutan(string $sistem, array $baris): \Generator
+    {
+        if ($sistem !== 'wilayah') {
+            yield from $baris;
+
+            return;
+        }
+        for ($titik = 0; $titik <= 3; $titik++) {
+            foreach ($baris as $n => $isiBaris) {
+                if (substr_count((string) strstr($isiBaris, self::PEMISAH, true), '.') === $titik) {
+                    yield $n => $isiBaris;
+                }
+            }
         }
     }
 
@@ -364,17 +378,21 @@ final class PemuatReferensi
         };
     }
 
-    /** SHA-256 isi ternormalisasi (urut kunci): versi sama dengan isi sama = idempoten. @param  array<int, string>  $baris */
+    /** SHA-256 isi ternormalisasi (baris kunci + isi, terurut): versi sama dengan isi sama = idempoten. @param  array<int, string>  $baris */
     private function sidik(string $sistem, array $baris): string
     {
         $isi = [];
         foreach ($baris as $isiBaris) {
             $b = $this->pecah($sistem, $isiBaris);
-            $isi[$this->kunci($sistem, $b)] = $this->isi($sistem, $b);
+            $isi[] = $this->kunci($sistem, $b).self::PEMISAH.$this->isi($sistem, $b);
         }
-        ksort($isi, SORT_STRING);
+        sort($isi, SORT_STRING);
+        $hash = hash_init('sha256');
+        foreach ($isi as $i) {
+            hash_update($hash, $i."\n");
+        }
 
-        return hash('sha256', (string) json_encode($isi, JSON_UNESCAPED_UNICODE));
+        return hash_final($hash);
     }
 
     /** @return array<string, string> */

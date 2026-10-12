@@ -100,8 +100,12 @@ class PaketReferensiTest extends TestCase
             ->assertJsonPath('data.kesalahan.0.kode', 'induk_tidak_ditemukan');
     }
 
-    public function test_wilayah_90_ribu_baris_di_bawah_30_detik(): void
+    public function test_wilayah_90_ribu_baris_di_bawah_30_detik_dan_64_mb(): void
     {
+        // Suite penuh berjalan dalam satu proses: yang diukur kenaikan puncak memori selama pemuatan (anggaran 64 MB, agar
+        // satu permintaan tetap di bawah memory_limit PHP bawaan 128 MB), bukan memori proses; batas proses tidak dikembalikan
+        // karena proses suite bisa sudah melewati 128 MB.
+        ini_set('memory_limit', '1G');
         $csv = "kode,nama\n99,Provinsi Uji\n";
         for ($k = 1; $k <= 10; $k++) {
             $kab = sprintf('99.%02d', $k);
@@ -115,18 +119,24 @@ class PaketReferensiTest extends TestCase
             }
         }
         $mulai = microtime(true);
+        memory_reset_peak_usage();
+        $awal = memory_get_usage();
         $this->muat('wilayah', $csv, 'terapkan', 'beban')->assertOk()->assertJsonPath('data.jumlah_baru', 90311);
         $detik = microtime(true) - $mulai;
         $this->assertLessThan(30, $detik, "Memuat 90.311 baris: {$detik} detik");
+        $this->assertLessThan(64 << 20, memory_get_peak_usage() - $awal, 'Memori memuat 90.311 baris: '.((memory_get_peak_usage() - $awal) >> 20).' MB');
         $this->assertSame(90000, DB::table('inti.wilayah')->where('tingkat', 'kelurahan')->whereNotNull('induk_id')->count());
 
-        // Versi berikutnya di atas 90 ribu kode yang sudah ada (jalur pembanding, memori tetap di bawah 128 MB).
+        // Versi berikutnya di atas 90 ribu kode yang sudah ada (jalur pembanding).
         $v2 = str_replace("99.10.30.2300,Desa 10-30-300\n", '', str_replace(",Desa 1-1-1\n", ",Desa 1-1-1 Baru\n", $csv));
         $mulai = microtime(true);
+        memory_reset_peak_usage();
+        $awal = memory_get_usage();
         $this->muat('wilayah', $v2, 'terapkan', 'beban2')->assertOk()->assertJsonPath('data.jumlah_baru', 0)
             ->assertJsonPath('data.jumlah_diubah', 1)->assertJsonPath('data.jumlah_dinonaktifkan', 1);
         $detik = microtime(true) - $mulai;
         $this->assertLessThan(30, $detik, "Memuat versi kedua: {$detik} detik");
+        $this->assertLessThan(64 << 20, memory_get_peak_usage() - $awal, 'Memori memuat versi kedua: '.((memory_get_peak_usage() - $awal) >> 20).' MB');
     }
 
     public function test_hanya_pemegang_izin_katalog_input(): void
