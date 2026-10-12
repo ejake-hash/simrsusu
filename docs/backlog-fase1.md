@@ -174,7 +174,9 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
     (`isian_belum_diverifikasi`) sampai `INTEGRASI_APLICARES_TERVERIFIKASI=true` — syarat masuk pilot fase 2. Urutan
     kiriman per agregat (catatan #76): sewa per bangsal (`integrasi.sewa_agregat`) + baca keadaan terkini saat dikirim. Belum memicu
     kiriman langsung (menunggu sinkron harian 00.15): perubahan aturan jenis kelamin TT, nama/kode bangsal. Kode PPK yang
-    diubah tidak menurunkan ruang di PPK lama.
+    diubah tidak menurunkan ruang di PPK lama. Batas waktu job queue `integrasi` (60 detik) lebih pendek dari satu kiriman
+    Aplicares terlama (putaran × ruang × 2 panggilan × 20 detik): bila BPJS lambat, pekerja bisa dihentikan di tengah dan
+    kiriman diulang sesudah sewa 10 menit; batasi total waktu per kiriman atau naikkan batas job (tinjauan #82).
   - Kode BPJS untuk "data tidak ditemukan" di simulator (`201`) asumsi; sukses VClaim = `200` (catatan §1.4).
   - Butir be 8 (catatan lapangan "Selisih dengan PRD" no. 1 merujuk K9): catatan lapangan kini milik pemilik di luar repo
     (repo publik), jadi tidak bisa diubah dari repo; **perlu pemilik** memperbarui catatannya bila ingin. Di repo, K9

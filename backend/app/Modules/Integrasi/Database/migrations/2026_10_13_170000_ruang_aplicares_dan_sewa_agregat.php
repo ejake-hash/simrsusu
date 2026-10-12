@@ -30,6 +30,8 @@ return new class extends Migration
         });
         DB::statement("ALTER TABLE integrasi.ruang_aplicares ADD CONSTRAINT ruang_aplicares_lingkungan_cek CHECK (lingkungan IN ('sandbox', 'produksi'))");
 
+        // Tabel teknis, menyimpang dari konvensi 11.1 dengan sengaja: kunci utama `kunci` (satu baris per agregat, sasaran
+        // ON CONFLICT) dan tanpa kolomStandar (bukan data bisnis, tidak diaudit, ditimpa terus).
         Schema::create('integrasi.sewa_agregat', function (Blueprint $table) {
             $table->comment('Sewa pengiriman per agregat (mis. aplicares:bangsal:<id>); kedaluwarsa sendiri bila pekerja mati.');
             $table->text('kunci')->primary();
