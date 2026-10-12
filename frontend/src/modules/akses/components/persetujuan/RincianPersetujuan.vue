@@ -3,9 +3,13 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useSesiStore } from '@/app/sesi'
 import { tampilkanToast } from '@/design-system/components/toast'
+import TtdModal from '@/design-system/components/TtdModal.vue'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import { ApiError } from '@/shared/api/klien'
 import { formatTanggalWaktu } from '@/shared/utils/waktu'
+import StatusTandaTangan from '@/modules/ttd/components/StatusTandaTangan.vue'
+import { useTandaTangan } from '@/modules/ttd/ttd'
+import type { TandaTangan } from '@/modules/ttd/tipe'
 import { ambilPersetujuan, batalkanPersetujuan, setujuiPersetujuan, tolakPersetujuan } from '../../apiPersetujuan'
 import { KUNCI, pesanError } from '../../pengaturan'
 import { LABEL_STATUS_PERSETUJUAN, PIL_STATUS_PERSETUJUAN } from '../../persetujuan'
@@ -16,7 +20,10 @@ import DialogKeputusan from './DialogKeputusan.vue'
 /**
  * Kartu rinci satu pengajuan: siapa, apa, dasar, dampak, kedaluwarsa, dan keadaan grup penyetuju. Tombol Setujui/Tolak
  * hanya bila server menyatakan `dapat_diputuskan` (penyetuju yang ditunjuk; MD-4) — superadmin yang bukan penyetujunya
- * tidak melihat tombol itu. Pengaju bisa menarik pengajuannya selama masih menunggu.
+ * tidak melihat tombol itu. Pengaju bisa menarik pengajuannya selama masih menunggu. Sesudah diputuskan, pemutusnya
+ * bisa menandatangani keputusan dengan TTE T1 (tiket 1.6; tombol di bagian tanda tangan, tidak dipaksakan agar
+ * persetujuan beruntun tidak terpotong; fase 1 tidak mewajibkannya), dan semua yang
+ * boleh melihat pengajuan melihat hasil verifikasi tanda tangannya.
  */
 const props = withDefaults(defineProps<{ id: string; fokusSaatMuat?: boolean }>(), { fokusSaatMuat: false })
 const emit = defineEmits<{ tutup: [] }>()
@@ -42,7 +49,21 @@ const LABEL_JENIS: Record<PersetujuanAkses['jenis'], string> = {
   izin_sensitif: 'Izin sensitif',
   peran_superadmin: 'Peran superadmin',
   pengecualian: 'Pengecualian per akun',
+  reset_ttd: 'Reset tanda tangan elektronik',
 }
+
+// ── Tanda tangan keputusan (1.6) ──
+const tandaTangan = ref<TandaTangan[]>([])
+/** Hanya keputusan sungguhan (disetujui/ditolak) yang ditandatangani; pengajuan ditarik juga mengisi diputuskan_oleh. */
+const sayaPemutus = computed(() => !!p.value && ['disetujui', 'ditolak'].includes(p.value.status) && p.value.diputuskan_oleh?.id === sesi.pengguna?.id)
+const sudahSaya = computed(() => tandaTangan.value.some((t) => t.penanda_tangan.id === sesi.pengguna?.id && t.verifikasi.status === 'sah'))
+const ttdAktif = computed(() => sesi.pengguna?.ttd?.aktif ?? false)
+const dialogTtd = ref(false)
+const tanganiTtd = useTandaTangan()
+const pengguna = computed(() => ({ id: sesi.pengguna?.id ?? '', nama: sesi.pengguna?.pegawai?.nama ?? sesi.pengguna?.nama_pengguna ?? '' }))
+const handlerTtd = computed(() => tanganiTtd([{ jenis: 'persetujuan_akses', id: props.id }], (h) =>
+  tampilkanToast(h.data[0]?.baru === false ? 'Keputusan ini sudah Anda tandatangani sebelumnya.' : `Keputusan ${p.value?.nomor ?? ''} ditandatangani.`),
+))
 
 function pasang(baru: PersetujuanAkses) {
   qc.setQueryData(KUNCI.rinciPersetujuan(baru.id), baru)
@@ -124,7 +145,11 @@ async function tarik(alasan: string) {
       <div class="kartu-isi">
         <p v-if="p.status === 'menunggu' && !p.dapat_diputuskan" class="catatan catatan-netral info-penyetuju">
           <Ikon nama="info" :ukuran="16" />
-          <span>Diputuskan oleh pemegang peran {{ p.penyetuju_peran?.nama ?? 'penyetuju' }}{{ milikSaya ? '. Pengaju tidak bisa menyetujui pengajuannya sendiri.' : '.' }}</span>
+          <span>
+            {{ p.penyetuju_pengguna ? `Diputuskan oleh ${p.penyetuju_pengguna.nama} (atasan langsung)` : `Diputuskan oleh pemegang peran ${p.penyetuju_peran?.nama ?? 'penyetuju'}` }}{{
+              milikSaya ? '. Pengaju tidak bisa menyetujui pengajuannya sendiri.' : '.'
+            }}
+          </span>
         </p>
         <dl class="data">
           <div v-if="p.objek.peran">
@@ -154,7 +179,7 @@ async function tarik(alasan: string) {
           <div>
             <dt>Penyetuju</dt>
             <dd>
-              {{ p.penyetuju_peran?.nama ?? '—' }}
+              {{ p.penyetuju_peran?.nama ?? p.penyetuju_pengguna?.nama ?? '—' }}<span v-if="p.penyetuju_pengguna" class="ket"> (atasan langsung)</span>
               <span v-if="p.grup.jumlah > 1" class="ket">· {{ p.grup.disetujui }} dari {{ p.grup.jumlah }} penyetuju sudah setuju</span>
             </dd>
           </div>
@@ -182,7 +207,25 @@ async function tarik(alasan: string) {
             </dd>
           </div>
         </dl>
+        <section v-if="p.diputuskan_pada && p.status !== 'menunggu'" class="ttd" aria-labelledby="judul-ttd-persetujuan">
+          <div class="ttd-kepala">
+            <h3 id="judul-ttd-persetujuan">Tanda tangan keputusan</h3>
+            <template v-if="sayaPemutus && !sudahSaya">
+              <button v-if="ttdAktif" type="button" class="tombol" @click="dialogTtd = true">Tandatangani keputusan</button>
+              <RouterLink v-else to="/tanda-tangan" class="tombol">Aktifkan TTE untuk menandatangani</RouterLink>
+            </template>
+          </div>
+          <StatusTandaTangan jenis="persetujuan_akses" :objek-id="p.id" @dimuat="(t) => (tandaTangan = t)" />
+        </section>
       </div>
+      <TtdModal
+        v-model:open="dialogTtd"
+        :objek="[{ id: p.id, judul: `${p.nomor} · ${LABEL_STATUS_PERSETUJUAN[p.status]}`, ringkasan: p.ringkasan }]"
+        :pengguna="pengguna"
+        :penanda="p.diputuskan_oleh"
+        :sesi-berlaku-sampai="sesi.pengguna?.ttd?.sesi_berlaku_sampai ?? null"
+        :tandatangani="handlerTtd"
+      />
       <DialogKeputusan v-model:open="dialogKeputusan" :mode="mode" :persetujuan="p" :aksi="aksiKeputusan" />
       <DialogAkhiri
         v-model:open="dialogTarik"
@@ -247,5 +290,22 @@ dd {
 .ket {
   color: var(--muted);
   font-size: 12px;
+}
+.ttd {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.ttd-kepala {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.ttd-kepala h3 {
+  margin: 0;
+  font-size: 14px;
 }
 </style>

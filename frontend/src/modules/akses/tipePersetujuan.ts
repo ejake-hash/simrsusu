@@ -11,8 +11,8 @@ export interface RingkasPeran {
 }
 
 export type StatusPersetujuan = 'menunggu' | 'disetujui' | 'ditolak' | 'kedaluwarsa' | 'dibatalkan'
-export type JenisPersetujuan = 'izin_sensitif' | 'peran_superadmin' | 'pengecualian'
-export type JenisObjekPersetujuan = 'izin_peran' | 'penugasan' | 'pengakhiran_penugasan' | 'izin_khusus' | 'penyetuju_izin'
+export type JenisPersetujuan = 'izin_sensitif' | 'peran_superadmin' | 'pengecualian' | 'reset_ttd'
+export type JenisObjekPersetujuan = 'izin_peran' | 'penugasan' | 'pengakhiran_penugasan' | 'izin_khusus' | 'penyetuju_izin' | 'reset_ttd'
 
 export interface PersetujuanAkses {
   id: string
@@ -29,7 +29,10 @@ export interface PersetujuanAkses {
     cakupan_label?: string | null
     berlaku_sampai?: string | null
   }
+  /** null bila penyetujunya orang (penyetuju_pengguna). */
   penyetuju_peran: RingkasPeran | null
+  /** Sejak 1.6: penyetuju orang tertentu (reset TTE oleh atasan langsung); null bila lewat peran. */
+  penyetuju_pengguna: Pelaku | null
   status: StatusPersetujuan
   /** true = perubahan sudah berlaku (semua persetujuan dalam grup disetujui). */
   diterapkan: boolean

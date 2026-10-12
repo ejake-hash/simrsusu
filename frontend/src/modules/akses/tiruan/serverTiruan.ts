@@ -47,7 +47,9 @@ interface PersetujuanTiruan {
   peranId: string | null
   izinKode: string | null
   sasaranAkunId: string | null
+  /** Kosong bila penyetujunya orang tertentu (`penyetujuPenggunaId`, reset TTE sejak 1.6). */
   penyetujuPeranId: string
+  penyetujuPenggunaId?: string | null
   status: 'menunggu' | 'disetujui' | 'ditolak' | 'kedaluwarsa' | 'dibatalkan'
   diterapkan: boolean
   diajukanOleh: string
@@ -107,6 +109,8 @@ export interface OpsiServerTiruan {
   sekarang?: () => Date
   /** Status pegawai (server tiruan SDM, 1.8d): aktifkan akun milik pegawai `keluar` → 409 pegawai_keluar. */
   pegawaiKeluar?: (pegawaiId: string) => boolean
+  /** Status TTE akun yang masuk (server tiruan TTE, 1.6) untuk `Saya.ttd`. */
+  statusTtd?: (akunId: string) => import('../../ttd/tipe').StatusTtd
 }
 
 /** Sandi akun yang masuk di server tiruan (dev/unit test saja; bukan sandi sungguhan). */
@@ -395,21 +399,24 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   /** Kode 403 bila akun yang masuk tidak boleh memutuskan; null = boleh. */
   function alasanTidakBoleh(x: PersetujuanTiruan): string | null {
     const saya = akun.get(penggunaId)!
-    if (!peranDipegang(saya).has(x.penyetujuPeranId)) return 'bukan_penyetuju'
+    if (x.penyetujuPenggunaId ? x.penyetujuPenggunaId !== penggunaId : !peranDipegang(saya).has(x.penyetujuPeranId)) return 'bukan_penyetuju'
     if (x.diajukanOleh === penggunaId) return 'pengaju_sendiri'
     if (x.sasaranAkunId === penggunaId) return 'penerima_sendiri'
     if (objekPeran(x) && x.peranId && saya.penugasan.some((p) => p.peran.id === x.peranId && p.status === 'aktif')) return 'penerima_sendiri'
     return null
   }
   const terlihat = (x: PersetujuanTiruan) =>
-    x.diajukanOleh === penggunaId || x.sasaranAkunId === penggunaId || peranDipegang(akun.get(penggunaId)!).has(x.penyetujuPeranId)
+    x.diajukanOleh === penggunaId || x.sasaranAkunId === penggunaId || x.penyetujuPenggunaId === penggunaId ||
+    (!x.penyetujuPenggunaId && peranDipegang(akun.get(penggunaId)!).has(x.penyetujuPeranId))
 
   function bentukPersetujuan(x: PersetujuanTiruan): PersetujuanAkses {
     const grup = persetujuan.filter((y) => y.grupId === x.grupId)
     const status = statusSekarang(x)
     return {
       id: x.id, nomor: x.nomor, jenis: x.jenis, ringkasan: ringkasanPersetujuan(x), objek: x.objek,
-      penyetuju_peran: ringkas(x.penyetujuPeranId), status, diterapkan: x.diterapkan,
+      penyetuju_peran: x.penyetujuPenggunaId ? null : ringkas(x.penyetujuPeranId),
+      penyetuju_pengguna: x.penyetujuPenggunaId ? namaAkun(x.penyetujuPenggunaId) : null,
+      status, diterapkan: x.diterapkan,
       diajukan_oleh: namaAkun(x.diajukanOleh), diajukan_pada: x.diajukanPada, alasan: x.alasan, dasar: x.dasar,
       kedaluwarsa_pada: x.kedaluwarsaPada, diputuskan_oleh: namaAkun(x.diputuskanOleh), diputuskan_pada: x.diputuskanPada,
       catatan_keputusan: x.catatan,
@@ -429,6 +436,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
       case 'pengakhiran_penugasan': return `Akhiri penugasan peran ${peranNama} untuk ${akunNama}`
       case 'izin_khusus': return `Tambah pengecualian ${izin} untuk ${akunNama}`
       case 'penyetuju_izin': return `Tetapkan peran ${peranNama} sebagai penyetuju izin ${izin}`
+      case 'reset_ttd': return `Reset tanda tangan elektronik ${akunNama}`
     }
   }
 
@@ -490,6 +498,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
           login_terakhir_pada: a.login_terakhir_pada,
           mfa_aktif: a.mfa_aktif_pada !== null,
           wajib_ganti_sandi: a.wajib_ganti_sandi ?? false,
+          ttd: opsi.statusTtd?.(a.id) ?? { aktif: false, diaktifkan_pada: null, dicabut_pada: null, terkunci_sampai: null, sesi_berlaku_sampai: null, reset_menunggu: false },
           pegawai: { id: a.pegawai_id ?? uid(9000), nama: a.nama },
           peran: peranSaya,
           masuk_sebelumnya_pada: '2026-10-09T23:48:00.000Z',
@@ -971,6 +980,33 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
     if (a) a.pegawai_id = pegawaiId
   }
 
+  // ── Untuk server tiruan TTE (1.6) ──
+  /** Reset TTE: persetujuan `reset_ttd` dengan penyetuju orang (atasan langsung; di tiruan superadmin lain). */
+  function ajukanResetTtd(akunId: string, isi: { alasan: string; dasar: string }, terapkan: () => void): ResponsTiruan {
+    const a = akun.get(akunId)
+    if (!a) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
+    if (akunId === penggunaId) return error(403, 'diri_sendiri', 'Reset TTE akun sendiri diajukan petugas SDM lain.')
+    if (persetujuan.some((x) => x.jenis === 'reset_ttd' && x.sasaranAkunId === akunId && masihMenunggu(x))) {
+      return error(409, 'persetujuan_ganda', 'Reset TTE untuk akun ini masih menunggu persetujuan.')
+    }
+    const atasan = [ID_SUPERADMIN_DUA, ID_SUPERADMIN].find((id) => id !== akunId && id !== penggunaId)
+    if (!atasan) return error(422, 'atasan_belum_ditetapkan', 'Atasan langsung pemilik TTE belum ditetapkan.')
+    const r = ajukan('reset_ttd', { jenis: 'reset_ttd', akun: { id: a.id, nama_pengguna: a.nama_pengguna, nama: a.nama }, peran: null, izin: null, cakupan_label: null, berlaku_sampai: null }, [SA], terapkan, {
+      sasaranAkunId: akunId, dasar: isi.dasar, alasan: isi.alasan,
+    })
+    const x = persetujuan[persetujuan.length - 1]!
+    x.penyetujuPenggunaId = atasan
+    return { ...r, isi: { data: bentukPersetujuan(x) } }
+  }
+  /** Keadaan persetujuan untuk tanda tangan: pemutus dan status (null = tidak ada atau tidak terlihat akun ini). */
+  function persetujuanUntukTtd(id: string) {
+    const x = persetujuan.find((y) => y.id === id)
+    if (!x || !terlihat(x)) return null
+    return { status: statusSekarang(x), diputuskanOleh: x.diputuskanOleh, nomor: x.nomor, ringkasan: ringkasanPersetujuan(x) }
+  }
+  const namaAkunUntukTtd = (id: string) => akun.get(id)?.nama ?? null
+  const penggunaSaatIni = () => penggunaId
+
   function tambahPenugasanDev(kodePeran: string) {
     const p = [...peran.values()].find((x) => x.kode === kodePeran)
     if (p) akun.get(penggunaId)!.penugasan.push(penugasan(p.id))
@@ -985,7 +1021,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   }
   return {
     tangani, pohon, tambahPenugasanDev, unitMilikSaya, sebagai,
-    bolehSaya, wajibGantiSandi, ringkasAkunPegawai, buatAkunPegawai, akunSuperadminPegawai, nonaktifkanAkunPegawai, tautkanPegawai,
+    bolehSaya, wajibGantiSandi, ajukanResetTtd, persetujuanUntukTtd, namaAkunUntukTtd, penggunaSaatIni, ringkasAkunPegawai, buatAkunPegawai, akunSuperadminPegawai, nonaktifkanAkunPegawai, tautkanPegawai,
     /** Uji: jadikan akun yang masuk wajib ganti sandi. */
     wajibkanGantiSandi: () => void (akun.get(penggunaId)!.wajib_ganti_sandi = true),
   }

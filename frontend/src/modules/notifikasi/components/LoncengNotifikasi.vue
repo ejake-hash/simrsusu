@@ -79,7 +79,7 @@ async function semuaDibaca() {
 </script>
 
 <template>
-  <div class="lonceng" @keydown.esc.stop="buka && tutup()">
+  <div class="lonceng" @keydown.esc="(e: KeyboardEvent) => { if (buka) { e.stopPropagation(); tutup() } }">
     <button
       ref="tombol"
       type="button"
@@ -241,5 +241,11 @@ async function semuaDibaca() {
 .waktu {
   color: var(--muted);
   font-size: 12px;
+}
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  .tombol-ikon {
+    width: 44px;
+    height: 44px;
+  }
 }
 </style>

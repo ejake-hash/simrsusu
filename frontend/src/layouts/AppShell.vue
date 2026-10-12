@@ -7,6 +7,7 @@ import { useSesiStore } from '@/app/sesi'
 import NotifikasiToast from '@/design-system/components/NotifikasiToast.vue'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import LoncengNotifikasi from '@/modules/notifikasi/components/LoncengNotifikasi.vue'
+import MenuAkun from './MenuAkun.vue'
 import { useKelasLayar } from '@/shared/composables/useKelasLayar'
 import PemilihUnitKerja from './PemilihUnitKerja.vue'
 import PencarianMenu from './PencarianMenu.vue'
@@ -179,9 +180,7 @@ async function keluar() {
               <b>{{ namaTampil }}</b>
               <small>{{ sesi.pengguna?.nama_pengguna }}</small>
             </span>
-            <RouterLink class="tombol-ikon" :to="{ path: '/ganti-sandi', query: { kembali: route.fullPath } }" aria-label="Ganti sandi" title="Ganti sandi">
-              <Ikon nama="gembok" />
-            </RouterLink>
+            <MenuAkun />
             <button type="button" class="tombol-ikon" aria-label="Keluar" title="Keluar" @click="keluar">
               <Ikon nama="keluar" />
             </button>

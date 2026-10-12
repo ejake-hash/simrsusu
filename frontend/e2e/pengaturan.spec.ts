@@ -20,6 +20,8 @@ test.describe.configure({ mode: 'serial' })
 /** Storage kosong: browser.newContext() di dalam uji mewarisi storageState fixture (sesi superadmin), dan masuk
  * sebagai akun lain di atas cookie itu me-regenerasi lalu menghapus sesi superadmin. */
 const TANPA_SESI = { cookies: [], origins: [] }
+/** PIN TTE sintetis contoh.superadmin.dua (TtdSintetisSeeder, AKUN_SINTETIS_TTD_PIN = E2E_TTD_PIN). */
+const PIN_TTD = process.env.E2E_TTD_PIN ?? ''
 
 // Sesi akun lain dipakai ulang antar-uji: rate limit masuk per nama pengguna (10/menit) cepat habis bila tiap uji masuk.
 const sesiAkun = new Map<string, Awaited<ReturnType<BrowserContext['storageState']>>>()
@@ -494,6 +496,21 @@ test('1440 px: kontrol ganda — superadmin A menambah izin sensitif, superadmin
     await dialog.getByLabel('Catatan (opsional)').fill('Sesuai SK Direktur')
     await dialog.getByRole('button', { name: 'Setujui' }).click()
     await expect(rincian.getByText('Sudah berlaku')).toBeVisible()
+
+    // 1.6: superadmin B (TTE aktif, TtdSintetisSeeder) menandatangani keputusannya. Yang pertama dengan PIN; yang kedua
+    // tanpa PIN karena sesi tanda tangan 15 menit masih berlaku.
+    if (PIN_TTD) {
+      await rincian.getByRole('button', { name: 'Tandatangani keputusan' }).click()
+      const ttd = b.page.getByRole('dialog', { name: 'Tanda tangan elektronik (T1)' })
+      await expect(ttd).toContainText('Penanda tangan: Contoh Superadmin Dua')
+      await ttd.getByRole('checkbox').check()
+      if (aksi === 'Input') await ttd.getByLabel('PIN tanda tangan').fill(PIN_TTD)
+      else await expect(ttd.getByText(/PIN tidak perlu dimasukkan lagi/)).toBeVisible()
+      await ttd.getByRole('button', { name: 'Tanda tangani' }).click()
+      await expect(ttd).toHaveCount(0)
+      await expect(rincian.getByText(/Ditandatangani Contoh Superadmin Dua, .* · terverifikasi/)).toBeVisible()
+      await expect(rincian.getByRole('button', { name: 'Tandatangani keputusan' })).toHaveCount(0)
+    }
   }
   await b.tutup()
 
