@@ -254,10 +254,10 @@ final class Penyiapan
             'poliklinik' => ['Poliklinik', DB::table('inti.poliklinik')->where('status', 'aktif')->count()],
         ];
 
-        return array_values(array_map(
+        return array_map(
             fn (string $kode, array $j) => self::syarat($kode, $j[0], $j[1] > 0, $j[1] > 0 ? "{$j[1]} aktif" : 'Belum ada yang aktif'),
             array_keys($jumlah), $jumlah,
-        ));
+        );
     }
 
     /** @return list<array{kode: string, label: string, terpenuhi: bool, keterangan: ?string}> */
@@ -265,11 +265,11 @@ final class Penyiapan
     {
         $paket = collect($this->paket())->keyBy('sistem');
 
-        return array_values(array_map(
+        return array_map(
             fn (string $sistem) => self::syarat($sistem, self::LABEL_PAKET[$sistem], $paket[$sistem]['versi'] !== null,
                 $paket[$sistem]['versi'] !== null ? "Versi {$paket[$sistem]['versi']}" : 'Belum dimuat'),
             array_keys(array_filter(self::PAKET)),
-        ));
+        );
     }
 
     /** @return list<array{sistem: string, wajib: bool, versi: ?string, sumber: ?string, dimuat_pada: ?string, jumlah_kode_aktif: int}> */
