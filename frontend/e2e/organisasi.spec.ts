@@ -237,7 +237,7 @@ test('1440 px: kelas rawat, bangsal, gedung → lantai → ruang, jadikan kamar,
   await expect(page.getByText(`TT ${SEG}-1-101-1 disimpan.`)).toBeVisible()
   await tambahTt('2')
   await expect(page.getByText(`TT ${SEG}-1-101-2 disimpan; jumlah TT kini melebihi kapasitas maksimum kamar.`)).toBeVisible()
-  await expect(page.getByText('Melebihi kapasitas')).toBeVisible()
+  await expect(page.getByText('Melebihi kapasitas', { exact: true })).toBeVisible()
 
   // Tutup TT 2 mulai besok: hari ini masih dihitung (akan ditutup).
   await page.getByRole('button', { name: `Tutup TT ${SEG}-1-101-2` }).click()
