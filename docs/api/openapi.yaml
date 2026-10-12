@@ -1786,7 +1786,8 @@ paths:
       operationId: ubahTempatTidur
       summary: Ubah kelas rawat, aturan jenis kelamin, isolasi, atau penanda ekstra
       description: |
-        Izin: master_data.organisasi.perbaiki. Wajib If-Match. 409 `harus_lewat_usulan` sesudah instalasi siap melayani (1.8c). Kode dan kamar tidak bisa diubah (pindah kamar = tutup lalu buat
+        Izin: master_data.organisasi.perbaiki. Wajib If-Match. 409 `harus_lewat_usulan` sesudah instalasi siap melayani (1.8c),
+        termasuk TT ekstra (mengubah `ekstra` mengubah kapasitas resmi). Kode dan kamar tidak bisa diubah (pindah kamar = tutup lalu buat
         TT baru). 409 `sudah_ditutup`: TT yang sudah ditutup atau dijadwalkan tutup (`akan_ditutup`) tidak bisa diubah;
         422 `kelas_rawat_tidak_valid`. Perubahan kelas/ekstra berlaku untuk kapasitas mulai
         hari ini; hari yang sudah lewat tetap memakai rekaman kapasitas harian.
@@ -1834,7 +1835,7 @@ paths:
           kosong). Penandaan "akan ditutup setelah kosong" (FR-08-17) dibangun bersama penempatan pasien.
         - 409 `sudah_ditutup` (termasuk yang sudah dijadwalkan tutup).
         Tutup sementara (renovasi singkat) dan pembukaan kembali lewat usulan berjenjang (menyusul, lihat backlog 1.8c).
-        409 `harus_lewat_usulan` sesudah instalasi siap melayani (1.8c).
+        409 `harus_lewat_usulan` sesudah instalasi siap melayani (1.8c), kecuali TT ekstra (darurat lonjakan).
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -3136,7 +3137,7 @@ paths:
   #   usulan yang disetujui sesudah tanggalnya lewat berlaku mulai hari disetujui.
   # - Setiap butir `perubahan` divalidasi dengan aturan 1.8b yang sama saat diusulkan/dikirim ulang (uji kering) dan
   #   sekali lagi saat diterapkan. `nilai_lama` dan revisi objek dipotret server saat diusulkan (klien tidak
-  #   mengirimnya); `objek_berubah` menandai objek yang berubah sejak itu (penerapan akan gagal; kembalikan atau tolak).
+  #   mengirimnya); `objek_berubah` menandai objek yang berubah sejak itu (penerapan akan gagal; kembalikan ke pengusul).
   #   Satu objek hanya boleh ada di satu usulan yang sedang berjalan (tahap diusulkan, diverifikasi, disetujui); usulan
   #   `dikembalikan` tidak mengunci objek, konflik diperiksa lagi saat kirim ulang. Dua usulan yang sama-sama menambah
   #   kode TT yang sama: yang diterapkan belakangan gagal (`kode_sudah_dipakai`).
@@ -3206,6 +3207,7 @@ paths:
           `objek_tidak_ditemukan`, `aksi_tidak_dikenal`.
         - 409 `objek_sedang_diusulkan`: objek yang sama ada di usulan lain yang sedang berjalan; `rincian[]` =
           `{kolom: "perubahan.<i>", kode: "objek_sedang_diusulkan", pesan, usulan: {id, nomor}}`.
+        - 403 `bukan_pengusul_alur`: alur jenis data menetapkan peran pengusul (pemilik data) dan akun ini tidak memegangnya.
         Audit `master_data.usulan_diajukan`.
       requestBody:
         required: true
@@ -3325,8 +3327,8 @@ paths:
       operationId: kirimUlangUsulanDataInduk
       summary: Perbaiki dan kirim ulang usulan yang dikembalikan (dikembalikan → diusulkan)
       description: |
-        Hanya pengusulnya, dengan izin master_data.usulan.input (selain itu 403 `bukan_pengusul`). Isi menggantikan isi
-        sebelumnya (bentuk sama dengan POST, kecuali `jenis_data` tetap); `nilai_lama` dipotret ulang; putaran +1; tanda
+        Hanya pengusulnya, dengan izin master_data.usulan.input (selain itu 403 `bukan_pengusul`). Membuat putaran
+        baru (isi putaran lama tetap tersimpan; bentuk sama dengan POST, kecuali `jenis_data` tetap); `nilai_lama` dipotret ulang; putaran +1; tanda
         tangan putaran sebelumnya menjadi `isi_berubah`. 409 `tahap_tidak_sesuai` (bukan tahap dikembalikan, termasuk
         bila sudah dikirim ulang dari tab lain); 409 `objek_sedang_diusulkan`; 422 seperti POST. Audit
         `master_data.usulan_dikirim_ulang`.
