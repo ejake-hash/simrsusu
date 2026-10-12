@@ -4543,7 +4543,7 @@ components:
             alasan: { type: [string, 'null'] }
         paket:
           type: [array, 'null']
-          description: "Hanya langkah 4: satu baris per sistem (urutan SistemReferensi), dari inti.paket_referensi; null untuk langkah lain"
+          description: "Hanya langkah 4: satu baris per sistem (urutan SistemReferensi), dari pemuatan terakhir di inti.paket_referensi (dimuat_pada lalu id terbaru, sama dengan pemuat 1.8e); null untuk langkah lain. Untuk `referensi` (versi per berkas/kelompok) `versi`/`sumber` = berkas terakhir yang dimuat, sedangkan `jumlah_kode_aktif` mencakup semua kelompok."
           items:
             type: object
             required: [sistem, wajib, versi, sumber, dimuat_pada, jumlah_kode_aktif]
