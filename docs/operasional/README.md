@@ -20,6 +20,7 @@ Bila runbook dan kode berbeda, **kode yang berlaku** dan runbook diperbaiki lewa
 | 4 | [proses-dan-jadwal.md](proses-dan-jadwal.md) | php-fpm, Horizon (queue per jenis), cron `schedule:run`, daftar jadwal, perintah konsol, pemantauan dasar | Setelah instalasi; rujukan harian |
 | 5 | [cadangan-pemulihan.md](cadangan-pemulihan.md) | PITR + cadangan harian terenkripsi, berkas, kunci, urutan pemulihan, uji pemulihan | Sebelum go-live; uji bulanan |
 | 6 | [hasil-uji-pemulihan.md](hasil-uji-pemulihan.md) | Bukti uji pemulihan ke database kosong (data sintetis) | Rujukan; diperbarui setiap uji |
+| 7 | [hasil-uji-beban.md](hasil-uji-beban.md) | Uji beban endpoint fase 1 (k6) dan penulisan audit (pgbench), titik jenuh, temuan | Rujukan ukuran server; diulang ke staging |
 
 Ringkas urutan pemasangan pertama:
 
@@ -46,7 +47,7 @@ Ringkas urutan pemasangan pertama:
 | Layar modul aktif | **Belum ada**; modul 53 dan 54 aktif dari migrasi (`inti.modul_aktif`), cukup untuk langkah 9 wizard. | `2026_10_11_120000_create_inti_modul_aktif_table.php` |
 | Pemeriksaan rantai audit berkala | `audit:verifikasi-rantai` **tidak** dijadwalkan di `routes/console.php`; hanya `audit:ekspor-anchor` yang berjalan tiap jam. | [proses-dan-jadwal.md §3](proses-dan-jadwal.md#3-scheduler-dan-daftar-jadwal) |
 | Pembersihan `sistem.failed_jobs` dan snapshot metrik Horizon | `queue:prune-failed` dan `horizon:snapshot` **tidak** dijadwalkan. | `routes/console.php` |
-| Ukuran server (CPU/RAM/disk) | **Belum ditetapkan**; menunggu hasil uji beban 1.12 butir be 1. | instalasi.md §1 |
+| Ukuran server (CPU/RAM/disk) | **Belum ditetapkan resmi**; uji lokal ([hasil-uji-beban.md](hasil-uji-beban.md)) hanya batas bawah konservatif; angka resmi dari uji staging. | instalasi.md §1 |
 
 Layar konfigurasi integrasi (1.9-fe) **sudah ada**: Pengaturan Sistem → Konfigurasi integrasi (`/pengaturan/integrasi`,
 sub-menu `pengaturan.integrasi`), dengan pemantauan di Integrasi dan Laporan → SATUSEHAT / Bridging BPJS / Log integrasi.
@@ -71,8 +72,8 @@ Butir ini tidak diputuskan oleh runbook. Sampai diputuskan, runbook memakai pili
 | 2 | **Disk S3/MinIO** untuk `IDENTITAS_DISK`, `SDM_DOKUMEN_DISK`, `AUDIT_ANCHOR_DISK`: butuh dependensi baru `league/flysystem-aws-s3-v3`. | Disk `local` + mount penyimpanan terpisah. |
 | 3 | **Alat cadangan dan PITR**: alat bawaan PostgreSQL (`pg_basebackup` + `archive_command`) atau alat khusus (mis. pgBackRest/WAL-G, dependensi server baru); alat enkripsi cadangan. | Alat bawaan PostgreSQL + `gpg` kunci publik; PITR belum diuji. |
 | 4 | **Anchor audit sesudah pemulihan yang kehilangan data**: anchor yang ditulis sesudah titik pulih tidak akan pernah cocok lagi. Perlu prosedur resmi (berita acara, arsip anchor lama). | Usulan prosedur di [cadangan-pemulihan.md §8](cadangan-pemulihan.md#8-verifikasi-sesudah-pulih), belum disahkan. |
-| 5 | **Verifikasi rantai audit berkala**: belum dijadwalkan di kode; verifikasi penuh sebagai `simrs_app` bisa melewati `statement_timeout` 5 detik saat tabel audit besar. | Jalankan harian per rentang tanggal (`--dari/--sampai`) lewat timer systemd. |
+| 5 | **Verifikasi rantai audit berkala**: belum dijadwalkan di kode. Sejak 1.12 verifikasi berjalan per jendela (`AUDIT_VERIFIKASI_JENDELA`), jadi tidak lagi melewati `statement_timeout` 5 detik; seluruh tabel ±38 ribu baris/detik (uji lokal). | Jalankan harian per rentang tanggal (`--dari/--sampai`) lewat timer systemd. |
 | 6 | **Selisih batas waktu** dengan PRD (HTTP 60 vs 30 detik; klien eksternal 20 vs 10 detik), tabel di atas. | Mengikuti kode. |
 | 7 | **Tujuan peringatan** (email/alat pemantau RS) untuk Horizon, ruang disk, cadangan gagal. | Pemeriksaan lewat skrip dan log; tujuan per RS. |
 | 8 | **`DB_SSLMODE=verify-full`**: `config/database.php` belum punya opsi `sslrootcert`, jadi sertifikat CA harus dipasang di jalur bawaan libpq pengguna `www-data`. Belum diuji. | Lihat [konfigurasi-env.md §3](konfigurasi-env.md#3-basis-data). |
-| 9 | **Ukuran server** (CPU/RAM/disk, `pm.max_children`, `max_connections`). | Menunggu uji beban 1.12 butir be 1. |
+| 9 | **Ukuran server** (CPU/RAM/disk, `pm.max_children`, `max_connections`). | Uji lokal 1.12 hanya batas bawah konservatif (hambatan belum diketahui); angka resmi dari uji staging. |
