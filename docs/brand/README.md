@@ -25,9 +25,12 @@ Seeder memasang paket lewat layanan yang sama dengan layar Profil rumah sakit (`
 - perubahan tercatat di jejak audit atas nama superadmin aktif pertama, dengan dasar "Paket identitas instalasi
   lokal/staging".
 
-Bila `PAKET_IDENTITAS_CONTOH_DIR` kosong atau foldernya tidak ada, seeder dilewati dan identitas tetap netral. Bila paket
-ditolak (kontras kurang, berkas tidak sah, `profil.json` salah), `db:seed` berhenti dengan pesan galat yang sama
-dengan layar Profil rumah sakit. Seeder ditolak di production.
+Bila `PAKET_IDENTITAS_CONTOH_DIR` kosong atau foldernya tidak ada, seeder dilewati dan identitas tetap netral. Semua isian
+dan berkas diperiksa lebih dulu: bila paket ditolak (kontras kurang, berkas tidak sah, `profil.json` salah), `db:seed`
+berhenti dengan pesan galat yang sama dengan layar Profil rumah sakit dan **profil tidak berubah sama sekali**. Isian dan
+berkas yang sudah sama dengan profil tidak disimpan ulang, jadi menjalankan `db:seed` berulang tidak menambah revisi.
+Pelaku di jejak audit adalah superadmin aktif pertama; di staging itu bisa akun orang sungguhan, sedangkan dasar
+perubahannya menyebut seeder ini. Seeder ditolak di production.
 
 ### Format folder
 

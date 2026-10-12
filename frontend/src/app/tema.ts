@@ -36,43 +36,66 @@ export function kontras(a: Rgb, b: Rgb): number {
   const [l1, l2] = [luminans(a), luminans(b)].sort((x, y) => y - x) as [number, number]
   return (l1 + 0.05) / (l2 + 0.05)
 }
-/** Gelapkan sampai kontras dengan semua latar ≥ minimal (langkah 5 %). */
+/** Warna seperti yang benar-benar dipasang (HEX dibulatkan): kontras dihitung dari nilai ini, bukan pecahan. */
+const bulat = (w: Rgb): Rgb => hexKeRgb(rgbKeHex(w))!
+/** Langkah 0, 5 %, …, 100 % (penghitung bulat: langkah terakhir benar-benar 100 %). */
+const LANGKAH = Array.from({ length: 21 }, (_, i) => i / 20)
+
+/** Gelapkan sampai kontras dengan semua latar ≥ minimal; hitam selalu menjadi langkah terakhir. */
 function cukupGelap(awal: Rgb, latar: Rgb[], minimal = 4.5): Rgb {
-  let w = awal
-  for (let t = 0; t <= 1 && latar.some((l) => kontras(w, l) < minimal); t += 0.05) w = campur(awal, HITAM, t)
-  return w
+  for (const t of LANGKAH) {
+    const w = bulat(campur(awal, HITAM, t))
+    if (latar.every((l) => kontras(w, bulat(l)) >= minimal)) return w
+  }
+  return HITAM
 }
-/** Terangkan sampai kontras dengan semua latar ≥ minimal (langkah 5 %); putih selalu lolos bila latar lolos untuk putih. */
+/** Terangkan sampai kontras dengan semua latar ≥ minimal; putih selalu menjadi langkah terakhir. */
 function cukupTerang(awal: Rgb, latar: Rgb[], minimal = 4.5): Rgb {
-  let w = awal
-  for (let t = 0; t <= 1 && latar.some((l) => kontras(w, l) < minimal); t += 0.05) w = campur(awal, PUTIH, t)
-  return w
+  for (const t of LANGKAH) {
+    const w = bulat(campur(awal, PUTIH, t))
+    if (latar.every((l) => kontras(w, bulat(l)) >= minimal)) return w
+  }
+  return PUTIH
 }
 
-/** Porsi sorot (radial --panel-merek-sorot 45 %) di atas warna awal panel, sama dengan AuthLayout. */
+/** Porsi sorot (radial --panel-merek-sorot 45 %) di atas gradien panel, sama dengan AuthLayout. */
 export const PORSI_SOROT = 0.45
 
 /**
+ * Latar panel merek yang harus lolos: tiga titik gradien dan sorot 45 % di atas tiap titik. Luminans campuran sRGB
+ * cembung sepanjang garis campuran, jadi warna paling terang di seluruh gradien (dan di bawah sorot 0–45 %) ada di
+ * titik-titik ujung ini: teks terang yang lolos di sini lolos di seluruh panel.
+ */
+export function latarPanel(t: Record<string, string>): Rgb[] {
+  const titik = ['--panel-merek', '--panel-merek-tengah', '--panel-merek-akhir'].map((k) => hexKeRgb(t[k]!)!)
+  const sorot = hexKeRgb(t['--panel-merek-sorot']!)!
+  return [...titik, ...titik.map((x) => bulat(campur(x, sorot, PORSI_SOROT)))]
+}
+
+/**
  * Panel merek halaman masuk dari warna utama dan aksen (catatan tinjauan #78): titik gradien digelapkan sampai teks
- * putih dan --brand-100 ≥ 4,5:1; sorot digelapkan sampai campurannya di atas panel juga lolos; penekanan dari aksen
- * diterangkan sampai ≥ 4,5:1 di semua titik (termasuk campuran sorot).
+ * putih dan --brand-100 ≥ 4,5:1; sorot digelapkan sampai campurannya di atas ketiga titik juga lolos; penekanan dari
+ * aksen diterangkan sampai ≥ 4,5:1 di semua latar itu (putih selalu lolos, jadi selalu ada hasil).
  */
 function panelMerek(brand: Rgb, accent: Rgb, b100: Rgb): Record<string, string> {
-  const teks = [PUTIH, b100]
-  const mulai = cukupGelap(campur(brand, HITAM, 0.4), teks)
-  const tengah = cukupGelap(campur(brand, HITAM, 0.3), teks)
-  const akhir = cukupGelap(campur(brand, HITAM, 0.45), teks)
+  const teks = [PUTIH, bulat(b100)]
+  const titik = [campur(brand, HITAM, 0.4), campur(brand, HITAM, 0.3), campur(brand, HITAM, 0.45)].map((w) => cukupGelap(w, teks))
   const sorotAwal = campur(brand, PUTIH, 0.18)
-  let sorot = sorotAwal
-  for (let t = 0.05; t <= 1 && teks.some((x) => kontras(campur(mulai, sorot, PORSI_SOROT), x) < 4.5); t += 0.05) sorot = campur(sorotAwal, HITAM, t)
-  const penekanan = cukupTerang(campur(accent, PUTIH, 0.55), [mulai, tengah, akhir, campur(mulai, sorot, PORSI_SOROT)])
-  return {
-    '--panel-merek': rgbKeHex(mulai),
-    '--panel-merek-tengah': rgbKeHex(tengah),
-    '--panel-merek-akhir': rgbKeHex(akhir),
-    '--panel-merek-sorot': rgbKeHex(sorot),
-    '--penekanan-panel': rgbKeHex(penekanan),
+  let sorot = HITAM
+  for (const t of LANGKAH) {
+    const s = bulat(campur(sorotAwal, HITAM, t))
+    if (titik.every((x) => teks.every((y) => kontras(bulat(campur(x, s, PORSI_SOROT)), y) >= 4.5))) {
+      sorot = s
+      break
+    }
   }
+  const hasil = {
+    '--panel-merek': rgbKeHex(titik[0]!),
+    '--panel-merek-tengah': rgbKeHex(titik[1]!),
+    '--panel-merek-akhir': rgbKeHex(titik[2]!),
+    '--panel-merek-sorot': rgbKeHex(sorot),
+  }
+  return { ...hasil, '--penekanan-panel': rgbKeHex(cukupTerang(campur(accent, PUTIH, 0.55), latarPanel(hasil))) }
 }
 
 export function turunanTema(brandHex: string, accentHex: string): Record<string, string> | null {

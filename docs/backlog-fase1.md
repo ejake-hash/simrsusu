@@ -314,7 +314,9 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
 - ~~Utang tinjauan #78~~ **selesai**: panel merek halaman masuk memakai token sendiri (`--panel-merek`, `-tengah`,
   `-akhir`, `-sorot`, `--penekanan-panel`) yang diturunkan `turunanTema()` dari warna paket RS dengan cek kontras
   otomatis (teks putih dan `--brand-100` ≥ 4,5:1 di setiap titik gradien termasuk sorot; penekanan dari aksen ≥ 4,5:1);
-  palet bawaan di `tokens.css` tidak berubah.
+  palet bawaan di `tokens.css` tidak berubah. Keputusan pemilik 12 Okt 2026 (panel ikut warna paket RS). **PRD 5.3.2**
+  masih mencatat `--panel-merek`/`--penekanan-panel` berasal "produk" dan paket hanya menimpa `--brand-*`, `--ring`,
+  `--accent*`: diselaraskan di PR PRD v0.10.20 sesudah kode merge (tambah `--panel-merek-tengah/-akhir/-sorot`).
 - Paket identitas instalasi lokal/staging: `PaketIdentitasContohSeeder` (dipanggil `DatabaseSeeder` di local/staging)
   memasang profil RS dari folder di luar repo (`PAKET_IDENTITAS_CONTOH_DIR`, format di `docs/brand/README.md`) lewat
   `KelolaProfilRs` (kontras, pemeriksaan berkas, audit). Kosong = identitas netral. Berkas dan warna RS nyata tidak di repo.

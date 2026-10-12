@@ -6,7 +6,7 @@
 > Prioritas: keselamatan input, lalu kecepatan kerja petugas, lalu keterbacaan, baru estetika.
 
 ## Identitas
-- Warna `--brand-*` dan `--accent` serta logo RS berasal dari paket identitas per instalasi (PRD 3.4); palet bawaan produk = paket contoh fiktif "RS Contoh Pendidikan" (`docs/brand/contoh/`). Token status, triase, dan netral milik produk dan tidak diganti per RS.
+- Warna `--brand-*`, `--accent`, dan panel merek halaman masuk (`--panel-merek*`, `--penekanan-panel`, diturunkan dengan cek kontras di `frontend/src/app/tema.ts`) serta logo RS berasal dari paket identitas per instalasi (PRD 3.4); palet bawaan produk = paket contoh fiktif "RS Contoh Pendidikan" (`docs/brand/contoh/`). Token status, triase, dan netral milik produk dan tidak diganti per RS.
 - Logo produk **Karsitara** (sidebar, halaman masuk), logo **RS** dari paket identitas (kartu RS, kop dokumen), **Karya Sistem Nusantara** (kaki halaman masuk). Aturan: PRD 5.3.1.
 - Logo produk di `docs/brand/`; aplikasi memakai versi web di `frontend/public/logo/`. Logo dan aset identitas RS nyata **tidak** disimpan di repo (repo publik).
 - Warna utama bawaan biru (`--brand-600`), aksen jingga (`--accent`, hanya isian/garis), teks `--text`. Huruf **Public Sans**; kode/No. RM **JetBrains Mono**.

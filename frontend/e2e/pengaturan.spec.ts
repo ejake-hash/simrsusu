@@ -569,14 +569,16 @@ test('1440 px: kontrol ganda — penugasan dan pengakhiran peran Superadmin berl
 
 
 // ── Catatan tinjauan #78: panel halaman masuk mengikuti warna paket RS ──
-test('1440 px: panel halaman masuk memakai turunan warna paket RS (kontras terjaga), lalu kembali ke warna bawaan', async ({ page, browser }, info) => {
+test('1440 px: panel halaman masuk memakai turunan warna paket RS (kontras terjaga), lalu kembali ke warna semula', async ({ page, browser }, info) => {
   const asal = new URL(info.project.use.baseURL ?? '').origin
   await page.goto('/pengaturan/profil-rs')
   const xsrf = decodeURIComponent((await page.context().cookies()).find((c) => c.name === 'XSRF-TOKEN')?.value ?? '')
   const header = { Accept: 'application/json', Origin: asal, Referer: `${asal}/`, 'X-XSRF-TOKEN': xsrf }
-  type Profil = { versi: string; nama: string; kontak_admin: { unit: string; kontak: string | null }; rinci: Record<string, unknown> }
-  const ubahWarna = async (warna: { brand: string; accent: string }) => {
-    const p = ((await (await page.request.get('/api/v1/profil-rs', { headers: header })).json()) as { data: Profil }).data
+  type Warna = { brand: string; accent: string }
+  type Profil = { versi: string; nama: string; paket_identitas: { warna: Warna }; kontak_admin: { unit: string; kontak: string | null }; rinci: Record<string, unknown> }
+  const ambil = async () => ((await (await page.request.get('/api/v1/profil-rs', { headers: header })).json()) as { data: Profil }).data
+  const ubahWarna = async (warna: Warna) => {
+    const p = await ambil()
     const r = await page.request.put('/api/v1/profil-rs', {
       headers: { ...header, 'If-Match': `"${p.versi}"` },
       data: { nama: p.nama, kode_kemenkes: p.rinci.kode_kemenkes, kelas: p.rinci.kelas, status_blu: p.rinci.status_blu, kode_ppk_bpjs: p.rinci.kode_ppk_bpjs,
@@ -584,20 +586,36 @@ test('1440 px: panel halaman masuk memakai turunan warna paket RS (kontras terja
     })
     expect(r.ok(), `${r.status()} ${await r.text()}`).toBeTruthy()
   }
+  const semula = (await ambil()).paket_identitas.warna
   await ubahWarna({ brand: '#7A1F5C', accent: '#9BE3C7' })
   try {
     const tamu = await browser.newContext({ baseURL: asal, storageState: TANPA_SESI, viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
     const masuk = await tamu.newPage()
     await masuk.goto('/masuk')
-    const akar = (token: string) => masuk.evaluate((t) => document.documentElement.style.getPropertyValue(t), token)
-    await expect.poll(() => akar('--panel-merek')).not.toBe('')
-    expect((await akar('--panel-merek')).toUpperCase()).not.toBe('#14385A')
-    expect(await akar('--penekanan-panel')).not.toBe('')
+    const token = (nama: string) => masuk.evaluate((t) => getComputedStyle(document.documentElement).getPropertyValue(t).trim(), nama)
+    await expect.poll(() => masuk.evaluate(() => document.documentElement.style.getPropertyValue('--panel-merek'))).not.toBe('')
+    expect((await token('--panel-merek')).toUpperCase()).not.toBe('#14385A')
+    // axe menandai kontras di atas gradien sebagai "incomplete": kontras dihitung dari token panel yang terpasang
+    // (tiga titik gradien dan sorot 45 % di atas tiap titik).
+    const rgb = (hex: string) => [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16))
+    const lum = (hex: string) => {
+      const [r, g, b] = rgb(hex).map((c) => (c / 255 <= 0.03928 ? c / 255 / 12.92 : ((c / 255 + 0.055) / 1.055) ** 2.4)) as [number, number, number]
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+    const kontras = (a: string, b: string) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05)
+    const campur = (a: string, b: string, t: number) =>
+      `#${rgb(a).map((x, i) => Math.round(x + (rgb(b)[i]! - x) * t).toString(16).padStart(2, '0')).join('')}`
+    const titik = await Promise.all(['--panel-merek', '--panel-merek-tengah', '--panel-merek-akhir'].map(token))
+    const sorot = await token('--panel-merek-sorot')
+    const teks = ['#FFFFFF', await token('--brand-100'), await token('--penekanan-panel')]
+    for (const latar of [...titik, ...titik.map((x) => campur(x, sorot, 0.45))]) {
+      for (const t of teks) expect(kontras(t, latar), `${t} di ${latar}`).toBeGreaterThanOrEqual(4.5)
+    }
     const axe = await new AxeBuilder({ page: masuk }).analyze()
     expect(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)).toEqual([])
     await tamu.close()
   } finally {
-    await ubahWarna({ brand: '#1F5C99', accent: '#D97706' })
+    await ubahWarna(semula)
   }
 })
 

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { campur, hexKeRgb, kontras, PORSI_SOROT, terapkanTema, turunanTema } from './tema'
+import { hexKeRgb, kontras, latarPanel, rgbKeHex, terapkanTema, turunanTema, type Rgb } from './tema'
 
 const rgb = (hex: string) => hexKeRgb(hex)!
 afterEach(() => terapkanTema(null))
@@ -26,25 +26,25 @@ describe('tema dari paket identitas', () => {
     }
   })
 
-  it('panel merek halaman masuk mengikuti warna paket: teks putih dan --brand-100 ≥ 4,5:1, penekanan ≥ 4,5:1 di semua titik (catatan #78)', () => {
-    for (const [brand, accent] of [
-      ['#1F5C99', '#D97706'],
-      ['#2E86DE', '#FFD1DC'],
-      ['#7A1F5C', '#9BE3C7'],
-      // Warna utama sangat terang/gelap dan aksen gelap: turunan tetap harus lolos.
-      ['#9FC5E8', '#1D1D1B'],
-      ['#0B1F14', '#FFEE00'],
-      ['#C21E15', '#2457C5'],
-    ]) {
-      const t = turunanTema(brand!, accent!)!
-      const mulai = rgb(t['--panel-merek']!)
-      const latar = [mulai, rgb(t['--panel-merek-tengah']!), rgb(t['--panel-merek-akhir']!), campur(mulai, rgb(t['--panel-merek-sorot']!), PORSI_SOROT)]
-      for (const l of latar) {
-        expect(kontras(rgb('#FFFFFF'), l), `${brand} putih`).toBeGreaterThanOrEqual(4.5)
-        expect(kontras(rgb(t['--brand-100']!), l), `${brand} --brand-100`).toBeGreaterThanOrEqual(4.5)
-        expect(kontras(rgb(t['--penekanan-panel']!), l), `${brand}/${accent} penekanan`).toBeGreaterThanOrEqual(4.5)
+  it('panel merek halaman masuk: teks putih, --brand-100, dan penekanan ≥ 4,5:1 di semua titik dan sorot, untuk setiap paket yang lolos cek backend (catatan #78)', () => {
+    // Grid warna sRGB (langkah 51) yang lolos KontrasWarna backend: putih di atas brand ≥ 4,5:1, #1D1D1B di atas aksen ≥ 4,5:1.
+    const kanal = [0, 51, 102, 153, 204, 255]
+    const grid: Rgb[] = kanal.flatMap((r) => kanal.flatMap((g) => kanal.map((b) => [r, g, b] as Rgb)))
+    const brand = grid.filter((w) => kontras(w, rgb('#FFFFFF')) >= 4.5)
+    const accent = grid.filter((w) => kontras(w, rgb('#1D1D1B')) >= 4.5)
+    const gagal: string[] = []
+    // Kasus dari tinjauan #92: pembulatan HEX dan sorot di atas titik tengah gradien.
+    const kasus: [Rgb, Rgb][] = [['#2E86DE', '#FFD1DC'], ['#008282', '#D97706'], ['#005AC3', '#F04905']].map(([x, y]) => [rgb(x!), rgb(y!)])
+    for (const [b, a] of [...kasus, ...brand.flatMap((b) => accent.map((a) => [b, a] as [Rgb, Rgb]))]) {
+      const t = turunanTema(rgbKeHex(b), rgbKeHex(a))!
+      for (const l of latarPanel(t)) {
+        for (const teks of ['#FFFFFF', t['--brand-100']!, t['--penekanan-panel']!]) {
+          if (kontras(rgb(teks), l) < 4.5) gagal.push(`${rgbKeHex(b)}/${rgbKeHex(a)}: ${teks} di ${rgbKeHex(l)}`)
+        }
       }
     }
+    expect(brand.length * accent.length).toBeGreaterThan(1000)
+    expect(gagal.slice(0, 5)).toEqual([])
   })
 
   it('palet bawaan tokens.css = turunan warna contoh fiktif (#1F5C99, #D97706)', () => {

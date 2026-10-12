@@ -3,6 +3,7 @@
 namespace Tests\Feature\ProfilRs;
 
 use App\Core\ProfilRs\ProfilRs;
+use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\PaketIdentitasContohSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -69,6 +70,37 @@ class PaketIdentitasContohSeederTest extends TestCase
         $this->assertSame(['inti.profil_rs_diubah', 'inti.profil_rs_berkas_diganti', 'inti.profil_rs_berkas_diganti', 'inti.profil_rs_berkas_diganti'], $aksi);
     }
 
+    public function test_menjalankan_ulang_tidak_menambah_revisi_dan_profil_lama_diperbarui(): void
+    {
+        (new ProfilRs)->forceFill(['nama' => 'RS Lama Contoh', 'kontak_admin_unit' => 'Unit Lama Contoh', 'kontak_admin' => 'ekstensi 9999',
+            'paket_identitas' => ['warna' => ['brand' => '#1F5C99', 'accent' => '#D97706']], 'revisi' => 2])->save();
+        $this->tulisProfil(['nama' => 'RS Contoh Pendidikan', 'warna' => ['brand' => '#7A1F5C', 'accent' => '#9BE3C7'], 'berkas' => ['logo' => 'logo.svg']]);
+        $this->seed(PaketIdentitasContohSeeder::class);
+        $profil = ProfilRs::satu();
+        // Tanpa kontak_admin di paket: nilai profil lama dipakai.
+        $this->assertSame(['RS Contoh Pendidikan', 'Unit Lama Contoh', 'ekstensi 9999', 4], [$profil->nama, $profil->kontak_admin_unit, $profil->kontak_admin, $profil->revisi]);
+
+        $this->seed(PaketIdentitasContohSeeder::class);
+        $this->assertSame(4, ProfilRs::satu()->revisi);
+        $this->assertSame(2, DB::table('audit.log_aktivitas')->where('subjek_id', $profil->id)->count());
+    }
+
+    public function test_paket_ditolak_tidak_mengubah_profil_sama_sekali(): void
+    {
+        // Foto SVG ditolak (layar 1.8a: webp, jpg, png) sesudah nama/warna sah: tetap tidak ada yang tersimpan.
+        $this->tulisProfil(['nama' => 'RS Contoh Pendidikan', 'warna' => ['brand' => '#1F5C99', 'accent' => '#D97706'], 'berkas' => ['logo' => 'logo.svg', 'foto' => 'motif.svg']]);
+        $this->assertGagal('Jenis berkas tidak diizinkan');
+        $this->assertNull(ProfilRs::satu());
+        $this->assertSame(0, DB::table('audit.log_aktivitas')->where('aksi', 'like', 'inti.profil_rs%')->count());
+    }
+
+    public function test_database_seeder_hanya_memanggil_paket_di_local_atau_staging(): void
+    {
+        $this->tulisProfil(['nama' => 'RS Contoh Pendidikan', 'warna' => ['brand' => '#1F5C99', 'accent' => '#D97706']]);
+        $this->seed(DatabaseSeeder::class);
+        $this->assertNull(ProfilRs::satu(), 'APP_ENV testing: paket identitas tidak dipasang.');
+    }
+
     public function test_kontras_kurang_ditolak_seperti_layar_profil_rs(): void
     {
         $this->tulisProfil(['nama' => 'RS Contoh Pendidikan', 'warna' => ['brand' => '#9FC5E8', 'accent' => '#D97706']]);
@@ -80,6 +112,17 @@ class PaketIdentitasContohSeederTest extends TestCase
     {
         $this->tulisProfil(['nama' => 'RS Contoh Pendidikan', 'warna' => ['brand' => '#1F5C99', 'accent' => '#D97706'], 'berkas' => ['logo' => '../logo.svg']]);
         $this->assertGagal('tidak ada di dalam folder paket');
+
+        // Symlink di dalam folder yang menunjuk ke luar folder.
+        $luar = tempnam(sys_get_temp_dir(), 'luar-paket');
+        copy("$this->folder/logo.svg", $luar);
+        symlink($luar, "$this->folder/tautan.svg");
+        $this->tulisProfil(['nama' => 'RS Contoh Pendidikan', 'warna' => ['brand' => '#1F5C99', 'accent' => '#D97706'], 'berkas' => ['logo' => 'tautan.svg']]);
+        try {
+            $this->assertGagal('tidak ada di dalam folder paket');
+        } finally {
+            unlink($luar);
+        }
 
         // Foto tidak boleh SVG (layar 1.8a: webp, jpg, png).
         $this->tulisProfil(['nama' => 'RS Contoh Pendidikan', 'warna' => ['brand' => '#1F5C99', 'accent' => '#D97706'], 'berkas' => ['foto' => 'logo.svg']]);

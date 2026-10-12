@@ -5,7 +5,8 @@
  */
 :root {
   /* ── Merek: palet bawaan fiktif (#1F5C99), skala sama dengan turunanTema() di app/tema.ts. Paket identitas RS
-     menimpa --brand-*, --ring, dan --accent* (PRD 3.4). ── */
+     menimpa --brand-*, --ring, --accent*, dan token panel merek halaman masuk (PRD 3.4; keputusan pemilik 12 Okt 2026,
+     catatan #78). ── */
   --brand-900: #113354;
   --brand-800: #16406B;   /* teks di latar --brand-25/50 (9,1:1), panel gelap */
   --brand-700: #1A4E82;   /* hover tombol utama */
