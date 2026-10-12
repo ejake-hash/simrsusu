@@ -68,6 +68,13 @@ final class SirkuitIntegrasi
         });
     }
 
+    /** Pemegang jatah percobaan setengah terbuka tidak bisa melapor hasil (kesalahan internal): sirkuit kembali terbuka dan bisa dicoba lagi segera. */
+    public function lepasJatah(SistemIntegrasi $sistem): void
+    {
+        DB::table('integrasi.status_sistem')->where('tujuan', $sistem->value)->where('cb_status', 'setengah_terbuka')
+            ->update(['cb_status' => 'terbuka', 'coba_lagi_pada' => now(), 'diubah_pada' => now()]);
+    }
+
     /** Error terakhir tanpa mengubah sirkuit (mis. penolakan isi). */
     public function catatError(SistemIntegrasi $sistem, string $pesan): void
     {

@@ -2,6 +2,8 @@
 
 namespace App\Modules\Integrasi\Infrastructure;
 
+use App\Modules\Integrasi\Domain\SistemIntegrasi;
+
 /**
  * Penyamaran isi log integrasi (PRD 14.2, kontrak v0.13.0). Isi JSON memakai daftar kunci yang boleh tampil
  * (allowlist): nilai di bawah kunci lain diganti `***`. Teks yang tetap tampil (pesan, nilai kunci yang diizinkan,
@@ -10,11 +12,16 @@ namespace App\Modules\Integrasi\Infrastructure;
  */
 final class Penyamar
 {
-    /** Kunci (huruf kecil) yang nilainya boleh tampil: struktur respons, kode status, dan pesan sistem luar. */
-    private const BOLEH = [
-        'metadata', 'code', 'message', 'response', 'list', 'kode', 'kodekelas', 'status', 'resourcetype', 'id', 'issue',
-        'severity', 'details', 'diagnostics', 'coding', 'system', 'error', 'error_description', 'expires_in', 'token_type',
-        'total', 'type', 'entry', 'resource', 'meta', 'lastupdated', 'versionid', 'physicaltype', 'mode', 'partof',
+    /** Kunci (huruf kecil) yang nilainya boleh tampil di semua sistem: struktur respons, kode status, pesan sistem luar. */
+    private const BOLEH_UMUM = ['metadata', 'code', 'message', 'response', 'list', 'status', 'error', 'error_description',
+        'expires_in', 'token_type', 'total', 'type'];
+
+    /** Tambahan per sistem (kontrak v0.13.0: allowlist per sistem). */
+    private const BOLEH_SISTEM = [
+        'bpjs_vclaim' => ['kode'],
+        'aplicares' => ['kode', 'kodekelas'],
+        'satusehat' => ['resourcetype', 'id', 'issue', 'severity', 'details', 'diagnostics', 'coding', 'system', 'entry',
+            'resource', 'meta', 'lastupdated', 'versionid', 'physicaltype', 'mode', 'partof'],
     ];
 
     public const TERSAMAR = '***';
@@ -35,8 +42,12 @@ final class Penyamar
         return implode('/', array_map(fn (string $s) => preg_match(self::POLA_ANGKA, $s) === 1 ? self::TERSAMAR : $s, explode('/', $path)));
     }
 
-    /** Isi permintaan/respons: JSON disamarkan per kunci; teks lain hanya dibersihkan deret angkanya. */
-    public static function isi(mixed $isi): ?string
+    /**
+     * Isi permintaan/respons: JSON disamarkan per kunci (allowlist umum + sistem itu); teks bukan JSON tidak ditampilkan.
+     * Sisa risiko: teks bebas di kunci yang diizinkan (message, diagnostics) hanya dibersihkan deret angkanya; nama orang
+     * di dalamnya tidak bisa dikenali otomatis.
+     */
+    public static function isi(mixed $isi, ?SistemIntegrasi $sistem = null): ?string
     {
         if ($isi === null || $isi === '' || $isi === []) {
             return null;
@@ -50,15 +61,18 @@ final class Penyamar
             $isi = $json;
         }
 
-        return (string) json_encode(self::samarkan($isi, true), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $boleh = [...self::BOLEH_UMUM, ...($sistem === null ? [] : self::BOLEH_SISTEM[$sistem->value])];
+
+        return (string) json_encode(self::samarkan($isi, true, $boleh), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
-    private static function samarkan(mixed $nilai, bool $boleh): mixed
+    /** @param  list<string>  $daftar */
+    private static function samarkan(mixed $nilai, bool $boleh, array $daftar): mixed
     {
         if (is_array($nilai)) {
             $hasil = [];
             foreach ($nilai as $k => $v) {
-                $hasil[$k] = self::samarkan($v, is_int($k) ? $boleh : in_array(strtolower((string) $k), self::BOLEH, true));
+                $hasil[$k] = self::samarkan($v, is_int($k) ? $boleh : in_array(strtolower((string) $k), $daftar, true), $daftar);
             }
 
             return $hasil;

@@ -48,6 +48,7 @@ class GatewayIntegrasiTest extends TestCase
     {
         parent::setUp();
         self::$terkirim = [];
+        PenangananUji::$siap = false;
         // Job integrasi memakai koneksi redis sendiri (JenisQueue): di tes dipalsukan, pekerja dijalankan lewat pekerja().
         Queue::fake();
         foreach (SistemIntegrasi::cases() as $s) {
@@ -189,6 +190,27 @@ class GatewayIntegrasiTest extends TestCase
         $ditolak = $this->antrekan(SistemIntegrasi::Satusehat, 'uji', 'lokasi', (string) Str::uuid7(), ['tolak' => true]);
         $this->assertSame(['gagal', 1], [$this->kiriman($ditolak)->status, $this->kiriman($ditolak)->percobaan]);
         $this->assertSame('tertutup', DB::table('integrasi.status_sistem')->where('tujuan', 'satusehat')->value('cb_status'));
+    }
+
+    public function test_muatan_kiriman_yang_sudah_dicoba_tidak_diganti_dan_exception_penangan_tidak_bocor(): void
+    {
+        $this->aktifkanSemua();
+        $agregat = (string) Str::uuid7();
+        // Belum pernah dicoba (sistem nonaktif sesaat tidak relevan): muatan diganti, bukan kiriman baru.
+        SimulatorIntegrasi::atur(SistemIntegrasi::Satusehat, 'gangguan');
+        $pertama = $this->antrekan(SistemIntegrasi::Satusehat, 'uji', 'lokasi', $agregat, ['versi' => 1]);
+        $this->assertSame(1, $this->kiriman($pertama)->percobaan);
+        // Sudah dicoba (kunci idempotensi terpakai): muatan baru menjadi kiriman baru, yang lama tidak disentuh.
+        $kedua = $this->antrekan(SistemIntegrasi::Satusehat, 'uji', 'lokasi', $agregat, ['versi' => 2]);
+        $this->assertNotSame($pertama, $kedua);
+        $this->assertSame(['versi' => 1], json_decode($this->kiriman($pertama)->muatan, true));
+
+        SimulatorIntegrasi::atur(SistemIntegrasi::Satusehat, 'normal');
+        $lempar = $this->antrekan(SistemIntegrasi::Satusehat, 'uji', 'lokasi', (string) Str::uuid7(), ['lempar' => true]);
+        $k = $this->kiriman($lempar);
+        $this->assertSame(['menunggu', 1], [$k->status, $k->percobaan]);
+        $this->assertStringNotContainsString('3201234567890001', (string) $k->error_terakhir);
+        $this->assertStringContainsString('RuntimeException', (string) $k->error_terakhir);
     }
 
     public function test_tertahan_karena_data_induk_dikirim_ulang_otomatis_sesudah_diperbaiki(): void
@@ -365,6 +387,9 @@ final class PenangananUji implements PenanganKiriman
 
     public function kirim(Kiriman $kiriman, string $lingkungan, array $kredensial): HasilKirim
     {
+        if ($kiriman->muatan['lempar'] ?? false) {
+            throw new \RuntimeException('Gagal memanggil https://contoh.invalid/Patient?nik=3201234567890001');
+        }
         if ($kiriman->muatan['tolak'] ?? false) {
             return HasilKirim::ditolak('Isi ditolak: physicalType tidak valid.');
         }

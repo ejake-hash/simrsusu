@@ -4,6 +4,7 @@ namespace App\Modules\Integrasi\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
+use App\Modules\Integrasi\Domain\PenyimpanRahasia;
 use App\Modules\Integrasi\Domain\SistemIntegrasi;
 use App\Modules\Integrasi\Infrastructure\PenyandiKredensial;
 use Illuminate\Support\Carbon;
@@ -21,7 +22,7 @@ final class KelolaKredensial
     private const PANJANG_TAMPIL_AKHIR = 16;
 
     public function __construct(
-        private readonly PenyandiKredensial $penyandi,
+        private readonly PenyimpanRahasia $penyandi,
         private readonly CatatAktivitas $audit,
     ) {}
 

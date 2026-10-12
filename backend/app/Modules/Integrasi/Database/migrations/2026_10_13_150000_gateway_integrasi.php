@@ -6,6 +6,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 /**
  * Gateway integrasi (tiket 1.9; PRD 10, 11.2 integrasi.*; K8, K9): kredensial per sistem + lingkungan (rahasia
@@ -36,7 +37,8 @@ return new class extends Migration
 
         Schema::create('integrasi.status_sistem', function (Blueprint $table) {
             $table->comment('Keadaan per sistem luar: circuit breaker lingkungan aktif, error dan uji koneksi terakhir.');
-            $table->text('tujuan')->primary();
+            $table->uuid('id')->primary();
+            $table->text('tujuan')->unique();
             $table->text('cb_status')->default('tertutup');
             $table->integer('gagal_beruntun')->default(0);
             $table->timestampTz('cb_sejak')->nullable();
@@ -48,7 +50,9 @@ return new class extends Migration
             $table->timestampTz('diubah_pada')->useCurrent();
         });
         DB::statement("ALTER TABLE integrasi.status_sistem ADD CONSTRAINT status_sistem_cb_cek CHECK (cb_status IN ('tertutup', 'terbuka', 'setengah_terbuka'))");
-        DB::table('integrasi.status_sistem')->insert([['tujuan' => 'bpjs_vclaim'], ['tujuan' => 'aplicares'], ['tujuan' => 'satusehat']]);
+        foreach (['bpjs_vclaim', 'aplicares', 'satusehat'] as $tujuan) {
+            DB::table('integrasi.status_sistem')->insert(['id' => (string) Str::uuid7(), 'tujuan' => $tujuan]);
+        }
 
         DB::unprepared(<<<'SQL'
 CREATE TABLE integrasi.kotak_keluar (
@@ -80,14 +84,15 @@ CREATE INDEX kotak_keluar_daftar_idx ON integrasi.kotak_keluar (dibuat_pada DESC
 CREATE INDEX kotak_keluar_tujuan_idx ON integrasi.kotak_keluar (tujuan, dibuat_pada DESC, id DESC);
 CREATE INDEX kotak_keluar_id_idx ON integrasi.kotak_keluar (id);
 CREATE INDEX kotak_keluar_antre_idx ON integrasi.kotak_keluar (tujuan, status, coba_lagi_pada) WHERE status IN ('menunggu', 'tertahan', 'gagal');
+CREATE INDEX kotak_keluar_terkirim_idx ON integrasi.kotak_keluar (tujuan, terkirim_pada) WHERE status = 'terkirim';
 CREATE INDEX kotak_keluar_agregat_idx ON integrasi.kotak_keluar (agregat_jenis, agregat_id, tujuan, jenis_resource) WHERE status <> 'terkirim';
 CREATE TABLE integrasi.kotak_keluar_default PARTITION OF integrasi.kotak_keluar DEFAULT;
 
 CREATE TABLE integrasi.log_api (
     id               uuid           NOT NULL,
-    tujuan           text           NOT NULL,
-    lingkungan       text           NOT NULL,
-    metode           text           NOT NULL,
+    tujuan           text           NOT NULL CHECK (tujuan IN ('bpjs_vclaim', 'aplicares', 'satusehat')),
+    lingkungan       text           NOT NULL CHECK (lingkungan IN ('sandbox', 'produksi')),
+    metode           text           NOT NULL CHECK (metode IN ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')),
     endpoint         text           NOT NULL,
     kode_http        integer,
     berhasil         boolean        NOT NULL,
@@ -109,7 +114,7 @@ CREATE TABLE integrasi.log_api_default PARTITION OF integrasi.log_api DEFAULT;
 
 -- Partisi bulanan untuk kedua tabel (pola notifikasi.siapkan_partisi). SECURITY DEFINER: simrs_app tidak punya DDL.
 CREATE FUNCTION integrasi.siapkan_partisi(acuan date, bulan_ke_depan int)
-RETURNS TABLE (partisi text, status text) LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, integrasi AS $$
+RETURNS TABLE (partisi text, status text) LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, integrasi, pg_temp AS $$
 DECLARE
     awal timestamptz;
     akhir timestamptz;
@@ -145,18 +150,19 @@ $$;
 REVOKE ALL ON FUNCTION integrasi.siapkan_partisi(date, int) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION integrasi.siapkan_partisi(date, int) TO simrs_app;
 
--- Masa simpan log (PRD 14.2): hanya partisi bulanan log_api yang seluruhnya sebelum `batas` yang dihapus. simrs_app
+-- Masa simpan log (PRD 14.2; paling singkat 30 hari): hanya partisi bulanan log_api yang seluruhnya sebelum `batas` yang dihapus. simrs_app
 -- tidak punya DELETE di tabel ini; penghapusan hanya lewat fungsi ini.
 CREATE FUNCTION integrasi.hapus_log_lama(batas timestamptz)
-RETURNS SETOF text LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, integrasi AS $$
+RETURNS SETOF text LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, integrasi, pg_temp AS $$
 DECLARE
     p record;
     akhir timestamptz;
 BEGIN
-    IF batas > now() - interval '7 days' THEN
+    -- Masa simpan minimum 30 hari dijaga di sini juga, tidak hanya di konfigurasi aplikasi.
+    IF batas > now() - interval '30 days' THEN
         RAISE EXCEPTION 'batas masa simpan log terlalu dekat';
     END IF;
-    FOR p IN SELECT c.relname FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+    FOR p IN SELECT c.relname FROM pg_catalog.pg_inherits i JOIN pg_catalog.pg_class c ON c.oid = i.inhrelid
              WHERE i.inhparent = 'integrasi.log_api'::regclass AND c.relname ~ '^log_api_[0-9]{4}_[0-9]{2}$' LOOP
         akhir := (to_date(substr(p.relname, 9), 'YYYY_MM') + interval '1 month')::timestamp AT TIME ZONE 'UTC';
         IF akhir <= batas THEN

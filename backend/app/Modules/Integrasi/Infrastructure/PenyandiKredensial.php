@@ -3,6 +3,7 @@
 namespace App\Modules\Integrasi\Infrastructure;
 
 use App\Core\Http\ApiError;
+use App\Modules\Integrasi\Domain\PenyimpanRahasia;
 use Illuminate\Encryption\Encrypter;
 
 /**
@@ -10,7 +11,7 @@ use Illuminate\Encryption\Encrypter;
  * Format kunci `base64:<32 bita>`. Id kunci = 8 hex awal SHA-256 kunci, disimpan per baris agar rotasi bisa membaca
  * baris lama dengan `KREDENSIAL_KUNCI_LAMA` (dipisah koma). Vault bisa dipasang kemudian lewat antarmuka yang sama.
  */
-final class PenyandiKredensial
+final class PenyandiKredensial implements PenyimpanRahasia
 {
     /**
      * @param  array<string, string>  $rahasia

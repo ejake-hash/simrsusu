@@ -32,12 +32,15 @@ final class KotakKeluar
      */
     public function antrekan(SistemIntegrasi $tujuan, string $jenisResource, string $agregatJenis, string $agregatId, array $muatan = [], ?string $pemilikUnitId = null): string
     {
+        // Hanya kiriman yang belum pernah dicoba dan tidak sedang disewa pekerja yang muatannya boleh diganti: kiriman
+        // yang sedang dikirim atau sudah pernah dicoba (kunci idempotensinya sudah dipakai) tidak disentuh, jadi muatan
+        // baru menjadi kiriman baru. Syarat dicek ulang di UPDATE (READ COMMITTED mengevaluasi ulang sesudah kunci baris).
         $ada = DB::table('integrasi.kotak_keluar')->where('agregat_jenis', $agregatJenis)->where('agregat_id', $agregatId)
-            ->where('tujuan', $tujuan->value)->where('jenis_resource', $jenisResource)->where('status', 'menunggu')->first(['id', 'dibuat_pada']);
-        if ($ada !== null) {
-            DB::table('integrasi.kotak_keluar')->where('id', $ada->id)->where('dibuat_pada', $ada->dibuat_pada)
-                ->update(['muatan' => json_encode((object) $muatan), 'pemilik_unit_id' => $pemilikUnitId, 'diubah_pada' => now()]);
-
+            ->where('tujuan', $tujuan->value)->where('jenis_resource', $jenisResource)->where('status', 'menunggu')
+            ->where('percobaan', 0)->where('coba_lagi_pada', '<=', now())->first(['id', 'dibuat_pada']);
+        if ($ada !== null && DB::table('integrasi.kotak_keluar')->where('id', $ada->id)->where('dibuat_pada', $ada->dibuat_pada)
+            ->where('status', 'menunggu')->where('percobaan', 0)->where('coba_lagi_pada', '<=', now())
+            ->update(['muatan' => json_encode((object) $muatan), 'pemilik_unit_id' => $pemilikUnitId, 'diubah_pada' => now()]) === 1) {
             return $ada->id;
         }
         $lingkungan = $this->kredensial->lingkunganAktif($tujuan);
@@ -74,10 +77,14 @@ final class KotakKeluar
                 : 'Kiriman ini dibuat untuk lingkungan '.$baris->lingkungan.', sedangkan yang aktif '.$aktif.'. Kiriman tidak dipindah lingkungan.');
         }
         DB::transaction(function () use ($baris, $aktif, $olehId) {
-            DB::table('integrasi.kotak_keluar')->where('id', $baris->id)->where('dibuat_pada', $baris->dibuat_pada)->update([
-                'status' => 'menunggu', 'lingkungan' => $aktif, 'percobaan' => 0, 'coba_lagi_pada' => now(),
-                'penyebab_tertahan_kode' => null, 'penyebab_tertahan_pesan' => null, 'diubah_pada' => now(),
-            ]);
+            $diubah = DB::table('integrasi.kotak_keluar')->where('id', $baris->id)->where('dibuat_pada', $baris->dibuat_pada)
+                ->whereIn('status', ['gagal', 'tertahan'])->update([
+                    'status' => 'menunggu', 'lingkungan' => $aktif, 'percobaan' => 0, 'coba_lagi_pada' => now(),
+                    'penyebab_tertahan_kode' => null, 'penyebab_tertahan_pesan' => null, 'diubah_pada' => now(),
+                ]);
+            if ($diubah !== 1) {
+                throw new ApiError(409, 'kiriman_tidak_bisa_dikirim_ulang', 'Kiriman ini baru saja berubah status. Muat ulang.');
+            }
             $this->audit->catat('integrasi.kirim_ulang', $olehId, 'integrasi.kotak_keluar', $baris->id, [
                 'tujuan' => $baris->tujuan, 'jenis_resource' => $baris->jenis_resource, 'status_sebelum' => $baris->status, 'lingkungan' => $aktif,
             ]);

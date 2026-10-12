@@ -14,7 +14,7 @@ final class HapusLogLama extends Command
 
     public function handle(): int
     {
-        $hari = max(7, (int) config('integrasi.log_hari'));
+        $hari = max(30, (int) config('integrasi.log_hari'));
         foreach (DB::select('SELECT * FROM integrasi.hapus_log_lama(?::timestamptz)', [now()->subDays($hari)->toIso8601String()]) as $p) {
             $this->line('Dihapus: '.$p->hapus_log_lama);
         }

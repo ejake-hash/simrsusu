@@ -7,7 +7,10 @@ use App\Modules\Integrasi\Domain\Kiriman;
 use App\Modules\Integrasi\Domain\SistemIntegrasi;
 use App\Modules\Integrasi\Infrastructure\Penyamar;
 use App\Modules\Integrasi\Jobs\KirimKiriman;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Pekerja outbox (PRD 10): ambil satu kiriman dengan sewa (tanpa memegang kunci baris selama panggilan HTTP), periksa
@@ -48,7 +51,13 @@ final class PengirimKiriman
 
             return;
         }
-        $syarat = $penangan->periksa($kiriman);
+        try {
+            $syarat = $penangan->periksa($kiriman);
+        } catch (Throwable $e) {
+            $this->galatPenangan($baris, $kiriman, $e, false);
+
+            return;
+        }
         if ($syarat !== null) {
             $this->tahan($baris, $syarat['kode'], $syarat['pesan'], $syarat['pemilik_unit_id'], now()->addMinutes(self::PERIKSA_ULANG_MENIT));
 
@@ -69,7 +78,13 @@ final class PengirimKiriman
             return;
         }
 
-        $hasil = $penangan->kirim($kiriman, $aktif, $nilai);
+        try {
+            $hasil = $penangan->kirim($kiriman, $aktif, $nilai);
+        } catch (Throwable $e) {
+            $this->galatPenangan($baris, $kiriman, $e, true);
+
+            return;
+        }
         if ($hasil->berhasil) {
             $this->sirkuit->berhasil($kiriman->tujuan);
             $this->simpan($baris, ['status' => 'terkirim', 'terkirim_pada' => now(), 'coba_lagi_pada' => null, 'error_terakhir' => null,
@@ -100,7 +115,7 @@ final class PengirimKiriman
         foreach (SistemIntegrasi::cases() as $sistem) {
             $status = DB::table('integrasi.status_sistem')->where('tujuan', $sistem->value)->first(['cb_status', 'coba_lagi_pada']);
             $tertutup = $status === null || $status->cb_status === 'tertutup';
-            if (! $tertutup && $status->cb_status === 'terbuka' && $status->coba_lagi_pada > now()) {
+            if (! $tertutup && $status->cb_status === 'terbuka' && Carbon::parse($status->coba_lagi_pada)->isFuture()) {
                 continue;
             }
             DB::table('integrasi.kotak_keluar')->where('tujuan', $sistem->value)->where('status', 'menunggu')->where('coba_lagi_pada', '<=', now())
@@ -120,6 +135,25 @@ final class PengirimKiriman
                 }
             }
         }
+    }
+
+    /**
+     * Exception dari penangan = cacat kode, bukan gangguan sistem luar. Pesan exception bisa memuat URL atau data
+     * pasien, jadi yang dicatat hanya kelasnya. Kiriman dihitung satu percobaan (tidak berulang tanpa batas) dan jatah
+     * percobaan circuit breaker dilepas.
+     */
+    private function galatPenangan(object $baris, Kiriman $kiriman, Throwable $e, bool $sudahMemakaiJatah): void
+    {
+        Log::error('Penangan kiriman integrasi gagal', ['kiriman_id' => $kiriman->id, 'tujuan' => $kiriman->tujuan->value,
+            'jenis_resource' => $kiriman->jenisResource, 'exception' => $e::class]);
+        if ($sudahMemakaiJatah) {
+            $this->sirkuit->lepasJatah($kiriman->tujuan);
+        }
+        $percobaan = $kiriman->percobaan + 1;
+        $habis = $percobaan >= (int) config('integrasi.maks_percobaan');
+        $this->simpan($baris, ['status' => $habis ? 'gagal' : 'menunggu', 'percobaan' => $percobaan,
+            'error_terakhir' => 'Kesalahan internal saat memproses kiriman ('.class_basename($e).').',
+            'coba_lagi_pada' => $habis ? null : now()->addMinutes(self::tunggu($percobaan))]);
     }
 
     /** Menit tunggu sebelum percobaan berikutnya: dasar × 2^(n-1), paling lama tunggu_maks. */

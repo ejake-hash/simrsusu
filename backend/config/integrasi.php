@@ -50,7 +50,7 @@ return [
     // Kiriman per putaran pekerja per sistem.
     'per_putaran' => 100,
 
-    // Masa simpan log integrasi.log_api (hari); partisi bulanan yang seluruhnya lebih tua dihapus.
+    // Masa simpan log integrasi.log_api (hari, paling singkat 30); partisi bulanan yang seluruhnya lebih tua dihapus.
     'log_hari' => (int) env('INTEGRASI_LOG_HARI', 90),
     // Isi permintaan/respons per baris log paling banyak (bita), sesudah disamarkan.
     'log_maks_bita' => 16384,

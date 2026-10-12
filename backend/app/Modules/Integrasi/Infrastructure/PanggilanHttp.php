@@ -20,7 +20,7 @@ final class PanggilanHttp
     public static function alamat(SistemIntegrasi $sistem, string $lingkungan): ?string
     {
         $alamat = config("integrasi.alamat.{$sistem->value}.$lingkungan");
-        if (($alamat === null || $alamat === '') && config('integrasi.simulator')) {
+        if (($alamat === null || $alamat === '') && SimulatorIntegrasi::aktif()) {
             return sprintf(self::ALAMAT_SIMULATOR, str_replace('_', '-', $sistem->value).'-'.$lingkungan);
         }
 
@@ -76,7 +76,7 @@ final class PanggilanHttp
             'id' => (string) Str::uuid7(), 'tujuan' => $sistem->value, 'lingkungan' => $lingkungan, 'metode' => $metode,
             'endpoint' => Penyamar::path('/'.ltrim($path, '/')), 'kode_http' => $jawaban->kodeHttp, 'berhasil' => $berhasil,
             'latensi_ms' => $jawaban->latensiMs, 'pesan' => Penyamar::teks($pesan), 'kotak_keluar_id' => $kotakKeluarId,
-            'permintaan' => $potong(Penyamar::isi($permintaan)), 'respons' => $potong(Penyamar::isi($respons ?? $jawaban->badan)),
+            'permintaan' => $potong(Penyamar::isi($permintaan, $sistem)), 'respons' => $potong(Penyamar::isi($respons ?? $jawaban->badan, $sistem)),
             'terpotong' => $terpotong,
         ]);
     }

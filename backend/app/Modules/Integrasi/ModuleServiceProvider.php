@@ -9,6 +9,8 @@ use App\Modules\Integrasi\Console\HapusLogLama;
 use App\Modules\Integrasi\Console\RotasiKunciKredensial;
 use App\Modules\Integrasi\Console\SiapkanPartisi;
 use App\Modules\Integrasi\Console\SimulatorMode;
+use App\Modules\Integrasi\Domain\PenyimpanRahasia;
+use App\Modules\Integrasi\Infrastructure\PenyandiKredensial;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -22,6 +24,8 @@ class ModuleServiceProvider extends ServiceProvider
         // Penangan kiriman per tujuan + jenis_resource dipasang di sini oleh tiket yang membangunnya.
         $this->app->singleton(DaftarPenangan::class, fn () => new DaftarPenangan([]));
         $this->app->bind(SyaratKredensialIntegrasi::class, SyaratPenyiapan::class);
+        // K9: enkripsi tabel dengan kunci khusus; vault bisa menggantikan binding ini.
+        $this->app->bind(PenyimpanRahasia::class, PenyandiKredensial::class);
     }
 
     public function boot(): void
