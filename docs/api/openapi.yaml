@@ -3759,8 +3759,9 @@ paths:
       summary: Log panggilan ke sistem luar (disamarkan), terbaru dulu
       description: |
         Izin: integrasi.log.lihat, cakupan `rs`. Satu baris per panggilan HTTP (termasuk percobaan ulang dan uji koneksi).
-        Permintaan dan respons disimpan sesudah disamarkan (NIK, nama, nomor kartu, tanggal lahir, nomor rujukan/SEP,
-        token, header rahasia), dipotong paling banyak 16 KB per isian (`terpotong`), dan dihapus sesudah masa simpan di
+        Permintaan dan respons disimpan sesudah disamarkan menurut aturan masking di komentar blok gateway integrasi
+        (paling sedikit NIK, nama, nomor kartu, nomor RM, tanggal lahir, telepon, alamat, nomor rujukan/SEP/surat kontrol,
+        token dan header rahasia; isi JSON lewat allowlist kunci per sistem), dipotong paling banyak 16 KB per isian (`terpotong`), dan dihapus sesudah masa simpan di
         konfigurasi (`INTEGRASI_LOG_HARI`). Urut (`terjadi_pada`, `id`) menurun, kursor keyset. Karena isi per baris
         sampai 2 × 16 KB, `batas` paling banyak 50 (di atas itu 422 `ukuran_halaman_melebihi_batas`). Tanpa `dari`/`sampai`
         = semua yang masih dalam masa simpan.
