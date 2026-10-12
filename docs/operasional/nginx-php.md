@@ -133,7 +133,7 @@ Catatan:
 - Berkas paket identitas (`/api/v1/profil-rs/berkas/...`) sudah membawa `X-Content-Type-Options` dan CSP sendiri
   untuk SVG dari Laravel.
 - Batas waktu 60 detik mengikuti backlog 1.8e (pemuatan referensi). PRD 14.1.1 butir 2 menyebut batas permintaan
-  HTTP 30 detik; selisih ini dicatat di [README](README.md).
+  HTTP 30 detik; selisih ini dicatat di [README](README.md#selisih-dengan-prd-dicatat-belum-diputuskan).
 
 ## 3. Batas waktu dan ukuran: harus selaras
 
@@ -213,9 +213,10 @@ clear_env = yes
 security.limit_extensions = .php
 ```
 
-`pm.max_children` dibatasi oleh RAM dan `max_connections` PostgreSQL (setiap anak bisa memegang satu koneksi; Horizon
-menambah hingga 18 proses pekerja di `production`, lihat [proses-dan-jadwal.md](proses-dan-jadwal.md)). PgBouncer
-yang diminta PRD 14.1 belum ada di repo.
+`pm.max_children` dibatasi oleh RAM dan `max_connections` PostgreSQL. Setiap anak php-fpm bisa memegang satu koneksi;
+Horizon menambah hingga 18 proses pekerja di `production` (6 + 3 + 4 + 2 + 3, `config/horizon.php`), ditambah proses
+`schedule:run` tiap menit dan koneksi migrasi saat rilis ([proses-dan-jadwal.md §4](proses-dan-jadwal.md#4-horizon-queue-per-jenis)).
+PgBouncer yang diminta PRD 14.1 belum ada di repo.
 
 <!-- HASIL-UJI-BEBAN: pm.max_children dan max_connections yang dipakai -->
 

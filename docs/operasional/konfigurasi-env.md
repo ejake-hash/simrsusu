@@ -1,7 +1,9 @@
 # Konfigurasi `.env` backend
 
-Draf, tiket 1.12. Sumber: `backend/.env.example` dan pemanggilan `env(...)` di `backend/config/*.php`. Frontend tidak
-membaca variabel saat produksi (profil RS dari `GET /api/v1/profil-rs`; `VITE_API_TIRUAN` hanya berlaku di mode dev).
+Draf, tiket 1.12. Sumber: `backend/.env.example` dan pemanggilan `env(...)` di `backend/config/*.php` (`main` per
+12 Okt 2026, sesudah 1.9-fe). Variabel bertanda *sejak 1.5, menunggu merge* baru ada di cabang `feat/akses-lapis45`.
+Frontend tidak membaca variabel saat produksi (profil RS dari `GET /api/v1/profil-rs`; `VITE_API_TIRUAN` hanya
+berlaku di mode dev).
 
 Aturan umum:
 
@@ -19,7 +21,7 @@ Kolom **Produksi**: nilai yang diharapkan; `<...>` = isian per RS; "bawaan" = bi
 |---|---|---|
 | `APP_NAME` | `"Karsitara SIMRS"` (bawaan) | Nama produk, bukan nama RS (nama RS dari Profil RS). **Jangan diubah setelah berjalan**: nama cookie sesi, prefiks kunci Valkey, cache, dan Horizon diturunkan dari `APP_NAME` (`config/session.php`, `database.php`, `cache.php`, `horizon.php`); mengubahnya memutus semua sesi dan meninggalkan pekerjaan di queue lama. |
 | `APP_ENV` | `production` | Mengaktifkan pemeriksaan boot (`App\Core\PemeriksaanProduksi`), jumlah pekerja Horizon `production`, dan menonaktifkan simulator integrasi. |
-| `APP_KEY` | `base64:<...>` dari `php artisan key:generate` | Mengenkripsi rahasia MFA pengguna, NIK pegawai, dan sesi; juga dasar sidik NIK (`Pegawai`). **Hilang = semua MFA dan NIK tidak terbaca.** Simpan di vault. **Jangan dirotasi** sampai ada perintah hitung ulang sidik NIK (utang 1.8d). |
+| `APP_KEY` | `base64:<...>` dari `php artisan key:generate` | Mengenkripsi rahasia TOTP pengguna (`akses.pengguna.mfa_rahasia_enkripsi`), NIK pegawai (`sdm.pegawai.nik_enkripsi`), rahasia TOTP sementara selama pendaftaran MFA (`MfaChallenge`), dan cookie; juga kunci HMAC sidik NIK (`Pegawai::sidik`). **Hilang = semua MFA dan NIK tidak terbaca.** Simpan di vault. **Jangan dirotasi** sampai ada perintah hitung ulang sidik NIK (utang 1.8d): `APP_PREVIOUS_KEYS` membuka data lama, tetapi sidik NIK dihitung ulang dengan kunci baru sehingga keunikan NIK tidak lagi cocok. |
 | `APP_PREVIOUS_KEYS` | kosong | Tidak ada di `.env.example`. Hanya untuk masa rotasi `APP_KEY` (lihat atas). |
 | `APP_DEBUG` | `false` | `true` di production = aplikasi menolak boot. |
 | `APP_URL` | `https://simrs.rs-contoh.invalid` | Dipakai untuk tautan (mis. email notifikasi). |
@@ -50,7 +52,7 @@ Kolom **Produksi**: nilai yang diharapkan; `<...>` = isian per RS; "bawaan" = bi
 | `DB_USERNAME` | `simrs_app` | Role aplikasi tanpa DDL. |
 | `DB_PASSWORD` | `<sandi simrs_app>` | Vault. |
 | `DB_SEARCH_PATH` | `sistem,public` | Tabel bawaan Laravel di skema `sistem`. |
-| `DB_SSLMODE` | `verify-full` bila DB di server lain (bawaan `prefer`) | Tidak ada di `.env.example`. PRD 14.2: TLS antar-server. |
+| `DB_SSLMODE` | `verify-full` bila DB di server lain (bawaan `prefer`) | Tidak ada di `.env.example`. PRD 14.2: TLS antar-server. `config/database.php` tidak punya opsi `sslrootcert`, jadi libpq mencari sertifikat CA di `~/.postgresql/root.crt` milik pengguna proses (`www-data`, juga untuk Horizon dan cron). **Belum diuji**; lihat keputusan no. 8 di [README](README.md#keputusan-yang-perlu-pemilik-repo). |
 | `DB_MIGRATOR_USERNAME` | `simrs_migrator` | Koneksi `pgsql_migrator`. |
 | `DB_MIGRATOR_PASSWORD` | **tidak ditulis** di `.env` produksi | Diberikan sebagai variabel lingkungan saat migrasi saja ([instalasi.md §6](instalasi.md#6-migrasi-dan-cache-konfigurasi)). |
 | `DB_URL`, `DB_CHARSET` | bawaan | |
@@ -69,12 +71,14 @@ Dua instans wajib (PRD 14.1.1 butir 6). Koneksi `default` = instans sesi + queue
 | `REDIS_DB` | `0` | |
 | `REDIS_CACHE_HOST`, `REDIS_CACHE_PORT` | `<host>`, `6380` | Instans `allkeys-lru`. **Jangan** diarahkan ke instans sesi. |
 | `REDIS_CACHE_PASSWORD` | `<sandi-valkey-cache>` | Bila kosong, memakai `REDIS_PASSWORD`. |
+| `REDIS_CACHE_USERNAME` | kosong, atau pengguna ACL | Tidak ada di `.env.example`. Bila kosong, memakai `REDIS_USERNAME`. |
 | `REDIS_CACHE_DB` | `1` (bawaan) | |
 | `SESSION_DRIVER` | `redis` | |
 | `QUEUE_CONNECTION` | `redis` | Queue per jenis di `App\Core\Queue\JenisQueue`. |
 | `CACHE_STORE` | `redis` | |
 | `REDIS_PREFIX`, `CACHE_PREFIX`, `HORIZON_PREFIX` | bawaan (turunan `APP_NAME`) | `REDIS_PREFIX` dan `HORIZON_PREFIX` tidak ada di `.env.example`. Isi eksplisit hanya bila dua instalasi berbagi Valkey (tidak disarankan). |
-| `REDIS_QUEUE_RETRY_AFTER` | bawaan 150 | Harus > batas waktu terpanjang di koneksi `redis` (dokumen 120 detik). |
+| `REDIS_QUEUE_RETRY_AFTER` | bawaan 150 | Tidak ada di `.env.example`. Harus > batas waktu terpanjang di koneksi `redis` (`dokumen` 120 detik, `JenisQueue::batasWaktu`). Koneksi `redis-laporan` memakai 960 tetap (batas `laporan` 900 detik). |
+| `CACHE_LIMITER_STORE`, `REDIS_CACHE_CONNECTION`, `REDIS_CACHE_LOCK_CONNECTION`, `REDIS_QUEUE_CONNECTION`, `REDIS_QUEUE` | bawaan; **jangan diubah** | Tidak ada di `.env.example`. Bawaan: penghitung rate limit dan kunci nama pengguna fiktif di store `rate-limit` (instans `noeviction`), cache di koneksi `cache`, kunci cache dan queue di koneksi `default` (`config/cache.php`, `config/queue.php`). Mengarahkannya ke instans cache membuat rate limit dan penguncian akun bisa hilang saat memori penuh. |
 | `REDIS_PERSISTENT`, `REDIS_MAX_RETRIES`, `REDIS_BACKOFF_*`, `REDIS_CLUSTER`, `REDIS_URL`, `REDIS_CACHE_URL` | bawaan | Tidak ada di `.env.example`. |
 
 ## 5. Sesi dan SPA
@@ -100,7 +104,9 @@ Dua instans wajib (PRD 14.1.1 butir 6). Koneksi `default` = instans sesi + queue
 | `AUTENTIKASI_MFA_JARINGAN_RS` | `<cidr-jaringan-rs-1>,<cidr-2>` | **Wajib.** Kosong = login web `503 konfigurasi_belum_lengkap`. Nilai `.env.example` (loopback) hanya untuk lokal/CI. |
 | `AUTENTIKASI_MFA_PENERBIT` | `"<nama RS>"` | Nama di aplikasi autentikator; bawaan `APP_NAME`. |
 | `AUTENTIKASI_MFA_CHALLENGE_MENIT` | bawaan 5 | Tidak ada di `.env.example`. |
-| `AUTENTIKASI_SANDI_PANJANG_MINIMAL` | bawaan 12 | Tidak ada di `.env.example`. PRD 14.2. |
+| `AUTENTIKASI_MFA_ULANG_MENIT` | bawaan 15 | *Sejak 1.5, menunggu merge* (`config/autentikasi.php` di `feat/akses-lapis45`). Izin bertanda `butuh_mfa` meminta MFA ulang bila verifikasi MFA terakhir di sesi itu lebih lama dari nilai ini (K11). |
+| `AKSES_LABEL_MAKS_HARI` | bawaan 365 | *Sejak 1.5, menunggu merge* (`config/akses.php` baru di `feat/akses-lapis45`). Masa berlaku terpanjang izin label sensitivitas per akun (lapis 4); izin itu selalu berbatas waktu. |
+| `AUTENTIKASI_SANDI_PANJANG_MINIMAL` | bawaan 12 | Tidak ada di `.env.example`. PRD 14.2. Nilai di bawah 12 diabaikan (`Password::min(max(12, ...))` di `Akses\ModuleServiceProvider`). |
 | `AUTENTIKASI_SANDI_DAFTAR_BOCOR` | bawaan (`app/Modules/Akses/Infrastructure/data/sandi-bocor.txt.gz`) | Tidak ada di `.env.example`. Perbarui berkala (ADR 0001, `SUMBER.md`). |
 | `AUTENTIKASI_SANDI_CEK_HIBP` | `false` | `true` hanya bila server boleh keluar internet. |
 | `AUTENTIKASI_KUNCI_MAKS_GAGAL`, `AUTENTIKASI_KUNCI_DURASI_MENIT` | bawaan 5, 15 | PRD 14.2. |
@@ -135,7 +141,7 @@ semua berkas memakai disk `local`; pisahkan penyimpanannya dengan mount.
 | `SDM_DOKUMEN_DISK` | `local` | Dokumen izin praktik (privat). |
 | `SDM_DOKUMEN_BATAS_KB` | bawaan 5120 | |
 | `SDM_IZIN_PRAKTIK_HARI_PERINGATAN` | bawaan 60 | *Perlu verifikasi* kebijakan RS. |
-| `AUDIT_ANCHOR_DISK` | `local` + mount terpisah (sementara) | Anchor harus di penyimpanan yang **tidak bisa ditimpa** admin basis data/server aplikasi (ADR 0003; mis. ekspor NFS dari server lain dengan retensi/WORM). |
+| `AUDIT_ANCHOR_DISK` | `local` + mount terpisah (sementara) | Anchor harus di penyimpanan yang **tidak bisa ditimpa** admin basis data/server aplikasi (ADR 0003). Rincian dan batasannya di [cadangan-pemulihan.md §6](cadangan-pemulihan.md#6-anchor-audit-di-penyimpanan-terpisah). |
 | `AUDIT_ANCHOR_DIREKTORI` | `audit/anchor` (bawaan) | Relatif terhadap akar disk: `storage/app/private/audit/anchor`. Mount penyimpanan terpisah tepat di folder ini. |
 | `AUDIT_ZONA_WAKTU` | `Asia/Jakarta` (bawaan) | Zona `--dari/--sampai` verifikasi dan jadwal partisi. |
 | `AUDIT_PARTISI_BULAN_KE_DEPAN` | bawaan 3 | |
@@ -149,22 +155,28 @@ sudo mkdir -p /srv/karsitara/backend/storage/app/private/audit/anchor
 sudo mount /srv/karsitara/backend/storage/app/private/audit/anchor
 sudo chown www-data:www-data /srv/karsitara/backend/storage/app/private/audit/anchor
 sudo -u www-data php artisan audit:ekspor-anchor   # uji tulis; berkas JSON Lines per bulan muncul di folder itu
+ls -l /srv/karsitara/backend/storage/app/private/audit/anchor/   # anchor-rantai-YYYY-MM.jsonl harus ada
 ```
+
+Perhatikan: disk `local` diset `'throw' => false` (`config/filesystems.php`). Bila mount tidak bisa ditulis,
+`audit:ekspor-anchor` tetap selesai sukses tanpa menulis berkas (salinan di log `audit_anchor` tetap ditulis). Bila
+mount terlepas, berkas ditulis ke folder di disk server aplikasi. Karena itu umur baris terakhir berkas anchor dan
+status mount ikut dipantau ([proses-dan-jadwal.md §6](proses-dan-jadwal.md#6-pemantauan-dasar)).
 
 ## 9. Integrasi (`config/integrasi.php`)
 
 | Variabel | Produksi | Catatan |
 |---|---|---|
 | `KREDENSIAL_KUNCI` | `base64:<32 bita>`, **berbeda** dari `APP_KEY` dan `TTD_KUNCI` | Mengenkripsi kredensial BPJS/SATUSEHAT (K9). Kosong = kredensial tidak bisa disimpan/dibaca (`503 kredensial_kunci_belum_dikonfigurasi`). Vault. |
-| `KREDENSIAL_KUNCI_LAMA` | kosong; saat rotasi berisi kunci lama | Rotasi: [proses-dan-jadwal.md §5](proses-dan-jadwal.md#5-rotasi-kunci). |
+| `KREDENSIAL_KUNCI_LAMA` | kosong; saat rotasi berisi kunci lama (dipisah koma) | Rotasi: [proses-dan-jadwal.md §5](proses-dan-jadwal.md#5-rotasi-kunci). |
 | `INTEGRASI_SIMULATOR` | `false` | Kode mengabaikannya di production, tetapi tetap tulis `false`. |
 | `INTEGRASI_VCLAIM_SANDBOX`, `_PRODUKSI` | bawaan, atau `<alamat resmi>` | Bawaan dari catatan lapangan, **perlu verifikasi** ke dokumen resmi BPJS sebelum produksi. Tidak bisa diubah lewat API (SSRF). |
 | `INTEGRASI_APLICARES_SANDBOX`, `_PRODUKSI` | `<alamat resmi>` | Tanpa bawaan. |
 | `INTEGRASI_SATUSEHAT_SANDBOX`, `_PRODUKSI` | bawaan, atau `<alamat resmi>` | *Perlu verifikasi*. |
-| `INTEGRASI_BATAS_WAKTU` | bawaan 20 (detik) | Tidak ada di `.env.example`. Lihat catatan selisih dengan PRD di [README](README.md). |
+| `INTEGRASI_BATAS_WAKTU` | bawaan 20 (detik) | Tidak ada di `.env.example`. Uji koneksi memakai 15 detik tetap. PRD 14.1.1 meminta 10 detik; lihat [README, Selisih dengan PRD](README.md#selisih-dengan-prd-dicatat-belum-diputuskan). |
 | `INTEGRASI_MAKS_PERCOBAAN` | bawaan 8 | Tidak ada di `.env.example`. |
 | `INTEGRASI_CB_AMBANG`, `INTEGRASI_CB_BUKA_DETIK` | bawaan 5, 60 | Tidak ada di `.env.example`. Circuit breaker per sistem. |
-| `INTEGRASI_LOG_HARI` | bawaan 90 (minimal 30) | Masa simpan `integrasi.log_api`. |
+| `INTEGRASI_LOG_HARI` | bawaan 90 | Masa simpan `integrasi.log_api`; partisi yang lebih tua dihapus `integrasi:hapus-log-lama`. Nilai di bawah 30 dianggap 30 (`HapusLogLama`). |
 
 ## 10. Email, instalasi, menu, Horizon
 
@@ -191,12 +203,12 @@ sudo -u www-data php artisan audit:ekspor-anchor   # uji tulis; berkas JSON Line
 | `AKUN_SINTETIS_*` (`AKUN_SINTETIS_SANDI`, `_MFA_RAHASIA`, `_SUPERADMIN_MFA_RAHASIA`, `_SUPERADMIN_DUA_MFA_RAHASIA`, `_SDM_MFA_RAHASIA`, `_INTEGRASI_MFA_RAHASIA`, `_TTD_PIN`) | Hanya untuk seeder lokal/staging. Hapus barisnya dari `.env` produksi. `php artisan db:seed` dilarang. |
 | `TTD_KDF=minimum` | Biaya KDF PIN untuk tes saja. |
 | Kunci uji dari `backend/phpunit.xml` dan `.github/workflows/ci.yml` (`TTD_KUNCI`, `KREDENSIAL_KUNCI`, rahasia TOTP sintetis) | Nilainya **publik**. Server membuat kuncinya sendiri. |
-| `AUTENTIKASI_MFA_JARINGAN_RS` berisi loopback saja, atau `0.0.0.0/0` | Loopback = tidak ada yang bisa masuk; `0.0.0.0/0` = MFA dari luar RS tidak pernah diminta. |
+| `AUTENTIKASI_MFA_JARINGAN_RS` berisi loopback saja, atau `0.0.0.0/0` | Loopback saja = semua klien dianggap di luar RS: MFA selalu diminta dan akun yang belum punya MFA tidak bisa mendaftar MFA (hanya akun yang sudah punya MFA, mis. superadmin dari konsol, yang bisa masuk). `0.0.0.0/0` = semua klien dianggap di dalam RS, sehingga MFA untuk akses dari luar tidak pernah diminta (`KebijakanMfa::wajib`). |
 | `TRUSTED_PROXIES=*` | IP klien bisa dipalsukan (aturan jaringan RS dan rate limit per IP). |
 | `REDIS_CACHE_*` menunjuk instans sesi | PRD 14.1.1 butir 6. |
 | `LOG_LEVEL=debug` | Log membengkak; tetap tersamarkan, tetapi tidak perlu. |
 | `DB_MIGRATOR_PASSWORD` di `.env` produksi | Kredensial DDL tidak perlu ada di server saat berjalan (ADR 0003). |
-| `VITE_API_TIRUAN=true` saat build | Server tiruan hanya mode dev. |
+| `VITE_API_TIRUAN=true` di mesin build | Tidak berpengaruh pada `npm run build` (server tiruan hanya dipasang bila `import.meta.env.DEV`, `frontend/src/app/main.ts`), tetapi jangan diset agar tidak membingungkan. |
 
 Pemeriksaan cepat (dijalankan di `/srv/karsitara`; butuh `backend/phpunit.xml` dan `.github/workflows/ci.yml` dari
 checkout yang sama):
@@ -294,12 +306,28 @@ INTEGRASI_SIMULATOR=false
 
 ## 13. Variabel yang dibaca kode tetapi tidak ada di `.env.example`
 
-Dari pembandingan `env(...)` di `backend/config` dengan `.env.example` (12 Okt 2026). Bawaannya aman, tetapi operator
-perlu tahu: `APP_PREVIOUS_KEYS`, `ARGON_MEMORY`, `ARGON_THREADS`, `ARGON_TIME`, `AUDIT_ANCHOR_LOG`,
-`AUTENTIKASI_MFA_CHALLENGE_MENIT`, `AUTENTIKASI_SANDI_PANJANG_MINIMAL`, `AUTENTIKASI_SANDI_DAFTAR_BOCOR`, `DB_SSLMODE`,
-`HORIZON_NAME`, `HORIZON_DOMAIN`, `HORIZON_PATH`, `HORIZON_PREFIX`, `INTEGRASI_BATAS_WAKTU`, `INTEGRASI_CB_AMBANG`,
-`INTEGRASI_CB_BUKA_DETIK`, `INTEGRASI_MAKS_PERCOBAAN`, `LOG_DAILY_DAYS`, `MENU_TAMPILKAN_SEGERA_HADIR`,
-`REDIS_USERNAME`, `REDIS_PREFIX`, `SESSION_SECURE_COOKIE` (hanya komentar), `SESSION_HTTP_ONLY`, `TTD_KDF`, ditambah
-variabel bawaan kerangka Laravel (Memcached, DynamoDB, SQS, Beanstalkd, Postmark, Resend, Slack, Papertrail) yang
-tidak dipakai produk ini. Sebaliknya `BROADCAST_CONNECTION`, `PHP_CLI_SERVER_WORKERS`, dan `VITE_APP_NAME` ada di
-`.env.example` tetapi tidak dibaca konfigurasi backend.
+Dari pembandingan `env(...)` di `backend/config` dengan `.env.example` (12 Okt 2026, `main`). Bawaannya aman, tetapi
+operator perlu tahu:
+
+- **Produk ini** (sudah dibahas di tabel atas): `APP_PREVIOUS_KEYS`, `ARGON_MEMORY`, `ARGON_THREADS`, `ARGON_TIME`,
+  `AUDIT_ANCHOR_LOG`, `AUTENTIKASI_MFA_CHALLENGE_MENIT`, `AUTENTIKASI_SANDI_PANJANG_MINIMAL`,
+  `AUTENTIKASI_SANDI_DAFTAR_BOCOR`, `CACHE_LIMITER_STORE`, `DB_SSLMODE`, `HORIZON_NAME`, `HORIZON_DOMAIN`,
+  `HORIZON_PATH`, `HORIZON_PREFIX`, `INTEGRASI_BATAS_WAKTU`, `INTEGRASI_CB_AMBANG`, `INTEGRASI_CB_BUKA_DETIK`,
+  `INTEGRASI_MAKS_PERCOBAAN`, `LOG_DAILY_DAYS`, `MENU_TAMPILKAN_SEGERA_HADIR`, `QUEUE_FAILED_DRIVER`,
+  `REDIS_CACHE_CONNECTION`, `REDIS_CACHE_LOCK_CONNECTION`, `REDIS_CACHE_USERNAME`, `REDIS_PREFIX`, `REDIS_QUEUE`,
+  `REDIS_QUEUE_CONNECTION`, `REDIS_QUEUE_RETRY_AFTER`, `REDIS_USERNAME`, `SANCTUM_TOKEN_PREFIX`,
+  `SESSION_SECURE_COOKIE` (hanya komentar), `SESSION_HTTP_ONLY`, `TTD_KDF`.
+- **Kerangka Laravel, biarkan bawaan**: `AUTH_GUARD`, `AUTH_PASSWORD_TIMEOUT`, `HASH_VERIFY`, `BCRYPT_LIMIT`,
+  `DB_URL`, `DB_CHARSET`, `REDIS_URL`, `REDIS_CACHE_URL`, `REDIS_CLUSTER`, `REDIS_PERSISTENT`, `REDIS_MAX_RETRIES`,
+  `REDIS_BACKOFF_*`, `SESSION_CONNECTION`, `SESSION_STORE`, `SESSION_COOKIE` (bawaan turunan `APP_NAME`),
+  `SESSION_EXPIRE_ON_CLOSE`, `SESSION_PARTITIONED_COOKIE`, `LOG_DEPRECATIONS_TRACE`, `LOG_STDERR_FORMATTER`,
+  `LOG_SYSLOG_FACILITY`, `MAIL_URL`, `MAIL_EHLO_DOMAIN`, `MAIL_LOG_CHANNEL`, `MAIL_SENDMAIL_PATH`, `AWS_URL`,
+  `AWS_ENDPOINT`.
+- **Tidak dipakai produk ini**: variabel driver lain (MySQL/MariaDB/SQL Server, Memcached, DynamoDB, SQS, Beanstalkd,
+  queue/cache basis data `DB_QUEUE_*`/`DB_CACHE_*`, Postmark, Resend, Slack, Papertrail).
+
+Sebaliknya `BROADCAST_CONNECTION`, `PHP_CLI_SERVER_WORKERS`, dan `VITE_APP_NAME` ada di `.env.example` tetapi tidak
+dibaca konfigurasi backend (tidak ada `config/broadcasting.php`).
+
+Sesudah 1.5 merge: `AUTENTIKASI_MFA_ULANG_MENIT` dan `AKSES_LABEL_MAKS_HARI` ditambahkan ke `.env.example` sebagai
+baris komentar (§6).

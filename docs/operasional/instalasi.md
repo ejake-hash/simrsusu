@@ -132,15 +132,23 @@ valkey-cli -p 6380 -a '<sandi>' CONFIG GET maxmemory-policy   # allkeys-lru
 
 ```bash
 sudo mkdir -p /srv/karsitara && sudo chown <admin>:www-data /srv/karsitara
+sudo usermod -aG www-data <admin>   # admin perlu menulis bootstrap/cache saat composer install (masuk ulang sesudahnya)
 git clone <url-repo> /srv/karsitara && cd /srv/karsitara
 git checkout <tag-rilis>
 
 cd backend
 composer install --no-dev --optimize-autoloader --no-interaction
 cp .env.example .env && chmod 640 .env && sudo chown <admin>:www-data .env
-php artisan key:generate          # APP_KEY; simpan salinannya di vault (lihat cadangan-pemulihan.md §4)
+php artisan key:generate          # APP_KEY; simpan salinannya di vault (cadangan-pemulihan.md §4)
 sudo chown -R www-data:www-data storage bootstrap/cache
+sudo find storage bootstrap/cache -type d -exec chmod 2775 {} +
 ```
+
+**Semua perintah `php artisan` sesudah ini dijalankan sebagai `www-data`** (`sudo -u www-data php artisan ...`). Bila
+dijalankan sebagai admin, berkas log harian dan cache konfigurasi bisa dibuat milik admin, lalu php-fpm dan Horizon
+gagal menulisnya. Hanya `composer install` yang dijalankan sebagai admin; skrip `package:discover`-nya menulis
+`bootstrap/cache/packages.php` dengan ganti-nama berkas, jadi cukup folder `bootstrap/cache` bisa ditulis grup
+`www-data`. Pembagian pemilik ini belum diuji di server RS.
 
 `--no-dev` wajib: aplikasi menolak boot di `APP_ENV=production` bila alat debug (Telescope, Debugbar) terpasang
 (`App\Core\PemeriksaanProduksi`). Jangan memakai skrip `composer setup`: skrip itu menjalankan `migrate` dengan koneksi
@@ -162,9 +170,9 @@ karena itu `config:clear` dulu.
 
 ```bash
 cd /srv/karsitara/backend
-php artisan config:clear
+sudo -u www-data php artisan config:clear
 read -rs -p 'Sandi simrs_migrator: ' DB_MIGRATOR_PASSWORD; echo; export DB_MIGRATOR_PASSWORD
-php artisan migrate --database=pgsql_migrator --force
+sudo -u www-data --preserve-env=DB_MIGRATOR_PASSWORD php artisan migrate --database=pgsql_migrator --force
 unset DB_MIGRATOR_PASSWORD
 
 # Partisi bulan ini dan beberapa bulan ke depan (juga dijadwalkan harian; aman dijalankan ulang)
@@ -177,8 +185,9 @@ sudo -u www-data php artisan optimize
 sudo -u www-data php artisan about --only=environment   # APP_ENV production, debug OFF
 ```
 
-**Jangan** menjalankan `php artisan db:seed` di produksi: `DatabaseSeeder` hanya berisi akun dan organisasi sintetis
-(seeder akun dan TTE menolak berjalan di production).
+**Jangan** menjalankan `php artisan db:seed` di produksi: `DatabaseSeeder` hanya berisi akun, organisasi, dan TTE
+sintetis. Ketiga seeder itu melempar error bila `APP_ENV=production` (`AkunSintetisSeeder`,
+`OrganisasiSintetisSeeder`, `TtdSintetisSeeder`).
 
 ## 7. Build SPA
 
@@ -186,7 +195,7 @@ Di server aplikasi atau mesin build (Node 24, `.nvmrc`):
 
 ```bash
 cd /srv/karsitara/frontend
-unset VITE_API_TIRUAN          # server tiruan hanya untuk dev; jangan diset saat build
+unset VITE_API_TIRUAN          # server tiruan hanya aktif di `vite` dev (main.ts: import.meta.env.DEV); tidak ikut build
 npm ci
 npm run build                  # vue-tsc -b && vite build → frontend/dist
 ```
@@ -196,9 +205,12 @@ Hasil `frontend/dist` disajikan nginx; `/api` dan `/sanctum` diteruskan ke Larav
 
 ## 8. Langkah awal instalasi baru
 
-Urutan wajib wizard (FR-54-08; `App\Core\Instalasi\Penyiapan::LANGKAH`, kontrak `GET /penyiapan`). Langkah 1–6
-wajib sebelum melayani pasien (langkah 6 berstatus `menunggu_fase_2` dan dihitung tuntas); `siap_melayani` terkunci
-sejak langkah 1–6 pertama kali selesai. Langkah dikonfirmasi berurutan di `/pengaturan/penyiapan`.
+Urutan wajib wizard (FR-54-08; `App\Core\Instalasi\Penyiapan::LANGKAH`, kontrak `GET /api/v1/penyiapan`). Langkah
+dikonfirmasi berurutan di `/pengaturan/penyiapan`; langkah 6–7 (`menunggu_fase_2`) dan langkah 8 yang dilewati dihitung
+tuntas **untuk urutan konfirmasi**. `siap_melayani` baru terkunci saat langkah 1–6 semuanya `selesai`. Karena langkah 6
+selalu `menunggu_fase_2` di fase 1, **`siap_melayani` tetap false di fase 1** dan Beranda menampilkan pita "Instalasi
+belum bisa melayani pasien" (PRD 7.54 baris Siap melayani; `PenyiapanTest`). Ini sesuai rancangan, bukan error
+pemasangan.
 
 | No | Kode langkah | Isi | Dikerjakan di |
 |---|---|---|---|
@@ -209,8 +221,8 @@ sejak langkah 1–6 pertama kali selesai. Langkah dikonfirmasi berurutan di `/pe
 | 5 | `pegawai` | Pegawai aktif dan izin praktik berlaku | `/sdm/pegawai` |
 | 6 | `penjamin_tarif` | Fase 2 (status `menunggu_fase_2`) | — |
 | 7 | `formularium` | Fase 2 (status `menunggu_fase_2`) | — |
-| 8 | `kredensial_integrasi` | Kredensial tersimpan dan uji koneksi berhasil; **boleh dilewati** dengan alasan | API `/api/v1/integrasi/sistem/{kode}/kredensial` (layar 1.9-fe belum ada); butuh `KREDENSIAL_KUNCI` |
-| 9 | `modul_aktif` | Minimal satu modul aktif untuk seluruh RS | Modul inti fase 1 sudah aktif dari migrasi; layar modul aktif belum ada (kontrak `/penyiapan`), jadi cukup dikonfirmasi |
+| 8 | `kredensial_integrasi` | Untuk **ketiga** sistem (`bpjs_vclaim`, `aplicares`, `satusehat`): kredensial lingkungan aktif lengkap dan uji koneksi terakhir di lingkungan itu berhasil (`SyaratPenyiapan`). **Boleh dilewati** dengan alasan | Pengaturan Sistem → Konfigurasi integrasi (`/pengaturan/integrasi`); butuh `KREDENSIAL_KUNCI` dan alamat resmi di `.env` ([konfigurasi-env.md §9](konfigurasi-env.md#9-integrasi-configintegrasiphp)) |
+| 9 | `modul_aktif` | Minimal satu modul aktif untuk seluruh RS | Modul 53 dan 54 sudah aktif dari migrasi `2026_10_11_120000_create_inti_modul_aktif_table`; layar modul aktif belum ada, jadi cukup dikonfirmasi |
 
 Status semua langkah: `/pengaturan/penyiapan` (izin `pengaturan.penyiapan.lihat`, konfirmasi
 `pengaturan.penyiapan.perbaiki`).
@@ -258,13 +270,15 @@ sudo -u www-data php artisan referensi:muat wilayah /tmp/<berkas-wilayah>.csv --
 
 Lewat wizard (`POST /api/v1/paket-referensi/{sistem}/muat`) berkas paling besar 10 MB, diunggah dua kali (pratinjau
 lalu terapkan); batas PHP dan nginx harus ≥ 12 MB dan batas waktu ≥ 60 detik ([nginx-php.md](nginx-php.md)).
+Transaksi pemuatan boleh berjalan sampai 180 detik (`PemuatReferensi`), lebih lama dari batas web 60 detik. Berkas
+besar (wilayah, sekitar 90 ribu baris) lebih aman dimuat lewat `referensi:muat` di konsol, yang tidak kena batas web.
 
 ## 9. Pemeriksaan akhir sebelum dibuka
 
 ```bash
 curl -fsS https://simrs.rs-contoh.invalid/api/v1/siap          # {"status":"siap", ...}: basis data + kedua Valkey
 sudo -u www-data php artisan horizon:status                     # running
-sudo -u www-data php artisan schedule:list                      # jadwal di proses-dan-jadwal.md §3
+sudo -u www-data php artisan schedule:list                      # 13 jadwal, proses-dan-jadwal.md §3
 sudo -u www-data php artisan audit:verifikasi-rantai            # Rantai utuh
 psql -h <host-db> -U simrs_app -d simrs -c 'SHOW statement_timeout'   # 5s
 ```
@@ -280,9 +294,10 @@ git fetch --tags && git checkout <tag-rilis-baru>
 cd backend
 composer install --no-dev --optimize-autoloader --no-interaction
 sudo -u www-data php artisan down --retry=60          # opsional bila migrasi berat
-php artisan config:clear
+sudo -u www-data php artisan config:clear
 read -rs -p 'Sandi simrs_migrator: ' DB_MIGRATOR_PASSWORD; echo; export DB_MIGRATOR_PASSWORD
-php artisan migrate --database=pgsql_migrator --force  # migrasi maju saja di produksi
+sudo -u www-data --preserve-env=DB_MIGRATOR_PASSWORD \
+  php artisan migrate --database=pgsql_migrator --force   # migrasi maju saja di produksi
 unset DB_MIGRATOR_PASSWORD
 sudo -u www-data php artisan optimize
 sudo -u www-data php artisan horizon:terminate        # systemd menyalakan ulang dengan kode baru

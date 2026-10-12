@@ -249,6 +249,16 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   - e2e `integrasi` (contoh.integrasi, simulator): kredensial SATUSEHAT sandbox → aktifkan → uji koneksi → log; mode
     simulator mati/gangguan (circuit breaker di layar) dan kotak keluar berisi kiriman belum diuji e2e (kiriman nyata
     menunggu penangan SATUSEHAT/Aplicares, sisa 1.9-be).
+- **Utang 1.12 (dari penyusunan runbook docs/operasional/, kode):**
+  - `BerkasAnchor` tidak memeriksa hasil tulis: disk `local` `'throw' => false`, sehingga `audit:ekspor-anchor` sukses walau
+    mount anchor terlepas (berkas jatuh ke disk server aplikasi). `append` menulis ulang berkas bulan berjalan utuh tiap
+    jam, jadi WORM/append-only tidak bisa dipasang pada berkas itu.
+  - `audit:verifikasi-rantai` berjalan sebagai `simrs_app` dengan batas 5 detik; perlu `SET LOCAL statement_timeout`
+    sendiri sebelum tabel audit besar. Verifikasi berkala belum dijadwalkan (runbook mengusulkan timer harian).
+  - `queue:prune-failed` dan `horizon:snapshot` belum dijadwalkan; `config/database.php` belum punya `sslrootcert` untuk
+    `DB_SSLMODE=verify-full`.
+  - Sesudah pemulihan yang kehilangan data: kiriman integrasi yang sudah terkirim bisa kembali `menunggu` (kirim ganda),
+    dan anchor jendela yang hilang tidak akan cocok lagi. Prosedur menunggu pemilik (runbook README, keputusan no. 4).
 - Utang tinjauan #78 (repo publik, palet fiktif): panel merek halaman masuk (`--panel-merek`) tetap biru sedangkan
   gradiennya ikut `--brand-800/900` paket RS, dan kontras `--penekanan-panel` belum terjamin untuk sembarang paket.
   Arah: panel memakai warna paket RS (turunan `turunanTema()`) dengan cek kontras otomatis seperti `--accent-ink`.
