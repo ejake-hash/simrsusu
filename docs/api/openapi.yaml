@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.11.0
+  version: 0.12.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -42,6 +42,7 @@ info:
     melayani; TTE objek `usulan_data_induk`.
     v0.10.0 (diusulkan, #64): lapis 4–5 hak akses (tiket 1.5), menunggu pemilik.
     v0.11.0: Paket data referensi (tiket 1.8e): POST /paket-referensi/{sistem}/muat (pratinjau/terapkan, snapshot per versi).
+    v0.12.0: Penyiapan instalasi kosong (tiket 1.8f): GET /penyiapan, POST /penyiapan/{langkah}/selesai; sub-menu pengaturan.penyiapan.
 servers:
   - url: /api/v1
 security:
@@ -3456,6 +3457,89 @@ paths:
         '409': { $ref: '#/components/responses/Error' }
         '413': { description: "Berkas melebihi batas unggah server web" }
         '422': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # Penyiapan instalasi kosong (tiket 1.8f; PRD FR-54-08, 3.4; keputusan K6, K7). Sembilan langkah berurutan. Status tiap
+  # langkah dihitung server dari data yang sudah ada; datanya diisi di layar modul masing-masing (wizard menautkan ke
+  # sana, bukan formulir duplikat), lalu penyiap mengonfirmasi langkah itu (POST .../selesai, tercatat audit, bisa diulang).
+  # - Status langkah:
+  #   - `belum`: tidak ada syarat terpenuhi;
+  #   - `sebagian`: sebagian syarat terpenuhi, atau semua terpenuhi tetapi belum dikonfirmasi;
+  #   - `selesai`: semua syarat terpenuhi dan sudah dikonfirmasi. Bila sesudahnya syarat tidak lagi terpenuhi (mis.
+  #     superadmin dinonaktifkan), status kembali `sebagian` dan konfirmasi terakhir tetap tampil;
+  #   - `dilewati`: hanya langkah 8, dikonfirmasi dengan `dilewati` + alasan;
+  #   - `menunggu_fase_2`: langkah 6–7 (K6), kerangka saja, tidak bisa dikonfirmasi.
+  # - Urutan wajib (FR-54-08): langkah n hanya bisa dikonfirmasi bila semua langkah sebelumnya `selesai`, `dilewati`, atau
+  #   `menunggu_fase_2`. Mengisi data tidak dibatasi urutan.
+  # - `siap_melayani` = langkah 1–6 `selesai` (FR-54-08). Di fase 1 selalu false karena langkah 6 menunggu fase 2 (K6).
+  #   Modul lain memakai penjaga yang sama (`App\Core\Instalasi\StatusInstalasi`).
+  # - Ringkasan `status`: `belum` bila tidak ada langkah `selesai`/`dilewati`; `selesai` bila semua langkah selain
+  #   `menunggu_fase_2` sudah `selesai`/`dilewati`; selain itu `sebagian`. Disalin ke `inti.profil_rs.status_penyiapan`
+  #   bila profil sudah ada.
+  # - Syarat per langkah (`syarat[].kode`; `keterangan` menyebut yang kurang, mis. "1 dari 2"):
+  #   1 `superadmin`: `superadmin_mfa` (≥ 2 akun aktif berperan superadmin dengan MFA terdaftar), `jaringan_rs`
+  #     (AUTENTIKASI_MFA_JARINGAN_RS terisi di server).
+  #   2 `profil_rs`: `profil` (nama RS tersimpan), `logo` (logo paket identitas terunggah). Kontras warna sudah dijaga
+  #     PUT /profil-rs.
+  #   3 `organisasi`: `unit`, `ksm`, `kelas_rawat`, `bangsal`, `tempat_tidur`, `poliklinik` (masing-masing ≥ 1 aktif).
+  #   4 `paket_referensi`: `wilayah`, `referensi`, `loinc`, `ucum` (≥ 1 versi dimuat). ICD-10/ICD-9-CM tidak wajib (K7,
+  #     berkas dari RS) dan tampil di `paket` dengan `wajib` false.
+  #   5 `pegawai`: `pegawai` (≥ 1 pegawai aktif), `izin_praktik` (≥ 1 izin praktik yang berlaku hari ini).
+  #   6 `penjamin_tarif`, 7 `formularium`: tanpa syarat di fase 1 (`menunggu_fase_2`).
+  #   8 `kredensial_integrasi`: `kredensial` (kredensial tersimpan dan uji koneksi berhasil; dibangun di tiket 1.9, sampai
+  #     itu belum pernah terpenuhi). Boleh dilewati dengan alasan ("belum ada kredensial").
+  #   9 `modul_aktif`: `modul` (≥ 1 modul aktif untuk seluruh RS di `inti.modul_aktif`).
+  # ---------------------------------------------------------------------------
+  /penyiapan:
+    get:
+      operationId: statusPenyiapan
+      summary: Status sembilan langkah penyiapan instalasi dan penjaga siap melayani
+      description: |
+        Izin: pengaturan.penyiapan.lihat, cakupan `rs`. Juga dipakai Beranda untuk indikator "Instalasi belum bisa
+        melayani pasien" (hanya bagi pemegang izin ini). Dihitung saat diminta dari data induk (tanpa cache).
+      responses:
+        '200':
+          description: Status penyiapan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/StatusPenyiapan' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /penyiapan/{langkah}/selesai:
+    parameters:
+      - { in: path, name: langkah, required: true, schema: { $ref: '#/components/schemas/KodeLangkahPenyiapan' } }
+    post:
+      operationId: konfirmasiLangkahPenyiapan
+      summary: Konfirmasi satu langkah penyiapan selesai (atau langkah 8 dilewati); bisa diulang
+      description: |
+        Izin: pengaturan.penyiapan.perbaiki, cakupan `rs`. Syarat diperiksa ulang saat itu. Setiap konfirmasi disimpan
+        sebagai baris baru (riwayat) dan dicatat audit `pengaturan.penyiapan_dikonfirmasi` (langkah, dilewati, alasan).
+        Mengonfirmasi ulang langkah yang sudah selesai = 200 dengan konfirmasi baru.
+        - 409 `syarat_belum_lengkap`: `rincian` = syarat yang belum terpenuhi `{kode, label, keterangan}`.
+        - 409 `langkah_sebelumnya_belum_selesai`: `rincian` = `{langkah, status}` langkah sebelumnya yang belum
+          selesai/dilewati/menunggu fase 2.
+        - 409 `langkah_menunggu_fase_2`: langkah 6–7.
+        - 422 `tidak_bisa_dilewati`: `dilewati` true selain langkah 8.
+        - 422 `validasi_gagal` kolom `alasan`: wajib (5–500 karakter) bila `dilewati` true.
+        Melewati langkah 8 tidak memeriksa syarat `kredensial`.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dilewati: { type: boolean, default: false, description: "Hanya langkah 8 (kredensial integrasi)" }
+                alasan: { type: [string, 'null'], minLength: 5, maxLength: 500, description: "Wajib bila dilewati" }
+      responses:
+        '200':
+          description: Status penyiapan sesudah konfirmasi
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/StatusPenyiapan' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -4397,6 +4481,64 @@ components:
         dasar: { type: string }
         diubah_oleh: { $ref: '#/components/schemas/Pelaku' }
         diubah_pada: { type: string, format: date-time }
+    KodeLangkahPenyiapan:
+      type: string
+      enum: [superadmin, profil_rs, organisasi, paket_referensi, pegawai, penjamin_tarif, formularium, kredensial_integrasi, modul_aktif]
+      description: "Langkah 1–9 FR-54-08, berurutan"
+    StatusPenyiapan:
+      type: object
+      required: [status, siap_melayani, langkah]
+      properties:
+        status: { type: string, enum: [belum, sebagian, selesai] }
+        siap_melayani: { type: boolean, description: "Langkah 1–6 selesai (FR-54-08); fase 1 selalu false (K6)" }
+        langkah:
+          type: array
+          minItems: 9
+          maxItems: 9
+          items: { $ref: '#/components/schemas/LangkahPenyiapan' }
+    LangkahPenyiapan:
+      type: object
+      required: [no, kode, judul, status, wajib_untuk_melayani, syarat, dapat_dikonfirmasi, dapat_dilewati, konfirmasi_terakhir, paket]
+      properties:
+        no: { type: integer, minimum: 1, maximum: 9 }
+        kode: { $ref: '#/components/schemas/KodeLangkahPenyiapan' }
+        judul: { type: string, examples: ['Profil RS dan paket identitas'] }
+        status: { type: string, enum: [belum, sebagian, selesai, dilewati, menunggu_fase_2] }
+        wajib_untuk_melayani: { type: boolean, description: "Langkah 1–6" }
+        syarat:
+          type: array
+          description: "Kosong untuk langkah menunggu fase 2"
+          items:
+            type: object
+            required: [kode, label, terpenuhi, keterangan]
+            properties:
+              kode: { type: string, examples: [superadmin_mfa] }
+              label: { type: string, examples: ['Dua superadmin dengan MFA'] }
+              terpenuhi: { type: boolean }
+              keterangan: { type: [string, 'null'], examples: ['1 dari 2'] }
+        dapat_dikonfirmasi: { type: boolean, description: "Syarat lengkap, urutan terpenuhi, dan pemanggil memegang pengaturan.penyiapan.perbaiki" }
+        dapat_dilewati: { type: boolean, description: "Hanya langkah 8, urutan terpenuhi, dan pemanggil memegang izin perbaiki" }
+        konfirmasi_terakhir:
+          type: [object, 'null']
+          required: [oleh, pada, dilewati, alasan]
+          properties:
+            oleh: { $ref: '#/components/schemas/Pelaku' }
+            pada: { type: string, format: date-time }
+            dilewati: { type: boolean }
+            alasan: { type: [string, 'null'] }
+        paket:
+          type: [array, 'null']
+          description: "Hanya langkah 4: satu baris per sistem (urutan SistemReferensi), dari inti.paket_referensi; null untuk langkah lain"
+          items:
+            type: object
+            required: [sistem, wajib, versi, sumber, dimuat_pada, jumlah_kode_aktif]
+            properties:
+              sistem: { $ref: '#/components/schemas/SistemReferensi' }
+              wajib: { type: boolean, description: "false untuk icd10/icd9cm (K7)" }
+              versi: { type: [string, 'null'], description: "Versi pemuatan terakhir; null = belum dimuat" }
+              sumber: { type: [string, 'null'] }
+              dimuat_pada: { type: [string, 'null'], format: date-time }
+              jumlah_kode_aktif: { type: integer, minimum: 0 }
     SistemReferensi:
       type: string
       enum: [wilayah, referensi, icd10, icd9cm, loinc, ucum]
