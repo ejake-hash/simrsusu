@@ -39,7 +39,7 @@ final class PegawaiResource
         $unit = DB::table('inti.unit_organisasi')->whereIn('id', $baris->pluck('unit_organisasi_id')->filter()->unique()->values())
             ->get(['id', 'kode', 'nama'])->keyBy('id');
         $akun = $id === [] ? collect() : DB::table('akses.pengguna')->whereIn('pegawai_id', $id)->get(['id', 'pegawai_id', 'nama_pengguna', 'status'])->keyBy('pegawai_id');
-        $lihatAkun = Gate::forUser($penonton)->allows('pengaturan.akun.lihat');
+        $lihatAkun = Gate::forUser($penonton)->allows('pengaturan.akun.lihat', Cakupan::rs());
         $izin = $id === [] ? collect() : IzinPraktik::query()->whereIn('pegawai_id', $id)->where('status', 'aktif')->get()->groupBy('pegawai_id');
         $urutanBuruk = ['habis' => 3, 'akan_habis' => 2, 'berlaku' => 1, 'belum_berlaku' => 0];
 

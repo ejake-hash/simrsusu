@@ -16,7 +16,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Pengaturan → Peran & izin (kontrak /peran*). Izin diperiksa di rute (can:pengaturan.peran.*);
+ * Pengaturan → Peran & izin (kontrak /peran*). Izin diperiksa di rute (can.rs:pengaturan.peran.*, cakupan seluruh RS);
  * aturan bisnis di KelolaPeran.
  */
 final class PeranController

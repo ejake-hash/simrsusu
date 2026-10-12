@@ -10,6 +10,7 @@ use App\Modules\Akses\Application\SandiTidakBocor;
 use App\Modules\Akses\Console\BuatSuperadminPertama;
 use App\Modules\Akses\Console\KedaluwarsakanPersetujuan;
 use App\Modules\Akses\Domain\Cakupan;
+use App\Modules\Akses\Http\Middleware\IzinSeluruhRs;
 use App\Modules\Akses\Http\Middleware\SesiPengguna;
 use App\Modules\Akses\Infrastructure\DaftarSandiBocor;
 use App\Modules\Akses\Infrastructure\PenggunaSesiAkses;
@@ -39,6 +40,7 @@ class ModuleServiceProvider extends ServiceProvider
     {
         // Dipakai rute bersesi di luar modul ini (mis. Core/ProfilRs) tanpa bergantung pada kelasnya.
         $this->app['router']->aliasMiddleware('sesi.pengguna', SesiPengguna::class);
+        $this->app['router']->aliasMiddleware('can.rs', IzinSeluruhRs::class);
         $this->loadRoutesFrom(__DIR__.'/routes.php');
         $this->loadMigrationsFrom(__DIR__.'/Database/migrations');
 
@@ -52,7 +54,8 @@ class ModuleServiceProvider extends ServiceProvider
         Event::listen(PegawaiKeluar::class, [AkunPegawai::class, 'nonaktifkanKarenaKeluar']);
 
         // Semua kemampuan berbentuk kode izin (<menu>.<sub_menu>.<aksi>) diputuskan AccessEvaluator
-        // (PRD 9.2.5), mis. ->middleware('can:pengaturan.peran.lihat') atau Gate::allows($kode, $cakupan).
+        // (PRD 9.2.5), mis. ->middleware('can:sdm.pegawai.lihat'), ->middleware('can.rs:pengaturan.peran.lihat') (wajib
+        // cakupan seluruh RS, IzinSeluruhRs), atau Gate::allows($kode, $cakupan).
         // Argumen selain Cakupan ditolak sampai pemeriksaan per objek dibuat (tolak kecuali diberikan).
         Gate::before(function (mixed $pengguna, string $kemampuan, array $argumen) {
             if (! str_contains($kemampuan, '.')) {

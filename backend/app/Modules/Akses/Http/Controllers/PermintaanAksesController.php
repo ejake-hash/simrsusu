@@ -5,6 +5,7 @@ namespace App\Modules\Akses\Http\Controllers;
 use App\Core\Http\ApiError;
 use App\Core\Http\Paginasi;
 use App\Modules\Akses\Application\KelolaPermintaanAkses;
+use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Http\Resources\PermintaanPresenter;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PermintaanAkses;
@@ -35,7 +36,7 @@ final class PermintaanAksesController
         /** @var Pengguna $saya */
         $saya = $request->user();
         $milikSaya = in_array($filter['milik_saya'] ?? 'false', ['true', '1'], true);
-        if (! $milikSaya && Gate::denies('pengaturan.akun.lihat')) {
+        if (! $milikSaya && Gate::denies('pengaturan.akun.lihat', Cakupan::rs())) {
             throw new ApiError(403, 'akses_ditolak', 'Anda tidak punya izin untuk tindakan ini.');
         }
 

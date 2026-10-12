@@ -2,15 +2,18 @@
 
 namespace Tests\Feature\Akses;
 
+use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Domain\Totp;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaIzinKhusus;
 use App\Modules\Akses\Models\PenggunaPeran;
+use App\Modules\MasterData\Models\UnitOrganisasi;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Tests\Support\AksesUji;
 use Tests\Support\KlienSpa;
@@ -403,5 +406,48 @@ class PengaturanAkunTest extends TestCase
         sort($waktu);
 
         $this->assertLessThan(300, $waktu[(int) ceil(0.95 * count($waktu)) - 1], 'P95 daftar akun (ms): '.json_encode($waktu));
+    }
+
+    /**
+     * Temuan ASVS 4.1.3 (tiket 1.12): pengelolaan akun dan peran butuh izin bercakupan seluruh RS. Pemegang izin yang
+     * sama bercakupan unit tidak boleh melihat atau mengubah akun RS (admin delegasi per unit belum dibangun).
+     */
+    public function test_pengelola_bercakupan_unit_tidak_bisa_mengelola_akun_dan_peran(): void
+    {
+        $unit = UnitOrganisasi::query()->create(['kode' => 'UJI-CAKUPAN', 'nama' => 'Unit uji cakupan', 'jenis' => 'instalasi', 'berlaku_dari' => '2026-01-01']);
+        $pengelola = $this->buatPengguna();
+        $pengelola->forceFill(['mfa_rahasia_enkripsi' => Totp::rahasiaBaru(), 'mfa_aktif_pada' => now()])->save();
+        $this->tugaskan($pengelola, $this->buatPeran(['pengaturan.peran', 'pengaturan.akun']), cakupan: new Cakupan('unit', $unit->id));
+        $akun = $this->buatPengguna();
+        $peran = $this->buatPeran(['beranda']);
+        $this->masukSebagai($pengelola);
+
+        foreach ([
+            ['GET', '/api/v1/akun', []],
+            ['GET', "/api/v1/akun/{$akun->id}", []],
+            ['GET', '/api/v1/peran', []],
+            ['GET', "/api/v1/peran/{$peran->id}", []],
+            ['GET', '/api/v1/menu', []],
+            ['POST', "/api/v1/akun/{$akun->id}/penugasan", ['peran_id' => $peran->id, 'cakupan_jenis' => 'rs', 'dasar_pemberian' => 'SK uji', 'alasan' => 'Uji cakupan']],
+            ['POST', "/api/v1/akun/{$akun->id}/nonaktifkan", ['alasan' => 'Uji cakupan']],
+            ['POST', "/api/v1/akun/{$akun->id}/mfa/reset", ['alasan' => 'Uji cakupan', 'dasar' => 'SK uji']],
+        ] as [$metode, $uri, $isi]) {
+            $this->minta($metode, $uri, $isi)->assertForbidden()->assertJsonPath('error.kode', 'akses_ditolak');
+        }
+        $this->assertSame('aktif', $akun->refresh()->status);
+        $this->assertFalse(PenggunaPeran::query()->where('pengguna_id', $akun->id)->exists());
+    }
+
+    /** Struktural: rute pengelolaan akun/peran tidak boleh kembali ke can: tanpa cakupan (rute baru ikut diperiksa). */
+    public function test_semua_rute_pengelolaan_akun_dan_peran_memakai_can_rs(): void
+    {
+        $dijaga = 0;
+        foreach (Route::getRoutes()->getRoutes() as $rute) {
+            foreach ($rute->gatherMiddleware() as $m) {
+                $this->assertDoesNotMatchRegularExpression('/^can:pengaturan\\.(akun|peran)\\./', (string) $m, $rute->uri());
+                $dijaga += preg_match('/^can\\.rs:pengaturan\\.(akun|peran)\\./', (string) $m);
+            }
+        }
+        $this->assertGreaterThanOrEqual(20, $dijaga);
     }
 }
