@@ -151,8 +151,15 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
 - PRD 1.8d (10.3.2 `403 wajib_ganti_sandi`, 9.1 bagian `sdm.pegawai.identitas`): selesai di PRD v0.10.13 (#52).
 - PRD v0.10.14 mendokumentasikan 1.6, 1.7, 1.8c, 1.8e. Selisih kode dengan aturan PRD yang tertulis (Idempotency-Key,
   polling vs WebSocket, "100% lewat usulan", TTE pengesahan, `*_versi`, query lintas modul, K1/K2/K7/K10 di 17.2, dll.)
-  diusulkan di PR [Perlu pemilik] tersendiri; 1.8f (`inti.penyiapan_konfirmasi`, `profil_rs.siap_melayani_sejak`)
+  diusulkan di PR [Perlu pemilik] #72 (PRD v0.10.15); 1.8f (`inti.penyiapan_konfirmasi`, `profil_rs.siap_melayani_sejak`)
   didokumentasikan di PRD berikutnya.
+- Utang arsitektur (dari penyelarasan PRD, #72 B-13/B-14): modul membaca tabel modul lain secara langsung, padahal PRD
+  10.3 meminta lewat antarmuka modul: `MasterData/Application/MesinUsulan.php` → `ttd.tanda_tangan`,
+  `Ttd/Application/AtasanLangsung.php` dan `Ttd/Http/Resources/TandaTanganResource.php` → `sdm.pegawai`/`inti.unit_organisasi`,
+  `Notifikasi/Application/PendengarKejadian.php` → `akses.peran_izin`/`akses.izin`, `Notifikasi/Application/Pemberitahu.php`
+  → `akses.pengguna`, `Core/Instalasi/Penyiapan.php` → `sdm.*`/`inti.*`. Ditegakkan atau dilonggarkan sesuai keputusan
+  pemilik di #72. Folder kosong `backend/app/Shared/{Reporting,Signing,Terminology,Notification,FormBuilder,Workflow}`
+  (hanya `.gitkeep`) dihapus sesudah #72 diputuskan.
 - Utang 1.8d: layar persetujuan K4 belum memperingatkan bila superadmin diberikan ke akun pegawai `akan_keluar`; dokumen
   izin praktik yang sudah tertulis ke disk bisa tertinggal bila transaksi gagal sesudahnya (jalur privat, tanpa rujukan);
   modul SDM membaca `akses.pengguna`/`inti.unit_organisasi` langsung untuk daftar pegawai (belum lewat antarmuka modul);
