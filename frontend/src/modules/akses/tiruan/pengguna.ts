@@ -11,6 +11,7 @@ export function penggunaTiruan(isi: Partial<Pengguna> = {}): Pengguna {
     peran: [],
     masuk_sebelumnya_pada: null,
     masuk_sebelumnya_dari_jaringan_rs: null,
+    ttd: { aktif: false, diaktifkan_pada: null, dicabut_pada: null, terkunci_sampai: null, sesi_berlaku_sampai: null, reset_menunggu: false },
     ...isi,
   }
 }

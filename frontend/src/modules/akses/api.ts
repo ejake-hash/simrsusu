@@ -1,3 +1,4 @@
+import type { StatusTtd } from '@/modules/ttd/tipe'
 import axios from 'axios'
 import { keApiError, klien } from '@/shared/api/klien'
 import { langkahDariRespons, type Langkah, type MetodeMfa } from './alurMasuk'
@@ -14,6 +15,8 @@ export interface Pengguna {
   mfa_aktif: boolean
   /** Sejak 1.8d: akun bersandi awal; endpoint bersesi lain 403 wajib_ganti_sandi sampai POST /saya/sandi. */
   wajib_ganti_sandi?: boolean
+  /** Sejak 1.6: status TTE T1 akun ini (tanpa kunci atau PIN). */
+  ttd: StatusTtd
   pegawai: { id: string; nama: string } | null
   /** Peran dengan penugasan yang berlaku sekarang, urut nama; kosong = belum ada modul. */
   peran: { id: string; nama: string }[]

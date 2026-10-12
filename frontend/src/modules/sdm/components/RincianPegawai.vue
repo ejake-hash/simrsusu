@@ -21,6 +21,7 @@ import {
   ukuranBerkas,
 } from '../sdm'
 import type { IzinPraktik, KewenanganKlinis, PegawaiRinci } from '../tipe'
+import DialogResetTtd from '@/modules/ttd/components/DialogResetTtd.vue'
 import DialogBatal from './DialogBatal.vue'
 import DialogBuatAkun from './DialogBuatAkun.vue'
 import DialogIzinPraktik from './DialogIzinPraktik.vue'
@@ -76,6 +77,7 @@ const dialogIzin = ref(false)
 const dialogRkk = ref(false)
 const dialogAkun = ref(false)
 const dialogBatal = ref(false)
+const dialogResetTtd = ref(false)
 const batal = ref<{ judul: string; uraian: string; jalankan: (alasan: string) => Promise<unknown> } | null>(null)
 /** Versi segar sebelum mengubah (ETag); kueri rinci bisa basi bila panel lama terbuka. */
 const target = ref<Berversi<PegawaiRinci> | null>(null)
@@ -229,6 +231,7 @@ const tgl = (t: string | null) => (t ? formatTanggal(`${t}T00:00:00`) : null)
             <code>{{ p.akun.nama_pengguna }}</code>
             <span class="pil" :class="p.akun.status === 'aktif' ? 'pil-ok' : 'pil-netral'">{{ p.akun.status === 'aktif' ? 'Aktif' : 'Nonaktif' }}</span>
             <RouterLink class="tombol" :to="{ path: '/pengaturan/akun', query: { akun: p.akun.id } }">Buka di Akun & akses</RouterLink>
+            <button v-if="boleh('sdm.kredensial.perbaiki')" type="button" class="tombol" @click="dialogResetTtd = true">Ajukan reset TTE</button>
           </p>
           <p v-else-if="p.punya_akun" class="ket">Pegawai ini sudah punya akun.</p>
           <p v-else class="ket">{{ p.status === 'keluar' ? 'Pegawai sudah keluar; akun tidak dapat dibuat.' : 'Belum punya akun.' }}</p>
@@ -308,6 +311,7 @@ const tgl = (t: string | null) => (t ? formatTanggal(`${t}T00:00:00`) : null)
       <DialogIzinPraktik v-model:open="dialogIzin" :pegawai-id="pegawaiId" @selesai="(x) => (tampilkanToast(`${LABEL_JENIS_IZIN[x.jenis]} ${x.nomor} dicatat.`), segarkan())" />
       <DialogKewenangan v-model:open="dialogRkk" :pegawai-id="pegawaiId" @selesai="(x) => (tampilkanToast(`RKK ${x.kategori} dicatat.`), segarkan())" />
       <DialogBuatAkun v-model:open="dialogAkun" :pegawai="p" @selesai="segarkan" />
+      <DialogResetTtd v-model:open="dialogResetTtd" :akun="p.akun" :nama-pegawai="p.nama" />
       <DialogBatal v-model:open="dialogBatal" :judul="batal?.judul ?? ''" :uraian="batal?.uraian ?? ''" :batalkan="batal?.jalankan ?? null" />
     </template>
   </section>

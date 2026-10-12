@@ -6,7 +6,8 @@ import { formatTanggalWaktu } from '@/shared/utils/waktu'
 
 /**
  * Keamanan akun: masuk berhasil terakhir selain sesi ini (termasuk dari perangkat lain sesudah sesi ini dibuka) dan
- * dari jaringan mana, agar pemilik akun mengenali masuk yang bukan dirinya; status MFA; siapa yang dihubungi.
+ * dari jaringan mana, agar pemilik akun mengenali masuk yang bukan dirinya; status MFA dan tanda tangan elektronik;
+ * siapa yang dihubungi.
  */
 const props = defineProps<{ pengguna: Pengguna; unitAdmin: string; kontakAdmin: string | null }>()
 
@@ -38,6 +39,15 @@ const jaringan = computed(() => {
           </span>
         </dd>
       </div>
+      <div v-if="pengguna.ttd">
+        <dt>Tanda tangan elektronik</dt>
+        <dd>
+          <span class="pil" :class="pengguna.ttd.aktif ? 'pil-ok' : 'pil-netral'">
+            <Ikon :nama="pengguna.ttd.aktif ? 'centang' : 'info'" :ukuran="12" />{{ pengguna.ttd.aktif ? 'Aktif' : pengguna.ttd.dicabut_pada ? 'Dicabut, aktifkan ulang' : 'Belum aktif' }}
+          </span>
+          <RouterLink to="/tanda-tangan" class="tautan-ttd">{{ pengguna.ttd.aktif ? 'Atur' : 'Aktifkan' }}</RouterLink>
+        </dd>
+      </div>
     </dl>
     <p class="kartu-isi bantuan">
       Bukan Anda yang masuk? Hubungi {{ unitAdmin }}<template v-if="kontakAdmin"> di {{ kontakAdmin }}</template> sekarang.
@@ -64,5 +74,9 @@ dd {
   padding-top: 0;
   font-size: 12.5px;
   color: var(--muted);
+}
+.tautan-ttd {
+  margin-left: var(--space-2);
+  font-size: 12.5px;
 }
 </style>

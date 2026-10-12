@@ -2,8 +2,9 @@ import { buatServerNotifikasi } from '../../notifikasi/tiruan/serverNotifikasi'
 import { buatServerLokasi } from '../../organisasi/tiruan/serverLokasi'
 import { buatServerOrganisasi } from '../../organisasi/tiruan/serverOrganisasi'
 import { buatServerSdm } from '../../sdm/tiruan/serverSdm'
+import { buatServerTtd } from '../../ttd/tiruan/serverTtd'
 import type { PermintaanTiruan, ResponsTiruan } from './serverTiruan'
-import { buatServerTiruan, ID_SUPERADMIN, type OpsiServerTiruan } from './serverTiruan'
+import { buatServerTiruan, ID_SUPERADMIN, ID_SUPERADMIN_DUA, type OpsiServerTiruan } from './serverTiruan'
 
 /**
  * Gabungan server tiruan akses (1.2c/1.2d/1.2e), organisasi (1.8a), lokasi (1.8b), SDM (1.8d), dan notifikasi/kotak
@@ -12,12 +13,18 @@ import { buatServerTiruan, ID_SUPERADMIN, type OpsiServerTiruan } from './server
  * diberi peran Contoh Admin Data Induk dan Contoh Admin SDM agar satu akun dev bisa membuka Profil RS, Organisasi,
  * dan Data pegawai.
  */
-export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawaiKeluar'> & { tanpaDataInduk?: boolean } = {}) {
+export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawaiKeluar' | 'statusTtd'> & { tanpaDataInduk?: boolean } = {}) {
   let unitMilikSaya: () => string[] = () => []
   let pegawaiKeluar: (pegawaiId: string) => boolean = () => false
   let ringkasPegawai: (pegawaiId: string) => ReturnType<ReturnType<typeof buatServerSdm>['ringkasPegawai']> = () => null
   const organisasi = buatServerOrganisasi({ unitMilikSaya: () => unitMilikSaya(), pegawai: (id) => ringkasPegawai(id) })
-  const akses = buatServerTiruan({ ...opsi, unit: { label: organisasi.labelUnit, aktif: organisasi.unitAktif }, pegawaiKeluar: (id) => pegawaiKeluar(id) })
+  let statusTtd: NonNullable<OpsiServerTiruan['statusTtd']> = () => ({ aktif: false, diaktifkan_pada: null, dicabut_pada: null, terkunci_sampai: null, sesi_berlaku_sampai: null, reset_menunggu: false })
+  const akses = buatServerTiruan({
+    ...opsi,
+    unit: { label: organisasi.labelUnit, aktif: organisasi.unitAktif },
+    pegawaiKeluar: (id) => pegawaiKeluar(id),
+    statusTtd: (id) => statusTtd(id),
+  })
   if (!opsi.tanpaDataInduk && (opsi.penggunaId ?? ID_SUPERADMIN) === ID_SUPERADMIN) {
     akses.tambahPenugasanDev('contoh_data_induk')
     akses.tambahPenugasanDev('contoh_sdm')
@@ -39,6 +46,17 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     sekarang: opsi.sekarang,
   })
   const notifikasi = buatServerNotifikasi({ boleh: akses.bolehSaya, unit: organisasi.ringkasUnit, sekarang: opsi.sekarang })
+  const ttd = buatServerTtd({
+    penggunaSaatIni: akses.penggunaSaatIni,
+    namaAkun: akses.namaAkunUntukTtd,
+    persetujuan: akses.persetujuanUntukTtd,
+    ajukanReset: akses.ajukanResetTtd,
+    bolehSaya: akses.bolehSaya,
+    sekarang: opsi.sekarang,
+  })
+  // TtdSintetisSeeder: superadmin kedua (penyetuju kontrol ganda) sudah punya TTE aktif.
+  ttd.aktifkan(ID_SUPERADMIN_DUA)
+  statusTtd = ttd.status
   pegawaiKeluar = sdm.pegawaiKeluar
   ringkasPegawai = sdm.ringkasPegawai
 
@@ -58,11 +76,12 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     akses,
     sdm,
     notifikasi,
+    ttd,
     tangani: (r: PermintaanTiruan): ResponsTiruan | Promise<ResponsTiruan> | null => {
       if (akses.wajibGantiSandi() && !bebasGantiSandi(r)) {
         return { status: 403, isi: { error: { kode: 'wajib_ganti_sandi', pesan: 'Ganti sandi awal Anda lebih dulu.', rincian: [] } } }
       }
-      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? notifikasi.tangani(r)
+      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r)
     },
   }
 }
