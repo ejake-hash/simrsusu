@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { hexKeRgb, kontras, terapkanTema, turunanTema } from './tema'
+import { campur, hexKeRgb, kontras, PORSI_SOROT, terapkanTema, turunanTema } from './tema'
 
 const rgb = (hex: string) => hexKeRgb(hex)!
 afterEach(() => terapkanTema(null))
@@ -23,6 +23,27 @@ describe('tema dari paket identitas', () => {
       expect(kontras(rgb(t['--accent-ink']!), rgb(t['--accent-bg']!))).toBeGreaterThanOrEqual(4.5)
       expect(t['--brand-600']).toBe(brand!.toUpperCase())
       expect(t['--ring']).toMatch(/^0 0 0 3px rgba\(/)
+    }
+  })
+
+  it('panel merek halaman masuk mengikuti warna paket: teks putih dan --brand-100 ≥ 4,5:1, penekanan ≥ 4,5:1 di semua titik (catatan #78)', () => {
+    for (const [brand, accent] of [
+      ['#1F5C99', '#D97706'],
+      ['#2E86DE', '#FFD1DC'],
+      ['#7A1F5C', '#9BE3C7'],
+      // Warna utama sangat terang/gelap dan aksen gelap: turunan tetap harus lolos.
+      ['#9FC5E8', '#1D1D1B'],
+      ['#0B1F14', '#FFEE00'],
+      ['#C21E15', '#2457C5'],
+    ]) {
+      const t = turunanTema(brand!, accent!)!
+      const mulai = rgb(t['--panel-merek']!)
+      const latar = [mulai, rgb(t['--panel-merek-tengah']!), rgb(t['--panel-merek-akhir']!), campur(mulai, rgb(t['--panel-merek-sorot']!), PORSI_SOROT)]
+      for (const l of latar) {
+        expect(kontras(rgb('#FFFFFF'), l), `${brand} putih`).toBeGreaterThanOrEqual(4.5)
+        expect(kontras(rgb(t['--brand-100']!), l), `${brand} --brand-100`).toBeGreaterThanOrEqual(4.5)
+        expect(kontras(rgb(t['--penekanan-panel']!), l), `${brand}/${accent} penekanan`).toBeGreaterThanOrEqual(4.5)
+      }
     }
   })
 

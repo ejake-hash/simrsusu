@@ -15,9 +15,13 @@
   --brand-50:  #E9EFF5;   /* latar item aktif */
   --brand-25:  #F4F7FA;   /* baris terpilih */
 
-  /* ── Panel merek halaman masuk (bukan bagian paket RS) ── */
-  --panel-merek:     #14385A;  /* putih 12,0:1 */
-  --penekanan-panel: #FFD166;  /* teks penekanan di --panel-merek, 8,4:1 */
+  /* ── Panel merek halaman masuk: gradien mulai → tengah → akhir + sorot. Paket RS menimpanya lewat turunanTema()
+     dengan cek kontras (teks putih dan --brand-100 ≥ 4,5:1, --penekanan-panel ≥ 4,5:1 di semua titik). ── */
+  --panel-merek:        #14385A;  /* putih 12,0:1 */
+  --panel-merek-tengah: #16406B;
+  --panel-merek-akhir:  #113354;
+  --panel-merek-sorot:  #4779AB;  /* radial 45 % di pojok kanan atas */
+  --penekanan-panel:    #FFD166;  /* teks penekanan di --panel-merek, 8,4:1 */
 
   /* Aksen hanya untuk isian/garis (3,2:1 sebagai teks). Jangan dipakai di layar IGD/triase. */
   --accent:     #D97706;

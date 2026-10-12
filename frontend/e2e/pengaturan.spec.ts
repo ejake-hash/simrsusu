@@ -568,6 +568,39 @@ test('1440 px: kontrol ganda — penugasan dan pengakhiran peran Superadmin berl
 })
 
 
+// ── Catatan tinjauan #78: panel halaman masuk mengikuti warna paket RS ──
+test('1440 px: panel halaman masuk memakai turunan warna paket RS (kontras terjaga), lalu kembali ke warna bawaan', async ({ page, browser }, info) => {
+  const asal = new URL(info.project.use.baseURL ?? '').origin
+  await page.goto('/pengaturan/profil-rs')
+  const xsrf = decodeURIComponent((await page.context().cookies()).find((c) => c.name === 'XSRF-TOKEN')?.value ?? '')
+  const header = { Accept: 'application/json', Origin: asal, Referer: `${asal}/`, 'X-XSRF-TOKEN': xsrf }
+  type Profil = { versi: string; nama: string; kontak_admin: { unit: string; kontak: string | null }; rinci: Record<string, unknown> }
+  const ubahWarna = async (warna: { brand: string; accent: string }) => {
+    const p = ((await (await page.request.get('/api/v1/profil-rs', { headers: header })).json()) as { data: Profil }).data
+    const r = await page.request.put('/api/v1/profil-rs', {
+      headers: { ...header, 'If-Match': `"${p.versi}"` },
+      data: { nama: p.nama, kode_kemenkes: p.rinci.kode_kemenkes, kelas: p.rinci.kelas, status_blu: p.rinci.status_blu, kode_ppk_bpjs: p.rinci.kode_ppk_bpjs,
+        alamat: p.rinci.alamat, warna, kontak_admin: p.kontak_admin, dasar_perubahan: 'Uji panel merek e2e' },
+    })
+    expect(r.ok(), `${r.status()} ${await r.text()}`).toBeTruthy()
+  }
+  await ubahWarna({ brand: '#7A1F5C', accent: '#9BE3C7' })
+  try {
+    const tamu = await browser.newContext({ baseURL: asal, storageState: TANPA_SESI, viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
+    const masuk = await tamu.newPage()
+    await masuk.goto('/masuk')
+    const akar = (token: string) => masuk.evaluate((t) => document.documentElement.style.getPropertyValue(t), token)
+    await expect.poll(() => akar('--panel-merek')).not.toBe('')
+    expect((await akar('--panel-merek')).toUpperCase()).not.toBe('#14385A')
+    expect(await akar('--penekanan-panel')).not.toBe('')
+    const axe = await new AxeBuilder({ page: masuk }).analyze()
+    expect(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)).toEqual([])
+    await tamu.close()
+  } finally {
+    await ubahWarna({ brand: '#1F5C99', accent: '#D97706' })
+  }
+})
+
 // ── Tiket 1.8d: nonaktif/aktif akun dengan alasan ──
 test('1440 px: nonaktifkan akun dengan alasan lalu aktifkan kembali (contoh.terkunci); akun sendiri tanpa tombol', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })

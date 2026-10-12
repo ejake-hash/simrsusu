@@ -2,7 +2,9 @@
  * Tema dari paket identitas RS (PRD 3.4, 5.3): dua warna dasar dari GET /profil-rs (`brand`, `accent`) menjadi token
  * `--brand-*`, `--ring`, `--accent*` di :root. Turunan dihitung di sini (kontrak: "turunan warna dihitung frontend")
  * dengan jaminan kontras pasangan yang dipakai layar: teks --brand-800 di --brand-25/50 dan teks --accent-ink di
- * --accent-bg/putih ≥ 4,5:1. Warna yang sama dengan tokens.css tidak ditimpa (tampilan bawaan tetap persis).
+ * --accent-bg/putih ≥ 4,5:1. Panel merek halaman masuk (--panel-merek*) juga diturunkan dari warna utama: teks putih dan
+ * teks lembut (--brand-100) ≥ 4,5:1 di setiap titik gradien termasuk sorotnya, dan --penekanan-panel (dari aksen) ≥ 4,5:1
+ * di semua titik itu. Warna yang sama dengan tokens.css tidak ditimpa (tampilan bawaan tetap persis).
  * Status, triase, dan netral milik produk dan tidak pernah ditimpa paket RS.
  */
 export type Rgb = [number, number, number]
@@ -40,6 +42,38 @@ function cukupGelap(awal: Rgb, latar: Rgb[], minimal = 4.5): Rgb {
   for (let t = 0; t <= 1 && latar.some((l) => kontras(w, l) < minimal); t += 0.05) w = campur(awal, HITAM, t)
   return w
 }
+/** Terangkan sampai kontras dengan semua latar ≥ minimal (langkah 5 %); putih selalu lolos bila latar lolos untuk putih. */
+function cukupTerang(awal: Rgb, latar: Rgb[], minimal = 4.5): Rgb {
+  let w = awal
+  for (let t = 0; t <= 1 && latar.some((l) => kontras(w, l) < minimal); t += 0.05) w = campur(awal, PUTIH, t)
+  return w
+}
+
+/** Porsi sorot (radial --panel-merek-sorot 45 %) di atas warna awal panel, sama dengan AuthLayout. */
+export const PORSI_SOROT = 0.45
+
+/**
+ * Panel merek halaman masuk dari warna utama dan aksen (catatan tinjauan #78): titik gradien digelapkan sampai teks
+ * putih dan --brand-100 ≥ 4,5:1; sorot digelapkan sampai campurannya di atas panel juga lolos; penekanan dari aksen
+ * diterangkan sampai ≥ 4,5:1 di semua titik (termasuk campuran sorot).
+ */
+function panelMerek(brand: Rgb, accent: Rgb, b100: Rgb): Record<string, string> {
+  const teks = [PUTIH, b100]
+  const mulai = cukupGelap(campur(brand, HITAM, 0.4), teks)
+  const tengah = cukupGelap(campur(brand, HITAM, 0.3), teks)
+  const akhir = cukupGelap(campur(brand, HITAM, 0.45), teks)
+  const sorotAwal = campur(brand, PUTIH, 0.18)
+  let sorot = sorotAwal
+  for (let t = 0.05; t <= 1 && teks.some((x) => kontras(campur(mulai, sorot, PORSI_SOROT), x) < 4.5); t += 0.05) sorot = campur(sorotAwal, HITAM, t)
+  const penekanan = cukupTerang(campur(accent, PUTIH, 0.55), [mulai, tengah, akhir, campur(mulai, sorot, PORSI_SOROT)])
+  return {
+    '--panel-merek': rgbKeHex(mulai),
+    '--panel-merek-tengah': rgbKeHex(tengah),
+    '--panel-merek-akhir': rgbKeHex(akhir),
+    '--panel-merek-sorot': rgbKeHex(sorot),
+    '--penekanan-panel': rgbKeHex(penekanan),
+  }
+}
 
 export function turunanTema(brandHex: string, accentHex: string): Record<string, string> | null {
   const brand = hexKeRgb(brandHex)
@@ -47,6 +81,7 @@ export function turunanTema(brandHex: string, accentHex: string): Record<string,
   if (!brand || !accent) return null
   const b25 = campur(brand, PUTIH, 0.95)
   const b50 = campur(brand, PUTIH, 0.9)
+  const b100 = campur(brand, PUTIH, 0.8)
   const accentBg = campur(accent, PUTIH, 0.85)
   return {
     '--brand-900': rgbKeHex(cukupGelap(campur(brand, HITAM, 0.45), [b25, b50], 7)),
@@ -54,17 +89,21 @@ export function turunanTema(brandHex: string, accentHex: string): Record<string,
     '--brand-700': rgbKeHex(campur(brand, HITAM, 0.15)),
     '--brand-600': rgbKeHex(brand),
     '--brand-500': rgbKeHex(campur(brand, PUTIH, 0.18)),
-    '--brand-100': rgbKeHex(campur(brand, PUTIH, 0.8)),
+    '--brand-100': rgbKeHex(b100),
     '--brand-50': rgbKeHex(b50),
     '--brand-25': rgbKeHex(b25),
     '--ring': `0 0 0 3px rgba(${brand.map(Math.round).join(', ')}, .25)`,
     '--accent': rgbKeHex(accent),
     '--accent-bg': rgbKeHex(accentBg),
     '--accent-ink': rgbKeHex(cukupGelap(campur(accent, HITAM, 0.5), [accentBg, PUTIH])),
+    ...panelMerek(brand, accent, b100),
   }
 }
 
-const DITIMPA = ['--brand-900', '--brand-800', '--brand-700', '--brand-600', '--brand-500', '--brand-100', '--brand-50', '--brand-25', '--ring', '--accent', '--accent-bg', '--accent-ink']
+const DITIMPA = [
+  '--brand-900', '--brand-800', '--brand-700', '--brand-600', '--brand-500', '--brand-100', '--brand-50', '--brand-25', '--ring', '--accent', '--accent-bg',
+  '--accent-ink', '--panel-merek', '--panel-merek-tengah', '--panel-merek-akhir', '--panel-merek-sorot', '--penekanan-panel',
+]
 
 /** Pasang (atau lepas, bila sama dengan tokens.css / tidak ada) tema RS di :root. */
 export function terapkanTema(warna: { brand: string; accent: string } | null, akar: HTMLElement = document.documentElement): void {
