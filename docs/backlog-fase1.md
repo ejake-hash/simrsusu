@@ -845,6 +845,17 @@ Pekerjaan  : 1. inti.paket_referensi + perintah `php artisan referensi:muat <pak
              4. Pembaruan versi: kode yang hilang ditandai tidak aktif, tetap terbaca di data historis.
 Uji penerimaan: memuat ulang versi sama idempoten; versi baru menonaktifkan kode yang hilang; berkas rusak ditolak
              dengan nomor baris.
+Aturan rinci (kontrak v0.11.0):
+  - Endpoint unggah wizard: POST /paket-referensi/{sistem}/muat (multipart: berkas, mode pratinjau|terapkan, versi,
+    sumber, catatan_lisensi), izin `master_data.katalog.input`; perintah konsol `referensi:muat` dengan aturan sama.
+  - Tabel PRD 11.2: `inti.paket_referensi` (satu baris per sistem + versi), `inti.wilayah` (tingkat dan induk dari kode
+    Kemendagri bertitik), `inti.referensi` (kelompok, kode, label), `inti.terminologi` (sistem, kode, tampilan,
+    kode_induk); ketiganya ditambah `aktif`, `versi_terakhir`, `dinonaktifkan_pada`. Kode tidak pernah dihapus.
+  - Satu pemuatan = snapshot satu sistem (referensi: per kelompok di berkas). Sinkron, paling besar 20 MB / 200.000
+    baris, dengan `SET LOCAL statement_timeout` sendiri (wilayah ±90 ribu kelurahan).
+  - **Isi paket dikemas menunggu berkas resmi** (pemilik/RS): wilayah (Kemendagri), UCUM (unitsofmeasure.org),
+    subset LOINC (akun Regenstrief), kode variabel RME (Kemenkes). Repo memuat SUMBER.md per paket dan berkas contoh
+    sintetis untuk tes; ICD-10/ICD-9-CM tidak pernah di repo (K7).
 Di luar lingkup tiket: KFA dan referensi BPJS (ditarik lewat API di 1.9), SNOMED CT.
 ```
 
