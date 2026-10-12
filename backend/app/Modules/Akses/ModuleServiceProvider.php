@@ -54,7 +54,8 @@ class ModuleServiceProvider extends ServiceProvider
         Event::listen(PegawaiKeluar::class, [AkunPegawai::class, 'nonaktifkanKarenaKeluar']);
 
         // Semua kemampuan berbentuk kode izin (<menu>.<sub_menu>.<aksi>) diputuskan AccessEvaluator
-        // (PRD 9.2.5), mis. ->middleware('can:pengaturan.peran.lihat') atau Gate::allows($kode, $cakupan).
+        // (PRD 9.2.5), mis. ->middleware('can:sdm.pegawai.lihat'), ->middleware('can.rs:pengaturan.peran.lihat') (wajib
+        // cakupan seluruh RS, IzinSeluruhRs), atau Gate::allows($kode, $cakupan).
         // Argumen selain Cakupan ditolak sampai pemeriksaan per objek dibuat (tolak kecuali diberikan).
         Gate::before(function (mixed $pengguna, string $kemampuan, array $argumen) {
             if (! str_contains($kemampuan, '.')) {

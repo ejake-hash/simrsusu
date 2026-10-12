@@ -13,6 +13,7 @@ use App\Modules\MasterData\Models\UnitOrganisasi;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Tests\Support\AksesUji;
 use Tests\Support\KlienSpa;
@@ -435,5 +436,18 @@ class PengaturanAkunTest extends TestCase
         }
         $this->assertSame('aktif', $akun->refresh()->status);
         $this->assertFalse(PenggunaPeran::query()->where('pengguna_id', $akun->id)->exists());
+    }
+
+    /** Struktural: rute pengelolaan akun/peran tidak boleh kembali ke can: tanpa cakupan (rute baru ikut diperiksa). */
+    public function test_semua_rute_pengelolaan_akun_dan_peran_memakai_can_rs(): void
+    {
+        $dijaga = 0;
+        foreach (Route::getRoutes()->getRoutes() as $rute) {
+            foreach ($rute->gatherMiddleware() as $m) {
+                $this->assertDoesNotMatchRegularExpression('/^can:pengaturan\\.(akun|peran)\\./', (string) $m, $rute->uri());
+                $dijaga += preg_match('/^can\\.rs:pengaturan\\.(akun|peran)\\./', (string) $m);
+            }
+        }
+        $this->assertGreaterThanOrEqual(20, $dijaga);
     }
 }
