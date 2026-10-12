@@ -3799,7 +3799,7 @@ paths:
   # - Lapis 4 (label sensitivitas): data berlabel (HIV, psikiatri, kekerasan seksual, genetik, privasi tinggi) hanya
   #   terbuka bagi akun yang punya izin label itu yang masih berlaku DAN merawat pasiennya (relasi perawatan: fase 2;
   #   di fase 1 selalu "tidak merawat", sehingga label dengan `butuh_relasi_perawatan` selalu tertutup). Objek berlabel
-  #   tanpa izin dikirim sebagai `Terbatas` (tanpa isi). Data awal: `butuh_relasi_perawatan` = true untuk semua label,
+  #   tanpa izin dikirim sebagai `Terbatas` (tanpa isi dan tanpa nama label: nama label sendiri sudah data sensitif). Data awal: `butuh_relasi_perawatan` = true untuk semua label,
   #   termasuk `privasi_tinggi` (PRD 9.2.2; keputusan pemilik 12 Okt 2026). Izin label per akun selalu berbatas waktu dan baru berlaku
   #   sesudah disetujui pejabat PDP (peran penyetuju label, lewat persetujuan akses 1.2d).
   # - Lapis 5 (syarat yang tidak bisa diberikan admin) mengalahkan semua pemberian:
@@ -3889,8 +3889,9 @@ paths:
       operationId: ajukanLabelAkun
       summary: Ajukan izin label untuk akun (selalu lewat persetujuan pejabat PDP)
       description: |
-        Izin pengaturan.akun.perbaiki, cakupan `rs`. Selalu 202 = persetujuan akses jenis `izin_label` dengan penyetuju =
-        peran penyetuju label itu. `berlaku_sampai` wajib, paling lama `AKSES_LABEL_MAKS_HARI` (bawaan 365) hari.
+        Izin pengaturan.akun.input, cakupan `rs`. Selalu 202 = persetujuan akses jenis `izin_label` dengan penyetuju =
+        peran penyetuju label itu. `berlaku_sampai` wajib, di masa depan, paling lama `AKSES_LABEL_MAKS_HARI` (bawaan 365)
+        hari sejak diajukan. Izin berlaku sejak disetujui.
         - 403 `diri_sendiri`; 403 `akun_superadmin` (aturan 9.2.4 yang sama dengan /akun/{id}/*);
         - 422 `penyetuju_label_belum_ditetapkan`; 422 `tanggal_tidak_valid`; 404 label/akun tidak ada;
         - 409 `persetujuan_ganda` (label yang sama untuk akun ini masih menunggu); 409 `label_masih_berlaku`.
@@ -3900,12 +3901,12 @@ paths:
           application/json:
             schema:
               type: object
-              required: [label_kode, berlaku_sampai, alasan, dasar]
+              required: [label_kode, berlaku_sampai, dasar_pemberian, alasan]
               properties:
                 label_kode: { type: string, maxLength: 50 }
-                berlaku_sampai: { type: string, format: date }
+                berlaku_sampai: { type: string, format: date-time }
+                dasar_pemberian: { $ref: '#/components/schemas/Dasar' }
                 alasan: { type: string, minLength: 5, maxLength: 500 }
-                dasar: { $ref: '#/components/schemas/Dasar' }
       responses:
         '202':
           description: Menunggu persetujuan pejabat PDP
@@ -3924,7 +3925,11 @@ paths:
     post:
       operationId: batalkanLabelAkun
       summary: Cabut izin label sebelum masa berlakunya habis (langsung berlaku; mengurangi akses)
-      description: "Izin pengaturan.akun.perbaiki. 409 `sudah_tidak_berlaku`. Cache hak akses akun dihapus. Audit `akses.label_dicabut`."
+      description: |
+        Izin pengaturan.akun.perbaiki. Hanya izin label berstatus `berlaku`; pengajuan yang masih `menunggu` ditarik
+        pengajunya lewat POST /persetujuan-akses/{id}/batalkan. 403 `diri_sendiri` / `akun_superadmin` (aturan yang sama
+        dengan /akun/{id}/*); 409 `sudah_tidak_berlaku`; 422 `validasi_gagal`. Cache hak akses akun dihapus. Audit
+        `akses.label_dicabut`.
       requestBody:
         required: true
         content:
@@ -3940,6 +3945,7 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /saya/mfa/verifikasi-ulang:
     post:
       operationId: verifikasiUlangMfa
@@ -3947,8 +3953,9 @@ paths:
       description: |
         Tanpa izin khusus. Kode TOTP (atau kode cadangan) akun yang masuk; tidak mengganti sesi. Sesudah berhasil,
         aksi `butuh_mfa` boleh sampai `berlaku_sampai`, lalu klien mengulang permintaan yang tadi ditolak.
-        - 401 `kode_mfa_salah` (dihitung ke penguncian yang sama dengan masuk, PRD 10.3.2); 403 `akun_terkunci` (Retry-After);
-          409 `mfa_belum_terdaftar`; 429.
+        - 422 `kode_mfa_salah` (dihitung ke penguncian yang sama dengan masuk, PRD 10.3.2). Bukan 401: pengguna sudah masuk,
+          dan 401 berarti sesi berakhir;
+        - 403 `akun_terkunci` (Retry-After); 403 `mfa_belum_terdaftar` (sama dengan penolakan aksi `butuh_mfa`); 429.
         Audit `autentikasi.mfa_ulang_berhasil` / `autentikasi.mfa_gagal`; tanpa kode di log.
       requestBody:
         required: true
@@ -3977,7 +3984,7 @@ paths:
                       berlaku_sampai: { type: string, format: date-time }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
-        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/Error' }
 components:
   parameters:
@@ -4730,6 +4737,13 @@ components:
                 label: { type: string }
             cakupan_label: { type: [string, 'null'] }
             berlaku_sampai: { type: [string, 'null'], format: date-time }
+            label:
+              type: [object, 'null']
+              required: [kode, nama]
+              description: "Sejak v0.14.0: label sensitivitas untuk `izin_label` dan `penyetuju_label`; null untuk jenis lain"
+              properties:
+                kode: { type: string }
+                nama: { type: string }
         penyetuju_peran: { $ref: '#/components/schemas/RingkasPeran', description: "null bila penyetujunya orang (penyetuju_pengguna)" }
         penyetuju_pengguna:
           $ref: '#/components/schemas/Pelaku'
@@ -5011,24 +5025,34 @@ components:
         aktif: { type: boolean }
     IzinLabelAkun:
       type: object
-      required: [id, label, berlaku_dari, berlaku_sampai, status, persetujuan, dasar, disetujui_oleh, dibatalkan_pada]
+      required: [id, label, berlaku_dari, berlaku_sampai, status, berlaku_sekarang, persetujuan, dasar_pemberian, alasan, diberikan_oleh, disetujui_oleh, alasan_batal, dibatalkan_oleh, dibatalkan_pada, dibuat_pada]
       properties:
         id: { type: string, format: uuid }
         label: { type: object, required: [kode, nama], properties: { kode: { type: string }, nama: { type: string } } }
-        berlaku_dari: { type: [string, 'null'], format: date-time, description: "Saat disetujui; null selama menunggu" }
-        berlaku_sampai: { type: string, format: date }
-        status: { type: string, enum: [menunggu, berlaku, berakhir, batal, ditolak] }
-        persetujuan: { type: [object, 'null'], required: [id, nomor], properties: { id: { type: string, format: uuid }, nomor: { type: string } } }
-        dasar: { type: string }
+        berlaku_dari: { type: [string, 'null'], format: date-time, description: "Saat disetujui; null selama menunggu atau bila ditolak" }
+        berlaku_sampai: { type: string, format: date-time }
+        status:
+          type: string
+          enum: [menunggu, berlaku, berakhir, batal, ditolak]
+          description: "ditolak = pengajuannya ditolak, kedaluwarsa, atau ditarik pengaju; berakhir = lewat berlaku_sampai; batal = dicabut"
+        berlaku_sekarang: { type: boolean, description: "status `berlaku` dan di dalam masa berlaku saat ini" }
+        persetujuan: { type: object, required: [id, nomor], properties: { id: { type: string, format: uuid }, nomor: { type: string } } }
+        dasar_pemberian: { type: string }
+        alasan: { type: string }
+        diberikan_oleh: { $ref: '#/components/schemas/Pelaku' }
         disetujui_oleh: { $ref: '#/components/schemas/Pelaku' }
+        alasan_batal: { type: [string, 'null'] }
+        dibatalkan_oleh: { $ref: '#/components/schemas/Pelaku' }
         dibatalkan_pada: { type: [string, 'null'], format: date-time }
+        dibuat_pada: { type: string, format: date-time }
     Terbatas:
       type: object
-      required: [terbatas, label]
-      description: "Pengganti isi objek berlabel bagi akun tanpa izin label (lapis 4); dipakai endpoint data pasien mulai fase 2"
+      required: [terbatas]
+      description: |
+        Pengganti isi objek berlabel bagi akun yang tidak lolos lapis 4; dipakai endpoint data pasien mulai fase 2. Tanpa
+        nama atau kode label: label itu sendiri sudah data sensitif (mis. status HIV). Layar menampilkan "Terbatas".
       properties:
         terbatas: { type: boolean, const: true }
-        label: { type: object, required: [kode, nama], properties: { kode: { type: string }, nama: { type: string } } }
     StatusPermintaan:
       type: string
       enum: [menunggu, ditindaklanjuti, ditolak]
