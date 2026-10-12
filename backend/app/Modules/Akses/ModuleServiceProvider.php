@@ -10,6 +10,7 @@ use App\Modules\Akses\Application\SandiTidakBocor;
 use App\Modules\Akses\Console\BuatSuperadminPertama;
 use App\Modules\Akses\Console\KedaluwarsakanPersetujuan;
 use App\Modules\Akses\Domain\Cakupan;
+use App\Modules\Akses\Http\Middleware\IzinSeluruhRs;
 use App\Modules\Akses\Http\Middleware\SesiPengguna;
 use App\Modules\Akses\Infrastructure\DaftarSandiBocor;
 use App\Modules\Akses\Infrastructure\PenggunaSesiAkses;
@@ -39,6 +40,7 @@ class ModuleServiceProvider extends ServiceProvider
     {
         // Dipakai rute bersesi di luar modul ini (mis. Core/ProfilRs) tanpa bergantung pada kelasnya.
         $this->app['router']->aliasMiddleware('sesi.pengguna', SesiPengguna::class);
+        $this->app['router']->aliasMiddleware('can.rs', IzinSeluruhRs::class);
         $this->loadRoutesFrom(__DIR__.'/routes.php');
         $this->loadMigrationsFrom(__DIR__.'/Database/migrations');
 
