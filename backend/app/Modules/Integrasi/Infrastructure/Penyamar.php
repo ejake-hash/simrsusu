@@ -22,7 +22,8 @@ final class Penyamar
         'aplicares' => ['kode', 'kodekelas', 'namakelas', 'koderuang', 'namaruang', 'kapasitas', 'tersedia', 'tersediapria', 'tersediawanita',
             'tersediapriawanita'],
         'satusehat' => ['resourcetype', 'id', 'issue', 'severity', 'details', 'diagnostics', 'coding', 'system', 'entry',
-            'resource', 'meta', 'lastupdated', 'versionid', 'physicaltype', 'mode', 'partof'],
+            'resource', 'meta', 'lastupdated', 'versionid', 'physicaltype', 'mode', 'partof', 'managingorganization', 'reference',
+            'fullurl', 'active'],
     ];
 
     public const TERSAMAR = '***';

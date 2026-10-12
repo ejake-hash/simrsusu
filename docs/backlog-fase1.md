@@ -38,7 +38,7 @@
 | 1.7-be / 1.7-fe | Notifikasi, kotak kerja, jenis tugas, eskalasi 3 tingkat | be: Selesai (kontrak #51, backend #53); fe: Selesai (#60). Catatan fe: lonceng di header (polling 30 detik, ETag/304, `X-Permintaan-Latar` hanya pada polling), halaman `/notifikasi` (belum dibaca, semua, preferensi), kotak kerja di Beranda dengan riwayat tugas, Master Data → Jenis Tugas, Tenggat & Eskalasi | #51, #53 |
 | 1.6-be / 1.6-fe | TTE T1: aktivasi PIN, kunci Ed25519, TtdModal, verifikasi, tanda tangan massal; adapter PSrE + simulator | be: Selesai (kontrak #56, backend #57). Catatan be: modul `Ttd`, kunci server `TTD_KUNCI`, seeder `TtdSintetisSeeder`; dedup tanda tangan per isi sejak 1.8c; fe: Selesai (#62). Catatan fe: TtdModal dan BadgeTtd di design-system, halaman `/tanda-tangan` (aktivasi, ganti PIN) dari menu akun, tanda tangan keputusan di rincian persetujuan, `reset_ttd`/penyetuju orang di 1.2d, Ajukan reset TTE di data pegawai | #56, #57, #62 |
 | 1.5-be / 1.5-fe | Lapis 4 (label sensitivitas) dan 5 (izin praktik, RKK, MFA ulang) | Siap setelah 1.8d, 1.2d, 1.6 | — |
-| 1.9-be / 1.9-fe | Gateway integrasi: outbox, adapter BPJS/SATUSEHAT/Aplicares, simulator, layar Konfigurasi & status | be: **Sebagian** (kontrak #75, backend #76, VClaim baca #79). Selesai: kredensial (K9), outbox + retry + circuit breaker + tertahan (FR-49-04/05), log disamarkan, simulator (K8), uji koneksi, VClaim baca (peserta, rujukan FKTP→RS, referensi), langkah 8 penyiapan. **Sisa menunggu dokumen resmi** (lihat utang 1.9): penangan SATUSEHAT Organization/Location/IHS/KFA, Aplicares bed/update. fe: Selesai (PR ini). Catatan fe: Pengaturan → Konfigurasi integrasi (kartu per sistem, kredensial tulis-saja, aktifkan/nonaktifkan dengan konfirmasi, uji koneksi), Integrasi → SATUSEHAT / Bridging BPJS (kartu pemantau + kotak keluar, kirim ulang), Integrasi → Log integrasi; sub-menu TERSEDIA (migrasi `2026_10_13_160000`); e2e `integrasi` (contoh.integrasi, simulator) | #75, #76, #79, #80 |
+| 1.9-be / 1.9-fe | Gateway integrasi: outbox, adapter BPJS/SATUSEHAT/Aplicares, simulator, layar Konfigurasi & status | be: **Selesai** terhadap simulator (keputusan pemilik K8; kontrak #75, backend #76, VClaim baca #79, Aplicares #82, SATUSEHAT PR ini): kredensial (K9), outbox + retry + circuit breaker + tertahan (FR-49-04/05), log disamarkan, simulator, uji koneksi, VClaim baca (peserta, rujukan FKTP→RS, referensi), langkah 8 penyiapan, Aplicares bed/update per bangsal (produksi ditahan sampai isian diverifikasi), SATUSEHAT Organization/Location berjenjang + IHS Practitioner (sinkron tiap jam) + IHS pasien + KFA. Isian yang belum dicocokkan dengan dokumen resmi: lihat utang 1.9 (syarat pilot fase 2). fe: Selesai (PR ini). Catatan fe: Pengaturan → Konfigurasi integrasi (kartu per sistem, kredensial tulis-saja, aktifkan/nonaktifkan dengan konfirmasi, uji koneksi), Integrasi → SATUSEHAT / Bridging BPJS (kartu pemantau + kotak keluar, kirim ulang), Integrasi → Log integrasi; sub-menu TERSEDIA (migrasi `2026_10_13_160000`); e2e `integrasi` (contoh.integrasi, simulator) | #75, #76, #79, #80, #82, #84 |
 | 1.11 | Design system: komponen inti PRD 5.4 yang dipakai fase 1, katalog komponen (dev) | Selesai | #36 |
 | 1.12 | Gerbang keluar Fase 1: uji beban, cek keamanan, runbook instalasi (PRD 16 sudah di v0.10.12) | Siap setelah semua | — |
 | 1.10 | SSO (OIDC/SAML) ke penyedia identitas RS/universitas; tombol tampil hanya bila dikonfigurasi | **Terhambat**: perlu data IdP dari RS/USU | — |
@@ -160,10 +160,30 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   polling vs WebSocket, "100% lewat usulan", TTE pengesahan, `*_versi`, query lintas modul, K1/K2/K7/K10 di 17.2, dll.)
   diusulkan di PR [Perlu pemilik] #72 (PRD v0.10.15); 1.8f (`inti.penyiapan_konfirmasi`, `profil_rs.siap_melayani_sejak`)
   didokumentasikan di PRD berikutnya.
-- **Utang 1.9 (menunggu dokumen resmi / contoh payload yang lulus; tidak dikarang, CLAUDE.md):**
-  - SATUSEHAT: payload Organization dan Location (identifier `sys-ids`, `physicalType`, `partOf`, `managingOrganization`),
-    pencarian IHS Patient/Practitioner by NIK, bentuk respons KFA. Catatan lapangan (di luar repo) hanya memuat nama
-    method dan host. Butir be 4 tiket 1.9 belum dibangun.
+- **Utang 1.9 (dibangun terhadap simulator, K8; dicocokkan dengan dokumen resmi sebelum pilot fase 2, DoD D.7):**
+  - SATUSEHAT (butir be 4, catatan lapangan §15–§19): sistem identifier Organization/Location/NIK (`config/integrasi.php`
+    `satusehat.*`, bisa diganti lewat env), letak kode 20002 di OperationOutcome (kini dikenali dari `issue.code =
+    duplicate` atau kode `20002` berdiri sendiri), bentuk respons KFA (`items.data`/`items`/`data`), dan semantik REST yang
+    diasumsikan (catatan §19 hanya memuat nama method): `POST {jenis}`, `PUT {jenis}/{id}`, `GET {jenis}?identifier=
+    system|value`, isian `managingOrganization`/`mode`/`description` — *perlu verifikasi*. Keunikan identifier di server
+    nyata belum diketahui atomik; kiriman satu data diserialkan dengan sewa agregat. Kode
+    physicalType/organization-type dari terminologi HL7. Location: situs → TT (FR-49-06), identifier = id lokal,
+    managingOrganization = Organization RS (bukan unit); lokasi yang ditutup sebelum terdaftar tidak didaftarkan.
+    Organization: unit akar `partOf` Organization RS. Practitioner: pegawai aktif berprofesi nakes, NIK kosong =
+    tertahan (pemilik unit pegawai). Induk yang ditutup/nonaktif sebelum terdaftar membuat anaknya tertahan
+    `induk_ditutup`. Pemicu = sinkron tiap jam (`integrasi:sinkron-satusehat`): data yang sidiknya (ringkasan isi yang
+    dikirim, `id_eksternal.sidik_sumber`) berbeda; status TT diturunkan dari masa berlaku; kiriman gagal diulang sesudah
+    24 jam atau sesudah kredensial diubah (penolakan permanen, mis. nakes belum terdaftar di SATUSEHAT, membentuk satu
+    baris gagal per hari per data — bukan regresi). Kiriman lokasi/unit yang ditutup sebelum pernah terdaftar selesai
+    tanpa memanggil SATUSEHAT (catatan: hasil ini tetap dihitung `SirkuitIntegrasi::berhasil()`, bisa menutup sirkuit
+    setengah terbuka tanpa SATUSEHAT dihubungi; perlu penanda "tanpa panggilan" → `lepasJatah`). Sidik belum memuat `organization_id` kredensial dan sistem identifier config: bila
+    keduanya diganti, resource yang sudah terdaftar tidak dikirim ulang otomatis. Belum kejadian per perubahan. Id produksi juga ditulis ke kolom tampilan
+    (`inti.lokasi`/`inti.tempat_tidur.satusehat_lokasi_id`, `sdm.pegawai.ihs_practitioner_id`); id sandbox hanya di
+    `integrasi.id_eksternal`; penulisan kolom tampilan ini (hasil integrasi, bukan suntingan pengguna) tidak dicatat di
+    `audit.log_aktivitas`, jejaknya di `kotak_keluar.id_luar` dan `log_api`. IHS pasien (`LayananSatusehat::ihsPasien`,
+    mengembalikan lingkungan agar IHS sandbox tidak disimpan sebagai `pasien.ihs_id`) dan KFA (`cariKfa`) belum punya
+    pemakai sampai pendaftaran/farmasi fase 2; cache IHS pasien = `pasien.ihs_id` (fase 2). Simulator (Infrastructure)
+    membaca kredensial lewat `KelolaKredensial` (Application): arah dependensi terbalik, khusus simulator.
   - Aplicares (butir be 5 dibangun terhadap simulator, keputusan pemilik K8; belum dicocokkan dengan dokumen resmi):
     alamat per lingkungan (`INTEGRASI_APLICARES_*` kosong), nama isian `bed/update`/`bed/create` selain
     `kodekelas`/`koderuang` (`namaruang`, `kapasitas`, `tersedia*`), kode sukses (`1`/`200`) dan kode "ruang belum
@@ -183,7 +203,8 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
     tercatat di backlog dan diterapkan di kode (`integrasi.kredensial_api`, KREDENSIAL_KUNCI).
   - PRD 11.2 `integrasi.*` belum memuat kolom yang dibangun (`kredensial_api.isian/rahasia/rahasia_ringkas/id_kunci`,
     `status_sistem`, `log_api.lingkungan`, `kotak_keluar.lingkungan/kunci_idempotensi/penyebab_tertahan_*`) dan
-    `organization_id` per lingkungan (PRD menyebut `profil_rs.satusehat_org_id`); menyusul PRD penyelarasan berikutnya.
+    `organization_id` per lingkungan (PRD menyebut `profil_rs.satusehat_org_id`), `id_eksternal.lingkungan/sidik_sumber/disinkron_pada`,
+    tabel `ruang_aplicares` dan `sewa_agregat`; menyusul PRD penyelarasan berikutnya.
 - Utang arsitektur (dari penyelarasan PRD, #72 B-13/B-14): modul membaca tabel modul lain secara langsung, padahal PRD
   10.3 meminta lewat antarmuka modul: `MasterData/Application/MesinUsulan.php` → `ttd.tanda_tangan`,
   `Ttd/Application/AtasanLangsung.php` dan `Ttd/Http/Resources/TandaTanganResource.php` → `sdm.pegawai`/`inti.unit_organisasi`,
@@ -248,7 +269,7 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
     (kontrak belum menerima beberapa `tujuan`); halaman bisa lebih pendek dari `batas` bila akun juga memegang SATUSEHAT.
   - e2e `integrasi` (contoh.integrasi, simulator): kredensial SATUSEHAT sandbox → aktifkan → uji koneksi → log; mode
     simulator mati/gangguan (circuit breaker di layar) dan kotak keluar berisi kiriman belum diuji e2e (kiriman nyata
-    menunggu penangan SATUSEHAT/Aplicares, sisa 1.9-be).
+    bisa diuji sesudah penangan SATUSEHAT/Aplicares 1.9-be; belum ada skenario e2e).
 - **Utang 1.12 (dari penyusunan runbook docs/operasional/, kode):**
   - `BerkasAnchor` tidak memeriksa hasil tulis: disk `local` `'throw' => false`, sehingga `audit:ekspor-anchor` sukses walau
     mount anchor terlepas (berkas jatuh ke disk server aplikasi). `append` menulis ulang berkas bulan berjalan utuh tiap

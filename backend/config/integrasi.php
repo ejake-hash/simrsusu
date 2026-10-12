@@ -34,6 +34,15 @@ return [
     // resmi BPJS dan keterisian TT tersedia (fase 2). Sandbox dan simulator tidak terpengaruh.
     'aplicares_isian_terverifikasi' => (bool) env('INTEGRASI_APLICARES_TERVERIFIKASI', false),
 
+    // SATUSEHAT: sistem identifier FHIR. Pola sys-ids dari catatan lapangan §18 (`http://sys-ids.kemkes.go.id/kfa`);
+    // turunan per resource dan sistem NIK **perlu verifikasi** ke dokumentasi resmi Kemenkes (belum dicocokkan, K8).
+    // `{organization_id}` diganti organization_id kredensial lingkungan itu.
+    'satusehat' => [
+        'identifier_organization' => env('INTEGRASI_SATUSEHAT_ID_ORGANIZATION', 'http://sys-ids.kemkes.go.id/organization/{organization_id}'),
+        'identifier_location' => env('INTEGRASI_SATUSEHAT_ID_LOCATION', 'http://sys-ids.kemkes.go.id/location/{organization_id}'),
+        'identifier_nik' => env('INTEGRASI_SATUSEHAT_ID_NIK', 'https://fhir.kemkes.go.id/id/nik'),
+    ],
+
     // Batas waktu satu panggilan HTTP (detik). Uji koneksi memakai batas sendiri.
     'batas_waktu' => (int) env('INTEGRASI_BATAS_WAKTU', 20),
     'batas_waktu_uji' => 15,

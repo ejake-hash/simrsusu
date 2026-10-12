@@ -35,4 +35,6 @@ Schedule::job(new ProsesKotakKeluar)->everyMinute()->onOneServer();
 Schedule::command('integrasi:siapkan-partisi')->dailyAt('02:20')->timezone(config('audit.zona_waktu'))->onOneServer();
 // Aplicares: sinkron menyeluruh harian sesudah rekaman kapasitas 00.05 (perubahan TT bertanggal hari ini).
 Schedule::command('integrasi:sinkron-aplicares')->dailyAt('00:15')->timezone(config('instalasi.zona_waktu'))->onOneServer();
+// SATUSEHAT: Organization/Location/IHS Practitioner yang belum terdaftar atau berubah, tiap jam.
+Schedule::command('integrasi:sinkron-satusehat')->hourlyAt(25)->onOneServer();
 Schedule::command('integrasi:hapus-log-lama')->dailyAt('02:30')->timezone(config('audit.zona_waktu'))->onOneServer();
