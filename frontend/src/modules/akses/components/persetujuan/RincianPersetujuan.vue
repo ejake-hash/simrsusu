@@ -50,6 +50,7 @@ const LABEL_JENIS: Record<PersetujuanAkses['jenis'], string> = {
   peran_superadmin: 'Peran superadmin',
   pengecualian: 'Pengecualian per akun',
   reset_ttd: 'Reset tanda tangan elektronik',
+  izin_label: 'Izin label sensitivitas',
 }
 
 // ── Tanda tangan keputusan (1.6) ──
@@ -159,6 +160,10 @@ async function tarik(alasan: string) {
           <div v-if="p.objek.akun">
             <dt>Akun penerima</dt>
             <dd>{{ p.objek.akun.nama }} <span class="ket">({{ p.objek.akun.nama_pengguna }})</span></dd>
+          </div>
+          <div v-if="p.objek.label">
+            <dt>Label sensitivitas</dt>
+            <dd>{{ p.objek.label.nama }}</dd>
           </div>
           <div v-if="p.objek.izin">
             <dt>Izin</dt>

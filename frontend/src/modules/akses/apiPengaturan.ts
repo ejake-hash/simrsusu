@@ -9,9 +9,12 @@ import type {
   Halaman,
   IsianBuatPeran,
   IsianIzinKhusus,
+  IsianIzinLabel,
   IsianPenugasan,
   IsianUbahPeran,
   IzinKhusus,
+  IzinLabelAkun,
+  LabelSensitivitas,
   Penugasan,
   PeranRingkas,
   PeranRinci,
@@ -124,5 +127,30 @@ export async function ubahStatusAkun(akunId: string, aksi: 'nonaktifkan' | 'akti
 
 export async function resetMfaAkun(akunId: string, alasan: string, dasar: string): Promise<StatusMfaAkun> {
   const { data } = await klien.post<{ data: StatusMfaAkun }>(`/akun/${akunId}/mfa/reset`, { alasan, dasar })
+  return data.data
+}
+
+// ── Lapis 4: label sensitivitas (kontrak v0.14.0, tiket 1.5) ──
+
+/** Daftar label beserta penyetujunya. Jumlah label sedikit (data induk PRD 11.2): satu halaman berbatas 200. */
+export async function ambilLabelSensitivitas(): Promise<LabelSensitivitas[]> {
+  const { data } = await klien.get<Halaman<LabelSensitivitas>>('/label-sensitivitas', { params: { batas: 200 } })
+  return data.data
+}
+
+export async function ambilLabelAkun(akunId: string, kursor: string | null = null, batas = BATAS): Promise<Halaman<IzinLabelAkun>> {
+  const { data } = await klien.get<Halaman<IzinLabelAkun>>(`/akun/${akunId}/label`, { params: { kursor: kursor ?? undefined, batas } })
+  return data
+}
+
+/** Selalu 202: menunggu persetujuan pejabat PDP (persetujuan jenis izin_label). */
+export async function ajukanLabelAkun(akunId: string, isian: IsianIzinLabel): Promise<PersetujuanAkses> {
+  const { data } = await klien.post<{ data: PersetujuanAkses }>(`/akun/${akunId}/label`, isian)
+  return data.data
+}
+
+/** Cabut izin label yang berlaku; langsung mengurangi akses. */
+export async function batalkanLabelAkun(akunId: string, labelAkunId: string, alasanBatal: string): Promise<IzinLabelAkun> {
+  const { data } = await klien.post<{ data: IzinLabelAkun }>(`/akun/${akunId}/label/${labelAkunId}/batal`, { alasan_batal: alasanBatal })
   return data.data
 }

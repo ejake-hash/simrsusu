@@ -1,4 +1,4 @@
-import axios, { AxiosError } from 'axios'
+import axios, { AxiosError, AxiosHeaders } from 'axios'
 
 /** Error API dalam format tunggal PRD 10.3.1: {"error": {"kode", "pesan", "rincian"}}. */
 export interface RincianError {
@@ -31,6 +31,11 @@ declare module 'axios' {
   interface AxiosRequestConfig {
     /** true = 401 ditangani pemanggil (mis. sandi salah), bukan dianggap sesi berakhir. */
     tangani401Sendiri?: boolean
+    /**
+     * Pengulangan sesudah MFA ulang. true = sesudah kode dimasukkan: 403 berikutnya tidak membuka dialog lagi. 'masa' =
+     * diulang karena masa verifikasi masih berlaku menurut klien: bila tetap 403, dialog dibuka satu kali.
+     */
+    sudahMfaUlang?: boolean | 'masa'
   }
 }
 
@@ -43,6 +48,7 @@ export const klien = axios.create({
 
 let penangan401: ((error: ApiError) => void) | null = null
 let penanganWajibGantiSandi: (() => void) | null = null
+let penanganMfaUlang: ((paksaDialog: boolean) => Promise<'dialog' | 'masa' | false>) | null = null
 
 /** Dipasang sekali di main.ts: 401 di mana pun mengakhiri sesi di klien. */
 export function aturPenangan401(penangan: (error: ApiError) => void): void {
@@ -54,7 +60,15 @@ export function aturPenanganWajibGantiSandi(penangan: () => void): void {
   penanganWajibGantiSandi = penangan
 }
 
-klien.interceptors.response.use(undefined, (error: unknown) => {
+/**
+ * Dipasang sekali di main.ts (tiket 1.5, K11): 403 mfa_ulang_diperlukan meminta kode MFA lewat dialog ('dialog') atau
+ * memakai masa verifikasi yang masih berlaku ('masa'), lalu permintaan yang tadi ditolak diulang. false = dibatalkan.
+ */
+export function aturPenanganMfaUlang(penangan: (paksaDialog: boolean) => Promise<'dialog' | 'masa' | false>): void {
+  penanganMfaUlang = penangan
+}
+
+klien.interceptors.response.use(undefined, async (error: unknown) => {
   const hasil = keApiError(error)
   const config = error instanceof AxiosError ? error.config : undefined
   if (hasil.status === 401 && !config?.tangani401Sendiri) {
@@ -62,6 +76,13 @@ klien.interceptors.response.use(undefined, (error: unknown) => {
   }
   if (hasil.status === 403 && hasil.kode === 'wajib_ganti_sandi') {
     penanganWajibGantiSandi?.()
+  }
+  // Polling latar (X-Permintaan-Latar) tidak pernah membuka dialog: pengguna tidak sedang melakukan aksi itu.
+  const latar = !!config?.headers && AxiosHeaders.from(config.headers).has('X-Permintaan-Latar')
+  if (hasil.status === 403 && hasil.kode === 'mfa_ulang_diperlukan' && config && config.sudahMfaUlang !== true && !latar && penanganMfaUlang) {
+    const jawaban = await penanganMfaUlang(config.sudahMfaUlang === 'masa')
+    if (jawaban) return klien.request({ ...config, sudahMfaUlang: jawaban === 'masa' ? 'masa' : true })
+    return Promise.reject(new ApiError(403, 'mfa_ulang_dibatalkan', 'Aksi dibatalkan karena verifikasi dua langkah tidak diselesaikan.'))
   }
   return Promise.reject(hasil)
 })

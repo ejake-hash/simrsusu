@@ -7,6 +7,7 @@ import KeadaanKosong from '../components/KeadaanKosong.vue'
 import KpiCard from '../components/KpiCard.vue'
 import Lencana from '../components/Lencana.vue'
 import NotifikasiToast from '../components/NotifikasiToast.vue'
+import PenandaTerbatas from '../components/PenandaTerbatas.vue'
 import Pesan from '../components/Pesan.vue'
 import PohonData from '../components/PohonData.vue'
 import PopoverPencarian, { type ItemPencarian } from '../components/PopoverPencarian.vue'
@@ -153,6 +154,10 @@ const DAFTAR = [
           <Lencana jenis="info">Wajib MFA</Lencana>
           <Lencana>Nonaktif</Lencana>
           <Lencana jenis="merek">Bawaan</Lencana>
+        </div>
+        <div class="baris">
+          <PenandaTerbatas />
+          <PenandaTerbatas ringkas />
         </div>
       </section>
 

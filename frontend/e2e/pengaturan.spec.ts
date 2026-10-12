@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright'
 import { expect, test as dasar, type Browser, type BrowserContext, type Page } from '@playwright/test'
 import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
 
@@ -9,6 +10,8 @@ import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
 const RAHASIA_SUPERADMIN = process.env.E2E_SUPERADMIN_MFA_RAHASIA ?? ''
 /** Superadmin kedua (tiket 1.2d): penyetuju pengajuan superadmin pertama (kontrol ganda K4/K13). */
 const RAHASIA_SUPERADMIN_DUA = process.env.E2E_SUPERADMIN_DUA_MFA_RAHASIA ?? ''
+/** contoh.sdm (peran Contoh Admin SDM) berperan sebagai pejabat PDP penyetuju label di uji 1.5. */
+const RAHASIA_SDM = process.env.E2E_SDM_MFA_RAHASIA ?? ''
 // Kode peran unik per run agar run lokal tanpa seeding ulang tidak bentrok kode_sudah_dipakai.
 const KODE_DASAR = `e2e_farmasi_${Date.now().toString(36)}`
 const NAMA_DASAR = `E2E Petugas Stok ${Date.now().toString(36)}`
@@ -589,4 +592,76 @@ test('1440 px: nonaktifkan akun dengan alasan lalu aktifkan kembali (contoh.terk
 
   await pilihAkun(page, 'contoh.superadmin', 'Contoh Superadmin')
   await expect(page.getByRole('button', { name: /^(Nonaktifkan|Aktifkan) akun$/ })).toHaveCount(0)
+})
+
+
+// ── Tiket 1.5: label sensitivitas (lapis 4) ──
+/** Setujui pengajuan lewat API sebagai akun lain (penyetuju tidak butuh izin halaman Persetujuan akses). */
+async function setujuiLewatApi(browser: Browser, asal: string, nama: string, rahasia: string, persetujuanId: string) {
+  const k = await browser.newContext({ baseURL: asal, storageState: TANPA_SESI })
+  await masukLewatApi(k.request, asal, nama, rahasia)
+  const xsrf = decodeURIComponent((await k.cookies()).find((c) => c.name === 'XSRF-TOKEN')?.value ?? '')
+  const r = await k.request.post(`/api/v1/persetujuan-akses/${persetujuanId}/setujui`, {
+    headers: { Accept: 'application/json', Origin: asal, Referer: `${asal}/`, 'X-XSRF-TOKEN': xsrf },
+    data: { catatan: null },
+  })
+  expect(r.ok(), `${r.status()} ${await r.text()}`).toBeTruthy()
+  await k.close()
+}
+async function pengajuanTerakhir(page: Page, asal: string): Promise<{ id: string; jenis: string }> {
+  const r = await page.request.get('/api/v1/persetujuan-akses?tab=saya_ajukan&batas=1', { headers: { Accept: 'application/json', Origin: asal, Referer: `${asal}/` } })
+  expect(r.ok()).toBeTruthy()
+  return ((await r.json()) as { data: { id: string; jenis: string }[] }).data[0]!
+}
+
+test('1440 px: izin label — penyetuju label disetujui superadmin lain, izin label menunggu pejabat PDP lalu berlaku dan dicabut; tab Label lolos axe', async ({ page, browser }, info) => {
+  test.skip(!RAHASIA_SUPERADMIN_DUA || !RAHASIA_SDM, 'Set E2E_SUPERADMIN_DUA_MFA_RAHASIA dan E2E_SDM_MFA_RAHASIA sesuai AkunSintetisSeeder.')
+  const asal = new URL(info.project.use.baseURL ?? '').origin
+  await page.setViewportSize({ width: 1440, height: 900 })
+
+  // Penyetuju label HIV = peran Contoh Admin SDM (pejabat PDP sintetis); berlaku sesudah superadmin lain setuju (K13).
+  await page.goto('/pengaturan/persetujuan?tab=penyetuju-label')
+  await page.getByRole('button', { name: 'Tetapkan penyetuju label HIV' }).click()
+  const penyetuju = page.getByRole('dialog', { name: 'Penyetuju label HIV' })
+  await penyetuju.getByLabel('Peran penyetuju').selectOption({ label: 'Contoh Admin SDM' })
+  await penyetuju.getByLabel('Dasar perubahan').fill('SK PDP E2E/1')
+  await penyetuju.getByRole('button', { name: 'Ajukan' }).click()
+  await expect(page.getByRole('status').filter({ hasText: /Penyetuju label HIV menunggu persetujuan Superadmin \(PSA-/ })).toBeVisible()
+  await setujuiLewatApi(browser, asal, 'contoh.superadmin.dua', RAHASIA_SUPERADMIN_DUA, (await pengajuanTerakhir(page, asal)).id)
+  await page.reload()
+  await expect(page.getByRole('row', { name: /HIV/ })).toContainText('Contoh Admin SDM')
+
+  // Izin label untuk contoh.admisi: selalu menunggu pejabat PDP, berbatas waktu.
+  await pilihAkun(page, 'contoh.admisi', 'Contoh Petugas Admisi')
+  await bukaTab(page, 'Label')
+  await expect(page.getByText('Akun ini tidak punya izin label yang berlaku.')).toBeVisible()
+  const axe = await new AxeBuilder({ page }).analyze()
+  expect(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)).toEqual([])
+  await page.getByRole('button', { name: 'Ajukan izin label' }).click()
+  const ajukan = page.getByRole('alertdialog', { name: 'Ajukan izin label untuk Contoh Petugas Admisi' })
+  await ajukan.getByLabel('Label sensitivitas').selectOption('hiv')
+  await expect(ajukan).toContainText('Disetujui oleh pemegang peran Contoh Admin SDM')
+  const sampai = new Date(Date.now() + 30 * 86_400_000)
+  await ajukan.getByLabel('Berlaku sampai').fill(`${sampai.getFullYear()}-${String(sampai.getMonth() + 1).padStart(2, '0')}-${String(sampai.getDate()).padStart(2, '0')}`)
+  await ajukan.getByLabel('Dasar pemberian').fill('ST E2E/7')
+  await ajukan.getByLabel('Alasan').fill('Konselor VCT sintetis e2e')
+  await ajukan.getByRole('button', { name: 'Ajukan' }).click()
+  await expect(page.getByRole('status').filter({ hasText: /Izin label HIV untuk Contoh Petugas Admisi menunggu persetujuan Contoh Admin SDM/ })).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Menunggu persetujuan' })).toContainText('HIV')
+
+  const izin = await pengajuanTerakhir(page, asal)
+  expect(izin.jenis).toBe('izin_label')
+  await setujuiLewatApi(browser, asal, 'contoh.sdm', RAHASIA_SDM, izin.id)
+  await page.reload()
+  await pilihAkun(page, 'contoh.admisi', 'Contoh Petugas Admisi')
+  await bukaTab(page, 'Label')
+  const berlaku = page.getByRole('list', { name: 'Izin label yang berlaku' })
+  await expect(berlaku).toContainText('HIV')
+
+  await berlaku.getByRole('button', { name: 'Cabut' }).click()
+  const cabut = page.getByRole('alertdialog', { name: 'Cabut izin label HIV?' })
+  await cabut.getByLabel('Alasan mencabut').fill('Uji e2e pencabutan (sintetis)')
+  await cabut.getByRole('button', { name: 'Cabut' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Izin label HIV untuk Contoh Petugas Admisi dicabut.' })).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Izin label yang berlaku' })).toHaveCount(0)
 })

@@ -9,13 +9,14 @@ import { ambilAkun } from '../../apiPengaturan'
 import type { IndeksMatriks } from '../../matriks'
 import { KUNCI, pesanError } from '../../pengaturan'
 import DialogStatusAkun from './DialogStatusAkun.vue'
+import TabLabel from './TabLabel.vue'
 import TabLihatSebagai from './TabLihatSebagai.vue'
 import TabMfa from './TabMfa.vue'
 import TabPenugasan from './TabPenugasan.vue'
 import TabPerAkun from './TabPerAkun.vue'
 
 /**
- * Rincian akun: Penugasan, Per akun, Lihat sebagai, MFA. Akun sendiri (diri_sendiri) tidak punya tombol ubah
+ * Rincian akun: Penugasan, Per akun, Label (izin label sensitivitas, 1.5), Lihat sebagai, MFA. Akun sendiri (diri_sendiri) tidak punya tombol ubah
  * sama sekali (PRD 9.2.4); server tetap menolak dengan 403 diri_sendiri.
  */
 const props = defineProps<{ akunId: string; indeks: IndeksMatriks | null }>()
@@ -27,6 +28,7 @@ const akun = computed(() => kueri.data.value)
 const TAB = [
   { nilai: 'penugasan', label: 'Penugasan' },
   { nilai: 'per-akun', label: 'Per akun' },
+  { nilai: 'label', label: 'Label' },
   { nilai: 'lihat-sebagai', label: 'Lihat sebagai' },
   { nilai: 'mfa', label: 'MFA' },
 ]
@@ -99,6 +101,7 @@ function berubah(teks: string) {
         <Tabs v-model="tab" label="Rincian akun" :daftar="TAB">
           <template #penugasan><TabPenugasan :akun="akun" @berubah="berubah" /></template>
           <template #per-akun><TabPerAkun :akun="akun" :indeks="indeks" @berubah="berubah" /></template>
+          <template #label><TabLabel :akun="akun" @berubah="berubah" /></template>
           <template #lihat-sebagai><TabLihatSebagai :akun="akun" :indeks="indeks" /></template>
           <template #mfa><TabMfa :akun="akun" @berubah="berubah" /></template>
         </Tabs>

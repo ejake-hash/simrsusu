@@ -11,8 +11,16 @@ export interface RingkasPeran {
 }
 
 export type StatusPersetujuan = 'menunggu' | 'disetujui' | 'ditolak' | 'kedaluwarsa' | 'dibatalkan'
-export type JenisPersetujuan = 'izin_sensitif' | 'peran_superadmin' | 'pengecualian' | 'reset_ttd'
-export type JenisObjekPersetujuan = 'izin_peran' | 'penugasan' | 'pengakhiran_penugasan' | 'izin_khusus' | 'penyetuju_izin' | 'reset_ttd'
+export type JenisPersetujuan = 'izin_sensitif' | 'peran_superadmin' | 'pengecualian' | 'reset_ttd' | 'izin_label'
+export type JenisObjekPersetujuan =
+  | 'izin_peran'
+  | 'penugasan'
+  | 'pengakhiran_penugasan'
+  | 'izin_khusus'
+  | 'penyetuju_izin'
+  | 'reset_ttd'
+  | 'izin_label'
+  | 'penyetuju_label'
 
 export interface PersetujuanAkses {
   id: string
@@ -28,6 +36,8 @@ export interface PersetujuanAkses {
     izin?: { kode: string; label: string } | null
     cakupan_label?: string | null
     berlaku_sampai?: string | null
+    /** Sejak v0.14.0: label sensitivitas untuk izin_label dan penyetuju_label. */
+    label?: { kode: string; nama: string } | null
   }
   /** null bila penyetujunya orang (penyetuju_pengguna). */
   penyetuju_peran: RingkasPeran | null
