@@ -27,7 +27,8 @@ async function halaman(browser: Browser, asal: string, lebar = 1440): Promise<Pa
     sesi = await masuk.storageState()
     await masuk.close()
   }
-  const konteks = await browser.newContext({ baseURL: asal, storageState: sesi, viewport: { width: lebar, height: 900 } })
+  // Tanpa animasi: axe memeriksa keadaan akhir, bukan toast yang masih memudar masuk (color-contrast palsu).
+  const konteks = await browser.newContext({ baseURL: asal, storageState: sesi, viewport: { width: lebar, height: 900 }, reducedMotion: 'reduce' })
   return konteks.newPage()
 }
 const asalDari = (baseURL: string | undefined) => new URL(baseURL ?? '').origin
