@@ -33,7 +33,7 @@
 | 1.8b-be / 1.8b-fe | Lokasi fisik bertingkat, bangsal/kamar/TT, kelas rawat, poliklinik, impor CSV | be: Selesai (kontrak #44, backend #46). Catatan: tabel di skema `inti`, izin `master_data.organisasi.*` cakupan `rs`, tugas harian `master-data:rekam-kapasitas-tt`; fe: Selesai (#54). Catatan fe: tab Lokasi & tempat tidur, Bangsal, Kelas rawat, Poliklinik di halaman Organisasi, Unit, Ruang & Tempat Tidur (judul PRD 9.1) | #44, #46, #54 |
 | 1.8c-be / 1.8c-fe | Usulan perubahan data induk berjenjang (mesin generik), dipakai pertama oleh TT | be: Selesai (kontrak #61, backend #63). Catatan: `inti.usulan_data_induk` (+ `_putaran`, `_kejadian`), `inti.alur_usulan`, `inti.data_induk_versi`; izin `master_data.usulan.{lihat,input,verifikasi,setujui}` (aksi tambahan `MenuBawaan::AKSI_TAMBAHAN`); tugas harian `master-data:terapkan-usulan` 00.00; penjaga `App\Core\Instalasi\StatusInstalasi` (1.8f mengisinya); fe: Selesai (#66). Catatan fe: Master Data → Usulan perubahan (`/master-data/usulan?usulan=`; kartu per tahap, filter Terbuka/Perlu saya/Semua, rincian diff lama → baru dari `tampilan[]`, alur, riwayat per putaran, TTE), editor butir ruang/kamar/TT, riwayat versi di rincian lokasi; sub-menu `master_data.usulan` TERSEDIA (migrasi `2026_10_13_110000`); e2e `usulan` dengan akun `contoh.usulan.*` | #61, #63, #66 |
 | 1.8d-be / 1.8d-fe | Pegawai, izin praktik (STR/SIP/SPK), RKK minimal, akun dibuat dari pegawai | be: Selesai (kontrak #48, backend #50). Catatan: NIK utuh hanya `?tampilkan_nik=true` + izin bagian `sdm.pegawai.identitas.lihat` (sensitif, pemilik data ditetapkan RS); pegawai keluar → akun nonaktif lewat kejadian `PegawaiKeluar`; tugas harian `sdm:proses-pegawai-keluar`; 403 `wajib_ganti_sandi`; fe: Selesai (#58). Catatan fe: SDM → Data pegawai (daftar, rincian, izin praktik, RKK, Buat akun), layar ganti sandi di luar AppShell, Nonaktifkan/Aktifkan di rincian akun, kepala unit/ketua KSM di dialog ubah unit/KSM; akun e2e `contoh.sdm` (#55) | #48, #50 |
-| 1.8e-be | Pemuat paket referensi (`inti.paket_referensi`) | Siap setelah 1.8a | — |
+| 1.8e-be | Pemuat paket referensi (`inti.paket_referensi`) | Selesai (kontrak #65, backend PR ini). Catatan: modul `MasterData` (`PemuatReferensi`), tabel `inti.paket_referensi`/`wilayah`/`referensi`/`terminologi` (+ `aktif`, `versi_terakhir`, `dinonaktifkan_pada`), perintah `referensi:muat`, `database/referensi/SUMBER.md`; isi paket resmi belum dikemas (menunggu berkas, lihat badan tiket) | #65 |
 | 1.8f-be / 1.8f-fe | Wizard penyiapan instalasi kosong (FR-54-08) | Siap setelah 1.8a–e | — |
 | 1.7-be / 1.7-fe | Notifikasi, kotak kerja, jenis tugas, eskalasi 3 tingkat | be: Selesai (kontrak #51, backend #53); fe: Selesai (#60). Catatan fe: lonceng di header (polling 30 detik, ETag/304, `X-Permintaan-Latar` hanya pada polling), halaman `/notifikasi` (belum dibaca, semua, preferensi), kotak kerja di Beranda dengan riwayat tugas, Master Data → Jenis Tugas, Tenggat & Eskalasi | #51, #53 |
 | 1.6-be / 1.6-fe | TTE T1: aktivasi PIN, kunci Ed25519, TtdModal, verifikasi, tanda tangan massal; adapter PSrE + simulator | be: Selesai (kontrak #56, backend #57). Catatan be: modul `Ttd`, kunci server `TTD_KUNCI`, seeder `TtdSintetisSeeder`; dedup tanda tangan per isi sejak 1.8c; fe: Selesai (#62). Catatan fe: TtdModal dan BadgeTtd di design-system, halaman `/tanda-tangan` (aktivasi, ganti PIN) dari menu akun, tanda tangan keputusan di rincian persetujuan, `reset_ttd`/penyetuju orang di 1.2d, Ajukan reset TTE di data pegawai | #56, #57, #62 |
@@ -159,6 +159,10 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   praktik antarpegawai, `berkas_terlalu_besar`, NIK tidak muncul di log aplikasi. Runbook: `upload_max_filesize` dan
   `post_max_size` PHP ≥ 12 MB agar batas paket referensi 10 MB, dokumen 5 MB, dan impor 2 MB tercapai sebelum batas PHP. Indeks
   `sdm.pegawai (dibuat_pada, id)` bila daftar pegawai membesar.
+- Utang 1.8e: **isi paket resmi belum dikemas** (wilayah Kemendagri, UCUM, subset LOINC, kode variabel RME) — menunggu
+  berkas dari pemilik/RS (`backend/database/referensi/SUMBER.md`); sampai itu langkah 4 wizard 1.8f tidak bisa selesai.
+  Kecil: `paket_referensi.dimuat_oleh` tanpa FK dan `sistem` tanpa CHECK; nomor baris kesalahan = nomor rekaman CSV
+  (bergeser bila sel memuat ganti baris, sama dengan impor 1.8b).
 - **[Perlu pemilik] Usulan (1.8d):** reset sandi oleh admin (sandi awal baru sekali tampil, wajib ganti) dan masa berlaku
   sandi awal; di luar API tiket 1.8d. Sampai itu sandi awal yang hilang tidak bisa dipulihkan.
 - **[Perlu pemilik] Usulan (1.8b):** daftar periksa baku atribut kamar (FR-08-19) sebagai data induk dengan endpoint
@@ -874,7 +878,10 @@ Aturan rinci (kontrak v0.11.0):
     kode_induk); ketiganya ditambah `aktif`, `versi_terakhir`, `dinonaktifkan_pada`. Kode tidak pernah dihapus.
   - Satu pemuatan = snapshot satu sistem (referensi: per kelompok di berkas). Sinkron, paling besar 10 MB / 120.000
     baris, target < 30 detik untuk 100.000 baris (diuji), `SET LOCAL statement_timeout` sendiri (wilayah ±91 ribu
-    kelurahan). Runbook: `upload_max_filesize`/`post_max_size` PHP ≥ 12 MB, `memory_limit` PHP ≥ 128 MB, nginx
+    kelurahan; diuji 90 ribu baris ±3 detik, kenaikan memori ±25–30 MB per pemuatan, anggaran tes 64 MB). Transaksi
+    pemuatan memakai `SET LOCAL plan_cache_mode = force_custom_plan`: tanpa itu pemeriksaan FK induk wilayah per baris
+    memakai rencana seq scan yang di-cache saat tabel kecil (kuadratik, >2 menit). Runbook: `upload_max_filesize`/
+    `post_max_size` PHP ≥ 12 MB, `memory_limit` PHP ≥ 128 MB, nginx
     `client_max_body_size` ≥ 12m dan `proxy_read_timeout`/`fastcgi_read_timeout` ≥ 60 s (berkas diunggah dua kali:
     pratinjau lalu terapkan). Usul nanti: pratinjau mengembalikan token agar terapkan tidak perlu unggah ulang.
   - Utang PRD (menyusul PR [Perlu pemilik]): 11.2 belum memuat kolom `aktif`, `versi_terakhir`, `dinonaktifkan_pada`
