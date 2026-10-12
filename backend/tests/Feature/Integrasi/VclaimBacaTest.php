@@ -5,6 +5,7 @@ namespace Tests\Feature\Integrasi;
 use App\Modules\Integrasi\Application\KelolaKredensial;
 use App\Modules\Integrasi\Application\LayananVclaim;
 use App\Modules\Integrasi\Domain\SistemIntegrasi;
+use App\Modules\Integrasi\Infrastructure\JawabanHttp;
 use App\Modules\Integrasi\Infrastructure\KlienVclaim;
 use App\Modules\Integrasi\Infrastructure\SimulatorIntegrasi;
 use Illuminate\Support\Facades\DB;
@@ -66,6 +67,9 @@ class VclaimBacaTest extends TestCase
         $rs = $vclaim->rujukan('SIMRS001');
         $this->assertSame([true, '2', 'SIMRS001'], [$rs['berhasil'], $rs['asal'], $rs['data']['noKunjungan']]);
         $this->assertSame([false, null], [$vclaim->rujukan('TIDAKADA1')['berhasil'], $vclaim->rujukan('TIDAKADA1')['asal']]);
+        // Nomor rujukan (alfanumerik) tidak tercatat di endpoint log.
+        $endpoint = DB::table('integrasi.log_api')->where('tujuan', 'bpjs_vclaim')->pluck('endpoint')->unique()->sort()->values()->all();
+        $this->assertSame(['/Rujukan/***', '/Rujukan/RS/***'], $endpoint);
     }
 
     public function test_referensi_dari_cache_dan_parameter_divalidasi(): void
@@ -77,8 +81,25 @@ class VclaimBacaTest extends TestCase
         $this->assertSame($sebelum, DB::table('integrasi.log_api')->count(), 'Panggilan kedua dari cache');
         $this->assertTrue($vclaim->referensi('poli', ['q' => 'INT'])['berhasil']);
 
+        try {
+            $vclaim->referensi('poli', ['q' => '..']);
+            $this->fail('Parameter .. harus ditolak');
+        } catch (InvalidArgumentException) {
+        }
         $this->expectException(InvalidArgumentException::class);
         $vclaim->referensi('poli', ['q' => '../Peserta']);
+    }
+
+    public function test_respons_yang_tidak_bisa_dibuka_dianggap_gagal(): void
+    {
+        SimulatorIntegrasi::jawabanTambahan(SistemIntegrasi::BpjsVclaim, fn (string $metode, string $path) => $path === '/referensi/kelasrawat'
+            ? new JawabanHttp(200, (string) json_encode(['metaData' => ['code' => '200', 'message' => 'Sukses'], 'response' => 'bukan-sandi-yang-sah']), 5, null)
+            : null);
+        $hasil = app(LayananVclaim::class)->referensi('kelasrawat');
+        $this->assertSame([false, null], [$hasil['berhasil'], $hasil['data']]);
+        $this->assertStringContainsString('tidak bisa dibuka', (string) $hasil['pesan']);
+        $this->assertFalse((bool) DB::table('integrasi.log_api')->where('endpoint', '/referensi/kelasrawat')->value('berhasil'));
+        SimulatorIntegrasi::jawabanTambahan(SistemIntegrasi::BpjsVclaim, fn () => null);
     }
 
     public function test_bpjs_mati_membuka_sirkuit_dan_gagal_cepat(): void

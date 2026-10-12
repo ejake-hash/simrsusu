@@ -16,24 +16,35 @@ final class KlienVclaim
 
     /**
      * @param  array<string, string>  $kredensial  cons_id, secret_key, user_key
-     * @return array{jawaban: JawabanHttp, code: string|null, message: string|null, response: mixed}
+     * @param  string|null  $pathLog  path untuk log dengan segmen identitas (nomor kartu, NIK, rujukan, tanggal) sudah
+     *                                diganti `***` oleh pemanggil; null = path apa adanya (disamarkan pola angka)
+     * @return array{jawaban: JawabanHttp, code: string|null, message: string|null, response: mixed, terbuka: bool}
      */
-    public function get(string $lingkungan, array $kredensial, string $path, ?string $kotakKeluarId = null): array
+    public function get(string $lingkungan, array $kredensial, string $path, ?string $pathLog = null, ?string $kotakKeluarId = null): array
     {
         $waktu = time();
         $jawaban = $this->http->kirim(SistemIntegrasi::BpjsVclaim, $lingkungan, 'GET', $path, ['headers' => KlienBpjs::header($kredensial, $waktu)]);
         $json = $jawaban->json();
         $meta = KlienBpjs::meta($json);
         $response = $json['response'] ?? null;
+        // Respons terenkripsi yang gagal dibuka = gagal, walau metaData 200 (kunci/timestamp tidak cocok atau data rusak).
+        $terbuka = true;
         if (is_string($response) && $response !== '') {
             $response = self::buka($response, $kredensial, $waktu);
+            $terbuka = $response !== null;
         }
-        $berhasil = $jawaban->kodeHttp === 200 && $meta['code'] === '200';
-        $this->http->catat(SistemIntegrasi::BpjsVclaim, $lingkungan, 'GET', $path, $jawaban, $berhasil,
-            $berhasil ? null : ($jawaban->galat ?? $meta['message'] ?? 'HTTP '.$jawaban->kodeHttp), null,
-            $json === null ? null : ['metaData' => ['code' => $meta['code'], 'message' => $meta['message']], 'response' => $response], $kotakKeluarId);
+        $berhasil = $jawaban->kodeHttp === 200 && $meta['code'] === '200' && $terbuka;
+        $pesan = match (true) {
+            $berhasil => null,
+            $jawaban->kodeHttp === 200 && $meta['code'] === '200' => 'Respons BPJS tidak bisa dibuka (kunci atau timestamp tidak cocok).',
+            default => $jawaban->galat ?? $meta['message'] ?? 'HTTP '.$jawaban->kodeHttp,
+        };
+        // Isi yang bukan struktur JSON tidak dicatat (bisa memuat data peserta dalam teks bebas).
+        $responsLog = is_array($response) || $response === null ? $response : '['.strlen((string) $response).' bita bukan JSON]';
+        $this->http->catat(SistemIntegrasi::BpjsVclaim, $lingkungan, 'GET', $pathLog ?? $path, $jawaban, $berhasil, $pesan, null,
+            $json === null ? null : ['metaData' => ['code' => $meta['code'], 'message' => $meta['message']], 'response' => $responsLog], $kotakKeluarId);
 
-        return ['jawaban' => $jawaban, 'code' => $meta['code'], 'message' => $meta['message'], 'response' => $response];
+        return ['jawaban' => $jawaban, 'code' => $meta['code'], 'message' => $meta['message'], 'response' => $response, 'terbuka' => $terbuka];
     }
 
     /**
