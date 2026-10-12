@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.12.0
+  version: 0.13.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -43,6 +43,8 @@ info:
     v0.10.0 (diusulkan, #64): lapis 4–5 hak akses (tiket 1.5), menunggu pemilik.
     v0.11.0: Paket data referensi (tiket 1.8e): POST /paket-referensi/{sistem}/muat (pratinjau/terapkan, snapshot per versi).
     v0.12.0: Penyiapan instalasi kosong (tiket 1.8f): GET /penyiapan, POST /penyiapan/{langkah}/selesai; sub-menu pengaturan.penyiapan.
+    v0.13.0: Gateway integrasi (tiket 1.9): /integrasi/sistem (status, kredensial tulis saja, uji koneksi), /integrasi/kotak-keluar
+    (outbox, kirim ulang), /integrasi/log (disamarkan); sub-menu integrasi.log.
 servers:
   - url: /api/v1
 security:
@@ -3554,6 +3556,241 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # Gateway integrasi (tiket 1.9; PRD 10 Integration Gateway + outbox, FR-49-01/04/05/06/07, FR-50-01 baca, 03, 07, 08;
+  # 11.2 integrasi.*; keputusan K8, K9). Semua kiriman ke sistem luar lewat outbox `integrasi.kotak_keluar` dan pekerja
+  # queue `integrasi` sesudah transaksi bisnis commit; tidak ada panggilan sistem luar di dalam permintaan pengguna selain
+  # uji koneksi.
+  # - Sistem fase 1 (`SistemIntegrasi`): `bpjs_vclaim` (baca: peserta, rujukan, referensi), `aplicares` (ketersediaan TT),
+  #   `satusehat` (OAuth2, IHS, Organization/Location, KFA). Lingkungan `sandbox` | `produksi` per sistem.
+  # - Alamat sistem luar (host dan nama layanan per lingkungan) dari konfigurasi server (.env), tidak bisa diubah lewat API
+  #   (mencegah SSRF); nilai awalnya dari catatan lapangan, **perlu verifikasi** ke dokumen resmi sebelum produksi.
+  # - Kredensial (K9): `integrasi.kredensial_api` per sistem + lingkungan; kolom rahasia (`secret_key`, `user_key`,
+  #   `client_secret`) terenkripsi kunci khusus `KREDENSIAL_KUNCI` (bukan APP_KEY; rotasi lewat perintah konsol). Tulis
+  #   saja: kolom rahasia hanya menyebut terisi + `akhir` (4 karakter terakhir, hanya bila panjangnya ≥ 16; lebih pendek →
+  #   null). Kolom bukan rahasia (`cons_id`, `client_id`, `organization_id`) tampil utuh di `nilai` (PRD 11.2: `cons_id`
+  #   tidak dienkripsi). Nilai rahasia tidak pernah ada di respons, log, audit, atau pesan error. Kunci belum
+  #   dikonfigurasi → 503 `kredensial_kunci_belum_dikonfigurasi`.
+  # - Lingkungan: setiap kiriman terikat ke lingkungan aktif saat kiriman dibuat (`Kiriman.lingkungan`) dan hanya dikirim
+  #   ke lingkungan itu. Mengaktifkan lingkungan lain membuat kiriman `menunggu`/`gagal` lingkungan lama menjadi
+  #   `tertahan` (`lingkungan_berubah`); kiriman itu tidak pernah berpindah lingkungan (data uji tidak ke produksi, data
+  #   asli tidak ke sandbox). Kiriman yang dibuat saat sistem tanpa lingkungan aktif berlingkungan null dan `tertahan`
+  #   (`integrasi_nonaktif`); kiriman itu tidak dikirim otomatis, dan baru diikat ke lingkungan aktif lewat kirim ulang
+  #   (aksi eksplisit pengguna). Kirim ulang otomatis FR-49-05 hanya untuk penyebab data induk, tidak untuk
+  #   `lingkungan_berubah` dan `integrasi_nonaktif`.
+  # - Kotak keluar: status `menunggu` → `terkirim`; `gagal` sesudah batas percobaan (retry eksponensial; kirim ulang manual);
+  #   `tertahan` bila data induk kurang (penyebab + unit pemilik data, FR-49-04) dan dikirim ulang otomatis sesudah data
+  #   induk diperbaiki (FR-49-05). Idempotency key per kiriman: kirim ulang tidak menggandakan di sistem luar.
+  # - Circuit breaker per sistem + lingkungan: `tertutup` (normal), `terbuka` (kiriman ditahan sampai `coba_lagi_pada`),
+  #   `setengah_terbuka` (satu percobaan). Saat terbuka, kiriman tetap menumpuk di outbox; queue jenis lain tidak terganggu.
+  # - Data pasien: muatan kiriman tidak pernah dikirim ke layar. `error_terakhir`, `pesan`, isi log, dan path endpoint
+  #   disamarkan sebelum disimpan, paling sedikit: NIK, nama, nomor kartu, nomor RM, tanggal lahir, telepon, alamat, nomor
+  #   rujukan/SEP/surat kontrol, token dan header rahasia. Isi JSON disamarkan dengan daftar kunci yang boleh tampil
+  #   (allowlist per sistem); kunci lain diganti `***`.
+  # - Penyiapan langkah 8 (`kredensial`, kontrak v0.12.0): terpenuhi bila setiap sistem fase 1 punya lingkungan aktif yang
+  #   lengkap dan uji koneksi terakhir lingkungan itu berhasil; `keterangan` menyebut jumlahnya (mis. "2 dari 3").
+  # - Izin: konfigurasi dan uji koneksi `pengaturan.integrasi.*` (Pengaturan → Konfigurasi integrasi;
+  #   `pengaturan.integrasi.perbaiki` sensitif: pemberiannya lewat persetujuan, penyetuju bawaan superadmin seperti K13,
+  #   karena menukar kredensial mengalihkan kiriman data pasien); kotak keluar per tujuan `integrasi.satusehat.*`
+  #   (satusehat) atau `integrasi.bpjs.*` (bpjs_vclaim, aplicares); log `integrasi.log.lihat` (sub-menu Integrasi dan
+  #   Laporan → Log integrasi, PRD 9.1). Sub-menu `integrasi.satusehat`, `integrasi.bpjs`, `integrasi.log` dipakai sejak
+  #   fase 1. Semua cakupan `rs`.
+  # ---------------------------------------------------------------------------
+  /integrasi/sistem:
+    get:
+      operationId: statusSistemIntegrasi
+      summary: Status tiap sistem integrasi (lingkungan, kredensial terisi, circuit breaker, queue, error terakhir)
+      description: |
+        Izin: pengaturan.integrasi.lihat (semua sistem, dengan `kredensial`), atau pemantauan per tujuan
+        integrasi.satusehat.lihat / integrasi.bpjs.lihat (hanya sistem itu, `kredensial` = null; FR-50-08). Cakupan `rs`.
+        Daftar tetap satu baris per sistem yang boleh dilihat (urutan `SistemIntegrasi`), bukan daftar data, jadi tanpa
+        kursor. Dihitung saat diminta; jumlah queue dari kotak keluar (indeks per tujuan + status).
+      responses:
+        '200':
+          description: Status semua sistem
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/StatusSistemIntegrasi' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /integrasi/sistem/{kode}/kredensial:
+    parameters:
+      - { in: path, name: kode, required: true, schema: { $ref: '#/components/schemas/SistemIntegrasi' } }
+    put:
+      operationId: simpanKredensialIntegrasi
+      summary: Simpan kredensial satu sistem untuk satu lingkungan (tulis saja)
+      description: |
+        Izin: pengaturan.integrasi.perbaiki (sensitif), cakupan `rs`. Kolom yang dikirim menggantikan nilai lama; kolom
+        yang tidak dikirim tetap (tulis sebagian; PUT sesuai teks tiket). Kolom per sistem (semua wajib):
+        - `bpjs_vclaim`, `aplicares`: `cons_id` (bukan rahasia), `secret_key`, `user_key` (rahasia). Kode PPK dari profil
+          RS (`kode_ppk_bpjs`, PUT /profil-rs); kosong → `peringatan` `kode_ppk_kosong` dan kiriman BPJS `tertahan`.
+        - `satusehat`: `client_id`, `organization_id` (bukan rahasia; ID Organization faskes di SATUSEHAT, berbeda antara
+          sandbox dan produksi, jadi disimpan per lingkungan), `client_secret` (rahasia).
+        `aktifkan: true` menjadikan lingkungan ini yang dipakai pekerja dan uji koneksi (satu lingkungan aktif per sistem);
+        `aktifkan` pada lingkungan yang kolom wajibnya belum lengkap → 422 `kredensial_belum_lengkap`. Berpindah lingkungan
+        menutup circuit breaker lingkungan baru; kiriman lingkungan lama yang belum terkirim menjadi `tertahan`
+        (`lingkungan_berubah`, lihat komentar blok). `nonaktifkan: true` mengosongkan lingkungan aktif sistem itu: kiriman
+        baru tetap dibuat tetapi `tertahan` (`integrasi_nonaktif`). Audit `integrasi.kredensial_diubah` mencatat sistem,
+        lingkungan, nama kolom yang diubah, aktifkan/nonaktifkan, tanpa nilai.
+        - 422 `validasi_gagal` (`rincian` = `[{kolom, pesan}]`, kolom `kolom.<nama>`): kolom tidak dikenal untuk sistem
+          itu, nilai kosong, lebih dari 500 karakter, atau memuat spasi di awal/akhir; `aktifkan` dan `nonaktifkan`
+          bersamaan.
+        - 422 `kredensial_belum_lengkap`: `rincian` = `[{kolom, pesan}]` kolom wajib yang kosong.
+        - 503 `kredensial_kunci_belum_dikonfigurasi`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lingkungan]
+              properties:
+                lingkungan: { $ref: '#/components/schemas/LingkunganIntegrasi' }
+                aktifkan: { type: boolean, default: false }
+                nonaktifkan: { type: boolean, default: false }
+                kolom:
+                  type: object
+                  description: "Nama kolom → nilai; hanya kolom milik sistem itu (lihat deskripsi)"
+                  additionalProperties: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        '200':
+          description: Status sistem sesudah disimpan (tanpa nilai rahasia)
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/StatusSistemIntegrasi' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /integrasi/sistem/{kode}/uji-koneksi:
+    parameters:
+      - { in: path, name: kode, required: true, schema: { $ref: '#/components/schemas/SistemIntegrasi' } }
+    post:
+      operationId: ujiKoneksiIntegrasi
+      summary: Uji koneksi ke sistem luar dengan kredensial tersimpan
+      description: |
+        Izin: pengaturan.integrasi.perbaiki, cakupan `rs`. Satu panggilan baca ke sistem luar memakai kredensial lingkungan
+        yang diminta (bawaan: lingkungan aktif): `bpjs_vclaim` referensi provinsi, `aplicares` referensi kelas,
+        `satusehat` permintaan token OAuth2. Tidak lewat outbox dan tidak dipengaruhi circuit breaker; batas waktu 15 detik.
+        Hasil (berhasil atau tidak) = 200 dan disimpan sebagai `uji_koneksi_terakhir`; dicatat di log integrasi dan audit
+        `integrasi.uji_koneksi`. Dibatasi 6 kali per menit per akun (429 dengan header `Retry-After`).
+        - 422 `kredensial_belum_lengkap`: kolom wajib lingkungan itu belum terisi (`rincian` = `[{kolom, pesan}]`).
+        - 422 `lingkungan_belum_aktif`: `lingkungan` tidak dikirim dan sistem belum punya lingkungan aktif.
+        - 503 `kredensial_kunci_belum_dikonfigurasi`.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lingkungan: { $ref: '#/components/schemas/LingkunganIntegrasi' }
+      responses:
+        '200':
+          description: Hasil uji
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/HasilUjiKoneksi' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /integrasi/kotak-keluar:
+    get:
+      operationId: daftarKotakKeluar
+      summary: Kiriman ke sistem luar (outbox), terbaru dulu
+      description: |
+        Izin per tujuan: `satusehat` ← integrasi.satusehat.lihat; `bpjs_vclaim`, `aplicares` ← integrasi.bpjs.lihat
+        (cakupan `rs`). Tanpa filter `tujuan`, server hanya mengembalikan tujuan yang diizinkan; `tujuan` yang tidak
+        diizinkan → 403. Urut (`dibuat_pada`, `id`) menurun, kursor keyset (Paginasi). Muatan kiriman tidak dikirim. Tanpa
+        `dari`/`sampai` = semua tanggal (kiriman gagal/tertahan lama tetap terlihat); `dari` > `sampai` → 422
+        `validasi_gagal`.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: tujuan, schema: { $ref: '#/components/schemas/SistemIntegrasi' } }
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/StatusKiriman' } }
+        - { in: query, name: lingkungan, schema: { $ref: '#/components/schemas/LingkunganIntegrasi' } }
+        - { in: query, name: dari, schema: { type: string, format: date }, description: "Tanggal dibuat (zona RS), inklusif" }
+        - { in: query, name: sampai, schema: { type: string, format: date }, description: "Inklusif" }
+      responses:
+        '200':
+          description: Satu halaman kiriman
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Kiriman' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /integrasi/kotak-keluar/{id}/kirim-ulang:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: kirimUlangKiriman
+      summary: Antrekan ulang kiriman yang gagal atau tertahan
+      description: |
+        Izin per tujuan: `satusehat` ← integrasi.satusehat.perbaiki; `bpjs_vclaim`, `aplicares` ← integrasi.bpjs.perbaiki
+        (cakupan `rs`). Status menjadi `menunggu`, `coba_lagi_pada` = sekarang, hitungan percobaan mulai lagi; idempotency
+        key tetap sama sehingga sistem luar tidak menerima duplikat. Kiriman `tertahan` diperiksa ulang syarat data
+        induknya saat dikirim. Audit `integrasi.kirim_ulang`.
+        - 409 `kiriman_tidak_bisa_dikirim_ulang`: status `menunggu` atau `terkirim`.
+        - 409 `lingkungan_tidak_aktif`: lingkungan kiriman bukan lingkungan aktif sistem itu (kiriman tidak dipindah
+          lingkungan; buat ulang dari sumbernya bila perlu), atau kiriman berlingkungan null sementara sistem belum punya
+          lingkungan aktif. Kiriman berlingkungan null diikat ke lingkungan aktif saat dikirim ulang.
+      responses:
+        '200':
+          description: Kiriman sesudah diantrekan ulang
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Kiriman' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /integrasi/log:
+    get:
+      operationId: daftarLogIntegrasi
+      summary: Log panggilan ke sistem luar (disamarkan), terbaru dulu
+      description: |
+        Izin: integrasi.log.lihat, cakupan `rs`. Satu baris per panggilan HTTP (termasuk percobaan ulang dan uji koneksi).
+        Permintaan dan respons disimpan sesudah disamarkan menurut aturan masking di komentar blok gateway integrasi
+        (paling sedikit NIK, nama, nomor kartu, nomor RM, tanggal lahir, telepon, alamat, nomor rujukan/SEP/surat kontrol,
+        token dan header rahasia; isi JSON lewat allowlist kunci per sistem), dipotong paling banyak 16 KB per isian (`terpotong`), dan dihapus sesudah masa simpan di
+        konfigurasi (`INTEGRASI_LOG_HARI`). Urut (`terjadi_pada`, `id`) menurun, kursor keyset. Karena isi per baris
+        sampai 2 × 16 KB, `batas` paling banyak 50 (di atas itu 422 `ukuran_halaman_melebihi_batas`). Tanpa `dari`/`sampai`
+        = semua yang masih dalam masa simpan.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: tujuan, schema: { $ref: '#/components/schemas/SistemIntegrasi' } }
+        - { in: query, name: berhasil, schema: { type: boolean } }
+        - { in: query, name: kotak_keluar_id, schema: { type: string, format: uuid } }
+        - { in: query, name: dari, schema: { type: string, format: date } }
+        - { in: query, name: sampai, schema: { type: string, format: date }, description: "Inklusif" }
+      responses:
+        '200':
+          description: Satu halaman log
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/LogIntegrasi' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -4870,3 +5107,133 @@ components:
           type: array
           description: "Penugasan, pengakhiran penugasan, dan izin khusus untuk akun ini yang menunggu persetujuan (sejak 1.2d)"
           items: { $ref: '#/components/schemas/PersetujuanAkses' }
+    SistemIntegrasi:
+      type: string
+      enum: [bpjs_vclaim, aplicares, satusehat]
+      description: "Sistem fase 1 (tiket 1.9); nilai sama dengan `integrasi.kotak_keluar.tujuan` (PRD 11.2)"
+    LingkunganIntegrasi:
+      type: string
+      enum: [sandbox, produksi]
+    StatusKiriman:
+      type: string
+      enum: [menunggu, terkirim, gagal, tertahan]
+    KolomKredensial:
+      type: object
+      required: [nama, rahasia, wajib, terisi, nilai, akhir]
+      properties:
+        nama: { type: string, examples: [cons_id, secret_key, user_key, client_id, client_secret, organization_id] }
+        rahasia: { type: boolean }
+        wajib: { type: boolean }
+        terisi: { type: boolean }
+        nilai: { type: [string, 'null'], description: "Nilai utuh, hanya kolom bukan rahasia; selalu null untuk kolom rahasia" }
+        akhir: { type: [string, 'null'], description: "Hanya kolom rahasia: 4 karakter terakhir bila panjang nilai ≥ 16; selain itu null" }
+    KredensialLingkungan:
+      type: object
+      required: [lingkungan, aktif, lengkap, kolom, diubah_pada, diubah_oleh]
+      properties:
+        lingkungan: { $ref: '#/components/schemas/LingkunganIntegrasi' }
+        aktif: { type: boolean }
+        lengkap: { type: boolean, description: "Semua kolom wajib terisi" }
+        kolom: { type: array, items: { $ref: '#/components/schemas/KolomKredensial' } }
+        diubah_pada: { type: [string, 'null'], format: date-time }
+        diubah_oleh: { $ref: '#/components/schemas/Pelaku' }
+    HasilUjiKoneksi:
+      type: object
+      required: [lingkungan, berhasil, kode_http, latensi_ms, pesan, pada]
+      properties:
+        lingkungan: { $ref: '#/components/schemas/LingkunganIntegrasi' }
+        berhasil: { type: boolean }
+        kode_http: { type: [integer, 'null'], description: "null = tidak tersambung (DNS, TLS, batas waktu)" }
+        latensi_ms: { type: [integer, 'null'] }
+        pesan: { type: string, description: "Ringkasan untuk pengguna, disamarkan; tanpa nilai kredensial" }
+        pada: { type: string, format: date-time }
+    StatusSistemIntegrasi:
+      type: object
+      required: [kode, nama, lingkungan_aktif, kredensial, peringatan, circuit_breaker, queue, error_terakhir, uji_koneksi_terakhir]
+      properties:
+        kode: { $ref: '#/components/schemas/SistemIntegrasi' }
+        nama: { type: string, examples: ['BPJS VClaim'] }
+        lingkungan_aktif: { oneOf: [{ $ref: '#/components/schemas/LingkunganIntegrasi' }, { type: 'null' }], description: "null = belum ada yang diaktifkan" }
+        kredensial:
+          type: [array, 'null']
+          description: "Satu baris per lingkungan (sandbox, produksi); null bila penonton tidak memegang pengaturan.integrasi.lihat"
+          items: { $ref: '#/components/schemas/KredensialLingkungan' }
+        peringatan:
+          type: array
+          description: "Hal yang membuat kiriman tertahan di tingkat sistem"
+          items:
+            type: object
+            required: [kode, pesan]
+            properties:
+              kode: { type: string, examples: [kode_ppk_kosong, integrasi_nonaktif, kredensial_belum_lengkap] }
+              pesan: { type: string }
+        circuit_breaker:
+          type: object
+          description: "Untuk lingkungan aktif"
+          required: [status, gagal_beruntun, sejak, coba_lagi_pada]
+          properties:
+            status: { type: string, enum: [tertutup, terbuka, setengah_terbuka] }
+            gagal_beruntun: { type: integer, minimum: 0 }
+            sejak: { type: [string, 'null'], format: date-time }
+            coba_lagi_pada: { type: [string, 'null'], format: date-time }
+        queue:
+          type: object
+          required: [menunggu, tertahan, gagal, terkirim_24_jam, menunggu_tertua_pada]
+          properties:
+            menunggu: { type: integer, minimum: 0 }
+            tertahan: { type: integer, minimum: 0 }
+            gagal: { type: integer, minimum: 0 }
+            terkirim_24_jam: { type: integer, minimum: 0 }
+            menunggu_tertua_pada: { type: [string, 'null'], format: date-time }
+        error_terakhir:
+          type: [object, 'null']
+          required: [pesan, pada]
+          properties:
+            pesan: { type: string, description: "Disamarkan" }
+            pada: { type: string, format: date-time }
+        uji_koneksi_terakhir:
+          oneOf: [{ $ref: '#/components/schemas/HasilUjiKoneksi' }, { type: 'null' }]
+    Kiriman:
+      type: object
+      required: [id, tujuan, lingkungan, jenis_resource, objek_jenis, objek_id, status, percobaan, coba_lagi_pada, terkirim_pada, error_terakhir, penyebab_tertahan, pemilik_unit, id_luar, dapat_kirim_ulang, dibuat_pada]
+      properties:
+        id: { type: string, format: uuid }
+        tujuan: { $ref: '#/components/schemas/SistemIntegrasi' }
+        lingkungan: { oneOf: [{ $ref: '#/components/schemas/LingkunganIntegrasi' }, { type: 'null' }], description: "Lingkungan aktif saat kiriman dibuat; null = dibuat saat integrasi nonaktif" }
+        jenis_resource: { type: string, examples: [Location, Organization, bed_update] }
+        objek_jenis: { type: string, description: "Agregat lokal (`agregat_jenis`, PRD 11.2)", examples: [lokasi, unit_organisasi, bangsal] }
+        objek_id: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/StatusKiriman' }
+        percobaan: { type: integer, minimum: 0 }
+        coba_lagi_pada: { type: [string, 'null'], format: date-time }
+        terkirim_pada: { type: [string, 'null'], format: date-time }
+        error_terakhir: { type: [string, 'null'], description: "Disamarkan" }
+        penyebab_tertahan:
+          type: [object, 'null']
+          description: "Hanya status tertahan (FR-49-04)"
+          required: [kode, pesan]
+          properties:
+            kode: { type: string, examples: [kode_kelas_aplicares_kosong, induk_belum_terdaftar, kode_ppk_kosong, lingkungan_berubah, integrasi_nonaktif] }
+            pesan: { type: string }
+        pemilik_unit: { oneOf: [{ $ref: '#/components/schemas/RingkasUnit' }, { type: 'null' }], description: "Unit pemilik data induk yang perlu diperbaiki" }
+        id_luar: { type: [string, 'null'], description: "ID di sistem luar sesudah terkirim (mis. id Location SATUSEHAT)" }
+        dapat_kirim_ulang: { type: boolean, description: "Status gagal/tertahan, lingkungan = lingkungan aktif (atau null dan sistem punya lingkungan aktif), dan penonton memegang izin perbaiki tujuan itu" }
+        dibuat_pada: { type: string, format: date-time }
+    LogIntegrasi:
+      type: object
+      required: [id, tujuan, lingkungan, metode, endpoint, kode_http, berhasil, latensi_ms, pesan, kotak_keluar_id, permintaan, respons, terpotong, terjadi_pada]
+      properties:
+        id: { type: string, format: uuid }
+        tujuan: { $ref: '#/components/schemas/SistemIntegrasi' }
+        lingkungan: { $ref: '#/components/schemas/LingkunganIntegrasi' }
+        metode: { type: string, enum: [GET, POST, PUT, PATCH, DELETE] }
+        endpoint: { type: string, description: "Path tanpa host dan query, segmen identitas disamarkan", examples: ['/fhir-r4/v1/Location'] }
+        kode_http: { type: [integer, 'null'] }
+        berhasil: { type: boolean, description: "Menurut aturan sukses sistem itu (mis. BPJS `metaData.code`), bukan hanya kode HTTP" }
+        latensi_ms: { type: [integer, 'null'] }
+        pesan: { type: [string, 'null'], description: "Ringkasan error, disamarkan" }
+        kotak_keluar_id: { type: [string, 'null'], format: uuid, description: "null = uji koneksi atau panggilan baca langsung" }
+        permintaan: { type: [string, 'null'], description: "Isi permintaan disamarkan (≤ 16 KB)" }
+        respons: { type: [string, 'null'], description: "Isi respons sesudah dekripsi, disamarkan (≤ 16 KB)" }
+        terpotong: { type: boolean }
+        terjadi_pada: { type: string, format: date-time }
