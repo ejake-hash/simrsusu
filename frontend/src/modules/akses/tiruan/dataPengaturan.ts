@@ -57,6 +57,8 @@ const AKSI_KHUSUS: Record<string, [JenisAksi, boolean][]> = {
   'kasir.tagihan': [['batal', true], ['cetak', false], ['lihat_rupiah', true]],
   'rawat_inap.cppt': [['sahkan', false], ['verifikasi', false]],
   'rekam_medis.pelepasan': [['setujui', true], ['ekspor', true]],
+  // Usulan data induk (1.8c-be: aksi verifikasi/setujui di MenuBawaan; pemisahan tugas dijaga server).
+  'master_data.usulan': [['verifikasi', false], ['setujui', false]],
 }
 const BAGIAN: Record<string, [kode: string, label: string, ikutInduk: boolean][]> = {
   'kasir.tagihan': [['panel_diskon', 'Panel diskon', false], ['panel_bantuan', 'Panel bantuan', true]],
@@ -66,7 +68,7 @@ const BAGIAN: Record<string, [kode: string, label: string, ikutInduk: boolean][]
 }
 const AKSI_BAGIAN: Record<string, JenisAksi[]> = { 'sdm.pegawai.identitas': ['lihat'] }
 
-export const TERSEDIA = new Set(['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'master_data.organisasi', 'master_data.jenis_tugas', 'sdm.pegawai'])
+export const TERSEDIA = new Set(['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.usulan', 'sdm.pegawai'])
 /** Modul yang dimatikan di instalasi contoh, agar penanda "modul nonaktif" ikut teruji. */
 const MODUL_NONAKTIF = new Set(['kamar_operasi'])
 

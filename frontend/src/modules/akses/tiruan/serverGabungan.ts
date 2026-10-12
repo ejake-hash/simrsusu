@@ -3,6 +3,7 @@ import { buatServerLokasi } from '../../organisasi/tiruan/serverLokasi'
 import { buatServerOrganisasi } from '../../organisasi/tiruan/serverOrganisasi'
 import { buatServerSdm } from '../../sdm/tiruan/serverSdm'
 import { buatServerTtd } from '../../ttd/tiruan/serverTtd'
+import { buatServerUsulan } from '../../usulan/tiruan/serverUsulan'
 import type { PermintaanTiruan, ResponsTiruan } from './serverTiruan'
 import { buatServerTiruan, ID_SUPERADMIN, ID_SUPERADMIN_DUA, type OpsiServerTiruan } from './serverTiruan'
 
@@ -52,6 +53,18 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     persetujuan: akses.persetujuanUntukTtd,
     ajukanReset: akses.ajukanResetTtd,
     bolehSaya: akses.bolehSaya,
+    usulan: (id) => usulan.usulanUntukTtd(id),
+    sekarang: opsi.sekarang,
+  })
+  const usulan = buatServerUsulan({
+    penggunaSaatIni: akses.penggunaSaatIni,
+    namaAkun: akses.namaAkunUntukTtd,
+    boleh: akses.bolehSaya,
+    potret: lokasi.potretObjek,
+    labelNilai: lokasi.labelNilai,
+    sudahTtd: (objekId, akunId) => ttd.sudahTtd(objekId, akunId),
+    contoh: { kamarA: lokasi.contoh.km101.id, kamarB: lokasi.contoh.km102.id, ruangB: lokasi.contoh.r102.id, kelas: lokasi.contoh.k1.id },
+    pengusulLain: ID_SUPERADMIN_DUA,
     sekarang: opsi.sekarang,
   })
   // TtdSintetisSeeder: superadmin kedua (penyetuju kontrol ganda) sudah punya TTE aktif.
@@ -77,11 +90,12 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     sdm,
     notifikasi,
     ttd,
+    usulan,
     tangani: (r: PermintaanTiruan): ResponsTiruan | Promise<ResponsTiruan> | null => {
       if (akses.wajibGantiSandi() && !bebasGantiSandi(r)) {
         return { status: 403, isi: { error: { kode: 'wajib_ganti_sandi', pesan: 'Ganti sandi awal Anda lebih dulu.', rincian: [] } } }
       }
-      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r)
+      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r)
     },
   }
 }

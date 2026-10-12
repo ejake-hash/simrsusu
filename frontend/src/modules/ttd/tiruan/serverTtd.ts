@@ -49,6 +49,8 @@ export interface OpsiServerTtd {
   persetujuan: (id: string) => { status: string; diputuskanOleh: string | null; nomor: string; ringkasan: string } | null
   ajukanReset: (akunId: string, isi: { alasan: string; dasar: string }, terapkan: () => void) => ResponsTiruan
   bolehSaya: (kode: string) => boolean
+  /** Usulan data induk (1.8c): pihak putaran ini boleh menandatangani sesudah tindakannya. */
+  usulan?: (id: string) => { nomor: string; tahap: string; pihak: string[]; putaran: number } | null
   sekarang?: () => Date
 }
 
@@ -107,6 +109,11 @@ export function buatServerTtd(opsi: OpsiServerTtd) {
     return error(422, 'pin_salah', 'PIN salah.', [{ kolom, kode: 'pin_salah', pesan: `PIN salah. Sisa percobaan: ${BATAS_SALAH - k.salah}.`, sisa_percobaan: BATAS_SALAH - k.salah }])
   }
   const isiKanonik = (jenis: string, id: string) => {
+    if (jenis === 'usulan_data_induk') {
+      const u = opsi.usulan?.(id)
+      // Putaran ikut isi: kirim ulang membuat tanda tangan putaran lama `isi_berubah`.
+      return u ? JSON.stringify({ id, nomor: u.nomor, putaran: u.putaran }) : ''
+    }
     const p = jenis === 'persetujuan_akses' ? opsi.persetujuan(id) : null
     return p ? JSON.stringify({ id, nomor: p.nomor, status: p.status, diputuskan_oleh: p.diputuskanOleh }) : ''
   }
@@ -165,6 +172,12 @@ export function buatServerTtd(opsi: OpsiServerTtd) {
       if (!k.aktif) return error(409, 'ttd_belum_aktif', 'Aktifkan tanda tangan elektronik lebih dulu.')
       // Objek diperiksa dulu, PIN terakhir: salah ketik objek tidak menghabiskan jatah percobaan.
       const salah = daftar.flatMap((o, i) => {
+        if (o.jenis === 'usulan_data_induk') {
+          const u = opsi.usulan?.(o.id)
+          if (!u) return [{ kolom: `objek.${i}`, kode: 'tidak_ditemukan', pesan: 'Objek tidak ada atau tidak boleh Anda lihat.' }]
+          if (!u.pihak.includes(saya) || u.tahap === 'dikembalikan') return [{ kolom: `objek.${i}`, kode: 'bukan_pemutus', pesan: `${u.nomor} hanya ditandatangani pengusul, pemverifikasi, atau penyetujunya.` }]
+          return []
+        }
         const p = o.jenis === 'persetujuan_akses' ? opsi.persetujuan(o.id) : null
         if (!p) return [{ kolom: `objek.${i}`, kode: 'tidak_ditemukan', pesan: 'Objek tidak ada atau tidak boleh Anda lihat.' }]
         // Seperti backend: hanya keputusan disetujui/ditolak (bukan menunggu, ditarik, atau kedaluwarsa).
@@ -187,7 +200,7 @@ export function buatServerTtd(opsi: OpsiServerTtd) {
         if (lama) return { ...bentuk(lama), baru: false }
         const isiSaatTtd = isiKanonik(o.jenis, o.id)
         const t = {
-          id: `00000000-0000-7000-c000-${(++nomor).toString(16).padStart(12, '0')}`, objek_jenis: 'persetujuan_akses' as const, objek_id: o.id,
+          id: `00000000-0000-7000-c000-${(++nomor).toString(16).padStart(12, '0')}`, objek_jenis: o.jenis as TandaTangan['objek_jenis'], objek_id: o.id,
           penanda_tangan: { id: saya, nama: opsi.namaAkun(saya) ?? 'Akun', nip: null }, tingkat: 'T1' as const, metode: 'pin' as const,
           hash_isi: hex(isiSaatTtd, 64), sidik_kunci: k.sidik, kredensial_dicabut: false, ditandatangani_pada: sekarang().toISOString(),
           verifikasi: { status: 'sah' as const, diperiksa_pada: sekarang().toISOString() }, isiSaatTtd,
@@ -198,11 +211,15 @@ export function buatServerTtd(opsi: OpsiServerTtd) {
       return ok({ data, meta: { sesi_berlaku_sampai: iso(k.sesiSampai) } })
     }
     if (a0 === 'ttd' && a1 === 'verifikasi' && m === 'GET' && a2 && a3) {
-      if (a2 !== 'persetujuan_akses' || !opsi.persetujuan(a3)) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
+      const ada = a2 === 'persetujuan_akses' ? !!opsi.persetujuan(a3) : a2 === 'usulan_data_induk' ? !!opsi.usulan?.(a3) : false
+      if (!ada) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
       return ok({ data: tandaTangan.filter((t) => t.objek_id === a3).sort((x, y) => x.ditandatangani_pada.localeCompare(y.ditandatangani_pada)).map(bentuk) })
     }
     return null
   }
 
-  return { tangani, status, aktifkan, /** Uji: ubah isi tersimpan → verifikasi isi_berubah. */ rusakIsi: (objekId: string) => tandaTangan.filter((t) => t.objek_id === objekId).forEach((t) => (t.isiSaatTtd += '!')) }
+  /** Akun sudah menandatangani isi objek saat ini (untuk `dapat.tandatangani` usulan). */
+  const sudahTtd = (objekId: string, akunId: string) =>
+    tandaTangan.some((t) => t.objek_id === objekId && t.penanda_tangan.id === akunId && t.isiSaatTtd === isiKanonik(t.objek_jenis, objekId))
+  return { tangani, status, aktifkan, sudahTtd, /** Uji: ubah isi tersimpan → verifikasi isi_berubah. */ rusakIsi: (objekId: string) => tandaTangan.filter((t) => t.objek_id === objekId).forEach((t) => (t.isiSaatTtd += '!')) }
 }

@@ -700,7 +700,41 @@ export function buatServerLokasi(opsi: OpsiServerLokasi = {}) {
     return null
   }
 
-  return { tangani, contoh: { gedungA, lantai1, r101, r102, melati, km101, km102, k3, k1 } }
+  // ── Untuk server tiruan usulan (1.8c): potret nilai objek dan label nilai referensi ──
+  function potretObjek(jenis: 'ruang' | 'kamar' | 'tempat_tidur', id: string): { label: string; nilai: Record<string, unknown> } | null {
+    if (jenis === 'tempat_tidur') {
+      const t = tt.get(id)
+      return t ? { label: `TT ${t.kode}`, nilai: { kelas_rawat_id: t.kelas_id, aturan_jenis_kelamin: t.aturan_jenis_kelamin, isolasi: t.isolasi, ekstra: t.ekstra } } : null
+    }
+    if (jenis === 'kamar') {
+      const k = kamar.get(id)
+      return k ? { label: `Kamar ${kodeLengkap(lokasi.get(k.lokasi_id)!)}`, nilai: { bangsal_id: k.bangsal_id, kapasitas_maksimum: k.kapasitas_maksimum } } : null
+    }
+    const l = lokasi.get(id)
+    return l && l.jenis === 'ruang' ? { label: `${kodeLengkap(l)} · ${l.nama}`, nilai: { induk_id: l.induk_id, kode: l.kode, nama: l.nama, fungsi: l.fungsi, unit_organisasi_id: l.unit_id, status: l.status } } : null
+  }
+  function labelNilai(isian: string, nilai: unknown): string | null {
+    if (nilai === null || nilai === undefined) return null
+    if (typeof nilai === 'boolean') return nilai ? 'Ya' : 'Tidak'
+    const teks = String(nilai)
+    switch (isian) {
+      case 'kelas_rawat_id': return kelas.get(teks)?.nama ?? teks
+      case 'bangsal_id': return bangsal.get(teks)?.nama ?? teks
+      case 'kamar_id': {
+        const k = kamar.get(teks)
+        return k ? `Kamar ${kodeLengkap(lokasi.get(k.lokasi_id)!)}` : teks
+      }
+      case 'lokasi_id':
+      case 'induk_id': {
+        const l = lokasi.get(teks)
+        return l ? `${kodeLengkap(l)} · ${l.nama}` : teks
+      }
+      case 'unit_organisasi_id': return unitDari(teks)?.nama ?? teks
+      default: return teks
+    }
+  }
+
+  return { tangani, potretObjek, labelNilai, contoh: { gedungA, lantai1, r101, r102, melati, km101, km102, k3, k1 } }
 }
 
 export type ServerLokasi = ReturnType<typeof buatServerLokasi>
