@@ -34,12 +34,16 @@ final class Penyamar
         return $teks === null ? null : (string) preg_replace(self::POLA_ANGKA, self::TERSAMAR, $teks);
     }
 
-    /** Path tanpa query; segmen yang memuat deret angka panjang diganti. */
+    /**
+     * Path tanpa query; segmen yang memuat deret angka panjang, atau segmen ≥ 8 karakter dengan ≥ 3 angka (nomor
+     * alfanumerik seperti rujukan/SEP), diganti. Pemanggil yang tahu letak identitas sebaiknya memberi path log sendiri.
+     */
     public static function path(string $path): string
     {
         $path = (string) strtok($path, '?');
 
-        return implode('/', array_map(fn (string $s) => preg_match(self::POLA_ANGKA, $s) === 1 ? self::TERSAMAR : $s, explode('/', $path)));
+        return implode('/', array_map(fn (string $s) => preg_match(self::POLA_ANGKA, $s) === 1
+            || (strlen($s) >= 8 && preg_match_all('/\d/', $s) >= 3) ? self::TERSAMAR : $s, explode('/', $path)));
     }
 
     /**
