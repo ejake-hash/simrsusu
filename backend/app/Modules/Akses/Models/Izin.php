@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $menu_id
  * @property string $jenis_aksi
  * @property bool $sensitif
+ * @property bool $butuh_mfa lapis 5: MFA sesi masih baru (K11, tiket 1.5)
+ * @property bool $butuh_kewenangan_klinis lapis 5: SIP/SPK dan RKK (tiket 1.5)
  * @property string|null $peran_penyetuju_id pemilik data izin sensitif (K3, tiket 1.2d)
  */
 final class Izin extends Model

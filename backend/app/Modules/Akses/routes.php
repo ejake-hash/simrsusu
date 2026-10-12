@@ -5,9 +5,12 @@ use App\Modules\Akses\Http\Controllers\AkunController;
 use App\Modules\Akses\Http\Controllers\AkunPegawaiController;
 use App\Modules\Akses\Http\Controllers\AutentikasiController;
 use App\Modules\Akses\Http\Controllers\IzinController;
+use App\Modules\Akses\Http\Controllers\LabelAkunController;
+use App\Modules\Akses\Http\Controllers\LabelSensitivitasController;
 use App\Modules\Akses\Http\Controllers\MenuController;
 use App\Modules\Akses\Http\Controllers\MenuSayaController;
 use App\Modules\Akses\Http\Controllers\MfaController;
+use App\Modules\Akses\Http\Controllers\MfaUlangController;
 use App\Modules\Akses\Http\Controllers\PeranController;
 use App\Modules\Akses\Http\Controllers\PermintaanAksesController;
 use App\Modules\Akses\Http\Controllers\PersetujuanAksesController;
@@ -19,7 +22,7 @@ use Illuminate\Support\Facades\Route;
 // GET /sanctum/csrf-cookie didaftarkan oleh Sanctum. Rute bersesi memakai guard web (cookie),
 // bukan token pribadi Sanctum: token hanya untuk integrasi mesin-ke-mesin.
 // Id bukan UUID → 404 tidak_ditemukan, bukan error tipe dari PostgreSQL.
-Route::prefix('api/v1')->middleware('api')->whereUuid(['peran', 'akun', 'penugasanId', 'izinKhususId', 'persetujuan', 'permintaan'])->group(function () {
+Route::prefix('api/v1')->middleware('api')->whereUuid(['peran', 'akun', 'penugasanId', 'izinKhususId', 'persetujuan', 'permintaan', 'labelAkunId'])->group(function () {
     Route::post('autentikasi/masuk', [AutentikasiController::class, 'masuk'])
         ->middleware('throttle:autentikasi-masuk');
 
@@ -61,6 +64,8 @@ Route::prefix('api/v1')->middleware('api')->whereUuid(['peran', 'akun', 'penugas
         Route::post('akun/{akun}/aktifkan', [AksesAkunController::class, 'aktifkan'])->middleware('can.rs:pengaturan.akun.perbaiki');
         Route::post('pegawai/{pegawai}/akun', AkunPegawaiController::class)->whereUuid('pegawai')->middleware('can.rs:pengaturan.akun.input');
         Route::post('saya/sandi', SandiController::class);
+        // MFA ulang di sesi berjalan untuk izin butuh_mfa (K11, PRD 10.3.2 langkah 3; tiket 1.5).
+        Route::post('saya/mfa/verifikasi-ulang', MfaUlangController::class)->middleware('throttle:autentikasi-mfa');
 
         // Persetujuan dan permintaan akses (tiket 1.2d). /persetujuan-akses tanpa izin: hanya data yang relevan
         // bagi akun itu (pengaju, penerima, pemegang peran penyetuju); aturan keputusan di AlurPersetujuan.
@@ -72,6 +77,12 @@ Route::prefix('api/v1')->middleware('api')->whereUuid(['peran', 'akun', 'penugas
         Route::post('persetujuan-akses/{persetujuan}/batalkan', [PersetujuanAksesController::class, 'batalkan']);
         Route::get('permintaan-akses', [PermintaanAksesController::class, 'index']);
         Route::post('permintaan-akses', [PermintaanAksesController::class, 'store']);
+        // Lapis 4: label sensitivitas dan izin label per akun (tiket 1.5, kontrak v0.14.0).
+        Route::get('label-sensitivitas', [LabelSensitivitasController::class, 'index'])->middleware('can.rs:pengaturan.akun.lihat');
+        Route::put('label-sensitivitas/{kode}/penyetuju', [LabelSensitivitasController::class, 'aturPenyetuju'])->middleware('can.rs:pengaturan.peran.perbaiki');
+        Route::get('akun/{akun}/label', [LabelAkunController::class, 'index'])->middleware('can.rs:pengaturan.akun.lihat');
+        Route::post('akun/{akun}/label', [LabelAkunController::class, 'ajukan'])->middleware('can.rs:pengaturan.akun.input');
+        Route::post('akun/{akun}/label/{labelAkunId}/batal', [LabelAkunController::class, 'batalkan'])->middleware('can.rs:pengaturan.akun.perbaiki');
         Route::post('permintaan-akses/{permintaan}/tolak', [PermintaanAksesController::class, 'tolak'])->middleware('can.rs:pengaturan.akun.perbaiki');
     });
 });

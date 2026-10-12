@@ -87,7 +87,7 @@ final class AlurPersetujuan
     }
 
     /** Pengajuan yang penerimanya = semua pemegang peran_id (bukan satu akun sasaran). */
-    private const OBJEK_PERAN = ['izin_peran', 'penyetuju_izin'];
+    public const OBJEK_PERAN = ['izin_peran', 'penyetuju_izin', 'penyetuju_label'];
 
     /**
      * Peran yang dipegang akun: `berlaku` (penugasan berlaku, peran aktif) menentukan penyetuju; `masih_aktif`
@@ -108,7 +108,7 @@ final class AlurPersetujuan
     /**
      * Kode penolakan bila akun ini tidak boleh memutuskan (null = boleh). Status/kedaluwarsa diperiksa terpisah.
      * Penerima: akun sasaran (penugasan, pengakhiran, izin khusus); untuk izin peran semua pemegang peran sasaran;
-     * untuk penyetuju izin semua pemegang peran yang ditunjuk (kontrak v0.4.0).
+     * untuk penyetuju izin dan penyetuju label semua pemegang peran yang ditunjuk (kontrak v0.4.0, v0.14.0).
      *
      * @param  array{berlaku: list<string>, masih_aktif: list<string>}|null  $dipegang  hasil peranDipegang()
      */

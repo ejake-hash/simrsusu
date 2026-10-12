@@ -47,6 +47,8 @@ return [
         'toleransi_periode' => 1,
         // Nama yang tampil di aplikasi autentikator; isi nama RS di produksi.
         'penerbit' => env('AUTENTIKASI_MFA_PENERBIT', env('APP_NAME', 'SIMRS')),
+        // K11 (tiket 1.5): izin butuh_mfa minta MFA ulang bila verifikasi terakhir di sesi lebih lama dari ini.
+        'ulang_menit' => (int) env('AUTENTIKASI_MFA_ULANG_MENIT', 15),
     ],
 
     // Hanya untuk AkunSintetisSeeder di lokal/staging; kosong = dibuat acak dan dicetak sekali.

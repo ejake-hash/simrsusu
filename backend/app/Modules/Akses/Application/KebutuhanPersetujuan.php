@@ -5,6 +5,7 @@ namespace App\Modules\Akses\Application;
 use App\Core\Http\ApiError;
 use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Izin;
+use App\Modules\Akses\Models\LabelSensitivitas;
 use App\Modules\Akses\Models\Peran;
 use Illuminate\Support\Collection;
 
@@ -38,7 +39,8 @@ final class KebutuhanPersetujuan
 
     /**
      * Penyetuju penugasan sebuah peran: superadmin lain untuk peran superadmin (K4); pemilik data tiap izin sensitif
-     * yang dimuatnya (K3); superadmin lain bila peran itu penyetuju izin sensitif (K13). Kosong = langsung berlaku.
+     * yang dimuatnya (K3); superadmin lain bila peran itu penyetuju izin sensitif atau label sensitivitas (K13, tiket
+     * 1.5). Kosong = langsung berlaku.
      * $kunci: baris izin yang menentukan dikunci (dipakai saat penerapan, di dalam transaksi).
      *
      * @return list<string> peran penyetuju id, unik
@@ -54,7 +56,9 @@ final class KebutuhanPersetujuan
             ->when($kunci, fn ($q) => $q->orderBy('id')->lockForUpdate())->get();
         $dimuat = $sensitif->filter(fn (Izin $i) => in_array($i->id, $idDimuat, true))->values();
         $penyetuju = array_values($this->penyetujuIzin($dimuat));
-        if ($sensitif->contains(fn (Izin $i) => $i->peran_penyetuju_id === $peran->id)) {
+        $penyetujuLabel = LabelSensitivitas::query()->where('peran_penyetuju_id', $peran->id)
+            ->when($kunci, fn ($q) => $q->orderBy('id')->lockForUpdate())->exists();
+        if ($penyetujuLabel || $sensitif->contains(fn (Izin $i) => $i->peran_penyetuju_id === $peran->id)) {
             $penyetuju[] = $this->peranSuperadmin();
         }
 

@@ -6,8 +6,10 @@ use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
 use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Izin;
+use App\Modules\Akses\Models\LabelSensitivitas;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaIzinKhusus;
+use App\Modules\Akses\Models\PenggunaLabel;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\Peran;
 use App\Modules\Akses\Models\PersetujuanAkses;
@@ -38,8 +40,54 @@ final class PenerapPersetujuan
             'izin_khusus' => $this->izinKhusus($p, $penyetuju),
             'penyetuju_izin' => $this->penyetujuIzin($p, $penyetuju),
             'reset_ttd' => $this->resetTtd($p, $penyetuju),
+            'izin_label' => $this->izinLabel($p, $penyetuju),
+            'penyetuju_label' => $this->penyetujuLabel($p, $penyetuju),
             default => throw new TidakBisaDiterapkan('Jenis pengajuan tidak dikenal.'),
         };
+    }
+
+    /**
+     * Izin label (tiket 1.5): baris pengguna_label yang dibuat saat diajukan menjadi aktif sejak sekarang. Masa berlaku
+     * yang sudah lewat selagi menunggu tidak diterapkan (ajukan ulang), bukan menjadi izin yang langsung berakhir.
+     */
+    private function izinLabel(PersetujuanAkses $p, Pengguna $penyetuju): void
+    {
+        $akun = Pengguna::query()->lockForUpdate()->find($p->sasaran_pengguna_id);
+        $izin = PenggunaLabel::query()->where('persetujuan_akses_id', $p->id)->lockForUpdate()->first();
+        $label = LabelSensitivitas::query()->find($p->objek['label_id'] ?? null);
+        if ($akun === null || ! $akun->aktif() || $izin === null || $izin->status !== 'menunggu' || $label === null || ! $label->aktif) {
+            throw new TidakBisaDiterapkan('Akun atau label sudah tidak aktif.');
+        }
+        if (! $izin->berlaku_sampai->isFuture()) {
+            throw new TidakBisaDiterapkan('Masa berlaku yang diajukan sudah lewat; ajukan ulang.');
+        }
+        if (PenggunaLabel::query()->berlaku()->where('pengguna_id', $akun->id)->where('label_sensitivitas_id', $label->id)->exists()) {
+            throw new TidakBisaDiterapkan('Akun ini sudah punya izin label yang sama.');
+        }
+
+        $izin->forceFill(['status' => 'aktif', 'berlaku_dari' => now(), 'disetujui_oleh' => $penyetuju->id, 'diubah_oleh' => $penyetuju->id])->save();
+
+        $this->audit->catat('akses.label_diberikan', $penyetuju->id, 'akses.pengguna', $akun->id, [
+            'pengguna_label_id' => $izin->id, 'label' => $label->kode, 'persetujuan' => $p->nomor,
+            'berlaku_sampai' => $izin->berlaku_sampai->toIso8601String(), 'dasar_pemberian' => $izin->dasar_pemberian,
+        ]);
+    }
+
+    private function penyetujuLabel(PersetujuanAkses $p, Pengguna $penyetuju): void
+    {
+        $label = LabelSensitivitas::query()->lockForUpdate()->find($p->objek['label_id'] ?? null);
+        // Dikunci: penugasan peran ini yang diterapkan bersamaan menghitung ulang penyetuju sesudah perubahan ini (K13).
+        $peran = Peran::query()->lockForUpdate()->find($p->peran_id);
+        if ($label === null || ! $label->aktif || $peran === null || $peran->status !== 'aktif') {
+            throw new TidakBisaDiterapkan('Peran sudah nonaktif atau label tidak aktif.');
+        }
+
+        $sebelum = $label->peran_penyetuju_id;
+        LabelSensitivitas::query()->whereKey($label->id)->update(['peran_penyetuju_id' => $peran->id, 'diubah_oleh' => $p->diajukan_oleh, 'diubah_pada' => now()]);
+
+        $this->audit->catat('akses.penyetuju_label_diubah', $penyetuju->id, 'akses.label_sensitivitas', $label->id, [
+            'kode' => $label->kode, 'peran_penyetuju_id' => $peran->id, 'persetujuan' => $p->nomor, 'dasar_perubahan' => $p->dasar,
+        ], ['peran_penyetuju_id' => $sebelum]);
     }
 
     /** Reset TTE (tiket 1.6): dicabut oleh modul Ttd; TidakBisaDiterapkan bila TTE sudah tidak aktif. */
