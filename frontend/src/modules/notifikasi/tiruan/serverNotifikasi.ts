@@ -79,7 +79,7 @@ export function buatServerNotifikasi(opsi: OpsiServerNotifikasi) {
   const t1 = tambahTugas('saya', { judul: 'Putuskan persetujuan PSA-2026-000101', tenggat_pada: menitLalu(-120), tingkat_saat_ini: 1 }, [{ jenis: 'pengingat', tingkat: 1, terjadi_pada: menitLalu(30) }])
   const t2 = tambahTugas('saya', {
     judul: 'Tindak lanjuti permintaan akses contoh.dokter', jenis: { kode: jPermintaan.kode, nama: jPermintaan.nama }, objek: { jenis: 'permintaan_akses', id: id(++nomor), label: 'Rawat Jalan → Worklist' },
-    tautan: '/pengaturan/persetujuan?tab=permintaan', tenggat_pada: menitLalu(-2000),
+    tautan: `/pengaturan/akun?permintaan=${id(9001)}`, tenggat_pada: menitLalu(-2000),
   })
   tambahTugas('dieskalasi', { judul: 'Putuskan persetujuan PSA-2026-000099', tenggat_pada: menitLalu(300), tingkat_saat_ini: 2, terlambat: true, kritis: true }, [
     { jenis: 'pengingat', tingkat: 1, terjadi_pada: menitLalu(540) },
@@ -94,7 +94,7 @@ export function buatServerNotifikasi(opsi: OpsiServerNotifikasi) {
   ])
   tambahNotif({ jenis: 'AKUN_TERKUNCI', judul: 'Akun Anda sempat terkunci', isi: 'Terlalu banyak percobaan masuk gagal. Bila bukan Anda, segera ganti sandi.', prioritas: 'kritis' }, 15)
   tambahNotif({ jenis: jPersetujuan.kode, judul: 'Pengingat: putuskan PSA-2026-000101', isi: 'Tenggat 2 jam lagi.', tautan: '/pengaturan/persetujuan', prioritas: 'penting', tugas_id: t1.id }, 30)
-  tambahNotif({ jenis: jPermintaan.kode, judul: 'Permintaan akses baru dari contoh.dokter', isi: 'Rawat Jalan → Worklist poliklinik.', tautan: '/pengaturan/persetujuan?tab=permintaan', tugas_id: t2.id }, 90)
+  tambahNotif({ jenis: jPermintaan.kode, judul: 'Permintaan akses baru dari contoh.dokter', isi: 'Rawat Jalan → Worklist poliklinik.', tautan: `/pengaturan/akun?permintaan=${id(9001)}`, tugas_id: t2.id }, 90)
   tambahNotif({ jenis: jPersetujuan.kode, judul: 'PSA-2026-000090 sudah diputuskan', isi: 'Disetujui superadmin lain.', dibaca_pada: menitLalu(1500) }, 1600)
 
   // ── Preferensi ──

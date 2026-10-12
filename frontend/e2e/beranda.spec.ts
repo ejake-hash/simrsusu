@@ -154,3 +154,29 @@ for (const [lebar, tinggi] of [
     expect(berat.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
   })
 }
+
+// ── Tiket 1.7: kotak kerja, lonceng, dan preferensi notifikasi berfungsi di ponsel (PRD 5.5) ──
+test('390 px: kotak kerja ringkas, lonceng membuka panel, preferensi notifikasi disimpan; tanpa gulir samping', async ({ browser }, info) => {
+  const page = await halaman(browser, asalDari(info.project.use.baseURL), 'contoh.tanpa.peran', 390, 844)
+  await page.goto('/')
+  const kotak = page.getByRole('region', { name: 'Kotak kerja' })
+  await expect(kotak.getByRole('tab', { name: 'Tugas saya (0)' })).toBeVisible()
+  await expect(kotak.getByText('Tidak ada tugas terbuka untuk Anda.')).toBeVisible()
+  await kotak.getByRole('tab', { name: /^Unit saya/ }).click()
+  await expect(kotak.getByText('Tidak ada tugas terbuka di unit yang Anda kepalai.')).toBeVisible()
+
+  await page.getByRole('button', { name: /^Notifikasi/ }).click()
+  const panel = page.getByRole('region', { name: 'Notifikasi' })
+  await expect(panel).toBeVisible()
+  await panel.getByRole('link', { name: 'Atur notifikasi' }).click()
+  await expect(page).toHaveURL(/\/notifikasi\?tab=preferensi/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Notifikasi' })).toBeVisible()
+  // Jenis kritis (mis. akun terkunci): email tidak bisa dimatikan.
+  await expect(page.getByRole('row').filter({ hasText: 'Kritis: selalu dikirim' }).first().getByRole('checkbox', { name: /^Email untuk/ })).toBeDisabled()
+  const email = page.getByRole('checkbox', { name: 'Email untuk Permintaan akses menunggu' })
+  await email.setChecked(!(await email.isChecked()))
+  await page.getByRole('button', { name: 'Simpan preferensi' }).click()
+  await expect(page.getByText('Preferensi notifikasi disimpan.')).toBeVisible()
+  await tanpaGulirSamping(page)
+  await page.context().close()
+})
