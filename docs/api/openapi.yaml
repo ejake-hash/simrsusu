@@ -3922,7 +3922,7 @@ components:
             status_blu: { type: [boolean, 'null'] }
             kode_ppk_bpjs: { type: [string, 'null'], maxLength: 20 }
             alamat: { type: [string, 'null'], maxLength: 500 }
-            status_penyiapan: { type: string, enum: [belum, sebagian, selesai], description: "Langkah 2 wizard (FR-54-08, profil RS) saja; status sembilan langkah dan siap melayani ada di GET /penyiapan (1.8f)" }
+            status_penyiapan: { type: string, enum: [belum, sebagian, selesai], description: "Langkah 2 wizard (FR-54-08, profil RS) saja: `sebagian` sejak profil dibuat, `selesai` sejak langkah 2 pertama kali dikonfirmasi dan tidak turun lagi walau syarat langkah 2 kemudian berkurang (GET /penyiapan tanpa efek samping). Status sembilan langkah dan siap melayani ada di GET /penyiapan (1.8f)" }
             diubah_pada: { type: [string, 'null'], format: date-time }
     IsianProfilRs:
       type: object

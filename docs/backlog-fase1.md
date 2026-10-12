@@ -38,7 +38,7 @@
 | 1.7-be / 1.7-fe | Notifikasi, kotak kerja, jenis tugas, eskalasi 3 tingkat | be: Selesai (kontrak #51, backend #53); fe: Selesai (#60). Catatan fe: lonceng di header (polling 30 detik, ETag/304, `X-Permintaan-Latar` hanya pada polling), halaman `/notifikasi` (belum dibaca, semua, preferensi), kotak kerja di Beranda dengan riwayat tugas, Master Data → Jenis Tugas, Tenggat & Eskalasi | #51, #53 |
 | 1.6-be / 1.6-fe | TTE T1: aktivasi PIN, kunci Ed25519, TtdModal, verifikasi, tanda tangan massal; adapter PSrE + simulator | be: Selesai (kontrak #56, backend #57). Catatan be: modul `Ttd`, kunci server `TTD_KUNCI`, seeder `TtdSintetisSeeder`; dedup tanda tangan per isi sejak 1.8c; fe: Selesai (#62). Catatan fe: TtdModal dan BadgeTtd di design-system, halaman `/tanda-tangan` (aktivasi, ganti PIN) dari menu akun, tanda tangan keputusan di rincian persetujuan, `reset_ttd`/penyetuju orang di 1.2d, Ajukan reset TTE di data pegawai | #56, #57, #62 |
 | 1.5-be / 1.5-fe | Lapis 4 (label sensitivitas) dan 5 (izin praktik, RKK, MFA ulang) | Siap setelah 1.8d, 1.2d, 1.6 | — |
-| 1.9-be / 1.9-fe | Gateway integrasi: outbox, adapter BPJS/SATUSEHAT/Aplicares, simulator, layar Konfigurasi & status | Siap setelah 1.8b, 1.8f | — |
+| 1.9-be / 1.9-fe | Gateway integrasi: outbox, adapter BPJS/SATUSEHAT/Aplicares, simulator, layar Konfigurasi & status | be: **Sebagian** (kontrak #75, backend #76, VClaim baca PR ini). Selesai: kredensial (K9), outbox + retry + circuit breaker + tertahan (FR-49-04/05), log disamarkan, simulator (K8), uji koneksi, VClaim baca (peserta, rujukan FKTP→RS, referensi), langkah 8 penyiapan. **Sisa menunggu dokumen resmi** (lihat utang 1.9): penangan SATUSEHAT Organization/Location/IHS/KFA, Aplicares bed/update. fe: dikerjakan sesi 2 | #75, #76 |
 | 1.11 | Design system: komponen inti PRD 5.4 yang dipakai fase 1, katalog komponen (dev) | Selesai | #36 |
 | 1.12 | Gerbang keluar Fase 1: uji beban, cek keamanan, runbook instalasi (PRD 16 sudah di v0.10.12) | Siap setelah semua | — |
 | 1.10 | SSO (OIDC/SAML) ke penyedia identitas RS/universitas; tombol tampil hanya bila dikonfigurasi | **Terhambat**: perlu data IdP dari RS/USU | — |
@@ -160,6 +160,17 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   polling vs WebSocket, "100% lewat usulan", TTE pengesahan, `*_versi`, query lintas modul, K1/K2/K7/K10 di 17.2, dll.)
   diusulkan di PR [Perlu pemilik] #72 (PRD v0.10.15); 1.8f (`inti.penyiapan_konfirmasi`, `profil_rs.siap_melayani_sejak`)
   didokumentasikan di PRD berikutnya.
+- **Utang 1.9 (menunggu dokumen resmi / contoh payload yang lulus; tidak dikarang, CLAUDE.md):**
+  - SATUSEHAT: payload Organization dan Location (identifier `sys-ids`, `physicalType`, `partOf`, `managingOrganization`),
+    pencarian IHS Patient/Practitioner by NIK, bentuk respons KFA. Catatan lapangan (di luar repo) hanya memuat nama
+    method dan host. Butir be 4 tiket 1.9 belum dibangun.
+  - Aplicares: alamat per lingkungan, isi `bed/update`, dan kode sukses (kini `1`/`200` ditebak, *perlu verifikasi*,
+    DoD D.7). Butir be 5 belum dibangun. Saat dibangun: urutan kiriman per agregat (kiriman lama yang retry tidak boleh
+    menimpa keadaan baru; penangan membaca keadaan terkini atau kiriman lama ditandai digantikan) — catatan tinjauan #76.
+  - Kode BPJS untuk "data tidak ditemukan" di simulator (`201`) asumsi; sukses VClaim = `200` (catatan §1.4).
+  - PRD 11.2 `integrasi.*` belum memuat kolom yang dibangun (`kredensial_api.isian/rahasia/rahasia_ringkas/id_kunci`,
+    `status_sistem`, `log_api.lingkungan`, `kotak_keluar.lingkungan/kunci_idempotensi/penyebab_tertahan_*`) dan
+    `organization_id` per lingkungan (PRD menyebut `profil_rs.satusehat_org_id`); menyusul PRD penyelarasan berikutnya.
 - Utang arsitektur (dari penyelarasan PRD, #72 B-13/B-14): modul membaca tabel modul lain secara langsung, padahal PRD
   10.3 meminta lewat antarmuka modul: `MasterData/Application/MesinUsulan.php` → `ttd.tanda_tangan`,
   `Ttd/Application/AtasanLangsung.php` dan `Ttd/Http/Resources/TandaTanganResource.php` → `sdm.pegawai`/`inti.unit_organisasi`,
