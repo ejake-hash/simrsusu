@@ -2,8 +2,8 @@
 
 namespace App\Providers;
 
-use App\Core\Instalasi\BelumSiapMelayani;
 use App\Core\Instalasi\StatusInstalasi;
+use App\Core\Instalasi\StatusPenyiapan;
 use App\Core\Log\InstallMasking;
 use App\Core\PemeriksaanProduksi;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -16,9 +16,8 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // Penjaga siap melayani (1.8f menggantinya dengan status penyiapan sebenarnya).
-        $this->app->bindIf(StatusInstalasi::class, BelumSiapMelayani::class);
-        //
+        // Penjaga siap melayani dari wizard penyiapan (tiket 1.8f).
+        $this->app->bindIf(StatusInstalasi::class, StatusPenyiapan::class);
     }
 
     public function boot(): void
@@ -43,9 +42,11 @@ class AppServiceProvider extends ServiceProvider
 
         $this->loadMigrationsFrom([
             app_path('Core/Audit/Database/migrations'), app_path('Core/Modul/Database/migrations'), app_path('Core/ProfilRs/Database/migrations'),
+            app_path('Core/Instalasi/Database/migrations'),
         ]);
         $this->loadRoutesFrom(app_path('Core/Http/routes.php'));
         $this->loadRoutesFrom(app_path('Core/ProfilRs/routes.php'));
+        $this->loadRoutesFrom(app_path('Core/Instalasi/routes.php'));
 
         // throttle:api dipasang ke grup `api` di bootstrap/app.php; nilai di config/rate_limit.php.
         RateLimiter::for('api', fn (Request $request) => self::batasPerPengguna(

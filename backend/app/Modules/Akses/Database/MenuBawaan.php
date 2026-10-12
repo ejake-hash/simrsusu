@@ -30,7 +30,7 @@ final class MenuBawaan
     ];
 
     /** Superadmin mengelola peran, akun, dan profil RS (wizard langkah 2); tidak membuka rekam medis, rupiah, atau data induk milik unit (PRD 9.2.4, FR-54-01). */
-    public const SUB_MENU_SUPERADMIN = ['pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs'];
+    public const SUB_MENU_SUPERADMIN = ['pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.penyiapan'];
 
     /**
      * Izin yang setara kuasa superadmin (membuat/mengubah peran, memberi akses): sensitif, jadi tidak bisa
@@ -213,6 +213,7 @@ final class MenuBawaan
                 'audit' => ['Jejak audit', 54],
                 'integrasi' => ['Konfigurasi integrasi', 54],
                 'profil_rs' => ['Profil rumah sakit', 54],
+                'penyiapan' => ['Penyiapan instalasi', 54],
             ]],
         ]],
     ];
