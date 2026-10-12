@@ -43,6 +43,9 @@ class PaketReferensiTest extends TestCase
         // Versi sama, isi sama: idempoten (tidak ada perubahan, tidak ada baris paket kedua).
         $this->muat('wilayah', self::WILAYAH_V1, 'terapkan', '2025.1')->assertOk()->assertJsonPath('data.jumlah_baru', 0)->assertJsonPath('data.jumlah_diubah', 0);
         $this->assertSame(1, DB::table('inti.paket_referensi')->where('sistem', 'wilayah')->count());
+        $this->muat('wilayah', self::WILAYAH_V1, 'pratinjau', '2025.1')->assertOk()->assertJsonPath('data.diterapkan', false)
+            ->assertJsonPath('data.jumlah_baru', 0)->assertJsonPath('data.jumlah_diubah', 0)->assertJsonPath('data.jumlah_dinonaktifkan', 0);
+        $this->assertSame(1, DB::table('audit.log_aktivitas')->where('aksi', 'master_data.referensi_dimuat')->count());
         // Versi sama, isi lain: ditolak.
         $this->muat('wilayah', str_replace('Desa Dua', 'Desa Dua Baru', self::WILAYAH_V1), 'terapkan', '2025.1')
             ->assertStatus(409)->assertJsonPath('error.kode', 'versi_sudah_dimuat');
@@ -55,10 +58,12 @@ class PaketReferensiTest extends TestCase
         $this->assertFalse((bool) $dua->aktif);
         $this->assertNotNull($dua->dinonaktifkan_pada);
         $this->assertSame('2025.1', $dua->versi_terakhir);
+        // Versi lama yang sudah digantikan tidak bisa dimuat ulang, walau isinya sama.
+        $this->muat('wilayah', self::WILAYAH_V1, 'pratinjau', '2025.1')->assertStatus(409)->assertJsonPath('error.kode', 'versi_sudah_dimuat');
         // Muncul lagi di versi berikutnya: diaktifkan kembali.
         $this->muat('wilayah', self::WILAYAH_V1, 'terapkan', '2025.3')->assertOk()->assertJsonPath('data.jumlah_diaktifkan_lagi', 1);
         $this->assertTrue((bool) DB::table('inti.wilayah')->where('kode_kemendagri', '99.01.01.2002')->value('aktif'));
-        $this->assertTrue(DB::table('audit.log_aktivitas')->where('aksi', 'master_data.referensi_dimuat')->exists());
+        $this->assertSame(3, DB::table('audit.log_aktivitas')->where('aksi', 'master_data.referensi_dimuat')->count());
     }
 
     public function test_berkas_rusak_ditolak_dengan_nomor_baris(): void
@@ -114,6 +119,14 @@ class PaketReferensiTest extends TestCase
         $detik = microtime(true) - $mulai;
         $this->assertLessThan(30, $detik, "Memuat 90.311 baris: {$detik} detik");
         $this->assertSame(90000, DB::table('inti.wilayah')->where('tingkat', 'kelurahan')->whereNotNull('induk_id')->count());
+
+        // Versi berikutnya di atas 90 ribu kode yang sudah ada (jalur pembanding, memori tetap di bawah 128 MB).
+        $v2 = str_replace("99.10.30.2300,Desa 10-30-300\n", '', str_replace(",Desa 1-1-1\n", ",Desa 1-1-1 Baru\n", $csv));
+        $mulai = microtime(true);
+        $this->muat('wilayah', $v2, 'terapkan', 'beban2')->assertOk()->assertJsonPath('data.jumlah_baru', 0)
+            ->assertJsonPath('data.jumlah_diubah', 1)->assertJsonPath('data.jumlah_dinonaktifkan', 1);
+        $detik = microtime(true) - $mulai;
+        $this->assertLessThan(30, $detik, "Memuat versi kedua: {$detik} detik");
     }
 
     public function test_hanya_pemegang_izin_katalog_input(): void
