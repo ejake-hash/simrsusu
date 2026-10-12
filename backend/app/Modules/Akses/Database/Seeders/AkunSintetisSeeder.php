@@ -48,6 +48,9 @@ final class AkunSintetisSeeder extends Seeder
         // Admin SDM (tiket 1.8d): data pegawai, kredensial, dan buat akun dari pegawai. pengaturan.akun.input
         // butuh MFA, jadi MFA aktif dengan rahasia sintetis yang diketahui e2e.
         'contoh.sdm' => 'Contoh Admin SDM',
+        // Admin integrasi (tiket 1.9): konfigurasi, uji koneksi, kotak keluar, log. pengaturan.integrasi.perbaiki sensitif,
+        // jadi MFA aktif dengan rahasia sintetis yang diketahui e2e.
+        'contoh.integrasi' => 'Contoh Admin Integrasi',
         // TTE (tiket 1.6): contoh.ttd dengan TTE aktif (PIN sintetis, TtdSintetisSeeder); contoh.ttd.baru tanpa TTE (alur aktivasi).
         'contoh.ttd' => 'Contoh Akun TTE',
         'contoh.ttd.baru' => 'Contoh Akun TTE Baru',
@@ -81,6 +84,10 @@ final class AkunSintetisSeeder extends Seeder
             'sdm.kredensial.lihat', 'sdm.kredensial.input', 'sdm.kredensial.perbaiki',
             'master_data.organisasi.lihat', 'pengaturan.akun.lihat', 'pengaturan.akun.input',
         ]],
+        'contoh_integrasi' => ['Contoh Admin Integrasi', 'contoh.integrasi', [
+            'pengaturan.integrasi.lihat', 'pengaturan.integrasi.perbaiki', 'integrasi.satusehat.lihat', 'integrasi.satusehat.perbaiki',
+            'integrasi.bpjs.lihat', 'integrasi.bpjs.perbaiki', 'integrasi.log.lihat',
+        ]],
         'contoh_usulan_pengusul' => ['Contoh Pengusul Usulan', 'contoh.usulan.pengusul', self::IZIN_USULAN],
         'contoh_usulan_verifikator' => ['Contoh Verifikator Usulan', 'contoh.usulan.verifikator', self::IZIN_USULAN],
         'contoh_usulan_penyetuju' => ['Contoh Penyetuju Usulan', 'contoh.usulan.penyetuju', self::IZIN_USULAN],
@@ -109,7 +116,9 @@ final class AkunSintetisSeeder extends Seeder
         [$rahasiaSuperadmin, $rahasiaSuperadminAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_superadmin_mfa_rahasia');
         [$rahasiaSuperadminDua, $rahasiaSuperadminDuaAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_superadmin_dua_mfa_rahasia');
         [$rahasiaSdm, $rahasiaSdmAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_sdm_mfa_rahasia');
-        $rahasia = ['contoh.mfa' => $rahasiaMfa, 'contoh.superadmin' => $rahasiaSuperadmin, 'contoh.superadmin.dua' => $rahasiaSuperadminDua, 'contoh.sdm' => $rahasiaSdm];
+        [$rahasiaIntegrasi, $rahasiaIntegrasiAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_integrasi_mfa_rahasia');
+        $rahasia = ['contoh.mfa' => $rahasiaMfa, 'contoh.superadmin' => $rahasiaSuperadmin, 'contoh.superadmin.dua' => $rahasiaSuperadminDua,
+            'contoh.sdm' => $rahasiaSdm, 'contoh.integrasi' => $rahasiaIntegrasi];
 
         $urutan = 0;
         foreach (self::AKUN as $namaPengguna => $nama) {
@@ -154,6 +163,7 @@ final class AkunSintetisSeeder extends Seeder
             $rahasiaSuperadminAcak ? "Rahasia TOTP contoh.superadmin (hanya ditampilkan sekali): {$rahasiaSuperadmin}" : null,
             $rahasiaSuperadminDuaAcak ? "Rahasia TOTP contoh.superadmin.dua (hanya ditampilkan sekali): {$rahasiaSuperadminDua}" : null,
             $rahasiaSdmAcak ? "Rahasia TOTP contoh.sdm (hanya ditampilkan sekali): {$rahasiaSdm}" : null,
+            $rahasiaIntegrasiAcak ? "Rahasia TOTP contoh.integrasi (hanya ditampilkan sekali): {$rahasiaIntegrasi}" : null,
         ]);
         foreach ($sekaliTampil as $pesan) {
             $this->command?->warn($pesan);

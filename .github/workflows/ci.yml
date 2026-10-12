@@ -139,6 +139,13 @@ jobs:
       AKUN_SINTETIS_TTD_PIN: "482916"
       E2E_TTD_PIN: "482916"
       TTD_KUNCI_MENIT: 1
+      # Gateway integrasi (tiket 1.9): simulator dalam repo (K8). KREDENSIAL_KUNCI di bawah nilai uji sintetis yang
+      # publik; DILARANG dipakai di server (lihat peringatan di atas).
+      KREDENSIAL_KUNCI: base64:ZTJlLWNpLWtyZWRlbnNpYWwta3VuY2ktc2ludGV0aXM=
+      INTEGRASI_SIMULATOR: "true"
+      # Rahasia TOTP sintetis akun contoh.integrasi (Base32), sekali pakai; bukan rahasia.
+      AKUN_SINTETIS_INTEGRASI_MFA_RAHASIA: NFXHIZLHOJQXG2LTNFXHIZLHOJQXG2LT
+      E2E_INTEGRASI_MFA_RAHASIA: NFXHIZLHOJQXG2LTNFXHIZLHOJQXG2LT
       # Proksi Vite (127.0.0.1) dipercaya agar e2e bisa meniru akses dari luar jaringan RS lewat
       # X-Forwarded-For (tiket 1.1c). Variabel lingkungan mengalahkan .env.
       TRUSTED_PROXIES: 127.0.0.1
