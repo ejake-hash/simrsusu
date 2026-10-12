@@ -175,6 +175,24 @@ class LabelSensitivitasTest extends TestCase
         $this->assertFalse($evaluator->punyaIzinLabel($x, 'hiv'));
     }
 
+    public function test_perubahan_data_label_langsung_terbaca_walau_cache_hangat(): void
+    {
+        [, $pejabat] = $this->pejabatPdp('hiv');
+        $x = $this->buatPengguna();
+        $this->masukSebagai($this->pengelola());
+        $id = $this->ajukan($x, 'hiv')->json('data.id');
+        $this->masukSebagai($pejabat);
+        $this->minta('POST', "/api/v1/persetujuan-akses/$id/setujui")->assertOk();
+        $evaluator = app(AccessEvaluator::class);
+        $this->assertFalse($evaluator->bolehLabel($x, 'hiv', null));
+
+        $label = LabelSensitivitas::query()->where('kode', 'hiv')->firstOrFail();
+        $label->forceFill(['butuh_relasi_perawatan' => false])->save();
+        $this->assertTrue($evaluator->bolehLabel($x, 'hiv', null));
+        $label->forceFill(['aktif' => false])->save();
+        $this->assertFalse($evaluator->bolehLabel($x, 'hiv', null));
+    }
+
     public function test_label_akun_superadmin_idor_dan_superadmin_pemegang_peran_sasaran(): void
     {
         $this->pejabatPdp('hiv');
