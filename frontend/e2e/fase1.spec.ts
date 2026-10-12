@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type APIRequestContext, type Browser, type BrowserContext, type Page } from '@playwright/test'
 import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
@@ -15,7 +16,7 @@ import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
  */
 const LEBAR = [1440, 1024, 768, 390] as const
 const TANGKAPAN = process.env.E2E_TANGKAPAN === '1'
-const DIR_TANGKAPAN = resolve(__dirname, '../../docs/lampiran/fase1')
+const DIR_TANGKAPAN = fileURLToPath(new URL('../../docs/lampiran/fase1/', import.meta.url))
 const TANPA_SESI = { cookies: [], origins: [] }
 
 interface Akun {
