@@ -217,8 +217,7 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   - Komentar blok `/persetujuan-akses` di kontrak belum menyebut `izin_label` (penerima = akun sasaran) dan
     `penyetuju_label` (penerima = pemegang peran yang ditunjuk); perilakunya sudah diuji (`penerima_sendiri`).
   - Rincian akun (`AkunRinci`) belum memuat izin label / pengajuan label yang menunggu; layar memakai GET /akun/{id}/label.
-  - PRD 11.2 `label_sensitivitas` (nama, aktif, peran_penyetuju_id) dan `pengguna_label` (status, persetujuan, kolom
-    pembatalan baku) menyusul lewat PR PRD penyelarasan sesudah backend merge.
+  - ~~PRD 11.2 `label_sensitivitas`/`pengguna_label`~~ **selesai di PRD v0.10.19** (penyelarasan 1.5 dan #86).
 - Utang arsitektur (dari penyelarasan PRD, #72 B-13/B-14): modul membaca tabel modul lain secara langsung, padahal PRD
   10.3 meminta lewat antarmuka modul: `MasterData/Application/MesinUsulan.php` → `ttd.tanda_tangan`,
   `Ttd/Application/AtasanLangsung.php` dan `Ttd/Http/Resources/TandaTanganResource.php` → `sdm.pegawai`/`inti.unit_organisasi`,
