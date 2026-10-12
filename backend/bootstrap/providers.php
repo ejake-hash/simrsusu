@@ -7,6 +7,7 @@ use App\Modules\MasterData\ModuleServiceProvider as ModulMasterData;
 use App\Modules\Notifikasi\ModuleServiceProvider as ModulNotifikasi;
 use App\Modules\Pendaftaran\ModuleServiceProvider as ModulPendaftaran;
 use App\Modules\Sdm\ModuleServiceProvider as ModulSdm;
+use App\Modules\Ttd\ModuleServiceProvider as ModulTtd;
 use App\Providers\AppServiceProvider;
 use App\Providers\HorizonServiceProvider;
 
@@ -16,6 +17,7 @@ return [
     ModulAkses::class,
     ModulMasterData::class,
     ModulNotifikasi::class,
+    ModulTtd::class,
     ModulPendaftaran::class,
     ModulAntrean::class,
     ModulIgd::class,

@@ -16,26 +16,24 @@ use Symfony\Component\HttpFoundation\Response;
 /** /api/v1/saya/tugas dan /tugas/{id} (kontrak v0.7.0, tiket 1.7). Tanpa izin khusus: hanya tugas yang terkait akun. */
 final class TugasController
 {
-    public function __construct(
-        private readonly KueriKotakKerja $kueri,
-        private readonly NotifikasiResource $resource,
-    ) {}
+    public function __construct(private readonly NotifikasiResource $resource) {}
 
-    public function index(Request $request): Response
+    /** KueriKotakKerja disuntik per pemanggilan: memonya berlaku untuk satu permintaan saja (instans controller bisa dipakai ulang). */
+    public function index(Request $request, KueriKotakKerja $kueri): Response
     {
         $tab = $request->validate(['tab' => ['required', Rule::in(KueriKotakKerja::TAB)]])['tab'];
-        $query = $this->kueri->tab($request->user(), $tab);
+        $query = $kueri->tab($request->user(), $tab);
         $respons = $tab === 'selesai'
             ? Paginasi::respons($query, $request, 'selesai_pada', bentuk: fn ($baris) => $this->resource->tugas($baris))
             : Paginasi::respons($query, $request, 'tenggat_pada', arah: 'asc', bentuk: fn ($baris) => $this->resource->tugas($baris));
 
-        return EtagIsi::terapkan($request, EtagIsi::tambahMeta($respons, ['jumlah' => $this->kueri->jumlah($request->user())]));
+        return EtagIsi::terapkan($request, EtagIsi::tambahMeta($respons, ['jumlah' => $kueri->jumlah($request->user())]));
     }
 
-    public function show(Request $request, string $tugas): JsonResponse
+    public function show(Request $request, KueriKotakKerja $kueri, string $tugas): JsonResponse
     {
         $t = Tugas::query()->find($tugas);
-        if ($t === null || ! $this->kueri->terlihat($request->user(), $t)) {
+        if ($t === null || ! $kueri->terlihat($request->user(), $t)) {
             throw new ApiError(404, 'tidak_ditemukan', 'Data tidak ditemukan.');
         }
 

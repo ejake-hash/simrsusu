@@ -783,6 +783,9 @@ Aturan rinci (kontrak v0.6.0):
     dan mencatat audit. `tanggal_keluar` = hari pertama tidak bekerja.
   - Daftar pegawai: isi `akun` hanya untuk pemegang `pengaturan.akun.lihat` (selain itu `punya_akun` saja).
   - Kepala unit / ketua KSM ditetapkan lewat PATCH /unit-organisasi dan /ksm (`kepala_pegawai_id`, `ketua_pegawai_id`).
+  - Utang kontrak (tinjauan #58, sesi 2): deskripsi GET /pegawai "klien mengurutkan tampilan" diganti "Klien menampilkan
+    urutan server (terbaru dicatat dulu) dan memakai `cari`/filter; tidak mengurutkan ulang antarhalaman" di PR kontrak
+    berikutnya (penyelarasan deskripsi, bentuk tidak berubah).
 Di luar lingkup tiket: jadwal dinas, kredensial lengkap komite (fase 4), peserta didik (fase 5).
 ```
 
@@ -946,6 +949,12 @@ Aturan rinci (kontrak v0.8.0):
     ETag/versi per objek bertanda tangan menyusul fase 2; frontend 1.2d menampilkan jenis `reset_ttd`; usulan
     `PersetujuanAkses.ditandatangani` (badge di daftar) dan status TTE akun di `Pegawai.akun` (tombol Ajukan reset);
     endpoint "akhiri sesi tanda tangan" untuk komputer bersama.
+  - Utang (tinjauan #57): unique `ttd.tanda_tangan (objek_jenis, objek_id, pengguna_id)` perlu memuat `tingkat` saat T2
+    hadir (orang yang sama menandatangani T1 lalu T2, PRD 7.57.3); verifikasi memuat kunci publik per baris (≤ 100).
+  - Utang kontrak (tinjauan pemakai #57, untuk PR kontrak berikutnya): 503 `ttd_belum_dikonfigurasi` di /saya/ttd/aktivasi,
+    /saya/ttd/pin, /ttd/tandatangani; deskripsi /saya/preferensi-notifikasi menyebut TTD_TERKUNCI (kritis) dan
+    TTD_DICABUT; contoh /saya memuat `ttd` dan `wajib_ganti_sandi`. Opsional: aturan PIN diperiksa sebelum sandi di
+    aktivasi; seeder memberi `contoh.ttd` unit berkepala dan satu persetujuan sintetis yang diputuskannya (e2e tanpa MFA).
   - `ttd.aturan_tingkat` (jenis dokumen → tingkat T1/T2/S/P) berisi data awal `persetujuan_akses → T1`, tanpa API di
     fase 1. `ttd.permintaan` dipakai SimulatorTte (T2) di uji; tanpa endpoint publik (K10).
 Di luar lingkup tiket: PSrE nyata, segel elektronik RS, halaman verifikasi publik ber-QR, tanda tangan pasien di

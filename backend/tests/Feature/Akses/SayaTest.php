@@ -65,9 +65,9 @@ class SayaTest extends TestCase
         $saya = $this->minta('GET', '/api/v1/saya')->assertOk();
 
         $this->assertSame([['id' => $alfa->id, 'nama' => 'Alfa Dokter'], ['id' => $zebra->id, 'nama' => 'Zebra Perawat']], $saya->json('data.peran'));
-        // Sama dengan respons masuk (PRD 10.3.2), ditambah field khusus /saya (wajib_ganti_sandi, tiket 1.8d).
+        // Sama dengan respons masuk (PRD 10.3.2), ditambah field khusus /saya (wajib_ganti_sandi 1.8d, ttd 1.6).
         $this->assertFalse($saya->json('data.wajib_ganti_sandi'));
-        $this->assertSame(array_diff_key($saya->json('data'), ['wajib_ganti_sandi' => true]), $masuk->json('pengguna'));
+        $this->assertSame(array_diff_key($saya->json('data'), ['wajib_ganti_sandi' => true, 'ttd' => true]), $masuk->json('pengguna'));
     }
 
     public function test_akun_tanpa_penugasan_dan_tanpa_data_yang_tidak_dipakai_layar(): void

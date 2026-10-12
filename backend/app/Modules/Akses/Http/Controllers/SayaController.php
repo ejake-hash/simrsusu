@@ -2,6 +2,7 @@
 
 namespace App\Modules\Akses\Http\Controllers;
 
+use App\Modules\Akses\Application\StatusTtdSaya;
 use App\Modules\Akses\Http\Resources\PenggunaResource;
 use App\Modules\Akses\Models\Pengguna;
 use Illuminate\Http\JsonResponse;
@@ -18,6 +19,9 @@ final class SayaController
     /** @return array<string, mixed> */
     public static function bentuk(Request $request, Pengguna $pengguna): array
     {
-        return [...(new PenggunaResource($pengguna))->resolve($request), 'wajib_ganti_sandi' => $pengguna->wajib_ganti_sandi];
+        $ttd = app()->bound(StatusTtdSaya::class) ? app(StatusTtdSaya::class)->untuk($request, $pengguna) : null;
+
+        return [...(new PenggunaResource($pengguna))->resolve($request), 'wajib_ganti_sandi' => $pengguna->wajib_ganti_sandi,
+            ...($ttd === null ? [] : ['ttd' => $ttd])];
     }
 }

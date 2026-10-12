@@ -15,7 +15,7 @@ use Illuminate\Validation\Rule;
 
 /**
  * Antrean persetujuan akses (kontrak /persetujuan-akses*, tiket 1.2d). Tanpa izin khusus: setiap akun hanya melihat
- * yang relevan baginya (pengaju, penerima, atau pemegang peran penyetuju); selain itu 404. Aturan keputusan di
+ * yang relevan baginya (pengaju, penerima, pemegang peran penyetuju, atau penyetuju orang); selain itu 404. Aturan keputusan di
  * AlurPersetujuan.
  */
 final class PersetujuanAksesController
@@ -89,9 +89,7 @@ final class PersetujuanAksesController
         /** @var Pengguna $saya */
         $saya = $request->user();
         $p = PersetujuanAkses::query()->find($id);
-        $terlihat = $p !== null && ($p->diajukan_oleh === $saya->id || $p->sasaran_pengguna_id === $saya->id
-            || in_array($p->penyetuju_peran_id, $this->alur->peranDipegang($saya)['berlaku'], true));
-        if (! $terlihat) {
+        if ($p === null || ! $this->alur->terlihat($saya, $p)) {
             throw new ApiError(404, 'tidak_ditemukan', 'Data tidak ditemukan.');
         }
 

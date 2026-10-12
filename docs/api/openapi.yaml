@@ -3136,14 +3136,14 @@ components:
               items: { type: object, additionalProperties: true }
     Saya:
       type: object
-      required: [id, nama_pengguna, login_terakhir_pada, mfa_aktif, pegawai, peran, masuk_sebelumnya_pada, masuk_sebelumnya_dari_jaringan_rs]
+      required: [id, nama_pengguna, login_terakhir_pada, mfa_aktif, pegawai, peran, masuk_sebelumnya_pada, masuk_sebelumnya_dari_jaringan_rs, ttd]
       properties:
         id: { type: string, format: uuid }
         nama_pengguna: { type: string }
         login_terakhir_pada: { type: [string, 'null'], format: date-time, description: "Masuk yang memulai sesi ini" }
         mfa_aktif: { type: boolean }
         wajib_ganti_sandi: { type: boolean, description: "Selalu dikirim di /saya sejak 1.8d (tidak ada di respons masuk PRD 10.3.2). true = arahkan ke layar ganti sandi; endpoint bersesi lain 403 wajib_ganti_sandi" }
-        ttd: { $ref: '#/components/schemas/StatusTtd', description: "Selalu dikirim di /saya sejak 1.6 (tidak ada di respons masuk)" }
+        ttd: { $ref: '#/components/schemas/StatusTtd', description: "Sejak 1.6 (backend 1.6-be)" }
         pegawai:
           type: [object, 'null']
           required: [id, nama]
@@ -3805,7 +3805,7 @@ components:
       enum: [menunggu, disetujui, ditolak, kedaluwarsa, dibatalkan]
     PersetujuanAkses:
       type: object
-      required: [id, nomor, jenis, ringkasan, objek, penyetuju_peran, status, diterapkan, diajukan_oleh, diajukan_pada, alasan, dasar, kedaluwarsa_pada, diputuskan_oleh, diputuskan_pada, catatan_keputusan, grup, akun_terdampak, dapat_diputuskan]
+      required: [id, nomor, jenis, ringkasan, objek, penyetuju_peran, penyetuju_pengguna, status, diterapkan, diajukan_oleh, diajukan_pada, alasan, dasar, kedaluwarsa_pada, diputuskan_oleh, diputuskan_pada, catatan_keputusan, grup, akun_terdampak, dapat_diputuskan]
       properties:
         id: { type: string, format: uuid }
         nomor: { type: string, examples: ['PSA-2026-000012'], description: "Dipakai sebagai dasar pemberian" }
@@ -3837,7 +3837,7 @@ components:
         penyetuju_peran: { $ref: '#/components/schemas/RingkasPeran', description: "null bila penyetujunya orang (penyetuju_pengguna)" }
         penyetuju_pengguna:
           $ref: '#/components/schemas/Pelaku'
-          description: "Sejak 1.6, selalu dikirim. Penyetuju orang tertentu (reset_ttd: atasan langsung pemilik TTE, ditetapkan saat diajukan); null = penyetujunya pemegang penyetuju_peran"
+          description: "Sejak 1.6. Penyetuju orang tertentu (reset_ttd: atasan langsung pemilik TTE, ditetapkan saat diajukan); null = penyetujunya pemegang penyetuju_peran"
         status: { $ref: '#/components/schemas/StatusPersetujuan' }
         diterapkan: { type: boolean, description: "true = perubahan sudah berlaku (semua persetujuan dalam grup disetujui)" }
         diajukan_oleh: { $ref: '#/components/schemas/Pelaku' }

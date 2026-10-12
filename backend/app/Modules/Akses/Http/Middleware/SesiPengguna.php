@@ -23,7 +23,7 @@ final class SesiPengguna
     private const BATAS_DIAM = 'autentikasi.batas_diam_menit';
 
     /** Waktu sesi dimulai, mikrodetik sejak epoch (dibandingkan dengan sesi_dicabut_pada). */
-    private const MASUK_PADA = 'autentikasi.masuk_pada';
+    public const MASUK_PADA = 'autentikasi.masuk_pada';
 
     public function __construct(private readonly CatatAktivitas $audit) {}
 

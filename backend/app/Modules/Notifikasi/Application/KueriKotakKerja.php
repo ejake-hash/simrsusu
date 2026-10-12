@@ -18,7 +18,8 @@ final class KueriKotakKerja implements JumlahTugasSaya
     public const TAB = ['saya', 'unit', 'dieskalasi', 'selesai'];
 
     /**
-     * Memo per instans (satu permintaan HTTP): identitas pelaksana dan unit dikepalai dipakai di setiap tab.
+     * Memo per instans (bind biasa, bukan singleton; controller menyuntiknya per pemanggilan): identitas pelaksana dan
+     * unit dikepalai dipakai di setiap tab dalam satu permintaan.
      *
      * @var array<string, list<array{0: string, 1: string}>>
      */
