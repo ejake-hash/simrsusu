@@ -37,7 +37,7 @@ final class PanggilanHttp
             return new JawabanHttp(null, null, null, 'Alamat '.$sistem->nama().' lingkungan '.$lingkungan.' belum dikonfigurasi di server.');
         }
         if (SimulatorIntegrasi::aktif()) {
-            return app(SimulatorIntegrasi::class)->jawab($sistem, $metode, $path, $opsi['headers'] ?? [], $opsi['form'] ?? $opsi['json'] ?? []);
+            return app(SimulatorIntegrasi::class)->jawab($sistem, $lingkungan, $metode, $path, $opsi['headers'] ?? [], $opsi['form'] ?? $opsi['json'] ?? []);
         }
         $permintaan = Http::withHeaders($opsi['headers'] ?? [])->timeout($opsi['batas_waktu'] ?? (int) config('integrasi.batas_waktu'))->acceptJson();
         if (isset($opsi['form'])) {
