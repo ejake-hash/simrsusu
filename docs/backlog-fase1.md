@@ -227,6 +227,9 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   - Kepala unit/ketua KSM ditetapkan di dialog Ubah unit/KSM, hanya bila akun juga memegang `sdm.pegawai.lihat` (tanpa izin silang); yang sudah/akan keluar ditandai di rincian unit dan daftar KSM.
   - Belum ada: sub-menu SDM → Izin & kredensial (pemantauan masa berlaku lintas pegawai, prototipe `sdm.html`) masih Segera hadir; reset sandi oleh admin dan tautan aktivasi email menunggu usulan/1.7.
   - Utang dari tinjauan #58 (tidak memblokir): 403/404 pada muat ulang rincian pegawai sesudah data dimuat tetap menampilkan data lama tanpa tanda; penanda "hasil terpotong" di PemilihPegawai memakai angka 20, bukan kursor berikutnya; uji unit penangan 403 `wajib_ganti_sandi` asli (main.ts) dan penjaga router, serta PATCH selisih + 412 di DialogPegawai belum ada; teks kontrak GET /pegawai ("klien mengurutkan tampilan") diselaraskan sesi 1 di PR kontrak berikutnya.
+- Utang tinjauan #78 (repo publik, palet fiktif): panel merek halaman masuk (`--panel-merek`) tetap biru sedangkan
+  gradiennya ikut `--brand-800/900` paket RS, dan kontras `--penekanan-panel` belum terjamin untuk sembarang paket.
+  Arah: panel memakai warna paket RS (turunan `turunanTema()`) dengan cek kontras otomatis seperti `--accent-ink`.
 - Sesudah 1.8f-fe:
   - Layar penyiapan tidak menghitung apa pun sendiri: status, syarat, dan tombol dari `GET /penyiapan` (`dapat_*`). Langkah tanpa layar pengisi (penjamin/tarif, formularium, kredensial integrasi, modul aktif) hanya menampilkan keterangan; tautan langkah 1 ke Akun & akses (superadmin kedua dibuat dari konsol atau akun pegawai).
   - Muat paket referensi hanya untuk pemegang `master_data.katalog.input` (peran `penyiap_instalasi`); superadmin melihat daftar paket tanpa tombol muat. 409 `versi_sudah_dimuat` tampil di kolom versi dengan satu pesan umum; pratinjau tanpa perubahan tampil "Tidak ada perubahan; versi ini sudah termuat".
