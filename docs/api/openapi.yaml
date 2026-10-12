@@ -3392,7 +3392,13 @@ paths:
   # - Satu pemuatan = satu versi lengkap satu sistem (snapshot): kode di berkas ditambah/diperbarui; kode yang sudah ada
   #   tetapi tidak ada di versi baru ditandai tidak aktif (tidak dihapus, tetap terbaca di data historis); kode yang
   #   muncul lagi diaktifkan kembali. Untuk `referensi`, snapshot berlaku per `kelompok` yang ada di berkas.
-  # - Memuat ulang sistem + versi yang sama dengan isi sama = idempoten (tidak ada perubahan).
+  # - Versi = kunci pemuatan per sistem (`inti.paket_referensi` unik sistem + versi, dengan sidik isi). Memuat ulang
+  #   sistem + versi yang sama dengan isi sama = idempoten: 200, `diterapkan` true, semua jumlah 0, tanpa baris paket dan
+  #   audit baru. Isi berbeda dengan versi yang sama = 409 `versi_sudah_dimuat` (pakai nomor versi lain). Untuk
+  #   `referensi`, setiap berkas (satu atau beberapa kelompok) memakai versinya sendiri (mis. `agama-2025.1`).
+  # - Pemuatan terakhir yang menentukan kode mana yang aktif; pemuatan bersamaan untuk sistem yang sama diserialkan.
+  # - Paket referensi bukan data induk berpemilik: tidak lewat usulan berjenjang dan tidak terkena `harus_lewat_usulan`.
+  # - Nama sistem di API huruf kecil; di `inti.terminologi.sistem` sama (PRD 11.2 menulis ICD10, ICD9CM, LOINC, UCUM).
   # - Isi paket: wilayah, UCUM, subset LOINC (atribusi Regenstrief), kode variabel RME dikemas produk (berkas dari sumber
   #   resmi, SUMBER.md per paket); ICD-10/ICD-9-CM hanya dari berkas yang disediakan RS (K7, tidak ada berkas ICD di repo).
   #   KFA dan referensi BPJS ditarik lewat API di 1.9; SNOMED CT tidak dikemas.
@@ -3406,8 +3412,8 @@ paths:
       summary: Muat satu versi paket referensi dari CSV (pratinjau dulu, lalu terapkan)
       description: |
         Izin: master_data.katalog.input, cakupan `rs` (wizard penyiapan langkah 4). Berkas CSV UTF-8 (RFC 4180, baris pertama
-        judul kolom; BOM dan pemisah `;` diterima), paling besar 20 MB dan 200.000 baris data; diproses sinkron. Judul kolom
-        per sistem:
+        judul kolom; BOM dan pemisah `;` diterima), paling besar 10 MB dan 120.000 baris data; diproses sinkron dengan target
+        < 30 detik untuk 100.000 baris (PRD 14.1.1; wilayah ±91 ribu kelurahan). Judul kolom per sistem:
         - `wilayah`: `kode,nama` — kode Kemendagri bertitik (`11`, `11.01`, `11.01.01`, `11.01.01.2001`); tingkat
           (provinsi/kabupaten/kecamatan/kelurahan) dan induk diturunkan dari kode.
         - `referensi`: `kelompok,kode,label` — kelompok snake_case (mis. agama, pendidikan, pekerjaan, status_kawin).
@@ -3417,6 +3423,8 @@ paths:
           500; tidak ada yang disimpan); bila semua benar → satu transaksi + satu baris `inti.paket_referensi` (versi yang sama
           tidak digandakan) + audit `master_data.referensi_dimuat`.
         - 422 `berkas_tidak_valid` (bukan CSV UTF-8, judul kolom tidak sesuai, melebihi batas baris).
+        - 409 `versi_sudah_dimuat`: versi itu sudah dimuat dengan isi berbeda (pratinjau dan terapkan).
+        - 422 `validasi_gagal` kolom `catatan_lisensi` untuk `loinc` bila kosong (atribusi Regenstrief wajib).
         Kode salah per baris: `kolom_wajib`, `kode_tidak_valid`, `kode_ganda`, `induk_tidak_ditemukan`, `nilai_tidak_valid`.
       requestBody:
         required: true
@@ -3428,7 +3436,7 @@ paths:
               properties:
                 berkas: { type: string, contentMediaType: text/csv }
                 mode: { type: string, enum: [pratinjau, terapkan] }
-                versi: { type: string, minLength: 1, maxLength: 50, examples: ['2025.1', 'Permendagri 100.1.1-6117/2022'] }
+                versi: { type: string, minLength: 1, maxLength: 50, examples: ['2025.1', 'agama-2025.1'] }
                 sumber: { type: string, minLength: 3, maxLength: 500, description: "Asal berkas (instansi/URL/nomor dokumen)" }
                 catatan_lisensi: { type: [string, 'null'], maxLength: 1000, description: "Mis. atribusi Regenstrief untuk LOINC" }
       responses:
@@ -4387,28 +4395,19 @@ components:
       enum: [wilayah, referensi, icd10, icd9cm, loinc, ucum]
     HasilMuatReferensi:
       type: object
-      required: [sistem, versi, mode, diterapkan, jumlah_baris, jumlah_baru, jumlah_diubah, jumlah_dinonaktifkan, jumlah_diaktifkan_lagi, kesalahan, kesalahan_terpotong]
+      required: [sistem, versi, mode, diterapkan, jumlah_baris, jumlah_salah, jumlah_baru, jumlah_diubah, jumlah_dinonaktifkan, jumlah_diaktifkan_lagi, kesalahan, kesalahan_terpotong]
       properties:
         sistem: { $ref: '#/components/schemas/SistemReferensi' }
         versi: { type: string }
         mode: { type: string, enum: [pratinjau, terapkan] }
         diterapkan: { type: boolean }
         jumlah_baris: { type: integer, minimum: 0 }
+        jumlah_salah: { type: integer, minimum: 0, description: "Jumlah baris salah (kesalahan dipotong 500)" }
         jumlah_baru: { type: integer, minimum: 0 }
         jumlah_diubah: { type: integer, minimum: 0, description: "Kode yang ada dengan nama/tampilan/induk berbeda" }
         jumlah_dinonaktifkan: { type: integer, minimum: 0, description: "Kode aktif yang tidak ada di versi ini" }
         jumlah_diaktifkan_lagi: { type: integer, minimum: 0 }
-        kesalahan:
-          type: array
-          maxItems: 500
-          items:
-            type: object
-            required: [baris, kolom, kode, pesan]
-            properties:
-              baris: { type: integer, minimum: 2, description: "Nomor baris berkas (judul = baris 1)" }
-              kolom: { type: [string, 'null'] }
-              kode: { type: string }
-              pesan: { type: string }
+        kesalahan: { type: array, maxItems: 500, items: { $ref: '#/components/schemas/KesalahanBarisImpor' } }
         kesalahan_terpotong: { type: boolean }
     StatusPermintaan:
       type: string

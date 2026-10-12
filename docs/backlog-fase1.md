@@ -157,7 +157,7 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   (di luar API tiket; kini `?tampilkan_nik=true`).
 - Utang tes 1.8d (kode sudah ditinjau benar, tesnya belum): 429 sesudah `sandi_lama_salah` berulang, IDOR dokumen izin
   praktik antarpegawai, `berkas_terlalu_besar`, NIK tidak muncul di log aplikasi. Runbook: `upload_max_filesize` dan
-  `post_max_size` PHP ≥ 6 MB agar batas dokumen 5 MB (dan impor 2 MB) tercapai sebelum batas PHP. Indeks
+  `post_max_size` PHP ≥ 12 MB agar batas paket referensi 10 MB, dokumen 5 MB, dan impor 2 MB tercapai sebelum batas PHP. Indeks
   `sdm.pegawai (dibuat_pada, id)` bila daftar pegawai membesar.
 - **[Perlu pemilik] Usulan (1.8d):** reset sandi oleh admin (sandi awal baru sekali tampil, wajib ganti) dan masa berlaku
   sandi awal; di luar API tiket 1.8d. Sampai itu sandi awal yang hilang tidak bisa dipulihkan.
@@ -848,11 +848,16 @@ Uji penerimaan: memuat ulang versi sama idempoten; versi baru menonaktifkan kode
 Aturan rinci (kontrak v0.11.0):
   - Endpoint unggah wizard: POST /paket-referensi/{sistem}/muat (multipart: berkas, mode pratinjau|terapkan, versi,
     sumber, catatan_lisensi), izin `master_data.katalog.input`; perintah konsol `referensi:muat` dengan aturan sama.
+  - Versi = kunci per sistem (sidik isi): versi sama + isi sama = idempoten (tanpa baris/audit baru); isi lain = 409
+    `versi_sudah_dimuat`. Referensi: tiap berkas punya versinya sendiri. LOINC wajib `catatan_lisensi` (atribusi).
   - Tabel PRD 11.2: `inti.paket_referensi` (satu baris per sistem + versi), `inti.wilayah` (tingkat dan induk dari kode
     Kemendagri bertitik), `inti.referensi` (kelompok, kode, label), `inti.terminologi` (sistem, kode, tampilan,
     kode_induk); ketiganya ditambah `aktif`, `versi_terakhir`, `dinonaktifkan_pada`. Kode tidak pernah dihapus.
-  - Satu pemuatan = snapshot satu sistem (referensi: per kelompok di berkas). Sinkron, paling besar 20 MB / 200.000
-    baris, dengan `SET LOCAL statement_timeout` sendiri (wilayah ±90 ribu kelurahan).
+  - Satu pemuatan = snapshot satu sistem (referensi: per kelompok di berkas). Sinkron, paling besar 10 MB / 120.000
+    baris, target < 30 detik untuk 100.000 baris (diuji), `SET LOCAL statement_timeout` sendiri (wilayah ±91 ribu
+    kelurahan). Runbook: `upload_max_filesize`/`post_max_size` PHP ≥ 12 MB.
+  - Utang PRD (menyusul PR [Perlu pemilik]): 11.2 belum memuat kolom `aktif`, `versi_terakhir`, `dinonaktifkan_pada`
+    (wilayah/referensi/terminologi) dan `sidik_isi` (paket_referensi); nama sistem huruf kecil di API dan tabel.
   - **Isi paket dikemas menunggu berkas resmi** (pemilik/RS): wilayah (Kemendagri), UCUM (unitsofmeasure.org),
     subset LOINC (akun Regenstrief), kode variabel RME (Kemenkes). Repo memuat SUMBER.md per paket dan berkas contoh
     sintetis untuk tes; ICD-10/ICD-9-CM tidak pernah di repo (K7).
