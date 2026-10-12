@@ -41,18 +41,24 @@ Tujuan: sesi tidak berhenti menunggu manusia selama ada tiket yang bisa dikerjak
 merge (bisa revert); proteksi cabang tidak aktif (GitHub Free), jadi aturan ini dijaga oleh sesi sendiri.
 
 1. **Ambil tiket sendiri.** Setelah tiket selesai dan bersih, ambil tiket berikutnya di docs/backlog-fase1.md yang
-   berstatus "Siap dikerjakan" dan semua prasyaratnya Selesai. Commit pertama PR mengubah statusnya menjadi
-   "Dikerjakan sesi <n>" agar tidak diambil sesi lain. Jalur: sesi 1 backend/dokumen, sesi 2 frontend; bila jalur
-   sendiri kosong, boleh mengambil jalur lain.
+   berstatus "Siap dikerjakan" dan semua prasyaratnya Selesai. Klaim tiket lewat PR yang dibuka (judul memuat nomor
+   tiket) dan kabar ke sesi lain. **Status backlog diubah sekali per tiket, di commit penutup PR** (ketentuan pemilik,
+   12 Okt 2026), bukan di setiap commit. Jalur: sesi 1 backend/dokumen, sesi 2 frontend; bila jalur sendiri kosong,
+   boleh mengambil jalur lain.
 2. **Merge sendiri** setiap PR bila semua terpenuhi:
    - `gh pr checks <no> --watch` selesai dan semua check hijau;
-   - tinjauan oleh **subagen baru** (konteks bersih, tidak ikut menulis kode) atau oleh sesi lain, terhadap uji
-     penerimaan tiket dan DoD PRD D.7, tertulis sebagai komentar PR berawalan "Tinjauan:" dengan hasil
-     "Disetujui". Temuan diperbaiki dulu, lalu ditinjau ulang;
+   - tinjauan sesuai jenis PR (ketentuan pemilik, 12 Okt 2026), tertulis sebagai komentar PR berawalan "Tinjauan:"
+     dengan hasil "Disetujui"; temuan diperbaiki dulu, lalu ditinjau ulang:
+     - PR backend atau yang menyentuh keamanan (autentikasi, hak akses, audit, kriptografi): **subagen baru**
+       (konteks bersih, tidak ikut menulis kode) atau sesi lain, terhadap uji penerimaan tiket dan DoD PRD D.7;
+     - PR frontend: **sesi 1** (kecocokan kontrak + tes otomatis); subagen hanya bila menyentuh autentikasi/hak akses;
+     - PR kontrak: sesi pemakai (frontend) dan subagen (lihat butir 3);
+     - PR yang hanya dokumen atau backlog: **tanpa tinjauan**;
    - lalu `gh pr merge <no> --squash --delete-branch`, tunggu CI main hijau, lalu bersih-bersih tiket.
 3. **Pengecualian: tunggu pemilik repo** bila PR
-   - mengubah docs/prd.md dengan isi yang **dikarang sesi sendiri** (salinan berkas dari
-     "/Users/ejake/Documents/SIMRS Tipe B" dengan md5 yang cocok boleh merge sendiri);
+   - mengubah docs/prd.md dengan **aturan baru** yang dikarang sesi sendiri. Boleh merge sendiri: salinan berkas dari
+     "/Users/ejake/Documents/SIMRS Tipe B" dengan md5 yang cocok, dan PRD yang **hanya mendokumentasikan kode yang
+     sudah merge** setelah tinjauan subagen (ketentuan pemilik, 12 Okt 2026);
    - mengubah docs/api/openapi.yaml di luar endpoint yang tercantum di tiket yang disetujui. Kontrak untuk endpoint
      yang tercantum di tiket ("kontrak dulu", backlog bagian Jalur kerja) boleh merge sendiri setelah ditinjau sesi
      pemakai (frontend) dan subagen;
