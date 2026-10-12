@@ -3470,24 +3470,35 @@ paths:
   #   - `menunggu_fase_2`: langkah 6–7 (K6), kerangka saja, tidak bisa dikonfirmasi.
   # - Urutan wajib (FR-54-08): langkah n hanya bisa dikonfirmasi bila semua langkah sebelumnya `selesai`, `dilewati`, atau
   #   `menunggu_fase_2`. Mengisi data tidak dibatasi urutan.
-  # - `siap_melayani` = langkah 1–6 `selesai` (FR-54-08). Di fase 1 selalu false karena langkah 6 menunggu fase 2 (K6).
-  #   Modul lain memakai penjaga yang sama (`App\Core\Instalasi\StatusInstalasi`).
+  # - Langkah yang mundur tidak mengubah status langkah sesudahnya; urutan hanya membatasi konfirmasi berikutnya.
+  # - `siap_melayani` (FR-54-08 "tidak bisa melayani pasien sebelum langkah 1–6 lengkap") **terkunci**: menjadi true saat
+  #   konfirmasi yang pertama kali melengkapi langkah 1–6 (`siap_melayani_sejak` dicatat), dan tidak kembali false walau
+  #   langkah 1–6 kemudian mundur ke `sebagian` (mis. superadmin dinonaktifkan, izin praktik habis); kemunduran itu tampil
+  #   sebagai status langkah. Di fase 1 selalu false karena langkah 6 menunggu fase 2 (K6). Modul lain memakai penjaga
+  #   yang sama (`App\Core\Instalasi\StatusInstalasi`, mis. 409 `harus_lewat_usulan` di 1.8c).
   # - Ringkasan `status`: `belum` bila tidak ada langkah `selesai`/`dilewati`; `selesai` bila semua langkah selain
-  #   `menunggu_fase_2` sudah `selesai`/`dilewati`; selain itu `sebagian`. Disalin ke `inti.profil_rs.status_penyiapan`
-  #   bila profil sudah ada.
+  #   `menunggu_fase_2` sudah `selesai`/`dilewati`; selain itu `sebagian`. Hanya di respons ini; GET tidak menulis apa pun.
+  #   `inti.profil_rs.status_penyiapan` (ProfilRs.rinci) tetap berarti langkah 2 (profil RS) seperti di 1.8a.
+  # - Sub-menu `pengaturan.penyiapan` termasuk sub-menu bawaan peran superadmin (seperti `pengaturan.profil_rs`), agar
+  #   superadmin pertama dari konsol bisa membuka penyiapan di instalasi kosong.
   # - Syarat per langkah (`syarat[].kode`; `keterangan` menyebut yang kurang, mis. "1 dari 2"):
   #   1 `superadmin`: `superadmin_mfa` (≥ 2 akun aktif berperan superadmin dengan MFA terdaftar), `jaringan_rs`
-  #     (AUTENTIKASI_MFA_JARINGAN_RS terisi di server).
+  #     (AUTENTIKASI_MFA_JARINGAN_RS terisi di server; bagi pemanggil web praktis selalu terpenuhi karena tanpa itu masuk
+  #     biasa ditolak, tetap ditampilkan sebagai bukti).
   #   2 `profil_rs`: `profil` (nama RS tersimpan), `logo` (logo paket identitas terunggah). Kontras warna sudah dijaga
   #     PUT /profil-rs.
   #   3 `organisasi`: `unit`, `ksm`, `kelas_rawat`, `bangsal`, `tempat_tidur`, `poliklinik` (masing-masing ≥ 1 aktif).
-  #   4 `paket_referensi`: `wilayah`, `referensi`, `loinc`, `ucum` (≥ 1 versi dimuat). ICD-10/ICD-9-CM tidak wajib (K7,
-  #     berkas dari RS) dan tampil di `paket` dengan `wajib` false.
-  #   5 `pegawai`: `pegawai` (≥ 1 pegawai aktif), `izin_praktik` (≥ 1 izin praktik yang berlaku hari ini).
+  #   4 `paket_referensi`: `wilayah`, `referensi`, `loinc`, `ucum` (≥ 1 versi dimuat; untuk `referensi` cukup satu
+  #     kelompok, kelengkapan kelompok belum diperiksa). ICD-10/ICD-9-CM tidak wajib (K7, berkas dari RS) dan tampil di
+  #     `paket` dengan `wajib` false.
+  #   5 `pegawai`: `pegawai` (≥ 1 pegawai aktif yang belum keluar), `izin_praktik` (≥ 1 izin praktik berstatus aktif milik
+  #     pegawai itu, `berlaku_sampai` kosong atau ≥ hari ini zona RS).
   #   6 `penjamin_tarif`, 7 `formularium`: tanpa syarat di fase 1 (`menunggu_fase_2`).
   #   8 `kredensial_integrasi`: `kredensial` (kredensial tersimpan dan uji koneksi berhasil; dibangun di tiket 1.9, sampai
-  #     itu belum pernah terpenuhi). Boleh dilewati dengan alasan ("belum ada kredensial").
-  #   9 `modul_aktif`: `modul` (≥ 1 modul aktif untuk seluruh RS di `inti.modul_aktif`).
+  #     itu belum pernah terpenuhi). Boleh dilewati dengan alasan ("belum ada kredensial") selama belum `selesai`;
+  #     sesudah dilewati statusnya `dilewati` sampai dikonfirmasi selesai (syarat terpenuhi) atau dilewati ulang.
+  #   9 `modul_aktif`: `modul` (≥ 1 modul aktif untuk seluruh RS di `inti.modul_aktif`). Modul inti fase 1 sudah aktif dari
+  #     migrasi dan layar modul aktif belum ada (utang), jadi di fase 1 syarat ini selalu terpenuhi.
   # ---------------------------------------------------------------------------
   /penyiapan:
     get:
@@ -3514,13 +3525,15 @@ paths:
         Izin: pengaturan.penyiapan.perbaiki, cakupan `rs`. Syarat diperiksa ulang saat itu. Setiap konfirmasi disimpan
         sebagai baris baru (riwayat) dan dicatat audit `pengaturan.penyiapan_dikonfirmasi` (langkah, dilewati, alasan).
         Mengonfirmasi ulang langkah yang sudah selesai = 200 dengan konfirmasi baru.
-        - 409 `syarat_belum_lengkap`: `rincian` = syarat yang belum terpenuhi `{kode, label, keterangan}`.
-        - 409 `langkah_sebelumnya_belum_selesai`: `rincian` = `{langkah, status}` langkah sebelumnya yang belum
-          selesai/dilewati/menunggu fase 2.
-        - 409 `langkah_menunggu_fase_2`: langkah 6–7.
-        - 422 `tidak_bisa_dilewati`: `dilewati` true selain langkah 8.
+        Urutan pemeriksaan (error pertama yang dikembalikan):
         - 422 `validasi_gagal` kolom `alasan`: wajib (5–500 karakter) bila `dilewati` true.
-        Melewati langkah 8 tidak memeriksa syarat `kredensial`.
+        - 422 `tidak_bisa_dilewati`: `dilewati` true selain langkah 8, atau langkah 8 yang sudah `selesai`.
+        - 409 `langkah_menunggu_fase_2`: langkah 6–7.
+        - 409 `langkah_sebelumnya_belum_selesai`: `rincian` = `{langkah, status}` (`langkah` = KodeLangkahPenyiapan) untuk
+          setiap langkah sebelumnya yang belum selesai/dilewati/menunggu fase 2.
+        - 409 `syarat_belum_lengkap`: `rincian` = syarat yang belum terpenuhi `{kode, label, keterangan}`. Melewati langkah 8
+          tidak memeriksa syarat `kredensial`.
+        `{langkah}` di luar enum → 404.
       requestBody:
         required: false
         content:
@@ -3538,6 +3551,7 @@ paths:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/StatusPenyiapan' } } }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
 components:
@@ -3671,7 +3685,7 @@ components:
             status_blu: { type: [boolean, 'null'] }
             kode_ppk_bpjs: { type: [string, 'null'], maxLength: 20 }
             alamat: { type: [string, 'null'], maxLength: 500 }
-            status_penyiapan: { type: string, enum: [belum, sebagian, selesai], description: "Langkah 2 wizard (FR-54-08); rinci per langkah di tiket 1.8f" }
+            status_penyiapan: { type: string, enum: [belum, sebagian, selesai], description: "Langkah 2 wizard (FR-54-08, profil RS) saja; status sembilan langkah dan siap melayani ada di GET /penyiapan (1.8f)" }
             diubah_pada: { type: [string, 'null'], format: date-time }
     IsianProfilRs:
       type: object
@@ -4487,10 +4501,11 @@ components:
       description: "Langkah 1–9 FR-54-08, berurutan"
     StatusPenyiapan:
       type: object
-      required: [status, siap_melayani, langkah]
+      required: [status, siap_melayani, siap_melayani_sejak, langkah]
       properties:
         status: { type: string, enum: [belum, sebagian, selesai] }
-        siap_melayani: { type: boolean, description: "Langkah 1–6 selesai (FR-54-08); fase 1 selalu false (K6)" }
+        siap_melayani: { type: boolean, description: "Terkunci sejak langkah 1–6 pertama kali selesai (FR-54-08); fase 1 selalu false (K6)" }
+        siap_melayani_sejak: { type: [string, 'null'], format: date-time }
         langkah:
           type: array
           minItems: 9
@@ -4517,7 +4532,7 @@ components:
               terpenuhi: { type: boolean }
               keterangan: { type: [string, 'null'], examples: ['1 dari 2'] }
         dapat_dikonfirmasi: { type: boolean, description: "Syarat lengkap, urutan terpenuhi, dan pemanggil memegang pengaturan.penyiapan.perbaiki" }
-        dapat_dilewati: { type: boolean, description: "Hanya langkah 8, urutan terpenuhi, dan pemanggil memegang izin perbaiki" }
+        dapat_dilewati: { type: boolean, description: "Hanya langkah 8 yang belum selesai, urutan terpenuhi, dan pemanggil memegang izin perbaiki" }
         konfirmasi_terakhir:
           type: [object, 'null']
           required: [oleh, pada, dilewati, alasan]
