@@ -33,7 +33,10 @@ final class PaketIdentitasContohSeeder extends Seeder
             throw new RuntimeException('PaketIdentitasContohSeeder ditolak berjalan di production.');
         }
         $dir = trim((string) config('instalasi.identitas.paket_contoh_dir'));
-        if ($dir === '' || str_contains($dir, "\0") || ! is_dir($dir)) {
+        if (str_contains($dir, "\0")) {
+            throw new RuntimeException('Paket identitas: PAKET_IDENTITAS_CONTOH_DIR berisi karakter yang tidak sah.');
+        }
+        if ($dir === '' || ! is_dir($dir)) {
             $this->command?->info('Paket identitas dilewati: PAKET_IDENTITAS_CONTOH_DIR kosong atau foldernya tidak ada (identitas netral).');
 
             return;

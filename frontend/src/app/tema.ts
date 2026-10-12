@@ -53,7 +53,7 @@ function cukupGelap(awal: Rgb, latar: Rgb[], minimal = 4.5): Rgb {
 function cukupTerang(awal: Rgb, latar: Rgb[], minimal = 4.5): Rgb {
   for (const t of LANGKAH) {
     const w = bulat(campur(awal, PUTIH, t))
-    if (latar.every((l) => kontras(w, bulat(l)) >= minimal)) return w
+    if (latar.every((l) => kontras(w, l) >= minimal && kontras(w, bulat(l)) >= minimal)) return w
   }
   return PUTIH
 }
@@ -69,7 +69,8 @@ export const PORSI_SOROT = 0.45
 export function latarPanel(t: Record<string, string>): Rgb[] {
   const titik = ['--panel-merek', '--panel-merek-tengah', '--panel-merek-akhir'].map((k) => hexKeRgb(t[k]!)!)
   const sorot = hexKeRgb(t['--panel-merek-sorot']!)!
-  return [...titik, ...titik.map((x) => bulat(campur(x, sorot, PORSI_SOROT)))]
+  // Campuran sorot diuji dua kali: dibulatkan dan pecahan (peramban mengomposit dengan float).
+  return [...titik, ...titik.flatMap((x) => [bulat(campur(x, sorot, PORSI_SOROT)), campur(x, sorot, PORSI_SOROT)])]
 }
 
 /**
@@ -84,7 +85,8 @@ function panelMerek(brand: Rgb, accent: Rgb, b100: Rgb): Record<string, string> 
   let sorot = HITAM
   for (const t of LANGKAH) {
     const s = bulat(campur(sorotAwal, HITAM, t))
-    if (titik.every((x) => teks.every((y) => kontras(bulat(campur(x, s, PORSI_SOROT)), y) >= 4.5))) {
+    const campuran = titik.flatMap((x) => [bulat(campur(x, s, PORSI_SOROT)), campur(x, s, PORSI_SOROT)])
+    if (campuran.every((x) => teks.every((y) => kontras(x, y) >= 4.5))) {
       sorot = s
       break
     }
