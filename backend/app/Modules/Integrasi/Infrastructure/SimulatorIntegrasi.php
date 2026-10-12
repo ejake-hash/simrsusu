@@ -91,9 +91,11 @@ final class SimulatorIntegrasi
         if ($sistem === SistemIntegrasi::BpjsVclaim && $metode === 'GET') {
             return $this->vclaim($lingkungan, $path, $header, $latensi);
         }
+        if ($sistem === SistemIntegrasi::Aplicares && ($j = $this->aplicares($lingkungan, $metode, $path, $isi, $latensi)) !== null) {
+            return $j;
+        }
 
         return match (true) {
-            $sistem === SistemIntegrasi::Aplicares && $metode === 'GET' && $path === '/ref/kelas' => self::json(200, ['metadata' => ['code' => 1, 'message' => 'OK']], $latensi),
             $sistem === SistemIntegrasi::Satusehat && $metode === 'POST' && $path === '/oauth2/v1/accesstoken' => ($isi['client_id'] ?? '') === '' || ($isi['client_secret'] ?? '') === ''
                     ? self::json(401, ['error' => 'invalid_client', 'error_description' => 'Invalid client credentials'], $latensi)
                     : self::json(200, ['access_token' => Str::random(40), 'expires_in' => '14399', 'token_type' => 'BearerToken', 'status' => 'approved'], $latensi),
@@ -133,6 +135,67 @@ final class SimulatorIntegrasi
 
         return self::json(200, ['metaData' => ['code' => '200', 'message' => 'Sukses'],
             'response' => KlienVclaim::tutup($isi, $kredensial, (int) $header['X-timestamp'])], $latensi);
+    }
+
+    /**
+     * Aplicares (catatan §24): ref/kelas, bed/update (ruang harus sudah terdaftar), bed/create (ruang belum terdaftar).
+     * Ruang disimpan per lingkungan + kode PPK dengan kunci kodekelas|koderuang. Kode sukses `1` dan kode penolakan
+     * `0` adalah asumsi simulator (perlu verifikasi); daftar kelas sintetis.
+     *
+     * @param  array<string, mixed>  $isi
+     */
+    private function aplicares(string $lingkungan, string $metode, string $path, array $isi, int $latensi): ?JawabanHttp
+    {
+        if ($metode === 'GET' && $path === '/ref/kelas') {
+            return self::json(200, ['metadata' => ['code' => 1, 'message' => 'OK'], 'response' => ['list' => [
+                ['kodekelas' => 'SIM1', 'namakelas' => 'KELAS SINTETIS 1'], ['kodekelas' => 'SIM3', 'namakelas' => 'KELAS SINTETIS 3']]]], $latensi);
+        }
+        if ($metode !== 'POST' || preg_match('#^/bed/(update|create)/([A-Za-z0-9]+)$#', $path, $m) !== 1) {
+            return null;
+        }
+        $tolak = fn (string $pesan) => self::json(200, ['metadata' => ['code' => 0, 'message' => $pesan]], $latensi);
+        foreach (['kodekelas', 'koderuang', 'namaruang'] as $k) {
+            if (! is_string($isi[$k] ?? null) || $isi[$k] === '') {
+                return $tolak("$k wajib diisi");
+            }
+        }
+        foreach (['kapasitas', 'tersedia', 'tersediapria', 'tersediawanita', 'tersediapriawanita'] as $k) {
+            if (! is_int($isi[$k] ?? null) || $isi[$k] < 0) {
+                return $tolak("$k harus bilangan bulat ≥ 0");
+            }
+        }
+        if ($isi['tersedia'] > $isi['kapasitas']) {
+            return $tolak('tersedia melebihi kapasitas');
+        }
+        $ruang = self::ruangAplicares($lingkungan, $m[2]);
+        $kunci = $isi['kodekelas'].'|'.$isi['koderuang'];
+        if ($m[1] === 'update' && ! isset($ruang[$kunci])) {
+            return $tolak('Ruangan belum terdaftar');
+        }
+        if ($m[1] === 'create' && isset($ruang[$kunci])) {
+            return $tolak('Ruangan sudah terdaftar');
+        }
+        $ruang[$kunci] = $isi;
+        Cache::forever(self::kunciAplicares($lingkungan, $m[2]), $ruang);
+
+        return self::json(200, ['metadata' => ['code' => 1, 'message' => 'OK']], $latensi);
+    }
+
+    /**
+     * Ruang yang terdaftar di simulator Aplicares (untuk tes dan pemeriksaan lokal).
+     *
+     * @return array<string, array<string, mixed>> kodekelas|koderuang => isi terakhir
+     */
+    public static function ruangAplicares(string $lingkungan, string $kodePpk): array
+    {
+        $ruang = Cache::get(self::kunciAplicares($lingkungan, $kodePpk));
+
+        return is_array($ruang) ? $ruang : [];
+    }
+
+    private static function kunciAplicares(string $lingkungan, string $kodePpk): string
+    {
+        return "integrasi:simulator:aplicares:$lingkungan:$kodePpk";
     }
 
     /** @param  array<string, mixed>  $isi */
