@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Core\Instalasi\BelumSiapMelayani;
+use App\Core\Instalasi\StatusInstalasi;
 use App\Core\Log\InstallMasking;
 use App\Core\PemeriksaanProduksi;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -14,6 +16,8 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        // Penjaga siap melayani (1.8f menggantinya dengan status penyiapan sebenarnya).
+        $this->app->bindIf(StatusInstalasi::class, BelumSiapMelayani::class);
         //
     }
 

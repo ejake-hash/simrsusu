@@ -9,6 +9,7 @@ use App\Modules\Ttd\Application\KelolaTtd;
 use App\Modules\Ttd\Application\PencabutKredensial;
 use App\Modules\Ttd\Domain\PenyediaTte;
 use App\Modules\Ttd\Infrastructure\IsiPersetujuanAkses;
+use App\Modules\Ttd\Infrastructure\IsiUsulanDataInduk;
 use App\Modules\Ttd\Infrastructure\SimulatorTte;
 use Illuminate\Support\ServiceProvider;
 
@@ -18,7 +19,9 @@ class ModuleServiceProvider extends ServiceProvider
     public function register(): void
     {
         // Penyedia isi per jenis objek; jenis baru (mis. usulan_data_induk, 1.8c) ditambahkan di sini.
-        $this->app->bind(DaftarPenyediaIsi::class, fn ($app) => new DaftarPenyediaIsi([$app->make(IsiPersetujuanAkses::class)]));
+        $this->app->bind(DaftarPenyediaIsi::class, fn ($app) => new DaftarPenyediaIsi([
+            $app->make(IsiPersetujuanAkses::class), $app->make(IsiUsulanDataInduk::class),
+        ]));
         $this->app->bind(StatusTtdSaya::class, KelolaTtd::class);
         $this->app->bind(PencabutTtd::class, PencabutKredensial::class);
         // Fase 1 tanpa PSrE nyata: hanya simulator (K10).

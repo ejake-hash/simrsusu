@@ -60,6 +60,8 @@ class ImporLokasiTest extends TestCase
         $this->assertSame(3627, DB::table('inti.lokasi')->count());
         $this->assertSame(2880, DB::table('inti.tempat_tidur')->count());
         $this->assertSame(720, DB::table('inti.kamar')->count());
+        // Versi pertama setiap ruang, kamar, dan TT hasil impor (1.8c).
+        $this->assertSame(720 + 720 + 2880, DB::table('inti.data_induk_versi')->where('versi', 1)->whereNull('sebelum')->count());
         $this->assertTrue(DB::table('inti.tempat_tidur')->where('kode', 'C-8-830-4')->exists());
         // Unit kosong mengikuti induk sampai ke TT.
         $this->assertSame(0, DB::table('inti.lokasi')->whereNull('unit_organisasi_id')->count());

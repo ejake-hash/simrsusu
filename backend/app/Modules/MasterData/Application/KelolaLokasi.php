@@ -18,6 +18,7 @@ final class KelolaLokasi
     public function __construct(
         private readonly CatatAktivitas $audit,
         private readonly PohonLokasi $pohon,
+        private readonly CatatVersi $versi,
     ) {}
 
     /** @param  array{induk_id: string|null, jenis: string, kode: string, nama: string, fungsi?: string|null, unit_organisasi_id?: string|null, dasar_perubahan: string}  $isi */
@@ -41,6 +42,9 @@ final class KelolaLokasi
                 'status_berlaku_dari' => SuntinganBerversi::hariIni(),
             ]);
             $lokasi->forceFill(['dibuat_oleh' => $penyunting->id, 'diubah_oleh' => $penyunting->id])->save();
+            if ($lokasi->jenis === 'ruang') {
+                $this->versi->catat('ruang', $lokasi->id, null, $this->isiAudit($lokasi), SuntinganBerversi::hariIni(), $isi['dasar_perubahan'], $penyunting->id);
+            }
             $this->audit->catat('master_data.lokasi_dibuat', $penyunting->id, 'inti.lokasi', $lokasi->id,
                 [...$this->isiAudit($lokasi), 'dasar_perubahan' => $isi['dasar_perubahan']]);
 
@@ -99,6 +103,12 @@ final class KelolaLokasi
             $lokasi->forceFill(['diubah_oleh' => $penyunting->id])->save();
             if ($lokasi->wasChanged('kode_lengkap')) {
                 $this->pohon->hitungUlangTurunan($lokasi->id);
+            }
+            // Versi data induk ruang (1.8c); lokasi jenis lain tidak lewat usulan.
+            if ($lokasi->jenis === 'ruang') {
+                $this->versi->catat('ruang', $lokasi->id, $sebelum, $this->isiAudit($lokasi),
+                    $lokasi->wasChanged('status') ? $lokasi->status_berlaku_dari->toDateString() : SuntinganBerversi::hariIni(),
+                    $isi['dasar_perubahan'], $penyunting->id);
             }
             $this->audit->catat('master_data.lokasi_diubah', $penyunting->id, 'inti.lokasi', $lokasi->id,
                 [...$this->isiAudit($lokasi), 'dasar_perubahan' => $isi['dasar_perubahan']], $sebelum);

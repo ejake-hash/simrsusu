@@ -31,12 +31,12 @@
 | 1.2d-be / 1.2d-fe | Persetujuan akses (izin sensitif, superadmin), permintaan akses dari layar "Akses ditolak" | be: Selesai (kontrak #41, backend #43). Catatan: `akses.persetujuan_akses` (satu baris per peran penyetuju, satu grup per pengajuan), `akses.permintaan_akses`, `akses.izin.peran_penyetuju_id`; sub-menu `pengaturan.persetujuan` lewat peran (bawaan superadmin); tugas harian `akses:kedaluwarsakan-persetujuan`; fe: **Dikerjakan sesi 2** (branch `feat/persetujuan-fe`). Catatan fe: layar Pengaturan → Persetujuan akses (antrean, rincian, permintaan akses, penyetuju izin), Akses ditolak + Minta akses di `HalamanModul`, izin menunggu terkunci di editor peran, pengajuan menunggu di rincian akun | #41, #43 |
 | 1.8a-be / 1.8a-fe | Profil RS dan paket identitas, unit organisasi, KSM (ganti `VITE_RS_*`) | be: Selesai (kontrak #37, backend #38). Catatan: profil di `App\Core\ProfilRs`, unit/KSM di modul `MasterData`, lapis 3 cakupan `unit` = subpohon, berkas lewat disk `IDENTITAS_DISK`, akun e2e `contoh.data.induk`; fe: **Dikerjakan sesi 2** (#42). Catatan fe: profil dari `GET /profil-rs` (tanpa `VITE_RS_*`), tema dari dua warna paket identitas (`app/tema.ts`), pohon unit muat-lambat, cakupan penugasan `unit`, pemilih unit kerja di header | — |
 | 1.8b-be / 1.8b-fe | Lokasi fisik bertingkat, bangsal/kamar/TT, kelas rawat, poliklinik, impor CSV | be: Selesai (kontrak #44, backend #46). Catatan: tabel di skema `inti`, izin `master_data.organisasi.*` cakupan `rs`, tugas harian `master-data:rekam-kapasitas-tt`; fe: **Dikerjakan sesi 2** (branch `feat/lokasi-fe`). Catatan fe: tab Lokasi & tempat tidur, Bangsal, Kelas rawat, Poliklinik di halaman Organisasi, Unit, Ruang & Tempat Tidur (judul PRD 9.1) | #44, #46 |
-| 1.8c-be / 1.8c-fe | Usulan perubahan data induk berjenjang (mesin generik), dipakai pertama oleh TT | Siap setelah 1.7 | — |
+| 1.8c-be / 1.8c-fe | Usulan perubahan data induk berjenjang (mesin generik), dipakai pertama oleh TT | be: Selesai (kontrak #61, backend PR ini). Catatan: `inti.usulan_data_induk` (+ `_putaran`, `_kejadian`), `inti.alur_usulan`, `inti.data_induk_versi`; izin `master_data.usulan.{lihat,input,verifikasi,setujui}` (aksi tambahan `MenuBawaan::AKSI_TAMBAHAN`); tugas harian `master-data:terapkan-usulan` 00.00; penjaga `App\Core\Instalasi\StatusInstalasi` (1.8f mengisinya); fe: Dikerjakan sesi 2 | #61 |
 | 1.8d-be / 1.8d-fe | Pegawai, izin praktik (STR/SIP/SPK), RKK minimal, akun dibuat dari pegawai | be: Selesai (kontrak #48, backend #50). Catatan: NIK utuh hanya `?tampilkan_nik=true` + izin bagian `sdm.pegawai.identitas.lihat` (sensitif, pemilik data ditetapkan RS); pegawai keluar → akun nonaktif lewat kejadian `PegawaiKeluar`; tugas harian `sdm:proses-pegawai-keluar`; 403 `wajib_ganti_sandi`; fe: Selesai (#58). Catatan fe: SDM → Data pegawai (daftar, rincian, izin praktik, RKK, Buat akun), layar ganti sandi di luar AppShell, Nonaktifkan/Aktifkan di rincian akun, kepala unit/ketua KSM di dialog ubah unit/KSM; akun e2e `contoh.sdm` (#55) | #48, #50 |
 | 1.8e-be | Pemuat paket referensi (`inti.paket_referensi`) | Siap setelah 1.8a | — |
 | 1.8f-be / 1.8f-fe | Wizard penyiapan instalasi kosong (FR-54-08) | Siap setelah 1.8a–e | — |
 | 1.7-be / 1.7-fe | Notifikasi, kotak kerja, jenis tugas, eskalasi 3 tingkat | be: Selesai (kontrak #51, backend #53); fe: Selesai (#60). Catatan fe: lonceng di header (polling 30 detik, ETag/304, `X-Permintaan-Latar` hanya pada polling), halaman `/notifikasi` (belum dibaca, semua, preferensi), kotak kerja di Beranda dengan riwayat tugas, Master Data → Jenis Tugas, Tenggat & Eskalasi | #51, #53 |
-| 1.6-be / 1.6-fe | TTE T1: aktivasi PIN, kunci Ed25519, TtdModal, verifikasi, tanda tangan massal; adapter PSrE + simulator | be: Selesai (kontrak #56, backend #57); fe: Selesai (#62). Catatan fe: TtdModal dan BadgeTtd di design-system, halaman `/tanda-tangan` (aktivasi, ganti PIN) dari menu akun, tanda tangan keputusan di rincian persetujuan, `reset_ttd`/penyetuju orang di 1.2d, Ajukan reset TTE di data pegawai | #56, #57 |
+| 1.6-be / 1.6-fe | TTE T1: aktivasi PIN, kunci Ed25519, TtdModal, verifikasi, tanda tangan massal; adapter PSrE + simulator | be: Selesai (kontrak #56, backend #57). Catatan be: modul `Ttd`, kunci server `TTD_KUNCI`, seeder `TtdSintetisSeeder`; dedup tanda tangan per isi sejak 1.8c; fe: Selesai (#62). Catatan fe: TtdModal dan BadgeTtd di design-system, halaman `/tanda-tangan` (aktivasi, ganti PIN) dari menu akun, tanda tangan keputusan di rincian persetujuan, `reset_ttd`/penyetuju orang di 1.2d, Ajukan reset TTE di data pegawai | #56, #57, #62 |
 | 1.5-be / 1.5-fe | Lapis 4 (label sensitivitas) dan 5 (izin praktik, RKK, MFA ulang) | Siap setelah 1.8d, 1.2d, 1.6 | — |
 | 1.9-be / 1.9-fe | Gateway integrasi: outbox, adapter BPJS/SATUSEHAT/Aplicares, simulator, layar Konfigurasi & status | Siap setelah 1.8b, 1.8f | — |
 | 1.11 | Design system: komponen inti PRD 5.4 yang dipakai fase 1, katalog komponen (dev) | **Dikerjakan sesi 2** (branch `feat/design-system`, ditumpuk di atas #35) | — |
@@ -736,7 +736,8 @@ Tujuan     : Setelah instalasi melayani pasien, perubahan data induk penting (TT
 FR         : PRD FR-54-01, FR-54-02, FR-08-16; prototipe masterdata.html bagian Usulan (U-0405 dsb.)
 API (be)   : POST /usulan-data-induk (jenis_data, objek, nilai_lama, nilai_baru, berlaku_dari, alasan, dasar),
              GET /usulan-data-induk (filter tahap), POST .../{id}/verifikasi | setujui | kembalikan (catatan wajib),
-             POST .../{id}/kirim-ulang; GET /data-induk/{jenis}/{id}/riwayat-versi
+             POST .../{id}/kirim-ulang; GET /usulan-data-induk/{id} (rincian, layar dan tautan tugas);
+             GET /data-induk/{jenis}/{id}/riwayat-versi
 Pekerjaan  :
   be 1. Mesin generik: alur per jenis data induk di konfigurasi (pemilik, pemverifikasi, penyetuju — peran);
         pengusul tidak boleh memverifikasi/menyetujui usulannya sendiri.
@@ -751,6 +752,44 @@ Uji penerimaan:
   - Usulan ICU 12 → 16 TT disetujui untuk tanggal besok: berlaku otomatis besok, kapasitas harian berubah besok.
   - Pengusul mencoba menyetujui → 403. Dikembalikan → pengusul memperbaiki dan kirim ulang.
   - Penerapan terjadwal yang dijalankan dua kali tidak menggandakan perubahan.
+Aturan rinci (kontrak v0.9.0):
+  - Satu usulan = satu `jenis_data` (fase 1: `ruang_tt`) dengan 1–50 butir `perubahan` {objek_jenis, aksi, objek_id,
+    nilai_baru}: TT tambah/ubah/tutup, kamar tambah/ubah, ruang tambah/ubah (induk, kode, nama, fungsi, unit, status).
+    Isi tiap putaran disimpan (`inti.usulan_data_induk_putaran`); ringkasan dipotret saat diusulkan. Tanggal: uji kering
+    memakai `berlaku_dari` sebagai hari acuan; tanggal efektif penerapan = max(berlaku_dari, hari ini). Objek terkunci
+    hanya oleh usulan tahap diusulkan/diverifikasi/disetujui. Semua butir satu `berlaku_dari` dan diterapkan dalam satu
+    transaksi. `nilai_lama` dan revisi objek dipotret server saat diusulkan.
+  - Validasi = aturan 1.8b yang sama, dijalankan sebagai uji kering (transaksi dibatalkan) saat diusulkan/dikirim ulang,
+    dan sungguhan saat diterapkan. Objek yang revisinya berubah sejak diusulkan → `gagal_diterapkan` (alasan tercatat,
+    pengusul diberi tahu). Satu objek hanya boleh ada di satu usulan yang sedang berjalan (tahap diusulkan, diverifikasi,
+    disetujui; usulan dikembalikan tidak mengunci) (409 `objek_sedang_diusulkan`).
+  - Izin sub-menu `master_data.usulan` (aksi lihat, input, verifikasi, setujui; aksi tambahan verifikasi/setujui
+    dipasang MenuBawaan). Alur per jenis data di `inti.alur_usulan` (peran pengusul/pemilik data, pemverifikasi, penyetuju; boleh kosong =
+    siapa pun pemegang izinnya; data awal kosong, perlu verifikasi RS; layar konfigurasi alur = utang). Pengusul ≠
+    pemverifikasi ≠ penyetuju.
+  - Penerapan: tugas terjadwal 00.00 zona RS (idempoten: kunci baris + cek tahap), dan langsung saat disetujui bila
+    `berlaku_dari` ≤ hari ini. Pelaku perubahan data induk = penyetuju; dasar = nomor usulan + dasar usulan.
+  - Versi: `inti.data_induk_versi` (objek_jenis, objek_id, versi, sebelum, sesudah, berlaku_dari, usulan_id, dasar)
+    diisi setiap perubahan ruang/kamar/TT, lewat usulan maupun langsung (1.8b).
+  - Penjaga `instalasi.siap_melayani` (antarmuka; 1.8f mengisinya, sampai itu selalu false): sesudah siap melayani,
+    POST/PATCH /lokasi jenis ruang, POST /lokasi/impor, POST/PATCH /kamar, POST/PATCH /tempat-tidur dan tutupnya →
+    409 `harus_lewat_usulan`, kecuali tambah dan tutup TT `ekstra` (darurat lonjakan). PATCH TT tetap 409 juga untuk TT
+    ekstra (mengubah `ekstra` = mengubah kapasitas resmi).
+  - Tahap `berlaku` dan `gagal_diterapkan` final. Diff tampil dari `tampilan[]` yang disusun server (label isian dan
+    nilai siap tampil, mis. nama kelas/bangsal/unit), bukan isi kanonik TTE.
+  - Tugas 1.7 jenis USULAN_DATA_INDUK (tautan `/master-data/usulan?usulan={id}`): pelaksana tahap diusulkan = peran pemverifikasi alur (atau peran pemegang
+    `master_data.usulan.verifikasi`), tahap diverifikasi = penyetuju, dikembalikan/gagal = pengusul; tugas tahap
+    sebelumnya selesai saat tahap berganti.
+  - TTE (1.6): objek `usulan_data_induk`, ditandatangani pengusul/pemverifikasi/penyetuju putaran itu. Isi kanonik = isi
+    putaran itu: nomor, jenis_data, putaran, perubahan (objek_jenis, aksi, objek_id, nilai_lama, nilai_baru; tanpa
+    label dan tanpa id objek hasil tambah), berlaku_dari, alasan, dasar, pengusul. Dedup tanda
+    tangan per isi (unik ttd.tanda_tangan menjadi objek + pengguna + hash_isi), agar kirim ulang bisa ditandatangani lagi.
+  - Utang (tinjauan #63): daftar usulan menghitung `dapat`/`objek_berubah`/`tampilan` per baris (banyak query pada
+    batas besar; muat sekaligus per halaman); bila alur tanpa peran, tugas verifikasi ikut terkirim ke peran pengusul;
+    `dapat.tandatangani` membaca ttd.tanda_tangan langsung (antarmuka modul Ttd menyusul).
+  - Utang: tutup sementara/buka kembali TT (periode penutupan + perhitungan kapasitas) belum ada; usulan pembatalan
+    oleh pengusul; layar konfigurasi alur; objek yang dibuat di usulan yang sama tidak bisa dirujuk butir berikutnya
+    (mis. kamar baru + TT di kamar itu = dua usulan).
 Di luar lingkup tiket: jenis data tarif/formularium (fase 2–3, memakai mesin ini).
 ```
 

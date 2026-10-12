@@ -60,14 +60,16 @@ final class Penandatangan
                 $hasil = [];
                 $baru = [];
                 foreach ($objek as $o) {
-                    $lama = TandaTangan::query()->where('objek_jenis', $o['jenis'])->where('objek_id', $o['id'])->where('pengguna_id', $pengguna->id)->first();
+                    // Dedup per isi (kontrak v0.9.0): isi yang berubah (mis. usulan dikirim ulang) ditandatangani lagi.
+                    $hash = IsiKanonik::hash((array) $this->penyedia->untuk($o['jenis'])?->isi($o['id']));
+                    $lama = TandaTangan::query()->where('objek_jenis', $o['jenis'])->where('objek_id', $o['id'])->where('pengguna_id', $pengguna->id)
+                        ->where('hash_isi', $hash)->first();
                     if ($lama !== null) {
                         // Tanda tangan lama diverifikasi ulang (isi objek bisa sudah berubah sejak ditandatangani).
-                        $hasil[] = ['tanda_tangan' => $lama, 'baru' => false, 'status' => $this->status($lama, $this->hashSekarang($o['jenis'], $o['id']))];
+                        $hasil[] = ['tanda_tangan' => $lama, 'baru' => false, 'status' => $this->status($lama, $hash)];
 
                         continue;
                     }
-                    $hash = IsiKanonik::hash((array) $this->penyedia->untuk($o['jenis'])?->isi($o['id']));
                     $cap = now();
                     $t = new TandaTangan([
                         'objek_jenis' => $o['jenis'], 'objek_id' => $o['id'], 'penanda_tangan_jenis' => 'pengguna', 'pengguna_id' => $pengguna->id,

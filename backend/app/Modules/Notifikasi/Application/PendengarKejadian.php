@@ -9,6 +9,7 @@ use App\Modules\Akses\Events\PersetujuanDiajukan;
 use App\Modules\Akses\Events\PersetujuanDitutup;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\Peran;
+use App\Modules\MasterData\Events\UsulanTahapBerubah;
 use App\Modules\Sdm\Events\IzinPraktikDibatalkan;
 use App\Modules\Sdm\Events\IzinPraktikDicatat;
 use App\Modules\Sdm\Models\IzinPraktik;
@@ -50,10 +51,7 @@ final class PendengarKejadian
     public function permintaanDibuat(PermintaanAksesDibuat $e): void
     {
         // Pemberi kewenangan akses: setiap peran aktif yang memegang pengaturan.akun.perbaiki (satu tugas per peran).
-        $peran = Peran::query()->where('status', 'aktif')->whereIn('id', DB::table('akses.peran_izin')->where('status', 'aktif')
-            ->whereIn('izin_id', DB::table('akses.izin')->where('kode', 'pengaturan.akun.perbaiki')->select('id'))->select('peran_id'))
-            ->orderBy('kode')->pluck('id');
-        foreach ($peran as $id) {
+        foreach ($this->peranPemegang('pengaturan.akun.perbaiki') as $id) {
             $this->kotakKerja->buat('PERMINTAAN_AKSES', $e->permintaanId, "Permintaan akses {$e->nomor} menunggu tindak lanjut", ['peran', (string) $id]);
         }
     }
@@ -61,6 +59,36 @@ final class PendengarKejadian
     public function permintaanDitutup(PermintaanAksesDitutup $e): void
     {
         $this->kotakKerja->selesaikan('PERMINTAAN_AKSES', $e->permintaanId, 'Permintaan '.$e->status);
+    }
+
+    /**
+     * Usulan data induk berpindah tahap (1.8c): tugas tahap sebelumnya selesai; tugas baru untuk pemverifikasi (peran alur,
+     * atau peran pemegang izin verifikasi), penyetuju, atau pengusul (dikembalikan/gagal). Berlaku: notifikasi ke pengusul.
+     */
+    public function usulanTahapBerubah(UsulanTahapBerubah $e): void
+    {
+        $this->kotakKerja->selesaikan('USULAN_DATA_INDUK', $e->usulanId, 'Usulan '.$e->tahap);
+        $pelaksana = match ($e->tahap) {
+            'diusulkan' => $e->peranPemverifikasiId !== null ? [['peran', $e->peranPemverifikasiId]]
+                : array_map(fn ($id) => ['peran', $id], $this->peranPemegang('master_data.usulan.verifikasi')),
+            'diverifikasi' => $e->peranPenyetujuId !== null ? [['peran', $e->peranPenyetujuId]]
+                : array_map(fn ($id) => ['peran', $id], $this->peranPemegang('master_data.usulan.setujui')),
+            'dikembalikan', 'gagal_diterapkan' => [['pengguna', $e->pengusulId]],
+            default => [],
+        };
+        $judul = match ($e->tahap) {
+            'diusulkan' => "Usulan {$e->nomor} menunggu verifikasi",
+            'diverifikasi' => "Usulan {$e->nomor} menunggu persetujuan",
+            'dikembalikan' => "Usulan {$e->nomor} dikembalikan untuk diperbaiki",
+            default => "Usulan {$e->nomor} gagal diterapkan",
+        };
+        foreach ($pelaksana as $p) {
+            $this->kotakKerja->buat('USULAN_DATA_INDUK', $e->usulanId, $judul, $p);
+        }
+        if ($e->tahap === 'berlaku') {
+            $this->pemberitahu->kirim([$e->pengusulId], 'USULAN_DATA_INDUK', "Usulan {$e->nomor} sudah berlaku",
+                "Perubahan data induk dari usulan {$e->nomor} sudah berlaku.", '/master-data/usulan?usulan='.$e->usulanId, 'biasa');
+        }
     }
 
     /** Izin pengganti dicatat: tugas "akan berakhir" untuk izin lama jenis yang sama selesai. */
@@ -77,6 +105,14 @@ final class PendengarKejadian
     public function izinPraktikDibatalkan(IzinPraktikDibatalkan $e): void
     {
         $this->kotakKerja->selesaikan('IZIN_PRAKTIK_BERAKHIR', $e->izinPraktikId, 'Catatan izin dibatalkan', 'batal');
+    }
+
+    /** @return list<string> peran aktif yang memegang izin itu */
+    private function peranPemegang(string $kodeIzin): array
+    {
+        return Peran::query()->where('status', 'aktif')->whereIn('id', DB::table('akses.peran_izin')->where('status', 'aktif')
+            ->whereIn('izin_id', DB::table('akses.izin')->where('kode', $kodeIzin)->select('id'))->select('peran_id'))
+            ->orderBy('kode')->pluck('id')->map(fn ($id) => (string) $id)->all();
     }
 
     /** TTE terkunci karena PIN salah berulang (1.6): kritis ke pemilik dan atasan langsung. */

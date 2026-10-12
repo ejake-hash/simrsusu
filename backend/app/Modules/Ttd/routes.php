@@ -10,5 +10,5 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::put('saya/ttd/pin', [TtdController::class, 'gantiPin']);
     Route::post('ttd/{pengguna}/reset', [TtdController::class, 'reset']);
     Route::post('ttd/tandatangani', [TtdController::class, 'tandatangani']);
-    Route::get('ttd/verifikasi/{objekJenis}/{objekId}', [TtdController::class, 'verifikasi'])->whereIn('objekJenis', ['persetujuan_akses']);
+    Route::get('ttd/verifikasi/{objekJenis}/{objekId}', [TtdController::class, 'verifikasi'])->whereIn('objekJenis', ['persetujuan_akses', 'usulan_data_induk']);
 });

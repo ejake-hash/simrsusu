@@ -23,7 +23,10 @@ use Illuminate\Support\Facades\DB;
  */
 final class KelolaRawatInap
 {
-    public function __construct(private readonly CatatAktivitas $audit) {}
+    public function __construct(
+        private readonly CatatAktivitas $audit,
+        private readonly CatatVersi $versi,
+    ) {}
 
     /** @param  array{kode: string, nama: string, kode_aplicares?: string|null, berlaku_dari?: string|null, dasar_perubahan: string}  $isi */
     public function buatKelas(Pengguna $penyunting, array $isi): KelasRawat
@@ -93,6 +96,7 @@ final class KelolaRawatInap
                 'atribut_standar' => $isi['atribut_standar'] ?? [],
             ]);
             $kamar->forceFill(['dibuat_oleh' => $penyunting->id, 'diubah_oleh' => $penyunting->id])->save();
+            $this->versi->catat('kamar', $kamar->id, null, $this->isiAudit($kamar), SuntinganBerversi::hariIni(), $isi['dasar_perubahan'], $penyunting->id);
             $this->audit->catat('master_data.kamar_dibuat', $penyunting->id, 'inti.kamar', $kamar->id,
                 [...$this->isiAudit($kamar), 'dasar_perubahan' => $isi['dasar_perubahan']]);
 
@@ -186,6 +190,9 @@ final class KelolaRawatInap
             }
             $baris->fill(array_intersect_key($isi, array_flip($kolom)));
             $baris->forceFill(['diubah_oleh' => $penyunting->id])->save();
+            if ($baris instanceof Kamar) {
+                $this->versi->catat('kamar', $baris->id, $sebelum, $this->isiAudit($baris), SuntinganBerversi::hariIni(), $isi['dasar_perubahan'], $penyunting->id);
+            }
             $this->audit->catat($aksi, $penyunting->id, $baris->getTable(), (string) $baris->getKey(),
                 [...$this->isiAudit($baris), 'dasar_perubahan' => $isi['dasar_perubahan']], $sebelum);
 

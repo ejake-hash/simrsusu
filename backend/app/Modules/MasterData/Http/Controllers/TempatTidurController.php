@@ -6,6 +6,7 @@ use App\Core\Database\Like;
 use App\Core\Http\IfMatch;
 use App\Core\Http\Paginasi;
 use App\Modules\MasterData\Application\KelolaTempatTidur;
+use App\Modules\MasterData\Application\PenjagaUsulan;
 use App\Modules\MasterData\Application\PohonLokasi;
 use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Http\Resources\LokasiResource;
@@ -67,6 +68,10 @@ final class TempatTidurController
             'berlaku_dari' => ['nullable', 'date_format:Y-m-d'],
             'dasar_perubahan' => IsianOrganisasi::DASAR,
         ]);
+        // TT ekstra (darurat lonjakan) tetap langsung sesudah siap melayani (1.8c).
+        if (! ($isi['ekstra'] ?? false)) {
+            app(PenjagaUsulan::class)->pastikanBolehLangsung();
+        }
         [$tt, $peringatan] = $kelola->buat($request->user(), $isi);
 
         return $this->satu($tt, 201, ['peringatan' => $peringatan]);
@@ -83,6 +88,7 @@ final class TempatTidurController
             'dasar_perubahan' => IsianOrganisasi::DASAR,
         ]);
         $this->minimalSatuPerubahan($isi);
+        app(PenjagaUsulan::class)->pastikanBolehLangsung();
 
         return $this->satu($kelola->ubah($request->user(), $tempatTidur, IfMatch::versi($request), $isi));
     }
@@ -95,6 +101,10 @@ final class TempatTidurController
             'alasan' => ['required', 'string', 'min:5', 'max:500'],
             'dasar_perubahan' => IsianOrganisasi::DASAR,
         ]);
+
+        if (! $tempatTidur->ekstra) {
+            app(PenjagaUsulan::class)->pastikanBolehLangsung();
+        }
 
         return $this->satu($kelola->tutup($request->user(), $tempatTidur, IfMatch::versi($request), $isi['berlaku_dari'], $isi['alasan'], $isi['dasar_perubahan']));
     }

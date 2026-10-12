@@ -6,6 +6,7 @@ use App\Core\Database\Like;
 use App\Core\Http\IfMatch;
 use App\Core\Http\Paginasi;
 use App\Modules\MasterData\Application\KelolaLokasi;
+use App\Modules\MasterData\Application\PenjagaUsulan;
 use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Http\Resources\LokasiResource;
 use App\Modules\MasterData\Models\Lokasi;
@@ -64,6 +65,9 @@ final class LokasiController
             'unit_organisasi_id' => ['nullable', 'uuid'],
             'dasar_perubahan' => IsianOrganisasi::DASAR,
         ]);
+        if ($isi['jenis'] === 'ruang') {
+            app(PenjagaUsulan::class)->pastikanBolehLangsung();
+        }
 
         return $this->satu($kelola->buat($request->user(), $isi), 201);
     }
@@ -82,6 +86,9 @@ final class LokasiController
             'dasar_perubahan' => IsianOrganisasi::DASAR,
         ]);
         $this->minimalSatuPerubahan($isi);
+        if ($lokasi->jenis === 'ruang') {
+            app(PenjagaUsulan::class)->pastikanBolehLangsung();
+        }
 
         return $this->satu($kelola->ubah($request->user(), $lokasi, IfMatch::versi($request), $isi));
     }
