@@ -730,7 +730,8 @@ Tujuan     : Setelah instalasi melayani pasien, perubahan data induk penting (TT
 FR         : PRD FR-54-01, FR-54-02, FR-08-16; prototipe masterdata.html bagian Usulan (U-0405 dsb.)
 API (be)   : POST /usulan-data-induk (jenis_data, objek, nilai_lama, nilai_baru, berlaku_dari, alasan, dasar),
              GET /usulan-data-induk (filter tahap), POST .../{id}/verifikasi | setujui | kembalikan (catatan wajib),
-             POST .../{id}/kirim-ulang; GET /data-induk/{jenis}/{id}/riwayat-versi
+             POST .../{id}/kirim-ulang; GET /usulan-data-induk/{id} (rincian, layar dan tautan tugas);
+             GET /data-induk/{jenis}/{id}/riwayat-versi
 Pekerjaan  :
   be 1. Mesin generik: alur per jenis data induk di konfigurasi (pemilik, pemverifikasi, penyetuju — peran);
         pengusul tidak boleh memverifikasi/menyetujui usulannya sendiri.
@@ -745,6 +746,41 @@ Uji penerimaan:
   - Usulan ICU 12 → 16 TT disetujui untuk tanggal besok: berlaku otomatis besok, kapasitas harian berubah besok.
   - Pengusul mencoba menyetujui → 403. Dikembalikan → pengusul memperbaiki dan kirim ulang.
   - Penerapan terjadwal yang dijalankan dua kali tidak menggandakan perubahan.
+Aturan rinci (kontrak v0.9.0):
+  - Satu usulan = satu `jenis_data` (fase 1: `ruang_tt`) dengan 1–50 butir `perubahan` {objek_jenis, aksi, objek_id,
+    nilai_baru}: TT tambah/ubah/tutup, kamar tambah/ubah, ruang tambah/ubah (induk, kode, nama, fungsi, unit, status).
+    Isi tiap putaran disimpan (`inti.usulan_data_induk_putaran`); ringkasan dipotret saat diusulkan. Tanggal: uji kering
+    memakai `berlaku_dari` sebagai hari acuan; tanggal efektif penerapan = max(berlaku_dari, hari ini). Objek terkunci
+    hanya oleh usulan tahap diusulkan/diverifikasi/disetujui. Semua butir satu `berlaku_dari` dan diterapkan dalam satu
+    transaksi. `nilai_lama` dan revisi objek dipotret server saat diusulkan.
+  - Validasi = aturan 1.8b yang sama, dijalankan sebagai uji kering (transaksi dibatalkan) saat diusulkan/dikirim ulang,
+    dan sungguhan saat diterapkan. Objek yang revisinya berubah sejak diusulkan → `gagal_diterapkan` (alasan tercatat,
+    pengusul diberi tahu). Satu objek hanya boleh ada di satu usulan yang sedang berjalan (tahap diusulkan, diverifikasi,
+    disetujui; usulan dikembalikan tidak mengunci) (409 `objek_sedang_diusulkan`).
+  - Izin sub-menu `master_data.usulan` (aksi lihat, input, verifikasi, setujui; aksi tambahan verifikasi/setujui
+    dipasang MenuBawaan). Alur per jenis data di `inti.alur_usulan` (peran pengusul/pemilik data, pemverifikasi, penyetuju; boleh kosong =
+    siapa pun pemegang izinnya; data awal kosong, perlu verifikasi RS; layar konfigurasi alur = utang). Pengusul ≠
+    pemverifikasi ≠ penyetuju.
+  - Penerapan: tugas terjadwal 00.00 zona RS (idempoten: kunci baris + cek tahap), dan langsung saat disetujui bila
+    `berlaku_dari` ≤ hari ini. Pelaku perubahan data induk = penyetuju; dasar = nomor usulan + dasar usulan.
+  - Versi: `inti.data_induk_versi` (objek_jenis, objek_id, versi, sebelum, sesudah, berlaku_dari, usulan_id, dasar)
+    diisi setiap perubahan ruang/kamar/TT, lewat usulan maupun langsung (1.8b).
+  - Penjaga `instalasi.siap_melayani` (antarmuka; 1.8f mengisinya, sampai itu selalu false): sesudah siap melayani,
+    POST/PATCH /lokasi jenis ruang, POST /lokasi/impor, POST/PATCH /kamar, POST/PATCH /tempat-tidur dan tutupnya →
+    409 `harus_lewat_usulan`, kecuali tambah dan tutup TT `ekstra` (darurat lonjakan). PATCH TT tetap 409 juga untuk TT
+    ekstra (mengubah `ekstra` = mengubah kapasitas resmi).
+  - Tahap `berlaku` dan `gagal_diterapkan` final. Diff tampil dari `tampilan[]` yang disusun server (label isian dan
+    nilai siap tampil, mis. nama kelas/bangsal/unit), bukan isi kanonik TTE.
+  - Tugas 1.7 jenis USULAN_DATA_INDUK (tautan `/master-data/usulan?usulan={id}`): pelaksana tahap diusulkan = peran pemverifikasi alur (atau peran pemegang
+    `master_data.usulan.verifikasi`), tahap diverifikasi = penyetuju, dikembalikan/gagal = pengusul; tugas tahap
+    sebelumnya selesai saat tahap berganti.
+  - TTE (1.6): objek `usulan_data_induk`, ditandatangani pengusul/pemverifikasi/penyetuju putaran itu. Isi kanonik = isi
+    putaran itu: nomor, jenis_data, putaran, perubahan (objek_jenis, aksi, objek_id, nilai_lama, nilai_baru; tanpa
+    label dan tanpa id objek hasil tambah), berlaku_dari, alasan, dasar, pengusul. Dedup tanda
+    tangan per isi (unik ttd.tanda_tangan menjadi objek + pengguna + hash_isi), agar kirim ulang bisa ditandatangani lagi.
+  - Utang: tutup sementara/buka kembali TT (periode penutupan + perhitungan kapasitas) belum ada; usulan pembatalan
+    oleh pengusul; layar konfigurasi alur; objek yang dibuat di usulan yang sama tidak bisa dirujuk butir berikutnya
+    (mis. kamar baru + TT di kamar itu = dua usulan).
 Di luar lingkup tiket: jenis data tarif/formularium (fase 2–3, memakai mesin ini).
 ```
 
