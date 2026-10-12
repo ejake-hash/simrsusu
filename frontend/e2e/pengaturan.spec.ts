@@ -354,6 +354,23 @@ test('1440 px: Akses ditolak → Minta akses (contoh.dokter) → superadmin meli
   await expect(dokter.page.getByRole('button', { name: 'Minta akses' })).toHaveCount(0)
   await dokter.tutup()
 
+  // 1.7: tugas PERMINTAAN_AKSES di kotak kerja superadmin (pemegang pengaturan.akun.perbaiki), riwayatnya, dan
+  // notifikasinya di lonceng; tautannya membuka Persetujuan akses → Permintaan.
+  const judulTugas = `Permintaan akses ${nomor} menunggu tindak lanjut`
+  await page.goto('/')
+  const kotak = page.getByRole('region', { name: 'Kotak kerja' })
+  await expect(kotak.getByRole('tab', { name: /^Tugas saya \(\d+\)$/ })).toBeVisible()
+  const tugas = kotak.getByRole('listitem').filter({ hasText: judulTugas })
+  await expect(tugas).toContainText('Permintaan akses menunggu')
+  await expect(tugas).toContainText(/Tenggat .* lagi/)
+  await tugas.getByRole('button', { name: `Riwayat: ${judulTugas}` }).click()
+  const riwayat = page.getByRole('dialog', { name: judulTugas })
+  await expect(riwayat.getByText('Dibuat', { exact: true })).toBeVisible()
+  await riwayat.getByRole('button', { name: 'Tutup' }).last().click()
+  await page.getByRole('button', { name: /^Notifikasi, \d+ belum dibaca$/ }).click()
+  await page.getByRole('region', { name: 'Notifikasi' }).getByRole('button', { name: new RegExp(judulTugas) }).click()
+  await expect(page).toHaveURL(/\/pengaturan\/persetujuan\?tab=permintaan/)
+
   await page.goto('/pengaturan/persetujuan?tab=permintaan')
   const baris = page.getByRole('region', { name: 'Daftar permintaan akses' }).getByRole('row').filter({ hasText: nomor })
   await expect(baris).toContainText('Pengaturan Sistem → Peran & izin')
@@ -364,6 +381,12 @@ test('1440 px: Akses ditolak → Minta akses (contoh.dokter) → superadmin meli
   await tolak.getByRole('button', { name: 'Tolak permintaan' }).click()
   await expect(page.getByText(`Permintaan ${nomor} ditolak.`)).toBeVisible()
   await expect(baris).toHaveCount(0)
+
+  // Kejadian penyelesai (permintaan ditolak) menutup tugas: pindah ke Selesai bulan ini.
+  await page.goto('/')
+  await expect(page.getByRole('region', { name: 'Kotak kerja' }).getByRole('listitem').filter({ hasText: judulTugas })).toHaveCount(0)
+  await page.getByRole('region', { name: 'Kotak kerja' }).getByRole('tab', { name: /^Selesai bulan ini/ }).click()
+  await expect(page.getByRole('region', { name: 'Kotak kerja' }).getByRole('listitem').filter({ hasText: judulTugas })).toBeVisible()
 })
 
 test('1440 px: izin sensitif ke peran → menunggu persetujuan Superadmin; pengaju tidak melihat Setujui (MD-4) dan bisa menarik', async ({ page }) => {

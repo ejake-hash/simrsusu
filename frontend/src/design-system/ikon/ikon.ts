@@ -36,6 +36,7 @@ const PETA = {
   keluar: '<path d="M15 4h4v16h-4"/><path d="M10 8l-4 4 4 4M6 12h10"/>',
   kembali: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
   jam: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+  lonceng: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   gembok: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   tambah: '<path d="M12 5v14M5 12h14"/>',
   salin: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/>',

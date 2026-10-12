@@ -325,3 +325,27 @@ test('1024 px: pohon lokasi dan panel rinci berdampingan tanpa gulir samping hal
   await expect(await seriusAtauKritis(page)).toEqual([])
   await page.context().close()
 })
+
+// ── Tiket 1.7: Master Data → Jenis Tugas, Tenggat & Eskalasi ──
+test('1440 px: jenis tugas bawaan tampil; ubah waktu eskalasi (jam) dengan dasar; eskalasi lebih awal dari teguran ditolak', async ({ browser }, info) => {
+  const page = await halaman(browser, asalDari(info.project.use.baseURL))
+  await page.goto('/master-data/jenis-tugas')
+  await expect(page.getByRole('heading', { level: 1, name: 'Jenis Tugas, Tenggat & Eskalasi' })).toBeVisible()
+  const tabel = page.getByRole('region', { name: 'Daftar jenis tugas' })
+  for (const kode of ['IZIN_PRAKTIK_BERAKHIR', 'PERMINTAAN_AKSES', 'PERSETUJUAN_AKSES_MENUNGGU']) await expect(tabel).toContainText(kode)
+
+  await tabel.getByRole('button', { name: 'Ubah Izin praktik akan berakhir' }).click()
+  await expect(dialog(page).getByLabel('Tugas dibuat sebelum tanggal objek (jam)')).toHaveValue('720')
+  await dialog(page).getByLabel('Teguran sesudah').fill('24')
+  await dialog(page).getByLabel('Eskalasi sesudah').fill('12')
+  await dialog(page).getByLabel('Dasar perubahan').fill('Kebijakan RS uji e2e 1.7')
+  await dialog(page).getByRole('button', { name: 'Simpan' }).click()
+  await expect(dialog(page).getByText('Eskalasi tidak boleh lebih awal dari teguran.')).toBeVisible()
+  await dialog(page).getByLabel('Eskalasi sesudah').fill('48')
+  await dialog(page).getByRole('button', { name: 'Simpan' }).click()
+  await expect(dialog(page)).toHaveCount(0)
+  await expect(page.getByText('IZIN_PRAKTIK_BERAKHIR disimpan; berlaku untuk tugas yang dibuat sesudahnya.')).toBeVisible()
+  await expect(tabel.getByRole('row').filter({ hasText: 'IZIN_PRAKTIK_BERAKHIR' })).toContainText('1 hari sesudah → 2 hari sesudah')
+  await expect(await seriusAtauKritis(page)).toEqual([])
+  await page.context().close()
+})

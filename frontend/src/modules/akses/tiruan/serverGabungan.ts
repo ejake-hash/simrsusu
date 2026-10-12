@@ -1,3 +1,4 @@
+import { buatServerNotifikasi } from '../../notifikasi/tiruan/serverNotifikasi'
 import { buatServerLokasi } from '../../organisasi/tiruan/serverLokasi'
 import { buatServerOrganisasi } from '../../organisasi/tiruan/serverOrganisasi'
 import { buatServerSdm } from '../../sdm/tiruan/serverSdm'
@@ -5,7 +6,8 @@ import type { PermintaanTiruan, ResponsTiruan } from './serverTiruan'
 import { buatServerTiruan, ID_SUPERADMIN, type OpsiServerTiruan } from './serverTiruan'
 
 /**
- * Gabungan server tiruan akses (1.2c/1.2d/1.2e), organisasi (1.8a), lokasi (1.8b), dan SDM (1.8d) untuk `vite` dev
+ * Gabungan server tiruan akses (1.2c/1.2d/1.2e), organisasi (1.8a), lokasi (1.8b), SDM (1.8d), dan notifikasi/kotak
+ * kerja (1.7) untuk `vite` dev
  * tanpa backend dan unit test. Akun yang masuk: superadmin (bisa diganti `penggunaId`). Superadmin di sini sekaligus
  * diberi peran Contoh Admin Data Induk dan Contoh Admin SDM agar satu akun dev bisa membuka Profil RS, Organisasi,
  * dan Data pegawai.
@@ -36,6 +38,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     pelaku: () => ({ id: opsi.penggunaId ?? ID_SUPERADMIN, nama: 'Contoh Superadmin' }),
     sekarang: opsi.sekarang,
   })
+  const notifikasi = buatServerNotifikasi({ boleh: akses.bolehSaya, unit: organisasi.ringkasUnit, sekarang: opsi.sekarang })
   pegawaiKeluar = sdm.pegawaiKeluar
   ringkasPegawai = sdm.ringkasPegawai
 
@@ -54,11 +57,12 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     lokasi,
     akses,
     sdm,
+    notifikasi,
     tangani: (r: PermintaanTiruan): ResponsTiruan | Promise<ResponsTiruan> | null => {
       if (akses.wajibGantiSandi() && !bebasGantiSandi(r)) {
         return { status: 403, isi: { error: { kode: 'wajib_ganti_sandi', pesan: 'Ganti sandi awal Anda lebih dulu.', rincian: [] } } }
       }
-      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r)
+      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? notifikasi.tangani(r)
     },
   }
 }

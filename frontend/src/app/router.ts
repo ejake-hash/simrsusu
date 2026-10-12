@@ -40,11 +40,24 @@ export const router = createRouter({
         { path: '', name: 'beranda', component: () => import('@/modules/beranda/pages/BerandaPage.vue'), meta: { judul: 'Beranda' } },
         // Gerbang izin di HalamanModul (tanpa <menu>.<sub>.lihat → Akses ditolak + Minta akses, tiket 1.2d).
         { path: 'pengaturan/peran', name: 'pengaturan-peran', component: () => import('@/modules/akses/pages/PeranPage.vue'), meta: { judul: 'Peran & izin' } },
-        { path: 'pengaturan/akun', name: 'pengaturan-akun', component: () => import('@/modules/akses/pages/AkunPage.vue'), meta: { judul: 'Akun & akses' } },
+        {
+          path: 'pengaturan/akun',
+          name: 'pengaturan-akun',
+          component: () => import('@/modules/akses/pages/AkunPage.vue'),
+          meta: { judul: 'Akun & akses' },
+          // Tautan tugas PERMINTAAN_AKSES (1.7): permintaan ditindaklanjuti di Persetujuan akses → tab Permintaan.
+          beforeEnter: (ke) => (typeof ke.query.permintaan === 'string' ? { path: '/pengaturan/persetujuan', query: { tab: 'permintaan' } } : true),
+        },
+        // Tautan tugas dan notifikasi (1.7) berbentuk jalur; layar memakai query (?id=, ?pegawai=).
+        { path: 'pengaturan/persetujuan/:id', redirect: (ke) => ({ path: '/pengaturan/persetujuan', query: { ...ke.query, id: String(ke.params.id) } }) },
+        { path: 'sdm/pegawai/:pegawai', redirect: (ke) => ({ path: '/sdm/pegawai', query: { pegawai: String(ke.params.pegawai) } }) },
         { path: 'pengaturan/persetujuan', name: 'pengaturan-persetujuan', component: () => import('@/modules/akses/pages/PersetujuanPage.vue'), meta: { judul: 'Persetujuan akses' } },
         { path: 'pengaturan/profil-rs', name: 'pengaturan-profil-rs', component: () => import('@/modules/organisasi/pages/ProfilRsPage.vue'), meta: { judul: 'Profil rumah sakit' } },
         { path: 'master-data/organisasi', name: 'master-data-organisasi', component: () => import('@/modules/organisasi/pages/OrganisasiPage.vue'), meta: { judul: 'Organisasi, Unit, Ruang & Tempat Tidur' } },
         { path: 'sdm/pegawai', name: 'sdm-pegawai', component: () => import('@/modules/sdm/pages/PegawaiPage.vue'), meta: { judul: 'Data pegawai' } },
+        { path: 'master-data/jenis-tugas', name: 'master-data-jenis-tugas', component: () => import('@/modules/notifikasi/pages/JenisTugasPage.vue'), meta: { judul: 'Jenis Tugas, Tenggat & Eskalasi' } },
+        // Notifikasi akun sendiri: tanpa izin khusus (/saya/*), bukan halaman menu.
+        { path: 'notifikasi', name: 'notifikasi', component: () => import('@/modules/notifikasi/pages/NotifikasiPage.vue'), meta: { judul: 'Notifikasi' } },
         // Halaman modul didaftarkan di atas baris ini. Jalur lain: Segera hadir bila ada di menu, selain itu tidak ditemukan.
         { path: ':jalur(.*)*', name: 'menu', component: () => import('@/layouts/HalamanMenu.vue') },
       ],
