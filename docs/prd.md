@@ -1974,7 +1974,7 @@ Kontrak ini mengikat backend (tiket 1.1, 1.1b, dan 1.5 untuk langkah 3) dan hala
 | 2a. Kode MFA | `POST /api/v1/autentikasi/mfa` `{challenge_id, metode, kode}` | `200 {"status":"masuk","pengguna":{…}}` | `401 kode_mfa_salah` · `401 challenge_tidak_berlaku` (kedaluwarsa, sudah dipakai, atau dari sesi lain; klien kembali ke langkah 1) · `403 akun_terkunci` · `429` |
 | 2b. Daftar MFA (pertama kali) | `POST /api/v1/autentikasi/mfa/daftar` `{challenge_id}` | `200 {"uri_otpauth":"otpauth://…","qr_svg":"<svg…>"}` | `401 challenge_tidak_berlaku` |
 | 2c. Konfirmasi daftar | `POST /api/v1/autentikasi/mfa/daftar/konfirmasi` `{challenge_id, kode}` | `200 {"status":"masuk","pengguna":{…},"kode_cadangan":["…" ×10]}`; kode cadangan **hanya ditampilkan sekali** | `401 kode_mfa_salah` · `401 challenge_tidak_berlaku` |
-| 3. MFA ulang (sesi berjalan, K11) | `POST /api/v1/saya/mfa/verifikasi-ulang` `{metode, kode}` | `200 {"data":{"mfa_terverifikasi_pada":"<ISO 8601>","berlaku_sampai":"<ISO 8601>"}}`; sesi tidak diganti | `401 kode_mfa_salah` · `403 akun_terkunci` · `409 mfa_belum_terdaftar` · `429` |
+| 3. MFA ulang (sesi berjalan, K11) | `POST /api/v1/saya/mfa/verifikasi-ulang` `{metode, kode}` | `200 {"data":{"mfa_terverifikasi_pada":"<ISO 8601>","berlaku_sampai":"<ISO 8601>"}}`; sesi tidak diganti | `422 kode_mfa_salah` (bukan 401: sesi tetap masuk) · `403 akun_terkunci` · `403 mfa_belum_terdaftar` · `429` |
 
 Aturan:
 - `pengguna` berisi bentuk `PenggunaResource` yang sama dengan `GET /api/v1/saya`, ditambah `mfa_aktif` (boolean).
