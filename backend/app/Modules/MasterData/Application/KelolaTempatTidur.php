@@ -26,6 +26,7 @@ final class KelolaTempatTidur
         private readonly CatatAktivitas $audit,
         private readonly PohonLokasi $pohon,
         private readonly PemeriksaPenempatan $penempatan,
+        private readonly CatatVersi $versi,
     ) {}
 
     /**
@@ -71,6 +72,7 @@ final class KelolaTempatTidur
             $peringatan = $kamar->kapasitas_maksimum !== null && $belumDitutup > $kamar->kapasitas_maksimum
                 ? ['melebihi_kapasitas'] : [];
             KapasitasTempatTidurBerubah::dispatch($bangsal->id, $berlakuDari);
+            $this->versi->catat('tempat_tidur', $tt->id, null, $this->isiAudit($tt), $berlakuDari, $isi['dasar_perubahan'], $penyunting->id);
             $this->audit->catat('master_data.tempat_tidur_dibuat', $penyunting->id, 'inti.tempat_tidur', $tt->id,
                 [...$this->isiAudit($tt), 'peringatan' => $peringatan, 'dasar_perubahan' => $isi['dasar_perubahan']]);
 
@@ -94,6 +96,7 @@ final class KelolaTempatTidur
             if ($tt->wasChanged(['kelas_rawat_id', 'ekstra'])) {
                 KapasitasTempatTidurBerubah::dispatch($this->bangsalId($tt), SuntinganBerversi::hariIni());
             }
+            $this->versi->catat('tempat_tidur', $tt->id, $sebelum, $this->isiAudit($tt), SuntinganBerversi::hariIni(), $isi['dasar_perubahan'], $penyunting->id);
             $this->audit->catat('master_data.tempat_tidur_diubah', $penyunting->id, 'inti.tempat_tidur', $tt->id,
                 [...$this->isiAudit($tt), 'dasar_perubahan' => $isi['dasar_perubahan']], $sebelum);
 
@@ -124,6 +127,7 @@ final class KelolaTempatTidur
             ])->save();
             // Status node lokasi TT diturunkan dari masa berlaku TT saat dibaca (LokasiResource), tidak disimpan ganda.
             KapasitasTempatTidurBerubah::dispatch($this->bangsalId($tt), $mulai);
+            $this->versi->catat('tempat_tidur', $tt->id, $sebelum, $this->isiAudit($tt), $mulai, $dasar, $penyunting->id);
             $this->audit->catat('master_data.tempat_tidur_ditutup', $penyunting->id, 'inti.tempat_tidur', $tt->id,
                 [...$this->isiAudit($tt), 'mulai_tidak_dihitung' => $mulai, 'dasar_perubahan' => $dasar], $sebelum);
 

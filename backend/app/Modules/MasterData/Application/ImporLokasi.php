@@ -28,6 +28,7 @@ final class ImporLokasi
     public function __construct(
         private readonly CatatAktivitas $audit,
         private readonly PohonLokasi $pohon,
+        private readonly CatatVersi $versi,
     ) {}
 
     /** @return array<string, mixed> HasilImporLokasi */
@@ -51,7 +52,7 @@ final class ImporLokasi
                 $hasil = $this->hasil('terapkan', false, $baris, $periksa['kesalahan']);
                 throw new ApiError(422, 'impor_tidak_valid', 'Ada baris yang salah; tidak ada yang disimpan. Perbaiki lalu unggah ulang.', $hasil['kesalahan']);
             }
-            $bangsal = $this->simpan($penyunting, $periksa['siap']);
+            $bangsal = $this->simpan($penyunting, $periksa['siap'], $dasar);
             foreach ($bangsal as $id) {
                 KapasitasTempatTidurBerubah::dispatch($id, SuntinganBerversi::hariIni());
             }
@@ -258,7 +259,7 @@ final class ImporLokasi
      * @param  array<int, array<string, mixed>>  $siap
      * @return list<string> bangsal yang TT-nya bertambah
      */
-    private function simpan(Pengguna $penyunting, array $siap): array
+    private function simpan(Pengguna $penyunting, array $siap, string $dasar): array
     {
         uasort($siap, fn ($a, $b) => substr_count($a['kode_lengkap'], '-') <=> substr_count($b['kode_lengkap'], '-'));
         $hariIni = SuntinganBerversi::hariIni();
@@ -305,6 +306,21 @@ final class ImporLokasi
         foreach (array_chunk($tt, 500) as $potong) {
             DB::table('inti.tempat_tidur')->insert($potong);
         }
+        // Versi pertama ruang/kamar/TT hasil impor (1.8c: setiap perubahan data induk berversi), isi sama dengan audit layanan.
+        $versi = [];
+        foreach ($lokasi as $l) {
+            if ($l['jenis'] === 'ruang') {
+                $versi[] = ['ruang', $l['id'], array_intersect_key($l, array_flip(['induk_id', 'jenis', 'kode', 'kode_lengkap', 'nama', 'fungsi', 'unit_organisasi_id', 'status', 'status_berlaku_dari']))];
+            }
+        }
+        foreach ($kamar as $k) {
+            $versi[] = ['kamar', $k['id'], ['bangsal_id' => $k['bangsal_id'], 'lokasi_id' => $k['lokasi_id'], 'kapasitas_maksimum' => $k['kapasitas_maksimum'], 'atribut_standar' => []]];
+        }
+        foreach ($tt as $t) {
+            $versi[] = ['tempat_tidur', $t['id'], [...array_intersect_key($t, array_flip(['kamar_id', 'kode', 'kelas_rawat_id', 'aturan_jenis_kelamin', 'isolasi', 'ekstra'])),
+                'alasan_tutup' => null, 'berlaku_dari' => $hariIni, 'berlaku_sampai' => null]];
+        }
+        $this->versi->catatBaru($versi, $hariIni, $dasar, $penyunting->id);
 
         return DB::table('inti.kamar')->whereIn('id', array_keys($bangsal))->distinct()->pluck('bangsal_id')->all();
     }

@@ -3,9 +3,11 @@
 namespace App\Modules\MasterData;
 
 use App\Modules\Akses\Application\DataUnit;
+use App\Modules\MasterData\Application\CatatVersi;
 use App\Modules\MasterData\Application\KapasitasTempatTidur;
 use App\Modules\MasterData\Application\PohonUnit;
 use App\Modules\MasterData\Console\RekamKapasitasTempatTidur;
+use App\Modules\MasterData\Console\TerapkanUsulan;
 use App\Modules\MasterData\Domain\PemeriksaPenempatan;
 use App\Modules\MasterData\Domain\PenempatanBelumAda;
 use App\Modules\MasterData\Events\KapasitasTempatTidurBerubah;
@@ -20,6 +22,8 @@ class ModuleServiceProvider extends ServiceProvider
         $this->app->bind(DataUnit::class, PohonUnit::class);
         // Penempatan pasien dibangun di fase 2; sampai itu TT tidak pernah terisi (tiket 1.8b).
         $this->app->bind(PemeriksaPenempatan::class, PenempatanBelumAda::class);
+        // Berstatus (usulan yang sedang diterapkan): satu instans per permintaan/pekerjaan.
+        $this->app->scoped(CatatVersi::class);
     }
 
     public function boot(): void
@@ -28,7 +32,7 @@ class ModuleServiceProvider extends ServiceProvider
         $this->loadRoutesFrom(__DIR__.'/routes.php');
         Event::listen(KapasitasTempatTidurBerubah::class, [KapasitasTempatTidur::class, 'tanganiPerubahan']);
         if ($this->app->runningInConsole()) {
-            $this->commands([RekamKapasitasTempatTidur::class]);
+            $this->commands([RekamKapasitasTempatTidur::class, TerapkanUsulan::class]);
         }
     }
 }
