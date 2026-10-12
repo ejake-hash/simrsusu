@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Integrasi\Jobs\ProsesKotakKeluar;
 use App\Modules\Notifikasi\Jobs\ProsesEskalasiTugas;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -28,3 +29,8 @@ Schedule::command('sdm:proses-pegawai-keluar')->dailyAt('00:10')->timezone(confi
 Schedule::job(new ProsesEskalasiTugas)->everyMinute()->onOneServer();
 Schedule::command('notifikasi:siapkan-partisi')->dailyAt('02:10')->timezone(config('audit.zona_waktu'))->onOneServer();
 Schedule::command('notifikasi:periksa-izin-praktik')->dailyAt('06:00')->timezone(config('instalasi.zona_waktu'))->onOneServer();
+
+// Gateway integrasi (tiket 1.9): putaran outbox tiap menit di queue `integrasi`, partisi dan masa simpan log.
+Schedule::job(new ProsesKotakKeluar)->everyMinute()->onOneServer();
+Schedule::command('integrasi:siapkan-partisi')->dailyAt('02:20')->timezone(config('audit.zona_waktu'))->onOneServer();
+Schedule::command('integrasi:hapus-log-lama')->dailyAt('02:30')->timezone(config('audit.zona_waktu'))->onOneServer();

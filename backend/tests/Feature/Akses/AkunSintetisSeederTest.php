@@ -35,7 +35,7 @@ class AkunSintetisSeederTest extends TestCase
         $akun = Pengguna::query()->where('nama_pengguna', 'like', 'contoh.%')->get();
         $this->assertEqualsCanonicalizing(
             ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci', 'contoh.mfa', 'contoh.mfa.baru', 'contoh.superadmin', 'contoh.superadmin.dua', 'contoh.tanpa.peran', 'contoh.data.induk', 'contoh.sdm', 'contoh.ttd', 'contoh.ttd.baru',
-                'contoh.usulan.pengusul', 'contoh.usulan.verifikator', 'contoh.usulan.penyetuju'],
+                'contoh.usulan.pengusul', 'contoh.usulan.verifikator', 'contoh.usulan.penyetuju', 'contoh.integrasi'],
             $akun->pluck('nama_pengguna')->all(),
         );
         foreach ($akun as $pengguna) {
@@ -48,6 +48,8 @@ class AkunSintetisSeederTest extends TestCase
         $this->assertTrue($mfa->wajib_mfa && $mfa->mfaAktif());
         $this->assertTrue($baru->wajib_mfa && ! $baru->mfaAktif());
         $this->assertFalse($akun->firstWhere('nama_pengguna', 'contoh.admisi')->wajib_mfa);
+        // contoh.integrasi (tiket 1.9): MFA aktif karena memegang pengaturan.integrasi.perbaiki (sensitif).
+        $this->assertTrue($akun->firstWhere('nama_pengguna', 'contoh.integrasi')->mfaAktif());
     }
 
     public function test_superadmin_sintetis_dengan_mfa_dan_peran_contoh_aktif_lagi_setelah_seeding_ulang(): void

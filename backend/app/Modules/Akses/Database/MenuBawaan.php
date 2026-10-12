@@ -48,6 +48,8 @@ final class MenuBawaan
      */
     public const IZIN_SENSITIF = [
         'pengaturan.peran.input', 'pengaturan.peran.perbaiki', 'pengaturan.akun.input', 'pengaturan.akun.perbaiki',
+        // Tiket 1.9: menukar kredensial integrasi mengalihkan kiriman data pasien ke identitas faskes lain.
+        'pengaturan.integrasi.perbaiki',
     ];
 
     /**
@@ -191,9 +193,11 @@ final class MenuBawaan
                 'rotasi' => ['Rotasi', 46],
                 'supervisi' => ['Supervisi', 46],
             ]],
-            'integrasi' => ['Integrasi dan Laporan', 2, 49, [
+            // Fase 1 (tiket 1.9): pemantauan kotak keluar per tujuan dan log integrasi; laporan menyusul fase 4.
+            'integrasi' => ['Integrasi dan Laporan', 1, 49, [
                 'satusehat' => ['SATUSEHAT', 49],
                 'bpjs' => ['Bridging BPJS', 50],
+                'log' => ['Log integrasi', 49],
                 'laporan_wajib' => ['Laporan wajib', 51, 4],
                 'kepatuhan' => ['Kepatuhan pelaporan', 51, 4],
                 'laporan_kustom' => ['Laporan kustom', 52, 4],

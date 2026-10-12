@@ -27,6 +27,8 @@
         <!-- PERINGATAN: TTD_KUNCI (dan KREDENSIAL_KUNCI) di sini nilai uji sintetis yang publik; DILARANG dipakai di server. -->
         <env name="TTD_KUNCI" value="base64:dGVzLXR0ZC1rdW5jaS1zZXJ2ZXItc2ludGV0aXMtMzI="/>
         <env name="TTD_KDF" value="minimum"/>
+        <env name="KREDENSIAL_KUNCI" value="base64:dGVzLWtyZWRlbnNpYWwta3VuY2ktc2ludGV0aXMtMzI="/>
+        <env name="INTEGRASI_SIMULATOR" value="true"/>
         <env name="SANCTUM_STATEFUL_DOMAINS" value="localhost:5173"/>
         <!-- Klien tes (127.0.0.1) di dalam jaringan RS; uji "dari luar" memakai REMOTE_ADDR lain. -->
         <env name="AUTENTIKASI_MFA_JARINGAN_RS" value="127.0.0.1/32,::1/128"/>

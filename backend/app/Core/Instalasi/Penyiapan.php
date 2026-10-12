@@ -52,6 +52,7 @@ final class Penyiapan
     public function __construct(
         private readonly CatatAktivitas $audit,
         private readonly RingkasanPegawai $pegawai,
+        private readonly SyaratKredensialIntegrasi $integrasi,
     ) {}
 
     /** @return array<string, mixed> StatusPenyiapan untuk penonton (dapat_* sesuai izinnya) */
@@ -176,7 +177,7 @@ final class Penyiapan
                 'organisasi' => $this->syaratOrganisasi(),
                 'paket_referensi' => $this->syaratPaket($paket),
                 'pegawai' => $this->syaratPegawai(),
-                'kredensial_integrasi' => [self::syarat('kredensial', 'Kredensial tersimpan dan uji koneksi berhasil', false, 'Dibangun di tiket 1.9')],
+                'kredensial_integrasi' => [self::syarat('kredensial', 'Kredensial tersimpan dan uji koneksi berhasil', ...array_values($this->integrasi->periksa()))],
                 'modul_aktif' => $this->syaratModul(),
                 default => [],
             };
