@@ -4,4 +4,6 @@ Hasil `E2E_TANGKAPAN=1 npx playwright test` (frontend/e2e/fase1.spec.ts): semua 
 390 px, tanpa gulir samping dan tanpa pelanggaran axe serius/kritis. Database e2e sintetis (akun `contoh.*`) dan
 identitas fiktif "RS Contoh Pendidikan" (`docs/brand/contoh/`); setiap gambar sudah diperiksa tidak memuat data RS nyata.
 
+Versi terakhir: jalan FINAL 1.12-fe sesudah semua tiket fase 1 merge (main 163b558, 104 uji lulus).
+
 Branch ini hanya menyimpan gambar untuk dirujuk PR 1.12-fe; jangan di-merge ke main.
