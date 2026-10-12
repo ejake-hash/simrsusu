@@ -18,6 +18,15 @@ final class MenuBawaan
 {
     public const PERAN_SUPERADMIN = 'superadmin';
 
+    /**
+     * Peran contoh penyiap instalasi (tiket 1.8f): konfirmasi langkah wizard dan memuat paket referensi (langkah 4,
+     * `master_data.katalog.input`). Superadmin tidak memegang data induk (PRD 9.2.4), jadi RS menugaskan peran ini (dan
+     * menambah izin data induk lain bila perlu). Hanya dibuat sekali; tidak terkunci, tidak ditimpa pasang() berikutnya.
+     */
+    public const PERAN_PENYIAP = 'penyiap_instalasi';
+
+    public const IZIN_PENYIAP = ['pengaturan.penyiapan.lihat', 'pengaturan.penyiapan.perbaiki', 'master_data.katalog.lihat', 'master_data.katalog.input'];
+
     /** Halaman yang sudah dibangun; menu lain tampil sebagai Segera hadir atau disembunyikan. */
     public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.usulan', 'sdm.pegawai'];
 
@@ -265,6 +274,26 @@ final class MenuBawaan
             ->update(['sensitif' => true, 'diubah_pada' => now()]);
         self::pasangSuperadmin();
         self::pasangPenyetujuBawaan();
+        self::pasangPenyiap();
+    }
+
+    private static function pasangPenyiap(): void
+    {
+        if (DB::table('akses.peran')->where('kode', self::PERAN_PENYIAP)->exists()) {
+            return;
+        }
+        $peranId = (string) Str::uuid7();
+        DB::table('akses.peran')->insert([
+            'id' => $peranId, 'kode' => self::PERAN_PENYIAP, 'nama' => 'Penyiap instalasi', 'bawaan_sistem' => false, 'wajib_mfa' => true,
+            'uraian' => 'Wizard penyiapan instalasi (FR-54-08): konfirmasi langkah dan memuat paket referensi. Tambah izin data induk lain sesuai kebutuhan RS.',
+        ]);
+        $izin = DB::table('akses.izin')->whereIn('kode', self::IZIN_PENYIAP)->get(['id', 'menu_id']);
+        foreach ($izin->pluck('menu_id')->unique() as $menuId) {
+            DB::table('akses.peran_menu')->insert(['id' => (string) Str::uuid7(), 'peran_id' => $peranId, 'menu_id' => $menuId]);
+        }
+        foreach ($izin as $i) {
+            DB::table('akses.peran_izin')->insert(['id' => (string) Str::uuid7(), 'peran_id' => $peranId, 'izin_id' => $i->id]);
+        }
     }
 
     /**

@@ -3,9 +3,12 @@
 namespace Tests\Feature\Instalasi;
 
 use App\Core\Instalasi\StatusInstalasi;
+use App\Modules\Akses\Database\MenuBawaan;
+use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\Peran;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\Support\AksesUji;
@@ -139,6 +142,22 @@ class PenyiapanTest extends TestCase
         $data = $this->muatStatus()->json('data');
         $this->assertFalse(collect($data['langkah'])->contains(fn (array $l) => $l['dapat_dikonfirmasi'] || $l['dapat_dilewati']));
         $this->konfirmasi('superadmin')->assertForbidden();
+    }
+
+    public function test_peran_penyiap_bawaan_memuat_paket_dan_mengonfirmasi_tanpa_data_induk_lain(): void
+    {
+        $peran = Peran::query()->where('kode', MenuBawaan::PERAN_PENYIAP)->firstOrFail();
+        $this->assertFalse($peran->bawaan_sistem);
+        $this->assertEqualsCanonicalizing(MenuBawaan::IZIN_PENYIAP, DB::table('akses.peran_izin as pi')->join('akses.izin as i', 'i.id', '=', 'pi.izin_id')
+            ->where('pi.peran_id', $peran->id)->pluck('i.kode')->all());
+
+        [$penyiap, $rahasia] = $this->superadminBerMfa();
+        DB::table('akses.pengguna_peran')->where('pengguna_id', $penyiap->id)->update(['peran_id' => $peran->id]);
+        $this->masukSebagai($penyiap, $rahasia);
+        $this->assertTrue(Gate::allows('master_data.katalog.input', Cakupan::rs()));
+        $this->assertFalse(Gate::allows('master_data.organisasi.input', Cakupan::rs()));
+        $this->assertTrue($this->muatStatus()->json('data.langkah.7.dapat_dilewati') === false);
+        $this->konfirmasi('superadmin')->assertStatus(409)->assertJsonPath('error.kode', 'syarat_belum_lengkap');
     }
 
     private function muatStatus(): TestResponse
