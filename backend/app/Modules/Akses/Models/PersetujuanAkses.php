@@ -14,8 +14,8 @@ use Illuminate\Support\Carbon;
  * @property string $id
  * @property string $nomor
  * @property string $grup_id
- * @property string $jenis izin_sensitif | peran_superadmin | pengecualian | reset_ttd
- * @property string $objek_jenis izin_peran | penugasan | pengakhiran_penugasan | izin_khusus | penyetuju_izin | reset_ttd
+ * @property string $jenis izin_sensitif | peran_superadmin | pengecualian | reset_ttd | izin_label
+ * @property string $objek_jenis izin_peran | penugasan | pengakhiran_penugasan | izin_khusus | penyetuju_izin | reset_ttd | izin_label | penyetuju_label
  * @property array<string, mixed> $objek
  * @property string|null $peran_id
  * @property string|null $izin_id

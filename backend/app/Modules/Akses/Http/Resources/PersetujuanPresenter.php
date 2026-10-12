@@ -15,7 +15,7 @@ use App\Modules\Sdm\Application\RingkasanPegawai;
 use Illuminate\Support\Collection;
 
 /**
- * Bentuk PersetujuanAkses (kontrak v0.4.0; penyetuju_pengguna dan reset_ttd sejak v0.8.0). Peran, akun, izin, label, grup, dan dampak dimuat sekaligus per halaman.
+ * Bentuk PersetujuanAkses (kontrak v0.4.0; penyetuju_pengguna dan reset_ttd sejak v0.8.0; label sejak v0.14.0). Peran, akun, izin, label, grup, dan dampak dimuat sekaligus per halaman.
  * Status menunggu yang lewat batas waktu tampil `kedaluwarsa` walau tugas harian belum jalan. `akun_terdampak`
  * dihitung saat dibaca (pemegang peran sekarang), bukan saat diajukan.
  */
@@ -43,7 +43,7 @@ final class PersetujuanPresenter
             return [];
         }
         $dipegang = $this->alur->peranDipegang($penonton);
-        $objekPeran = fn (PersetujuanAkses $p) => in_array($p->objek_jenis, ['izin_peran', 'penyetuju_izin'], true);
+        $objekPeran = fn (PersetujuanAkses $p) => in_array($p->objek_jenis, AlurPersetujuan::OBJEK_PERAN, true);
 
         $peranId = $baris->flatMap(fn (PersetujuanAkses $p) => [$p->peran_id, $p->penyetuju_peran_id, $p->objek['peran_penyetuju_sebelum_id'] ?? null]);
         $peran = Peran::query()->whereIn('id', $peranId->filter()->unique()->values())->get(['id', 'kode', 'nama'])->keyBy('id');
@@ -82,6 +82,7 @@ final class PersetujuanPresenter
                 'izin' => $i === null ? null : ['kode' => $i->kode, 'label' => $labelIzin($i)],
                 'cakupan_label' => $cakupan,
                 'berlaku_sampai' => $p->objek['berlaku_sampai'] ?? null,
+                'label' => isset($p->objek['label_kode']) ? ['kode' => $p->objek['label_kode'], 'nama' => $p->objek['label_nama']] : null,
             ];
             $g = $grup->get($p->grup_id);
 
@@ -124,6 +125,8 @@ final class PersetujuanPresenter
             'izin_khusus' => "Tambah pengecualian {$izin} untuk {$akun}",
             'penyetuju_izin' => "Tetapkan peran {$peran} sebagai penyetuju izin {$izin}".($penyetujuSebelum !== null ? " (sebelumnya {$penyetujuSebelum})" : ''),
             'reset_ttd' => "Reset tanda tangan elektronik {$akun}",
+            'izin_label' => "Beri izin label {$objek['label']['nama']} untuk {$akun}",
+            'penyetuju_label' => "Tetapkan peran {$peran} sebagai penyetuju label {$objek['label']['nama']}".($penyetujuSebelum !== null ? " (sebelumnya {$penyetujuSebelum})" : ''),
             default => $p->nomor,
         };
     }

@@ -42,7 +42,7 @@ final class MfaController
 
         $this->challenge->hapus($request->session());
 
-        return response()->json($this->penyelesai->selesaikan($request, $pengguna));
+        return response()->json($this->penyelesai->selesaikan($request, $pengguna, denganMfa: true));
     }
 
     /** 2b: rahasia baru untuk dipindai. Boleh diulang; rahasia terakhir yang dikonfirmasi. */
@@ -72,7 +72,7 @@ final class MfaController
         $this->challenge->hapus($request->session());
 
         return $this->tanpaCache(response()->json(
-            $this->penyelesai->selesaikan($request, $pengguna) + ['kode_cadangan' => $kodeCadangan],
+            $this->penyelesai->selesaikan($request, $pengguna, denganMfa: true) + ['kode_cadangan' => $kodeCadangan],
         ));
     }
 

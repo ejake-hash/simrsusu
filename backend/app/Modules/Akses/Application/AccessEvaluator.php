@@ -4,25 +4,36 @@ namespace App\Modules\Akses\Application;
 
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Domain\HakAkses;
+use App\Modules\Akses\Domain\RelasiPerawatan;
+use App\Modules\Akses\Domain\TindakanKlinis;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\PemberianAkses;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaIzinKhusus;
+use App\Modules\Akses\Models\PenggunaLabel;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\PeranIzin;
 use App\Modules\Akses\Models\PeranMenu;
+use App\Modules\Sdm\Application\KewenanganPraktik;
+use Illuminate\Auth\Access\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
  * Satu-satunya penentu hak akses (PRD 9.2.5, D.4): dipakai Gate (lihat ModuleServiceProvider),
  * menu sidebar, dan pembentuk respons. Tiket 1.2a mengerjakan lapis 1 (menu/bagian), 2 (aksi),
- * dan 3 (cakupan data; cakupan `unit` memuat semua unit turunannya sejak tiket 1.8a); lapis 4–5 menyusul di tiket 1.5.
+ * dan 3 (cakupan data; cakupan `unit` memuat semua unit turunannya sejak tiket 1.8a); tiket 1.5 lapis 4–5.
  *
  *   akun aktif dan tidak terkunci
  *   dan tidak ada pencabutan per akun atas sub-menu, bagian, atau aksi itu   ← cabut menang
  *   dan ada penugasan peran atau pemberian per akun yang berlaku sekarang yang memberinya,
- *       dengan cakupan yang memuat data itu.
+ *       dengan cakupan yang memuat data itu
+ *   dan (lapis 4, per objek) bila data berlabel: izin label berlaku dan merawat pasiennya   ← bolehLabel()
+ *   dan (lapis 5) SIP/SPK dan RKK berlaku, MFA sesi masih baru untuk izin butuh_mfa       ← periksa()
+ *
+ * boleh() = lapis 1–3, dipakai membentuk layar (tombol tetap tampil walau MFA perlu diulang). Gate memakai
+ * periksa() = lapis 1–3 dan 5, dengan kode penolakan lapis 5 yang bisa ditindaklanjuti klien.
  */
 final class AccessEvaluator
 {
@@ -32,6 +43,8 @@ final class AccessEvaluator
     public function __construct(
         private readonly CacheHakAkses $cache,
         private readonly DataUnit $dataUnit,
+        private readonly KewenanganPraktik $kewenangan,
+        private readonly RelasiPerawatan $relasi,
     ) {}
 
     public function hak(Pengguna $pengguna): HakAkses
@@ -62,6 +75,57 @@ final class AccessEvaluator
 
         return array_any($cakupan, fn (Cakupan $c) => $c->memuat($data)
             || ($c->jenis === 'unit' && in_array($c->id, $leluhur, true)));
+    }
+
+    /**
+     * Lapis 1–3 lalu lapis 5 (PRD 9.2.2: lapis 5 mengalahkan semua pemberian). Penolakan lapis 5 membawa kode:
+     * `izin_praktik_tidak_berlaku`, `kewenangan_klinis_tidak_mencakup` (bila $tindakan diberikan), `mfa_belum_terdaftar`,
+     * `mfa_ulang_diperlukan`. Syarat yang tidak bisa diperbaiki pengguna sendiri diperiksa lebih dulu.
+     */
+    public function periksa(Pengguna $pengguna, string $izin, ?Cakupan $data = null, ?TindakanKlinis $tindakan = null): Response
+    {
+        if (! $this->boleh($pengguna, $izin, $data)) {
+            return Response::deny();
+        }
+        $syarat = $this->hak($pengguna)->syarat($izin);
+        if ($syarat['klinis']) {
+            if (! $this->kewenangan->izinPraktikBerlaku($pengguna->pegawai_id)) {
+                return Response::deny('Izin praktik (SIP/SPK) Anda tidak berlaku hari ini. Hubungi bagian SDM.', 'izin_praktik_tidak_berlaku');
+            }
+            if ($tindakan !== null && ! $this->kewenangan->rkkMemuat($pengguna->pegawai_id, $tindakan->kode)) {
+                return Response::deny('Rincian kewenangan klinis Anda tidak memuat tindakan ini.', 'kewenangan_klinis_tidak_mencakup');
+            }
+        }
+        if ($syarat['mfa']) {
+            if (! $pengguna->mfaAktif()) {
+                return Response::deny('Aksi ini butuh MFA. Daftarkan MFA dari jaringan RS atau hubungi admin.', 'mfa_belum_terdaftar');
+            }
+            if (! MfaUlang::masihBerlaku(request(), $pengguna)) {
+                return Response::deny('Masukkan kode MFA lagi untuk melanjutkan.', 'mfa_ulang_diperlukan');
+            }
+        }
+
+        return Response::allow();
+    }
+
+    /**
+     * Lapis 4 untuk satu objek berlabel (PRD 9.2.2): izin label yang disetujui dan masih berlaku, DAN merawat pasiennya
+     * bila label itu butuh relasi perawatan. Label tidak dikenal atau nonaktif = tertutup (tolak kecuali diberikan).
+     */
+    public function bolehLabel(Pengguna $pengguna, string $label, ?string $pasienId): bool
+    {
+        if (! $this->punyaIzinLabel($pengguna, $label)) {
+            return false;
+        }
+
+        // Dari cache hak akses (tanpa query per objek di daftar data pasien); berubah → cache dihapus.
+        return ! $this->hak($pengguna)->butuhRelasi($label) || $this->relasi->merawat($pengguna, $pasienId);
+    }
+
+    /** Separuh pertama lapis 4: izin label akun ini disetujui pejabat PDP dan belum berakhir atau dicabut. */
+    public function punyaIzinLabel(Pengguna $pengguna, string $label): bool
+    {
+        return $this->hak($pengguna)->punyaLabel($label, now()->getTimestamp());
     }
 
     /**
@@ -155,7 +219,20 @@ final class AccessEvaluator
 
         $menu = array_fill_keys($semuaMenu->only($menuBoleh->keys()->all())->pluck('kode')->all(), true);
 
-        return [new HakAkses($menu, $izin), $detik];
+        // Lapis 4: izin label yang sudah disetujui (masa berlaku dibandingkan saat dibaca; berubah → cache dihapus).
+        $label = PenggunaLabel::query()->berlaku()->where('pengguna_id', $pengguna->id)
+            ->join('akses.label_sensitivitas as l', 'l.id', '=', 'akses.pengguna_label.label_sensitivitas_id')->where('l.aktif', true)
+            ->groupBy('l.kode', 'l.butuh_relasi_perawatan')
+            ->selectRaw('l.kode, l.butuh_relasi_perawatan AS relasi, max(akses.pengguna_label.berlaku_sampai) AS sampai')->toBase()->get()
+            ->mapWithKeys(fn ($b) => [(string) $b->kode => [Carbon::parse((string) $b->sampai)->getTimestamp(), (bool) $b->relasi]])->all();
+
+        // Lapis 5: syarat per izin yang dimiliki; dinilai saat diminta (SIP, MFA sesi), bukan di cache.
+        $syarat = Izin::query()->whereIn('kode', array_keys($izin))
+            ->where(fn ($q) => $q->where('butuh_mfa', true)->orWhere('butuh_kewenangan_klinis', true))
+            ->get(['kode', 'butuh_mfa', 'butuh_kewenangan_klinis'])
+            ->mapWithKeys(fn (Izin $i) => [$i->kode => ['mfa' => $i->butuh_mfa, 'klinis' => $i->butuh_kewenangan_klinis]])->all();
+
+        return [new HakAkses($menu, $izin, $label, $syarat), $detik];
     }
 
     /**

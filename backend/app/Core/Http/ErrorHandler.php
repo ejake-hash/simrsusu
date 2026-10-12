@@ -2,6 +2,7 @@
 
 namespace App\Core\Http;
 
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -31,6 +32,13 @@ final class ErrorHandler
 
         if ($e instanceof AuthenticationException) {
             return ApiError::respons(401, 'belum_masuk', 'Silakan masuk terlebih dahulu.');
+        }
+
+        // Penolakan Gate yang membawa kode (lapis 5 hak akses, tiket 1.5): Response::deny($pesan, $kode).
+        $otorisasi = $e->getPrevious();
+        $kode = $otorisasi instanceof AuthorizationException ? $otorisasi->toResponse()->code() : null;
+        if ($e instanceof HttpExceptionInterface && $e->getStatusCode() === 403 && is_string($kode) && $kode !== '') {
+            return ApiError::respons(403, $kode, $otorisasi->getMessage());
         }
 
         if ($e instanceof HttpExceptionInterface) {

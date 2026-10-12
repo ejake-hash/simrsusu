@@ -28,8 +28,12 @@ final class VerifikasiMfa
         private readonly PenghitungGagal $penghitung,
     ) {}
 
-    /** @throws GagalMfa */
-    public function verifikasi(Pengguna $pengguna, string $metode, string $kode): void
+    /**
+     * $aksiAudit: `autentikasi.mfa_berhasil` saat masuk, `autentikasi.mfa_ulang_berhasil` saat verifikasi ulang (K11).
+     *
+     * @throws GagalMfa
+     */
+    public function verifikasi(Pengguna $pengguna, string $metode, string $kode, string $aksiAudit = 'autentikasi.mfa_berhasil'): void
     {
         $this->tolakBilaTerkunci($pengguna);
 
@@ -41,7 +45,7 @@ final class VerifikasiMfa
             $this->gagal($pengguna, $metode);
         }
 
-        $this->audit->catat('autentikasi.mfa_berhasil', $pengguna->id, 'akses.pengguna', $pengguna->id, ['metode' => $metode]);
+        $this->audit->catat($aksiAudit, $pengguna->id, 'akses.pengguna', $pengguna->id, ['metode' => $metode]);
     }
 
     /**

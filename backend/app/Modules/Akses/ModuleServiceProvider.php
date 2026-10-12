@@ -10,11 +10,14 @@ use App\Modules\Akses\Application\SandiTidakBocor;
 use App\Modules\Akses\Console\BuatSuperadminPertama;
 use App\Modules\Akses\Console\KedaluwarsakanPersetujuan;
 use App\Modules\Akses\Domain\Cakupan;
+use App\Modules\Akses\Domain\RelasiPerawatan;
+use App\Modules\Akses\Domain\TindakanKlinis;
 use App\Modules\Akses\Http\Middleware\IzinSeluruhRs;
 use App\Modules\Akses\Http\Middleware\SesiPengguna;
 use App\Modules\Akses\Infrastructure\DaftarSandiBocor;
 use App\Modules\Akses\Infrastructure\PenggunaSesiAkses;
 use App\Modules\Akses\Infrastructure\PerangkatBelumTerdaftar;
+use App\Modules\Akses\Infrastructure\TanpaRelasiPerawatan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\TokenAksesPribadi;
 use App\Modules\Sdm\Events\PegawaiKeluar;
@@ -33,6 +36,8 @@ class ModuleServiceProvider extends ServiceProvider
     {
         $this->app->bind(PendaftaranPerangkat::class, PerangkatBelumTerdaftar::class);
         $this->app->bind(PenggunaSesi::class, PenggunaSesiAkses::class);
+        // Fase 1 tanpa modul pelayanan: tidak ada yang merawat pasien; modul pelayanan fase 2 mengganti binding ini.
+        $this->app->bind(RelasiPerawatan::class, TanpaRelasiPerawatan::class);
         $this->app->singleton(DaftarSandiBocor::class, fn () => new DaftarSandiBocor(config('autentikasi.sandi.daftar_bocor')));
     }
 
@@ -55,18 +60,28 @@ class ModuleServiceProvider extends ServiceProvider
 
         // Semua kemampuan berbentuk kode izin (<menu>.<sub_menu>.<aksi>) diputuskan AccessEvaluator
         // (PRD 9.2.5), mis. ->middleware('can:sdm.pegawai.lihat'), ->middleware('can.rs:pengaturan.peran.lihat') (wajib
-        // cakupan seluruh RS, IzinSeluruhRs), atau Gate::allows($kode, $cakupan).
-        // Argumen selain Cakupan ditolak sampai pemeriksaan per objek dibuat (tolak kecuali diberikan).
+        // cakupan seluruh RS, IzinSeluruhRs), Gate::allows($kode, $cakupan), atau Gate::allows($kode, [$cakupan, new
+        // TindakanKlinis($kode)]) untuk RKK (lapis 5). Argumen lain ditolak sampai pemeriksaan per objek dibuat (tolak
+        // kecuali diberikan). Penolakan lapis 5 membawa kode error (ErrorHandler).
         Gate::before(function (mixed $pengguna, string $kemampuan, array $argumen) {
             if (! str_contains($kemampuan, '.')) {
                 return null;
             }
-            $data = $argumen[0] ?? null;
-            if (! $pengguna instanceof Pengguna || ($data !== null && ! $data instanceof Cakupan)) {
+            if (! $pengguna instanceof Pengguna) {
                 return false;
             }
+            $data = $tindakan = null;
+            foreach ($argumen as $a) {
+                if ($a instanceof Cakupan && $data === null) {
+                    $data = $a;
+                } elseif ($a instanceof TindakanKlinis && $tindakan === null) {
+                    $tindakan = $a;
+                } elseif ($a !== null) {
+                    return false;
+                }
+            }
 
-            return $this->app->make(AccessEvaluator::class)->boleh($pengguna, $kemampuan, $data);
+            return $this->app->make(AccessEvaluator::class)->periksa($pengguna, $kemampuan, $data, $tindakan);
         });
 
         // Aturan sandi PRD 14.2; dipakai lewat Password::defaults() di mana pun sandi ditetapkan.

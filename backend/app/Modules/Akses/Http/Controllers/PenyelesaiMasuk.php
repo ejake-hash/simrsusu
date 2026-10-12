@@ -5,6 +5,7 @@ namespace App\Modules\Akses\Http\Controllers;
 use App\Core\Http\ApiError;
 use App\Modules\Akses\Application\KebijakanMfa;
 use App\Modules\Akses\Application\MasukPengguna;
+use App\Modules\Akses\Application\MfaUlang;
 use App\Modules\Akses\Application\PendaftaranPerangkat;
 use App\Modules\Akses\Http\Middleware\SesiPengguna;
 use App\Modules\Akses\Http\Resources\PenggunaResource;
@@ -22,14 +23,20 @@ final class PenyelesaiMasuk
         private readonly KebijakanMfa $kebijakanMfa,
     ) {}
 
-    /** @return array{status: 'masuk', pengguna: array<string, mixed>} */
-    public function selesaikan(Request $request, Pengguna $pengguna): array
+    /**
+     * $denganMfa: langkah ini memverifikasi MFA, jadi izin butuh_mfa langsung boleh (K11, MfaUlang).
+     *
+     * @return array{status: 'masuk', pengguna: array<string, mixed>}
+     */
+    public function selesaikan(Request $request, Pengguna $pengguna, bool $denganMfa = false): array
     {
         $this->masuk->selesaikan($pengguna, $this->kebijakanMfa->dariJaringanRs($request->ip()));
 
         Auth::guard('web')->login($pengguna);
         $request->session()->regenerate();
         SesiPengguna::mulai($request, $this->perangkat->terdaftar($request));
+        // Masuk tanpa MFA tidak boleh mewarisi verifikasi akun sebelumnya di peramban ini (regenerate mempertahankan isi sesi).
+        $denganMfa ? MfaUlang::catat($request->session(), $pengguna) : MfaUlang::lupakan($request->session());
         // Dibaca ulang dari DB: nilai pembanding sama persis dengan yang nanti dibaca /saya.
         $request->session()->put(PenggunaResource::LOGIN_SESI_INI, $pengguna->refresh()->login_terakhir_pada?->getTimestamp());
 
