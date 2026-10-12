@@ -22,15 +22,17 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'desktop', testIgnore: /pengaturan\.spec\.ts/, use: { ...devices['Desktop Chrome'] } },
+    { name: 'desktop', testIgnore: /(pengaturan|fase1)\.spec\.ts/, use: { ...devices['Desktop Chrome'] } },
     // Lebar 390 px (PRD: tanpa scroll samping).
     {
       name: 'seluler',
-      testIgnore: /pengaturan\.spec\.ts/,
+      testIgnore: /(pengaturan|fase1)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
     },
     // Mengubah akses contoh.admisi dan mereset MFA contoh.mfa yang dipakai spec lain, jadi berjalan paling akhir.
     { name: 'pengaturan', testMatch: /pengaturan\.spec\.ts/, dependencies: ['desktop', 'seluler'], use: { ...devices['Desktop Chrome'] } },
+    // 1.12-fe: semua layar fase 1 di empat lebar + axe, sesudah semua spec lain (data sintetis sudah terisi).
+    { name: 'fase1', testMatch: /fase1\.spec\.ts/, dependencies: ['pengaturan'], use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
     command: `npm run dev -- --port ${port} --strictPort`,
