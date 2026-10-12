@@ -1125,6 +1125,10 @@ tablet (fase 2 bersama dokumen dan persetujuan tindakan).
 ```
 Tujuan     : Data paling sensitif dan aksi klinis hanya terbuka bila syarat yang tidak bisa diberikan admin terpenuhi.
 FR         : PRD 9.2.2 lapis 4–5, 9.2.5, FR-09-05, FR-09-14; 11.2 label_sensitivitas, pengguna_label; keputusan K11, K12
+API (be)   : GET /label-sensitivitas, PUT /label-sensitivitas/{kode}/penyetuju (202 persetujuan superadmin lain),
+             GET /akun/{id}/label, POST /akun/{id}/label (202 persetujuan pejabat PDP), POST /akun/{id}/label/{id}/batal,
+             POST /saya/mfa/verifikasi-ulang (K11); error 403 mfa_ulang_diperlukan, izin_praktik_tidak_berlaku,
+             kewenangan_klinis_tidak_mencakup (kontrak v0.14.0, disetujui pemilik 12 Okt 2026)
 Pekerjaan  :
   be 1. Label sensitivitas (data induk) dan pengguna_label dengan persetujuan pejabat PDP lewat 1.2d; wajib berbatas waktu.
      2. AccessEvaluator lapis 4: antarmuka `PemeriksaLabel` (objek berlabel → akun punya izin label DAN relasi
@@ -1141,6 +1145,18 @@ Uji penerimaan:
     izin_praktik_tidak_berlaku walau perannya memberi.
   - Aksi butuh_mfa 20 menit setelah MFA → diminta MFA ulang; setelah lolos, permintaan diulang otomatis.
   - Izin label tanpa persetujuan PDP tidak aktif.
+Aturan rinci (kontrak v0.14.0, disetujui pemilik 12 Okt 2026):
+  - Data awal label dari PRD 11.2 (hiv, psikiatri, kekerasan_seksual, genetik, privasi_tinggi; `butuh_relasi_perawatan`
+    true untuk semua label termasuk privasi_tinggi — keputusan pemilik 12 Okt 2026), penyetuju (pejabat PDP) kosong:
+    label belum bisa diberikan sampai RS menetapkan penyetujunya lewat PUT .../penyetuju (kontrol ganda K13).
+  - Izin label per akun selalu lewat persetujuan (jenis `izin_label`), berbatas waktu paling lama 365 hari
+    (konfigurasi); pencabutan langsung. Akses dihitung saat dibaca (berlaku_sampai), cache hak akses dihapus saat berubah.
+  - Lapis 4 di AccessEvaluator lewat antarmuka `PemeriksaLabel` + `RelasiPerawatan` (fase 1 selalu "tidak merawat").
+  - Lapis 5: `butuh_kewenangan_klinis` dibaca dari izin praktik (sip/spk berlaku hari ini) dan RKK (kode tindakan
+    izin); `butuh_mfa` dari `autentikasi.mfa_terverifikasi_pada` di sesi, batas `AUTENTIKASI_MFA_ULANG_MENIT` (15).
+    Verifikasi MFA ulang: TOTP/kode cadangan, penghitung gagal sama dengan masuk.
+  - Endpoint uji lapis 5 (izin `butuh_kewenangan_klinis`) hanya didaftarkan di lingkungan tes, tidak di kontrak.
+  - PRD 10.3.2 ("perubahan kontrak autentikasi hanya lewat PRD") perlu baris verifikasi MFA ulang: PR PRD terpisah.
 Di luar lingkup tiket: akses darurat (K12), rotasi peserta didik (fase 5).
 ```
 
