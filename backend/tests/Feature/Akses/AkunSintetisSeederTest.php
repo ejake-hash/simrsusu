@@ -34,7 +34,8 @@ class AkunSintetisSeederTest extends TestCase
 
         $akun = Pengguna::query()->where('nama_pengguna', 'like', 'contoh.%')->get();
         $this->assertEqualsCanonicalizing(
-            ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci', 'contoh.mfa', 'contoh.mfa.baru', 'contoh.superadmin', 'contoh.superadmin.dua', 'contoh.tanpa.peran', 'contoh.data.induk', 'contoh.sdm', 'contoh.ttd', 'contoh.ttd.baru'],
+            ['contoh.admisi', 'contoh.perawat', 'contoh.dokter', 'contoh.terkunci', 'contoh.mfa', 'contoh.mfa.baru', 'contoh.superadmin', 'contoh.superadmin.dua', 'contoh.tanpa.peran', 'contoh.data.induk', 'contoh.sdm', 'contoh.ttd', 'contoh.ttd.baru',
+                'contoh.usulan.pengusul', 'contoh.usulan.verifikator', 'contoh.usulan.penyetuju'],
             $akun->pluck('nama_pengguna')->all(),
         );
         foreach ($akun as $pengguna) {
@@ -143,6 +144,11 @@ class AkunSintetisSeederTest extends TestCase
             $this->assertFalse($evaluator->boleh($sdm, $kode), $kode);
         }
         $this->assertTrue($evaluator->bolehMenu($sdm, 'sdm.pegawai'));
+        // Akun usulan data induk (1.8c): keempat aksi usulan + lihat organisasi.
+        $verifikator = Pengguna::query()->where('nama_pengguna', 'contoh.usulan.verifikator')->firstOrFail();
+        $this->assertTrue($evaluator->boleh($verifikator, 'master_data.usulan.setujui'));
+        $this->assertTrue($evaluator->boleh($verifikator, 'master_data.organisasi.lihat'));
+        $this->assertFalse($evaluator->boleh($verifikator, 'master_data.organisasi.perbaiki'));
         $this->assertSame(1, PenggunaPeran::query()->where('pengguna_id', $sdm->id)->count());
     }
 

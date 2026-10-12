@@ -51,6 +51,10 @@ final class AkunSintetisSeeder extends Seeder
         // TTE (tiket 1.6): contoh.ttd dengan TTE aktif (PIN sintetis, TtdSintetisSeeder); contoh.ttd.baru tanpa TTE (alur aktivasi).
         'contoh.ttd' => 'Contoh Akun TTE',
         'contoh.ttd.baru' => 'Contoh Akun TTE Baru',
+        // Usulan data induk berjenjang (tiket 1.8c): tiga orang berbeda untuk e2e pemisahan tugas (dijaga server).
+        'contoh.usulan.pengusul' => 'Contoh Pengusul Usulan',
+        'contoh.usulan.verifikator' => 'Contoh Verifikator Usulan',
+        'contoh.usulan.penyetuju' => 'Contoh Penyetuju Usulan',
     ];
 
     /** Profesi pegawai sintetis (selain ini non_kesehatan). */
@@ -77,6 +81,15 @@ final class AkunSintetisSeeder extends Seeder
             'sdm.kredensial.lihat', 'sdm.kredensial.input', 'sdm.kredensial.perbaiki',
             'master_data.organisasi.lihat', 'pengaturan.akun.lihat', 'pengaturan.akun.input',
         ]],
+        'contoh_usulan_pengusul' => ['Contoh Pengusul Usulan', 'contoh.usulan.pengusul', self::IZIN_USULAN],
+        'contoh_usulan_verifikator' => ['Contoh Verifikator Usulan', 'contoh.usulan.verifikator', self::IZIN_USULAN],
+        'contoh_usulan_penyetuju' => ['Contoh Penyetuju Usulan', 'contoh.usulan.penyetuju', self::IZIN_USULAN],
+    ];
+
+    /** Semua aksi usulan data induk + lihat organisasi (pemilih objek); pemisahan tugas dijaga server (1.8c). */
+    private const IZIN_USULAN = [
+        'master_data.usulan.lihat', 'master_data.usulan.input', 'master_data.usulan.perbaiki', 'master_data.usulan.verifikasi',
+        'master_data.usulan.setujui', 'master_data.organisasi.lihat',
     ];
 
     public function run(): void
