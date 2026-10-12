@@ -39,7 +39,9 @@ final class MfaUlangController
                 ? PenyelesaiMasuk::errorTerkunci($e->terkunciSampai)
                 : new ApiError(422, 'kode_mfa_salah', 'Kode verifikasi salah.', [['kolom' => 'kode', 'pesan' => 'Periksa kode di aplikasi autentikator.']]);
         }
-        $pada = MfaUlang::catat($request->session());
+        // Berhasil = bukan salah ketik lagi: penghitung gagal kembali nol, seperti sesudah masuk berhasil.
+        $pengguna->forceFill(['percobaan_gagal' => 0])->save();
+        $pada = MfaUlang::catat($request->session(), $pengguna);
 
         return new JsonResponse(['data' => [
             'mfa_terverifikasi_pada' => $pada->toIso8601String(),

@@ -2,7 +2,6 @@
 
 namespace App\Modules\Akses\Http\Controllers;
 
-use App\Core\Http\ApiError;
 use App\Core\Http\Paginasi;
 use App\Modules\Akses\Application\KelolaLabel;
 use App\Modules\Akses\Domain\Cakupan;
@@ -32,9 +31,7 @@ final class LabelAkunController
     public function ajukan(Request $request, Pengguna $akun): JsonResponse
     {
         // Label berlaku di seluruh RS (PRD 9.2.2): hanya penyunting bercakupan RS.
-        if (Gate::denies('pengaturan.akun.input', Cakupan::rs())) {
-            throw new ApiError(403, 'akses_ditolak', 'Anda tidak punya izin untuk tindakan ini.');
-        }
+        Gate::authorize('pengaturan.akun.input', Cakupan::rs());
         $isi = $request->validate([
             'label_kode' => ['required', 'string', 'max:50'],
             'berlaku_sampai' => ['required', 'date'],

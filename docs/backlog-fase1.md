@@ -210,6 +210,10 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
     klinis pertama (fase 2) menandai izinnya di `MenuBawaan`, dan keputusan izin mana yang butuh MFA ulang perlu RS/pemilik.
   - Kewenangan praktik hanya membaca jenis `sip`/`spk` (PRD 9.2.2). Perlu verifikasi RS apakah SIK (perawat/bidan) ikut.
   - Perpanjangan izin label belum ada: `409 label_masih_berlaku` memaksa pencabutan dulu (jeda tanpa akses).
+  - Controller di luar modul Akses masih `abort_unless(Gate::allows(..))`/`Gate::denies` → 403 `akses_ditolak` tanpa kode
+    lapis 5 (mis. ProfilRs, Integrasi, MasterData, Sdm); ganti ke `Gate::authorize()` bila izinnya diberi syarat lapis 5,
+    agar klien bisa memunculkan dialog MFA ulang (tinjauan #83). Label dan penyetuju izin sudah memakai `authorize`.
+  - RKK hanya diperiksa bila Gate diberi `TindakanKlinis`; aksi klinis fase 2 wajib mengirimnya (tinjauan #83).
   - Komentar blok `/persetujuan-akses` di kontrak belum menyebut `izin_label` (penerima = akun sasaran) dan
     `penyetuju_label` (penerima = pemegang peran yang ditunjuk); perilakunya sudah diuji (`penerima_sendiri`).
   - Rincian akun (`AkunRinci`) belum memuat izin label / pengajuan label yang menunggu; layar memakai GET /akun/{id}/label.

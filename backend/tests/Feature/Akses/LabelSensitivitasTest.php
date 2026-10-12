@@ -159,6 +159,50 @@ class LabelSensitivitasTest extends TestCase
         $this->assertFalse(app(AccessEvaluator::class)->punyaIzinLabel($x, 'genetik'));
     }
 
+    public function test_label_berakhir_menutup_akses_walau_cache_masih_hangat(): void
+    {
+        [, $pejabat] = $this->pejabatPdp('hiv');
+        $x = $this->buatPengguna();
+        $this->masukSebagai($this->pengelola());
+        $id = $this->ajukan($x, 'hiv', now()->addDay()->toIso8601String())->json('data.id');
+        $this->masukSebagai($pejabat);
+        $this->minta('POST', "/api/v1/persetujuan-akses/$id/setujui")->assertOk();
+        $evaluator = app(AccessEvaluator::class);
+        $this->assertTrue($evaluator->punyaIzinLabel($x, 'hiv'));
+
+        $this->travel(1)->days();
+        $this->travel(1)->seconds();
+        $this->assertFalse($evaluator->punyaIzinLabel($x, 'hiv'));
+    }
+
+    public function test_label_akun_superadmin_idor_dan_superadmin_pemegang_peran_sasaran(): void
+    {
+        $this->pejabatPdp('hiv');
+        [$sa] = $this->superadminBerMfa();
+        $pengelola = $this->pengelola();
+        $this->masukSebagai($pengelola);
+        $this->ajukan($sa, 'hiv')->assertForbidden()->assertJsonPath('error.kode', 'akun_superadmin');
+
+        // labelAkunId milik akun lain → 404, bukan pencabutan izin akun itu.
+        $x = $this->buatPengguna();
+        $y = $this->buatPengguna();
+        $this->ajukan($x, 'hiv')->assertStatus(202);
+        $milikX = PenggunaLabel::query()->where('pengguna_id', $x->id)->value('id');
+        $this->minta('POST', "/api/v1/akun/{$y->id}/label/$milikX/batal", ['alasan_batal' => 'Uji IDOR akun lain'])->assertNotFound();
+
+        // Superadmin yang memegang peran yang akan ditunjuk tidak bisa menyetujui penunjukannya (penerima_sendiri).
+        [$a, $rahasiaA] = $this->superadminBerMfa();
+        [$b, $rahasiaB] = $this->superadminBerMfa();
+        $calon = $this->buatPeran(['beranda']);
+        $this->tugaskan($b, $calon);
+        $this->masukSebagai($a, $rahasiaA);
+        $id = $this->minta('PUT', '/api/v1/label-sensitivitas/genetik/penyetuju', ['peran_id' => $calon->id, 'dasar_perubahan' => self::DASAR])
+            ->assertStatus(202)->json('data.id');
+        $this->masukSebagai($b, $rahasiaB);
+        $this->minta('POST', "/api/v1/persetujuan-akses/$id/setujui")->assertForbidden()->assertJsonPath('error.kode', 'penerima_sendiri');
+        $this->assertNotSame($calon->id, LabelSensitivitas::query()->where('kode', 'genetik')->value('peran_penyetuju_id'));
+    }
+
     public function test_tanpa_izin_akun_ditolak(): void
     {
         $tamu = $this->buatPengguna();

@@ -31,9 +31,7 @@ final class LabelSensitivitasController
     public function aturPenyetuju(Request $request, string $kode): JsonResponse
     {
         // Penyetuju label berlaku untuk seluruh RS: penyunting dengan cakupan unit saja tidak boleh mengubahnya.
-        if (Gate::denies('pengaturan.peran.perbaiki', Cakupan::rs())) {
-            throw new ApiError(403, 'akses_ditolak', 'Anda tidak punya izin untuk tindakan ini.');
-        }
+        Gate::authorize('pengaturan.peran.perbaiki', Cakupan::rs());
         $isi = $request->validate([
             'peran_id' => ['required', 'uuid'],
             'dasar_perubahan' => ['required', 'string', 'min:3', 'max:200'],

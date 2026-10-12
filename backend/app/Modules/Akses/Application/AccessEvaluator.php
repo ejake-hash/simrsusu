@@ -19,7 +19,6 @@ use App\Modules\Sdm\Application\KewenanganPraktik;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Satu-satunya penentu hak akses (PRD 9.2.5, D.4): dipakai Gate (lihat ModuleServiceProvider),
@@ -101,7 +100,7 @@ final class AccessEvaluator
             if (! $pengguna->mfaAktif()) {
                 return Response::deny('Aksi ini butuh MFA. Daftarkan MFA dari jaringan RS atau hubungi admin.', 'mfa_belum_terdaftar');
             }
-            if (! MfaUlang::masihBerlaku(request())) {
+            if (! MfaUlang::masihBerlaku(request(), $pengguna)) {
                 return Response::deny('Masukkan kode MFA lagi untuk melanjutkan.', 'mfa_ulang_diperlukan');
             }
         }
@@ -118,12 +117,9 @@ final class AccessEvaluator
         if (! $this->punyaIzinLabel($pengguna, $label)) {
             return false;
         }
-        $butuhRelasi = DB::table('akses.label_sensitivitas')->where('kode', $label)->where('aktif', true)->value('butuh_relasi_perawatan');
-        if ($butuhRelasi === null) {
-            return false;
-        }
 
-        return ! $butuhRelasi || $this->relasi->merawat($pengguna, $pasienId);
+        // Dari cache hak akses (tanpa query per objek di daftar data pasien); berubah → cache dihapus.
+        return ! $this->hak($pengguna)->butuhRelasi($label) || $this->relasi->merawat($pengguna, $pasienId);
     }
 
     /** Separuh pertama lapis 4: izin label akun ini disetujui pejabat PDP dan belum berakhir atau dicabut. */
@@ -226,8 +222,9 @@ final class AccessEvaluator
         // Lapis 4: izin label yang sudah disetujui (masa berlaku dibandingkan saat dibaca; berubah → cache dihapus).
         $label = PenggunaLabel::query()->berlaku()->where('pengguna_id', $pengguna->id)
             ->join('akses.label_sensitivitas as l', 'l.id', '=', 'akses.pengguna_label.label_sensitivitas_id')->where('l.aktif', true)
-            ->groupBy('l.kode')->selectRaw('l.kode, max(akses.pengguna_label.berlaku_sampai) AS sampai')->toBase()->pluck('sampai', 'kode')
-            ->map(fn ($sampai) => Carbon::parse((string) $sampai)->getTimestamp())->all();
+            ->groupBy('l.kode', 'l.butuh_relasi_perawatan')
+            ->selectRaw('l.kode, l.butuh_relasi_perawatan AS relasi, max(akses.pengguna_label.berlaku_sampai) AS sampai')->toBase()->get()
+            ->mapWithKeys(fn ($b) => [(string) $b->kode => [Carbon::parse((string) $b->sampai)->getTimestamp(), (bool) $b->relasi]])->all();
 
         // Lapis 5: syarat per izin yang dimiliki; dinilai saat diminta (SIP, MFA sesi), bukan di cache.
         $syarat = Izin::query()->whereIn('kode', array_keys($izin))

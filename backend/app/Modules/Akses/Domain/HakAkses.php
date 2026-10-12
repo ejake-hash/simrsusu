@@ -13,18 +13,18 @@ final readonly class HakAkses
     /**
      * @param  array<string, true>  $menu
      * @param  array<string, list<array{0: string, 1: string|null}>>  $izin
-     * @param  array<string, int>  $label  kode label => batas berlaku (detik epoch, eksklusif)
+     * @param  array<string, array{0: int, 1: bool}>  $label  kode label => [batas berlaku (detik epoch, eksklusif), butuh relasi perawatan]
      * @param  array<string, array{mfa: bool, klinis: bool}>  $syarat  hanya izin yang punya syarat lapis 5
      */
     public function __construct(public array $menu = [], public array $izin = [], public array $label = [], public array $syarat = []) {}
 
-    /** @param  array{menu: array<string, true>, izin: array<string, list<array{0: string, 1: string|null}>>, label?: array<string, int>, syarat?: array<string, array{mfa: bool, klinis: bool}>}  $data */
+    /** @param  array{menu: array<string, true>, izin: array<string, list<array{0: string, 1: string|null}>>, label?: array<string, array{0: int, 1: bool}>, syarat?: array<string, array{mfa: bool, klinis: bool}>}  $data */
     public static function dariArray(array $data): self
     {
         return new self($data['menu'], $data['izin'], $data['label'] ?? [], $data['syarat'] ?? []);
     }
 
-    /** @return array{menu: array<string, true>, izin: array<string, list<array{0: string, 1: string|null}>>, label: array<string, int>, syarat: array<string, array{mfa: bool, klinis: bool}>} */
+    /** @return array{menu: array<string, true>, izin: array<string, list<array{0: string, 1: string|null}>>, label: array<string, array{0: int, 1: bool}>, syarat: array<string, array{mfa: bool, klinis: bool}>} */
     public function keArray(): array
     {
         return ['menu' => $this->menu, 'izin' => $this->izin, 'label' => $this->label, 'syarat' => $this->syarat];
@@ -44,7 +44,13 @@ final readonly class HakAkses
     /** Izin label yang disetujui dan masih berlaku pada $sekarang (detik epoch). */
     public function punyaLabel(string $kode, int $sekarang): bool
     {
-        return isset($this->label[$kode]) && $this->label[$kode] > $sekarang;
+        return isset($this->label[$kode]) && $this->label[$kode][0] > $sekarang;
+    }
+
+    /** Label yang dimiliki butuh relasi perawatan (dari data label saat dihitung; label yang tidak dimiliki: true). */
+    public function butuhRelasi(string $kode): bool
+    {
+        return $this->label[$kode][1] ?? true;
     }
 
     /** @return array{mfa: bool, klinis: bool} */

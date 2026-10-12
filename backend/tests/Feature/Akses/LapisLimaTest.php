@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Akses;
 
+use App\Modules\Akses\Application\MfaUlang;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Domain\TindakanKlinis;
 use App\Modules\Akses\Domain\Totp;
@@ -11,6 +12,7 @@ use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Sdm\Models\IzinPraktik;
 use App\Modules\Sdm\Models\KewenanganKlinis;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Tests\Support\AksesUji;
@@ -116,6 +118,55 @@ class LapisLimaTest extends TestCase
         $this->assertSame(now()->addMinutes(15)->getTimestamp(), strtotime((string) $respons->json('data.berlaku_sampai')));
         $this->assertAuditTerakhir('autentikasi.mfa_ulang_berhasil', $pengguna->id);
         $this->minta('POST', '/api/v1/uji-lapis-lima/mfa')->assertOk();
+    }
+
+    public function test_verifikasi_mfa_akun_sebelumnya_tidak_diwarisi_akun_yang_masuk_berikutnya(): void
+    {
+        $rahasia = Totp::rahasiaBaru();
+        $a = $this->buatPengguna();
+        $a->forceFill(['mfa_rahasia_enkripsi' => $rahasia, 'mfa_aktif_pada' => now(), 'wajib_mfa' => true])->save();
+        $peran = $this->buatPeran(['igd.papan']);
+        $this->tugaskan($a, $peran);
+        $b = $this->buatPengguna();
+        $this->tugaskan($b, $peran);
+
+        $this->masukSebagai($a, $rahasia);
+        $this->minta('POST', '/api/v1/uji-lapis-lima/mfa')->assertOk();
+        // B masuk tanpa MFA di peramban yang sama (regenerate mempertahankan isi sesi), lalu MFA-nya aktif belakangan.
+        $this->minta('POST', '/api/v1/autentikasi/masuk', ['nama_pengguna' => $b->nama_pengguna, 'sandi' => self::SANDI_UJI])
+            ->assertOk()->assertJsonPath('status', 'masuk');
+        $b->forceFill(['mfa_rahasia_enkripsi' => Totp::rahasiaBaru(), 'mfa_aktif_pada' => now()])->save();
+        $this->minta('POST', '/api/v1/uji-lapis-lima/mfa')->assertForbidden()->assertJsonPath('error.kode', 'mfa_ulang_diperlukan');
+    }
+
+    public function test_tanda_mfa_sesi_hanya_berlaku_untuk_pemilik_sesi(): void
+    {
+        [$a, $b] = [$this->buatPengguna(), $this->buatPengguna()];
+        $request = Request::create('/');
+        $request->setLaravelSession($sesi = $this->app['session']->driver());
+        $request->setUserResolver(fn () => $a);
+        MfaUlang::catat($sesi, $a);
+
+        $this->assertTrue(MfaUlang::masihBerlaku($request, $a));
+        $this->assertFalse(MfaUlang::masihBerlaku($request, $b));
+        $request->setUserResolver(fn () => $b);
+        $this->assertFalse(MfaUlang::masihBerlaku($request, $b));
+    }
+
+    public function test_mfa_ulang_berhasil_mengembalikan_penghitung_gagal_ke_nol(): void
+    {
+        $rahasia = Totp::rahasiaBaru();
+        $pengguna = $this->buatPengguna();
+        $pengguna->forceFill(['mfa_rahasia_enkripsi' => $rahasia, 'mfa_aktif_pada' => now(), 'wajib_mfa' => true])->save();
+        $this->masukSebagai($pengguna, $rahasia);
+        $this->minta('POST', '/api/v1/saya/mfa/verifikasi-ulang', ['metode' => 'totp', 'kode' => '000000'])->assertStatus(422);
+        $this->assertSame(1, $pengguna->refresh()->percobaan_gagal);
+
+        $this->travel(1)->minutes();
+        $this->minta('POST', '/api/v1/saya/mfa/verifikasi-ulang', [
+            'metode' => 'totp', 'kode' => Totp::kode($rahasia, Totp::langkah(now()->getTimestamp())),
+        ])->assertOk();
+        $this->assertSame(0, $pengguna->refresh()->percobaan_gagal);
     }
 
     public function test_akun_tanpa_mfa_tidak_bisa_aksi_butuh_mfa(): void

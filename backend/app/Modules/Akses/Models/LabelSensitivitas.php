@@ -2,6 +2,7 @@
 
 namespace App\Modules\Akses\Models;
 
+use App\Modules\Akses\Application\CacheHakAkses;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
@@ -27,6 +28,12 @@ final class LabelSensitivitas extends Model
     protected $table = 'akses.label_sensitivitas';
 
     protected $guarded = ['id'];
+
+    protected static function booted(): void
+    {
+        // Status aktif dan butuh_relasi_perawatan ikut di cache hak akses semua akun pemegang label.
+        self::saved(fn () => app(CacheHakAkses::class)->lupakanSemua());
+    }
 
     protected function casts(): array
     {

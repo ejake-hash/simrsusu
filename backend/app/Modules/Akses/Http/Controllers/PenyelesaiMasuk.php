@@ -35,9 +35,8 @@ final class PenyelesaiMasuk
         Auth::guard('web')->login($pengguna);
         $request->session()->regenerate();
         SesiPengguna::mulai($request, $this->perangkat->terdaftar($request));
-        if ($denganMfa) {
-            MfaUlang::catat($request->session());
-        }
+        // Masuk tanpa MFA tidak boleh mewarisi verifikasi akun sebelumnya di peramban ini (regenerate mempertahankan isi sesi).
+        $denganMfa ? MfaUlang::catat($request->session(), $pengguna) : MfaUlang::lupakan($request->session());
         // Dibaca ulang dari DB: nilai pembanding sama persis dengan yang nanti dibaca /saya.
         $request->session()->put(PenggunaResource::LOGIN_SESI_INI, $pengguna->refresh()->login_terakhir_pada?->getTimestamp());
 
