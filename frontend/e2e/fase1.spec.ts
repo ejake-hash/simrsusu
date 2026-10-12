@@ -64,7 +64,7 @@ const LAYAR: Layar[] = [
   { kode: 'tanda-tangan', jalur: '/tanda-tangan', akun: 'ttd', judul: 'Tanda tangan elektronik' },
 ]
 
-test.describe.configure({ mode: 'serial' })
+// Bukan serial: satu layar gagal tidak membatalkan pemeriksaan layar lain (sesi per akun tetap dipakai ulang di worker).
 test.beforeAll(async () => {
   if (!SANDI) throw new Error('Set E2E_SANDI sama dengan AKUN_SINTETIS_SANDI saat seeding.')
   const tanpaRahasia = Object.values(AKUN as Record<string, Akun>).filter((a) => 'rahasia' in a && !a.rahasia).map((a) => a.nama)
@@ -129,9 +129,10 @@ test('daftar layar mencakup semua halaman menu yang TERSEDIA bagi akun sintetis'
   const kurang: string[] = []
   for (const akun of Object.values(AKUN)) {
     const k = await konteks(browser, asal, akun, 1440)
-    const r = await k.request.get('/api/v1/saya/menu', { headers: { Accept: 'application/json' } })
+    // Sanctum stateful hanya mengenali sesi dari origin SPA.
+    const r = await k.request.get('/api/v1/saya/menu', { headers: { Accept: 'application/json', Origin: asal, Referer: `${asal}/` } })
     expect(r.ok(), `${akun.nama} ${r.status()}`).toBeTruthy()
-    const menu = (await r.json()) as { grup: { menu: { rute: string; status: string; sub_menu: { rute: string; status: string }[] }[] }[] }
+    const menu = ((await r.json()) as { data: { grup: { menu: { rute: string; status: string; sub_menu: { rute: string; status: string }[] }[] }[] } }).data
     // Halaman = sub-menu, atau menu tanpa sub-menu (menu induk ber-sub-menu hanya pengelompok).
     const halaman = menu.grup.flatMap((g) => g.menu.flatMap((m) => (m.sub_menu.length ? m.sub_menu : [m])))
     for (const x of halaman) {
