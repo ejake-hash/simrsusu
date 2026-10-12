@@ -963,6 +963,10 @@ Aturan rinci (kontrak v0.12.0):
     karena superadmin tidak memegang data induk (PRD 9.2.4); panduan instalasi perlu menjelaskan penugasannya;
     syarat `referensi` belum memeriksa kelengkapan kelompok; PRD 11.2 belum memuat `inti.penyiapan_konfirmasi` dan
     `profil_rs.siap_melayani_sejak` (didokumentasikan sesudah merge).
+  - Utang (catatan sesi 1, PRD #77): `profil_rs.status_penyiapan` diisi `selesai` saat langkah 2 dikonfirmasi tetapi
+    tidak turun bila langkah 2 kemudian mundur, sedangkan deskripsi kontrak `ProfilRs.rinci.status_penyiapan` menyiratkan
+    ikut status langkah 2. Usul: perjelas kontrak ("selesai sejak langkah 2 pertama kali dikonfirmasi"; GET /penyiapan
+    tidak menulis), bukan menulis saat GET.
   - Utang tinjauan #70 (tidak memblokir): syarat unit dan kelas rawat belum memeriksa `berlaku_dari` (kontrak: "≥ 1
     aktif"); tes penolakan cakupan unit (lapis 3) untuk /penyiapan belum ada.
 ```
