@@ -2200,7 +2200,7 @@ Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis
 | `admin_delegasi` | id, pengguna_id, cakupan_unit_id, peran_boleh_ditugaskan jsonb, berlaku_sampai, ditetapkan_oleh |
 | `persetujuan_akses` | id, nomor (PSA-…), grup_id (satu pengajuan = satu baris per peran penyetuju), jenis (izin_sensitif/peran_superadmin/pengecualian/reset_ttd/izin_label), objek_jenis (izin_peran/penugasan/pengakhiran_penugasan/izin_khusus/penyetuju_izin/reset_ttd/izin_label/penyetuju_label), objek jsonb, peran_id, izin_id, sasaran_pengguna_id, penyetuju_peran_id atau penyetuju_pengguna_id (tepat satu; penyetuju orang tertentu, mis. atasan langsung untuk reset TTE), status (menunggu/disetujui/ditolak/kedaluwarsa/dibatalkan), diajukan_oleh, alasan, dasar, kedaluwarsa_pada (7 hari), diputuskan_oleh, diputuskan_pada, catatan_keputusan, diterapkan_pada |
 | `permintaan_akses` | id, nomor (PMA-…), pengguna_id, menu_id atau izin_id (tepat satu), alasan, status (menunggu/ditindaklanjuti/ditolak), diputuskan_oleh, diputuskan_pada, catatan_keputusan |
-| `cache_menu_efektif` (Redis, bukan tabel) | kunci per pengguna; dihapus saat peran, penugasan, pengecualian, atau izin praktik berubah |
+| `cache_menu_efektif` (Redis, bukan tabel) | kunci per pengguna; dihapus saat peran, penugasan, pemberian/pencabutan per akun, atau label berubah (SIP/SPK, RKK, dan MFA sesi dinilai saat diminta, 9.2.5) |
 | `menu_favorit` | pengguna_id, menu_id, urutan |
 | `permintaan_akses` | id, pengguna_id, izin_id/menu_id, alasan, status, diputuskan_oleh, diputuskan_pada |
 | `akses_darurat` | id, pengguna_id, pasien_id, alasan, mulai_pada, berakhir_pada, ditinjau_oleh, hasil_tinjauan |
