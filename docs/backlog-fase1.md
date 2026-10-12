@@ -925,6 +925,8 @@ Aturan rinci (kontrak v0.12.0):
     karena superadmin tidak memegang data induk (PRD 9.2.4); panduan instalasi perlu menjelaskan penugasannya;
     syarat `referensi` belum memeriksa kelengkapan kelompok; PRD 11.2 belum memuat `inti.penyiapan_konfirmasi` dan
     `profil_rs.siap_melayani_sejak` (didokumentasikan sesudah merge).
+  - Utang tinjauan #70 (tidak memblokir): syarat unit dan kelas rawat belum memeriksa `berlaku_dari` (kontrak: "≥ 1
+    aktif"); tes penolakan cakupan unit (lapis 3) untuk /penyiapan belum ada.
 ```
 
 ## [SIMRS] Platform · 1.7 Notifikasi, kotak kerja, dan eskalasi

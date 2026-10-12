@@ -1,6 +1,5 @@
 <?php
 
-use App\Core\Instalasi\Penyiapan;
 use App\Modules\Akses\Application\CacheHakAkses;
 use App\Modules\Akses\Database\MenuBawaan;
 use Illuminate\Database\Migrations\Migration;
@@ -27,8 +26,8 @@ return new class extends Migration
             $table->foreign('dikonfirmasi_oleh')->references('id')->on('akses.pengguna');
             $table->index(['langkah', 'dikonfirmasi_pada']);
         });
-        $daftar = "'".implode("', '", array_keys(Penyiapan::LANGKAH))."'";
-        DB::statement("ALTER TABLE inti.penyiapan_konfirmasi ADD CONSTRAINT penyiapan_konfirmasi_langkah_cek CHECK (langkah IN ($daftar))");
+        // Dibekukan di migrasi (bukan dari konstanta kelas): langkah baru = migrasi baru.
+        DB::statement("ALTER TABLE inti.penyiapan_konfirmasi ADD CONSTRAINT penyiapan_konfirmasi_langkah_cek CHECK (langkah IN ('superadmin', 'profil_rs', 'organisasi', 'paket_referensi', 'pegawai', 'penjamin_tarif', 'formularium', 'kredensial_integrasi', 'modul_aktif'))");
         DB::statement("ALTER TABLE inti.penyiapan_konfirmasi ADD CONSTRAINT penyiapan_konfirmasi_dilewati_cek CHECK (NOT dilewati OR (langkah = 'kredensial_integrasi' AND alasan IS NOT NULL))");
 
         Schema::table('inti.profil_rs', function (Blueprint $table) {

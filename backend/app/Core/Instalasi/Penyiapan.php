@@ -73,7 +73,7 @@ final class Penyiapan
                 'dapat_dikonfirmasi' => $bolehUbah && $urutanTerpenuhi && ! in_array($kode, self::FASE_2, true) && self::semuaTerpenuhi($l['syarat']),
                 'dapat_dilewati' => $bolehUbah && $urutanTerpenuhi && $kode === self::BISA_DILEWATI && $l['status'] !== 'selesai',
                 'konfirmasi_terakhir' => $l['konfirmasi'],
-                'paket' => $kode === 'paket_referensi' ? $this->paket() : null,
+                'paket' => $l['paket'],
             ];
             $urutanTerpenuhi = $urutanTerpenuhi && in_array($l['status'], self::SELESAI_URUTAN, true);
         }
@@ -133,7 +133,8 @@ final class Penyiapan
             ]);
             if ($kode === 'profil_rs') {
                 // Ringkasan langkah 2 di profil (ProfilRs.rinci.status_penyiapan, 1.8a).
-                DB::table('inti.profil_rs')->update(['status_penyiapan' => 'selesai']);
+                // revisi naik agar versi/ETag GET /profil-rs ikut berubah.
+                DB::table('inti.profil_rs')->update(['status_penyiapan' => 'selesai', 'revisi' => DB::raw('revisi + 1'), 'diubah_pada' => now()]);
             }
 
             $kunciBaru = false;
@@ -160,18 +161,20 @@ final class Penyiapan
     }
 
     /**
-     * @return array<string, array{status: string, syarat: list<array{kode: string, label: string, terpenuhi: bool, keterangan: ?string}>, konfirmasi: ?array<string, mixed>}>
+     * @return array<string, array{status: string, syarat: list<array{kode: string, label: string, terpenuhi: bool, keterangan: ?string}>, konfirmasi: ?array<string, mixed>, paket: ?list<array<string, mixed>>}>
      */
     private function hitung(): array
     {
         $konfirmasi = $this->konfirmasiTerakhir();
+        // Dihitung sekali per permintaan: hitungan kode aktif menyentuh tabel besar (wilayah, terminologi).
+        $paket = $this->paket();
         $hasil = [];
         foreach (array_keys(self::LANGKAH) as $kode) {
             $syarat = match ($kode) {
                 'superadmin' => $this->syaratSuperadmin(),
                 'profil_rs' => $this->syaratProfil(),
                 'organisasi' => $this->syaratOrganisasi(),
-                'paket_referensi' => $this->syaratPaket(),
+                'paket_referensi' => $this->syaratPaket($paket),
                 'pegawai' => $this->syaratPegawai(),
                 'kredensial_integrasi' => [self::syarat('kredensial', 'Kredensial tersimpan dan uji koneksi berhasil', false, 'Dibangun di tiket 1.9')],
                 'modul_aktif' => $this->syaratModul(),
@@ -186,7 +189,7 @@ final class Penyiapan
                 self::adaTerpenuhi($syarat) => 'sebagian',
                 default => 'belum',
             };
-            $hasil[$kode] = ['status' => $status, 'syarat' => $syarat, 'konfirmasi' => $k];
+            $hasil[$kode] = ['status' => $status, 'syarat' => $syarat, 'konfirmasi' => $k, 'paket' => $kode === 'paket_referensi' ? $paket : null];
         }
 
         return $hasil;
@@ -220,7 +223,8 @@ final class Penyiapan
     {
         $peranId = DB::table('akses.peran')->where('kode', MenuBawaan::PERAN_SUPERADMIN)->value('id');
         $pemegang = PenggunaPeran::query()->berlaku()->where('peran_id', $peranId)->distinct()->pluck('pengguna_id');
-        $n = DB::table('akses.pengguna')->whereIn('id', $pemegang)->where('status', 'aktif')->whereNotNull('mfa_aktif_pada')->count();
+        $n = DB::table('akses.pengguna')->whereIn('id', $pemegang)->where('status', 'aktif')
+            ->whereNotNull('mfa_aktif_pada')->whereNotNull('mfa_rahasia_enkripsi')->count();
 
         return [
             self::syarat('superadmin_mfa', 'Dua superadmin dengan MFA', $n >= 2, $n >= 2 ? "{$n} superadmin" : "{$n} dari 2"),
@@ -261,9 +265,10 @@ final class Penyiapan
     }
 
     /** @return list<array{kode: string, label: string, terpenuhi: bool, keterangan: ?string}> */
-    private function syaratPaket(): array
+    /** @param list<array{sistem: string, wajib: bool, versi: ?string, sumber: ?string, dimuat_pada: ?string, jumlah_kode_aktif: int}> $daftar */
+    private function syaratPaket(array $daftar): array
     {
-        $paket = collect($this->paket())->keyBy('sistem');
+        $paket = collect($daftar)->keyBy('sistem');
 
         return array_map(
             fn (string $sistem) => self::syarat($sistem, self::LABEL_PAKET[$sistem], $paket[$sistem]['versi'] !== null,

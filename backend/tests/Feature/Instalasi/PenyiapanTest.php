@@ -79,6 +79,8 @@ class PenyiapanTest extends TestCase
         $this->assertSame('Belum ada kredensial dari RS', $data['langkah'][7]['konfirmasi_terakhir']['alasan']);
         $this->assertSame($this->superadmin->id, $data['langkah'][0]['konfirmasi_terakhir']['oleh']['id']);
         $this->assertSame('selesai', DB::table('inti.profil_rs')->value('status_penyiapan'));
+        // Revisi naik agar ETag GET /profil-rs ikut berubah.
+        $this->assertSame(1, (int) DB::table('inti.profil_rs')->value('revisi'));
         $wilayah = collect($data['langkah'][3]['paket'])->firstWhere('sistem', 'wilayah');
         $this->assertSame(['2025.1', 'Kemendagri uji', 2], [$wilayah['versi'], $wilayah['sumber'], $wilayah['jumlah_kode_aktif']]);
         $this->assertSame(7, DB::table('audit.log_aktivitas')->where('aksi', 'pengaturan.penyiapan_dikonfirmasi')->count());
@@ -108,6 +110,21 @@ class PenyiapanTest extends TestCase
             ->assertJsonPath('error.kode', 'langkah_sebelumnya_belum_selesai');
         $this->minta('POST', '/api/v1/penyiapan/langkah_lain/selesai')->assertNotFound();
         $this->assertSame(0, DB::table('inti.penyiapan_konfirmasi')->count());
+    }
+
+    public function test_syarat_tidak_menghitung_superadmin_tanpa_mfa_atau_peran_lewat_dan_tt_belum_berlaku(): void
+    {
+        $tanpaRahasia = $this->superadminLain();
+        DB::table('akses.pengguna')->where('id', $tanpaRahasia->id)->update(['mfa_rahasia_enkripsi' => null]);
+        $lewat = $this->superadminLain();
+        DB::table('akses.pengguna_peran')->where('pengguna_id', $lewat->id)->update(['berlaku_dari' => now()->subDays(2), 'berlaku_sampai' => now()->subDay()]);
+        $this->assertSame('1 dari 2', $this->muatStatus()->json('data.langkah.0.syarat.0.keterangan'));
+
+        $this->isiDataSintetis();
+        $besok = now(config('instalasi.zona_waktu'))->addDay()->toDateString();
+        DB::table('inti.tempat_tidur')->update(['berlaku_dari' => $besok]);
+        $tt = collect($this->muatStatus()->json('data.langkah.2.syarat'))->firstWhere('kode', 'tempat_tidur');
+        $this->assertFalse($tt['terpenuhi']);
     }
 
     public function test_langkah_mundur_kembali_sebagian_dan_siap_melayani_terkunci(): void
