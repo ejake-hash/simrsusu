@@ -3395,8 +3395,10 @@ paths:
   # - Versi = kunci pemuatan per sistem (`inti.paket_referensi` unik sistem + versi, dengan sidik isi). Memuat ulang
   #   sistem + versi yang sama dengan isi sama = idempoten bila versi itu pemuatan terakhir sistem tersebut: 200,
   #   `diterapkan` true, jumlah perubahan (baru/diubah/dinonaktifkan/diaktifkan lagi) 0, tanpa baris paket dan audit baru.
-  #   Versi lama yang sudah digantikan versi lain tidak bisa dimuat ulang (409 `versi_sudah_dimuat`; pakai versi baru). Isi berbeda dengan versi yang sama = 409 `versi_sudah_dimuat` (pakai nomor versi lain). Untuk
-  #   `referensi`, setiap berkas (satu atau beberapa kelompok) memakai versinya sendiri (mis. `agama-2025.1`).
+  #   Pratinjau pemuatan ulang itu: 200, `diterapkan` false, jumlah perubahan 0. Versi lama yang sudah digantikan versi
+  #   lain tidak bisa dimuat ulang, dan isi berbeda dengan versi yang sama ditolak: keduanya 409 `versi_sudah_dimuat`
+  #   (pakai nomor versi lain). Untuk `referensi`, setiap berkas (satu atau beberapa kelompok) memakai versinya sendiri
+  #   (mis. `agama-2025.1`).
   # - Pemuatan terakhir yang menentukan kode mana yang aktif; pemuatan bersamaan untuk sistem yang sama diserialkan.
   # - Paket referensi bukan data induk berpemilik: tidak lewat usulan berjenjang dan tidak terkena `harus_lewat_usulan`.
   # - Nama sistem di API huruf kecil; di `inti.terminologi.sistem` sama (PRD 11.2 menulis ICD10, ICD9CM, LOINC, UCUM).
@@ -3424,7 +3426,10 @@ paths:
           500; tidak ada yang disimpan); bila semua benar → satu transaksi + satu baris `inti.paket_referensi` (versi yang sama
           tidak digandakan) + audit `master_data.referensi_dimuat`.
         - 422 `berkas_tidak_valid` (bukan CSV UTF-8, judul kolom tidak sesuai, melebihi batas baris).
-        - 409 `versi_sudah_dimuat`: versi itu sudah dimuat dengan isi berbeda (pratinjau dan terapkan).
+        - Versi sama dengan isi sama yang merupakan pemuatan terakhir sistem itu: 200 tanpa perubahan (jumlah perubahan 0;
+          `diterapkan` true pada terapkan, false pada pratinjau), tanpa baris paket dan audit baru.
+        - 409 `versi_sudah_dimuat` (pratinjau dan terapkan): versi itu sudah dimuat dengan isi berbeda, atau sudah
+          digantikan pemuatan versi lain untuk sistem yang sama. Pakai nomor versi baru.
         - 422 `validasi_gagal` kolom `catatan_lisensi` untuk `loinc` bila kosong (atribusi Regenstrief wajib).
         Kode salah per baris: `kolom_wajib`, `kode_tidak_valid`, `kode_ganda`, `induk_tidak_ditemukan`, `nilai_tidak_valid`.
       requestBody:

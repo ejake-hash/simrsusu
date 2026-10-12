@@ -848,14 +848,18 @@ Uji penerimaan: memuat ulang versi sama idempoten; versi baru menonaktifkan kode
 Aturan rinci (kontrak v0.11.0):
   - Endpoint unggah wizard: POST /paket-referensi/{sistem}/muat (multipart: berkas, mode pratinjau|terapkan, versi,
     sumber, catatan_lisensi), izin `master_data.katalog.input`; perintah konsol `referensi:muat` dengan aturan sama.
-  - Versi = kunci per sistem (sidik isi): versi sama + isi sama = idempoten (tanpa baris/audit baru); isi lain = 409
-    `versi_sudah_dimuat`. Referensi: tiap berkas punya versinya sendiri. LOINC wajib `catatan_lisensi` (atribusi).
+  - Versi = kunci per sistem (sidik isi): versi sama + isi sama + versi itu pemuatan terakhir sistem tersebut =
+    idempoten (200, jumlah perubahan 0, tanpa baris/audit baru; pratinjau `diterapkan` false). Isi lain, atau versi lama
+    yang sudah digantikan versi lain = 409 `versi_sudah_dimuat`. Referensi: tiap berkas punya versinya sendiri. LOINC
+    wajib `catatan_lisensi` (atribusi).
   - Tabel PRD 11.2: `inti.paket_referensi` (satu baris per sistem + versi), `inti.wilayah` (tingkat dan induk dari kode
     Kemendagri bertitik), `inti.referensi` (kelompok, kode, label), `inti.terminologi` (sistem, kode, tampilan,
     kode_induk); ketiganya ditambah `aktif`, `versi_terakhir`, `dinonaktifkan_pada`. Kode tidak pernah dihapus.
   - Satu pemuatan = snapshot satu sistem (referensi: per kelompok di berkas). Sinkron, paling besar 10 MB / 120.000
     baris, target < 30 detik untuk 100.000 baris (diuji), `SET LOCAL statement_timeout` sendiri (wilayah ±91 ribu
-    kelurahan). Runbook: `upload_max_filesize`/`post_max_size` PHP ≥ 12 MB.
+    kelurahan). Runbook: `upload_max_filesize`/`post_max_size` PHP ≥ 12 MB, `memory_limit` PHP ≥ 128 MB, nginx
+    `client_max_body_size` ≥ 12m dan `proxy_read_timeout`/`fastcgi_read_timeout` ≥ 60 s (berkas diunggah dua kali:
+    pratinjau lalu terapkan). Usul nanti: pratinjau mengembalikan token agar terapkan tidak perlu unggah ulang.
   - Utang PRD (menyusul PR [Perlu pemilik]): 11.2 belum memuat kolom `aktif`, `versi_terakhir`, `dinonaktifkan_pada`
     (wilayah/referensi/terminologi) dan `sidik_isi` (paket_referensi); nama sistem huruf kecil di API dan tabel.
   - **Isi paket dikemas menunggu berkas resmi** (pemilik/RS): wilayah (Kemendagri), UCUM (unitsofmeasure.org),
@@ -876,6 +880,11 @@ Pekerjaan  :
         dari 1.9 (uji koneksi atau ditandai "dilewati: belum ada kredensial"), langkah 9 modul aktif.
      2. Penjaga `instalasi.siap_melayani`: dipakai modul fase 2 untuk menolak transaksi pasien sebelum langkah 1–6 lengkap.
      3. Setiap langkah tercatat audit; bisa diulang.
+     4. Langkah 4 (dari tinjauan kontrak 1.8e, PR #65): `GET /penyiapan` memuat daftar paket yang sudah dimuat per
+        sistem (sistem, versi, sumber, dimuat_pada, jumlah kode aktif) dari `inti.paket_referensi`, supaya wizard
+        menandai selesai per sistem dan pengguna tidak memuat ulang tanpa sadar. ICD-10/ICD-9-CM tidak wajib untuk
+        menandai langkah 4 selesai (K7: berkasnya dari RS; tampil "menunggu berkas RS"). Peran penyiap instalasi
+        perlu izin `master_data.katalog.input` walau sub-menu katalog belum TERSEDIA.
   fe 1. Layar Pengaturan → Penyiapan: daftar langkah dengan status dan tautan ke layar pengisinya (bukan formulir
         duplikat), indikator "Instalasi belum bisa melayani pasien" di Beranda superadmin.
 Uji penerimaan: instalasi kosong menampilkan 9 langkah belum selesai; setelah data sintetis lengkap, langkah 1–5 dan 9
