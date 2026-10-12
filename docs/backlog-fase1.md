@@ -723,7 +723,8 @@ Tujuan     : Setelah instalasi melayani pasien, perubahan data induk penting (TT
 FR         : PRD FR-54-01, FR-54-02, FR-08-16; prototipe masterdata.html bagian Usulan (U-0405 dsb.)
 API (be)   : POST /usulan-data-induk (jenis_data, objek, nilai_lama, nilai_baru, berlaku_dari, alasan, dasar),
              GET /usulan-data-induk (filter tahap), POST .../{id}/verifikasi | setujui | kembalikan (catatan wajib),
-             POST .../{id}/kirim-ulang; GET /data-induk/{jenis}/{id}/riwayat-versi
+             POST .../{id}/kirim-ulang; GET /usulan-data-induk/{id} (rincian, layar dan tautan tugas);
+             GET /data-induk/{jenis}/{id}/riwayat-versi
 Pekerjaan  :
   be 1. Mesin generik: alur per jenis data induk di konfigurasi (pemilik, pemverifikasi, penyetuju — peran);
         pengusul tidak boleh memverifikasi/menyetujui usulannya sendiri.
@@ -740,7 +741,11 @@ Uji penerimaan:
   - Penerapan terjadwal yang dijalankan dua kali tidak menggandakan perubahan.
 Aturan rinci (kontrak v0.9.0):
   - Satu usulan = satu `jenis_data` (fase 1: `ruang_tt`) dengan 1–50 butir `perubahan` {objek_jenis, aksi, objek_id,
-    nilai_baru}: TT tambah/ubah/tutup, kamar tambah/ubah, ruang ubah (nama, fungsi, unit, status). Semua butir satu
+    nilai_baru}: TT tambah/ubah/tutup, kamar tambah/ubah, ruang tambah/ubah (induk, kode, nama, fungsi, unit, status).
+    Isi tiap putaran disimpan (`inti.usulan_data_induk_putaran`); ringkasan dipotret saat diusulkan. Tanggal: uji kering
+    memakai `berlaku_dari` sebagai hari acuan; tanggal efektif penerapan = max(berlaku_dari, hari ini). Objek terkunci
+    hanya oleh usulan tahap diusulkan/diverifikasi/disetujui. Penjaga siap melayani juga di POST /lokasi (ruang) dan
+    /lokasi/impor; TT ekstra (tambah/tutup) dikecualikan. `inti.alur_usulan` juga memuat peran pengusul (pemilik data). Semua butir satu
     `berlaku_dari` dan diterapkan dalam satu transaksi. `nilai_lama` dan revisi objek dipotret server saat diusulkan.
   - Validasi = aturan 1.8b yang sama, dijalankan sebagai uji kering (transaksi dibatalkan) saat diusulkan/dikirim ulang,
     dan sungguhan saat diterapkan. Objek yang revisinya berubah sejak diusulkan → `gagal_diterapkan` (alasan tercatat,

@@ -1359,6 +1359,7 @@ paths:
       summary: Tambah lokasi (situs, gedung, sayap, lantai, atau ruang)
       description: |
         Izin: master_data.organisasi.input. Jenis `tempat_tidur` lewat POST /tempat-tidur (422 `kelola_lewat_tempat_tidur`).
+        Jenis `ruang` sesudah instalasi siap melayani: 409 `harus_lewat_usulan` (1.8c).
         - 422 `jenis_induk_tidak_sesuai` (aturan jenis di atas); 422 `induk_tidak_aktif` (induk ditutup);
           422 `fungsi_wajib` (ruang tanpa fungsi) / `fungsi_hanya_ruang`; 422 `unit_tidak_valid` (unit tidak ada atau nonaktif).
         - 409 `kode_sudah_dipakai`: kode sama dengan saudara, atau `kode_lengkap` yang terbentuk sudah ada.
@@ -1449,7 +1450,8 @@ paths:
       operationId: imporLokasi
       summary: Impor lokasi, kamar, dan TT dari CSV (pratinjau dulu, lalu terapkan)
       description: |
-        Izin: master_data.organisasi.input. Berkas CSV UTF-8 (RFC 4180, pemisah koma, baris pertama judul kolom), paling
+        Izin: master_data.organisasi.input. Untuk penyiapan instalasi: sesudah siap melayani 409 `harus_lewat_usulan` (1.8c).
+        Berkas CSV UTF-8 (RFC 4180, pemisah koma, baris pertama judul kolom), paling
         besar 2 MB dan 5.000 baris data; diproses sinkron (target < 30 detik untuk 5.000 baris). Berkas lebih besar dipecah
         oleh pengguna; impor lewat antrean untuk berkas besar adalah usulan terpisah (backlog). Templat dibuat klien dari
         daftar kolom ini:
@@ -1701,6 +1703,7 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
         '412': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '428': { $ref: '#/components/responses/Error' }
@@ -2893,7 +2896,8 @@ paths:
   # - Objek yang bisa ditandatangani di fase 1: `persetujuan_akses`, oleh akun pemutusnya (`diputuskan_oleh.id` = Saya.id)
   #   sesudah diputuskan; klien memanggil verifikasi di rincian untuk tahu apakah sudah ditandatangani. Fase 1 tidak punya
   #   endpoint "minta tanda tangan" (penanda tangan lain): mode itu di TtdModal hanya komponen dengan handler pemanggil.
-  #   `usulan_data_induk` menyusul 1.8c. Aturan tingkat per jenis objek (FR-57-05) adalah data induk; fase 1 hanya T1.
+  #   `usulan_data_induk` (1.8c) oleh pengusul/pemverifikasi/penyetujunya. Aturan tingkat per jenis objek (FR-57-05) adalah
+  #   data induk; fase 1 hanya T1.
   # - T2/PSrE: antarmuka + simulator untuk uji alur asinkron, tanpa endpoint publik dan tanpa penyedia nyata (K10); mode
   #   T2 TtdModal di luar 1.6-fe. Semua endpoint ini memakai batas laju `throttle:api` (429).
   # - 503 `ttd_belum_dikonfigurasi` (aktivasi, ganti PIN, tandatangani): kunci server `TTD_KUNCI` kosong, atau kunci yang
@@ -3018,7 +3022,8 @@ paths:
         digandakan, isinya tanda tangan lama dengan `baru: false` (kirim ulang aman, pengganti Idempotency-Key). Bila isi
         objek berubah (mis. usulan dikirim ulang), tanda tangan baru dibuat; yang lama tetap ada (verifikasi: `isi_berubah`).
         Siapa yang boleh: `persetujuan_akses` hanya akun pemutusnya sesudah diputuskan; `usulan_data_induk` (1.8c) pengusul,
-        pemverifikasi, atau penyetuju putaran itu sesudah tindakannya.
+        pemverifikasi, atau penyetuju putaran itu sesudah tindakannya (`bukan_pemutus` = bukan pelaku usulan itu;
+        `belum_diputuskan` = pelaku yang tindakannya di putaran ini belum dilakukan).
         - 422 `pin_salah` (kolom `pin`, `sisa_percobaan`); 403 `ttd_terkunci` (Retry-After); 409 `ttd_belum_aktif`;
           422 `validasi_gagal` bila `pernyataan_disetujui` bukan true.
         Audit `ttd.ditandatangani` per objek baru (hash isi, sidik kunci; tanpa isi).
@@ -3082,12 +3087,14 @@ paths:
       operationId: verifikasiTtd
       summary: Verifikasi ulang semua tanda tangan sebuah objek (integritas isi + keaslian tanda tangan)
       description: |
-        Hanya akun yang boleh melihat objek itu (persetujuan_akses: aturan /persetujuan-akses/{id}); selain itu 404.
+        Hanya akun yang boleh melihat objek itu (persetujuan_akses: aturan /persetujuan-akses/{id}; usulan_data_induk: izin
+        master_data.usulan.lihat atau pelaku usulan itu); selain itu 404.
         Urutan pemeriksaan: keaslian dulu (`tanda_tangan_tidak_sah` bila tanda tangan tidak cocok dengan hash tersimpan dan
         kunci publik yang dipakai, mis. baris palsu), lalu isi (`isi_berubah` bila hash isi kanonik objek saat ini berbeda
         dari saat ditandatangani). Waktu di isi kanonik selalu UTC dengan presisi mikrodetik (tidak bergantung zona waktu
         instalasi).
-        Bukan endpoint daftar: paling banyak satu baris per penanda tangan objek itu, urut `ditandatangani_pada`.
+        Bukan endpoint daftar: satu baris per penanda tangan per isi yang ditandatangani (usulan yang dikirim ulang bisa
+        punya tanda tangan putaran lama berstatus `isi_berubah`), urut `ditandatangani_pada`.
         Hasil kosong = belum ada tanda tangan.
       responses:
         '200':
@@ -3112,21 +3119,36 @@ paths:
   #   Gagal saat diterapkan (objek berubah sejak diusulkan, atau aturan 1.8b tidak terpenuhi lagi) → `gagal_diterapkan`
   #   dengan alasan; pengusul diberi tahu. `gagal_diterapkan` dan `berlaku` final (tidak bisa dikirim ulang; usulan baru
   #   dibuat bila masih perlu).
+  # - Isi tiap putaran disimpan (kirim ulang tidak menimpa putaran lama; jejak PRD 7.57.2 c–d). Isi kanonik TTE = isi
+  #   putaran yang ditandatangani tanpa hasil penerapan (id objek baru hasil `tambah` tidak ikut), sehingga tanda tangan
+  #   tetap sah sesudah usulan berlaku.
   # - Tampilan diff: `tampilan[]` (label isian, nilai lama/baru siap tampil, mis. nama kelas/bangsal/unit) disusun server
   #   saat dibaca; hanya untuk layar, tidak masuk isi kanonik TTE. `nilai_lama`/`nilai_baru` mentah untuk kirim ulang.
+  #   `ringkasan` (mis. "ICU: 12 → 16 TT") dipotret saat diusulkan/dikirim ulang, tidak bergeser sesudah berlaku.
   # - Tautan tugas/notifikasi usulan: `/master-data/usulan?usulan={id}` (rute layar).
   # - Izin sub-menu `master_data.usulan` (cakupan rs): `lihat` (semua usulan), `input` (mengusulkan dan kirim ulang
   #   usulan sendiri), `verifikasi`, `setujui`. Alur per jenis data (`inti.alur_usulan`, data induk; layar menyusul) bisa
-  #   mempersempit pemverifikasi/penyetuju ke satu peran (mis. ruang & TT: Keperawatan → Yanmed). Tiga orang berbeda:
-  #   pengusul ≠ pemverifikasi ≠ penyetuju (403 `pengusul_sendiri`, `sudah_memverifikasi`).
+  #   mempersempit pengusul (pemilik data), pemverifikasi, dan penyetuju ke satu peran (mis. ruang & TT: Keperawatan →
+  #   Yanmed → Direktur). Tiga orang berbeda: pengusul ≠ pemverifikasi ≠ penyetuju. Pemeriksaan 403 (izin, peran alur,
+  #   `pengusul_sendiri`, `sudah_memverifikasi`) didahulukan sebelum 409 `tahap_tidak_sesuai`.
+  # - Tanggal: `berlaku_dari` ≥ hari ini saat diajukan. Uji kering memakai `berlaku_dari` sebagai hari acuan aturan
+  #   tanggal 1.8b (mis. TT baru mulai dihitung, status ruang). Tanggal efektif penerapan = max(`berlaku_dari`, hari ini):
+  #   usulan yang disetujui sesudah tanggalnya lewat berlaku mulai hari disetujui.
   # - Setiap butir `perubahan` divalidasi dengan aturan 1.8b yang sama saat diusulkan/dikirim ulang (uji kering) dan
-  #   sekali lagi saat diterapkan. `nilai_lama` dipotret server saat diusulkan (klien tidak mengirimnya).
-  # - Penerapan: otomatis pukul 00.00 zona RS pada `berlaku_dari` (tugas terjadwal, idempoten); bila `berlaku_dari` ≤
-  #   hari ini saat disetujui, langsung diterapkan. Semua butir satu usulan diterapkan dalam satu transaksi. Setiap
-  #   perubahan data induk (lewat usulan maupun langsung) menyimpan versi (riwayat-versi).
+  #   sekali lagi saat diterapkan. `nilai_lama` dan revisi objek dipotret server saat diusulkan (klien tidak
+  #   mengirimnya); `objek_berubah` menandai objek yang berubah sejak itu (penerapan akan gagal; kembalikan atau tolak).
+  #   Satu objek hanya boleh ada di satu usulan yang sedang berjalan (tahap diusulkan, diverifikasi, disetujui); usulan
+  #   `dikembalikan` tidak mengunci objek, konflik diperiksa lagi saat kirim ulang. Dua usulan yang sama-sama menambah
+  #   kode TT yang sama: yang diterapkan belakangan gagal (`kode_sudah_dipakai`).
+  # - Penerapan: tugas terjadwal 00.00 zona RS mengambil semua usulan `disetujui` dengan `berlaku_dari` ≤ hari ini
+  #   (mengejar bila server mati saat itu), satu transaksi per usulan, idempoten (kunci baris + cek tahap); bila
+  #   `berlaku_dari` ≤ hari ini saat disetujui, langsung diterapkan. Setiap perubahan data induk (lewat usulan maupun
+  #   langsung) menyimpan versi (riwayat-versi; `versi` = urutan per objek mulai 1).
   # - Setelah instalasi siap melayani (penjaga `instalasi.siap_melayani`, tiket 1.8f; sampai 1.8f selalu belum),
-  #   perubahan langsung ruang/kamar/TT di 1.8b ditolak 409 `harus_lewat_usulan` (`rincian` kosong; `pesan` siap
-  #   ditampilkan sebagai banner dengan tautan ke /master-data/usulan), kecuali TT ekstra (darurat lonjakan).
+  #   perubahan langsung ruang/kamar/TT ditolak 409 `harus_lewat_usulan` (`rincian` kosong; `pesan` siap ditampilkan
+  #   sebagai banner dengan tautan ke /master-data/usulan): POST/PATCH /lokasi untuk jenis ruang, POST /lokasi/impor,
+  #   POST/PATCH /kamar, POST/PATCH /tempat-tidur dan tutupnya — kecuali TT `ekstra` (darurat lonjakan: tambah dan tutup
+  #   TT ekstra tetap langsung dan tercatat).
   # - Notifikasi/tugas (1.7) jenis USULAN_DATA_INDUK ke pemverifikasi, penyetuju, atau pengusul sesuai tahap. Usulan
   #   bisa ditandatangani (TTE T1, 1.6) oleh pengusul, pemverifikasi, dan penyetujunya (`objek_jenis = usulan_data_induk`).
   # ---------------------------------------------------------------------------
@@ -3182,7 +3204,7 @@ paths:
         - 422 `perubahan_tidak_valid`: `rincian[]` = `{kolom: "perubahan.<i>[.<isian>]", kode, pesan}`, kode dari aturan 1.8b
           (mis. `kode_sudah_dipakai`, `kelas_rawat_tidak_valid`, `sudah_ditutup`, `jenis_induk_tidak_sesuai`) atau
           `objek_tidak_ditemukan`, `aksi_tidak_dikenal`.
-        - 409 `objek_sedang_diusulkan`: objek yang sama ada di usulan lain yang belum final; `rincian[]` =
+        - 409 `objek_sedang_diusulkan`: objek yang sama ada di usulan lain yang sedang berjalan; `rincian[]` =
           `{kolom: "perubahan.<i>", kode: "objek_sedang_diusulkan", pesan, usulan: {id, nomor}}`.
         Audit `master_data.usulan_diajukan`.
       requestBody:
@@ -3274,7 +3296,8 @@ paths:
       summary: Kembalikan usulan ke pengusul dengan catatan (dari tahap diusulkan atau diverifikasi)
       description: |
         Tahap diusulkan: izin verifikasi (peran pemverifikasi alur); tahap diverifikasi: izin setujui (peran penyetuju
-        alur). 403 `pengusul_sendiri`; 409 `tahap_tidak_sesuai`. Audit `master_data.usulan_dikembalikan`.
+        alur) dan bukan pemverifikasinya (403 `sudah_memverifikasi`). 403 `pengusul_sendiri`; 409 `tahap_tidak_sesuai`.
+        Audit `master_data.usulan_dikembalikan`.
       requestBody:
         required: true
         content:
@@ -4207,7 +4230,10 @@ components:
         - tempat_tidur `tutup`: alasan (TT tidak dihitung mulai `berlaku_dari`, permanen);
         - kamar `tambah` (objek_id null): bangsal_id, lokasi_id, kapasitas_maksimum, atribut_standar;
         - kamar `ubah`: bangsal_id, kapasitas_maksimum, atribut_standar (minimal satu);
-        - ruang `ubah`: nama, fungsi, unit_organisasi_id, status (status berlaku pada `berlaku_dari`; minimal satu).
+        - ruang `tambah` (objek_id null): induk_id (lantai/sayap), kode, nama, fungsi, unit_organisasi_id (IsianLokasi
+          jenis ruang);
+        - ruang `ubah`: induk_id, kode, nama, fungsi, unit_organisasi_id, status (status berlaku pada tanggal efektif;
+          minimal satu).
       items:
         type: object
         required: [objek_jenis, aksi, objek_id, nilai_baru]
@@ -4218,11 +4244,12 @@ components:
           nilai_baru: { type: object, additionalProperties: true }
     ButirUsulan:
       type: object
-      required: [objek_jenis, aksi, objek_id, objek_label, nilai_lama, nilai_baru, tampilan]
+      required: [objek_jenis, aksi, objek_id, objek_label, objek_berubah, nilai_lama, nilai_baru, tampilan]
       properties:
         objek_jenis: { $ref: '#/components/schemas/ObjekDataInduk' }
         aksi: { type: string, enum: [tambah, ubah, tutup] }
-        objek_id: { type: [string, 'null'], format: uuid, description: "Untuk tambah: terisi sesudah berlaku" }
+        objek_id: { type: [string, 'null'], format: uuid, description: "Untuk tambah: id objek baru, terisi sesudah berlaku (tidak masuk isi kanonik TTE)" }
+        objek_berubah: { type: boolean, description: "Objek (ubah/tutup) berubah sejak diusulkan; penerapan akan gagal" }
         objek_label: { type: string, examples: ['ICU · Intensive care unit', 'TT B-3-304-2'] }
         nilai_lama: { type: [object, 'null'], additionalProperties: true, description: "Dipotret server saat diusulkan; null untuk tambah. Hanya isian yang diubah" }
         nilai_baru: { type: object, additionalProperties: true }
@@ -4252,7 +4279,7 @@ components:
         id: { type: string, format: uuid }
         nomor: { type: string, examples: ['UDI-2026-000405'] }
         jenis_data: { $ref: '#/components/schemas/JenisDataInduk' }
-        ringkasan: { type: string, examples: ['ICU: 12 → 16 TT'], description: "Disusun server dari butir dan kapasitas bangsal/kamar saat dibaca" }
+        ringkasan: { type: string, examples: ['ICU: 12 → 16 TT'], description: "Dipotret server saat diusulkan/dikirim ulang (tidak bergeser sesudah berlaku)" }
         perubahan: { type: array, items: { $ref: '#/components/schemas/ButirUsulan' } }
         berlaku_dari: { type: string, format: date }
         alasan: { type: string }
