@@ -90,7 +90,7 @@ final class PengirimKiriman
         }
         if ($hasil->tunda) {
             $this->sirkuit->lepasJatah($kiriman->tujuan);
-            $this->simpan($baris, ['coba_lagi_pada' => now()->addMinute()]);
+            $this->simpan($baris, ['coba_lagi_pada' => now()->addMinute(), 'error_terakhir' => $hasil->pesan]);
 
             return;
         }

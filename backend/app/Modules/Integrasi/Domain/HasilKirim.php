@@ -17,9 +17,9 @@ final class HasilKirim
         public readonly bool $tunda = false,
     ) {}
 
-    public static function tunda(): self
+    public static function tunda(string $pesan): self
     {
-        return new self(false, false, null, null, true);
+        return new self(false, false, $pesan, null, true);
     }
 
     public static function berhasil(?string $idLuar = null): self

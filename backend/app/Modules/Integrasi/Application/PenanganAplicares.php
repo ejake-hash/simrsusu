@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
 /**
  * Ketersediaan TT ke Aplicares (tiket 1.9 butir 5; catatan lapangan §24, belum dicocokkan dengan dokumen resmi BPJS).
  * Satu kiriman per bangsal; satu ruang Aplicares = bangsal × kode kelas Aplicares (koderuang = kode bangsal; kelas rawat
- * yang dipetakan ke kode yang sama dijumlahkan). Isi dibaca dari keadaan terkini saat dikirim, di bawah kunci per bangsal,
+ * yang dipetakan ke kode yang sama dijumlahkan). Isi dibaca dari keadaan terkini saat dikirim, di bawah sewa per bangsal,
  * lalu dibaca ulang sesudah terkirim dan dikirim lagi bila berubah: kiriman bangsal yang sama tidak saling menimpa
  * (catatan tinjauan #76). Ruang yang pernah dikirim tetapi tidak ada lagi dikirim dengan kapasitas 0.
  */
@@ -31,6 +31,7 @@ final class PenanganAplicares implements PenanganKiriman
     public function __construct(
         private readonly DataIntegrasi $data,
         private readonly KlienAplicares $klien,
+        private readonly SewaAgregat $sewa,
     ) {}
 
     public function tujuan(): SistemIntegrasi
@@ -71,9 +72,10 @@ final class PenanganAplicares implements PenanganKiriman
 
     public function kirim(Kiriman $kiriman, string $lingkungan, array $kredensial): HasilKirim
     {
-        $kunci = ['integrasi.aplicares', $kiriman->agregatId];
-        if (! DB::selectOne('SELECT pg_try_advisory_lock(hashtext(?), hashtext(?)) AS dapat', $kunci)->dapat) {
-            return HasilKirim::tunda();
+        $kunci = 'aplicares:bangsal:'.$kiriman->agregatId;
+        $token = $this->sewa->ambil($kunci);
+        if ($token === null) {
+            return HasilKirim::tunda('Menunggu kiriman bangsal yang sama selesai.');
         }
         try {
             for ($putaran = 1; ; $putaran++) {
@@ -88,7 +90,7 @@ final class PenanganAplicares implements PenanganKiriman
                 }
             }
         } finally {
-            DB::select('SELECT pg_advisory_unlock(hashtext(?), hashtext(?))', $kunci);
+            $this->sewa->lepas($kunci, $token);
         }
     }
 
@@ -130,9 +132,9 @@ final class PenanganAplicares implements PenanganKiriman
         $ppk = (string) self::kodePpk();
         $muatan = self::muatan($ruang);
         $lama = DB::table('integrasi.ruang_aplicares')->where('lingkungan', $lingkungan)->where('bangsal_id', $kiriman->agregatId)
-            ->where('kapasitas', '>', 0)->orderBy('kodekelas')->orderBy('koderuang')->get(['kodekelas', 'koderuang']);
+            ->where('kapasitas', '>', 0)->orderBy('kode_kelas')->orderBy('kode_ruang')->get(['kode_kelas', 'kode_ruang']);
         foreach ($lama as $l) {
-            $muatan[$l->kodekelas.'|'.$l->koderuang] ??= ['kodekelas' => $l->kodekelas, 'koderuang' => $l->koderuang, 'namaruang' => $ruang['nama'],
+            $muatan[$l->kode_kelas.'|'.$l->kode_ruang] ??= ['kodekelas' => $l->kode_kelas, 'koderuang' => $l->kode_ruang, 'namaruang' => $ruang['nama'],
                 'kapasitas' => 0, 'tersedia' => 0, 'tersediapria' => 0, 'tersediawanita' => 0, 'tersediapriawanita' => 0];
         }
         $ditolak = [];
@@ -154,9 +156,9 @@ final class PenanganAplicares implements PenanganKiriman
                 continue;
             }
             DB::table('integrasi.ruang_aplicares')->upsert([
-                'id' => (string) Str::uuid7(), 'lingkungan' => $lingkungan, 'kodekelas' => $isi['kodekelas'], 'koderuang' => $isi['koderuang'],
+                'id' => (string) Str::uuid7(), 'lingkungan' => $lingkungan, 'kode_kelas' => $isi['kodekelas'], 'kode_ruang' => $isi['koderuang'],
                 'bangsal_id' => $kiriman->agregatId, 'kapasitas' => $isi['kapasitas'], 'dikirim_pada' => now(), 'diubah_pada' => now(),
-            ], ['lingkungan', 'kodekelas', 'koderuang'], ['bangsal_id', 'kapasitas', 'dikirim_pada', 'diubah_pada']);
+            ], ['lingkungan', 'kode_kelas', 'kode_ruang'], ['bangsal_id', 'kapasitas', 'dikirim_pada', 'diubah_pada']);
         }
 
         return $ditolak === [] ? HasilKirim::berhasil() : HasilKirim::ditolak(implode(' | ', $ditolak));

@@ -5,6 +5,7 @@ namespace Tests\Feature\Integrasi;
 use App\Core\ProfilRs\ProfilRs;
 use App\Modules\Integrasi\Application\KelolaKredensial;
 use App\Modules\Integrasi\Application\PengirimKiriman;
+use App\Modules\Integrasi\Application\SewaAgregat;
 use App\Modules\Integrasi\Domain\SistemIntegrasi;
 use App\Modules\Integrasi\Infrastructure\SimulatorIntegrasi;
 use App\Modules\Integrasi\Jobs\KirimKiriman;
@@ -194,7 +195,7 @@ class AplicaresTest extends TestCase
 
         $ruang = SimulatorIntegrasi::ruangAplicares('sandbox', self::PPK);
         $this->assertSame([0, 1], [$ruang['SIM3|MELATI']['kapasitas'], $ruang['SIM2|MELATI']['kapasitas']]);
-        $this->assertSame(['SIM2' => 1, 'SIM3' => 0], DB::table('integrasi.ruang_aplicares')->orderBy('kodekelas')->pluck('kapasitas', 'kodekelas')->all());
+        $this->assertSame(['SIM2' => 1, 'SIM3' => 0], DB::table('integrasi.ruang_aplicares')->orderBy('kode_kelas')->pluck('kapasitas', 'kode_kelas')->all());
 
         // Sinkron berikutnya tidak mengirim ulang ruang yang sudah nol.
         $sebelum = DB::table('integrasi.log_api')->where('tujuan', 'aplicares')->count();
@@ -221,19 +222,17 @@ class AplicaresTest extends TestCase
         $this->aktifkan();
         [$kamar, $kelas] = $this->kamarDanKelas('SIM3');
         $bangsal = DB::table('inti.kamar')->where('id', $kamar)->value('bangsal_id');
-        // Pekerja lain (sesi database lain) memegang kunci bangsal ini.
-        $lain = DB::connection('pgsql_migrator');
-        $lain->select('SELECT pg_advisory_lock(hashtext(?), hashtext(?))', ['integrasi.aplicares', $bangsal]);
-        try {
-            $this->tt($kamar, '1', $kelas);
-            $this->pekerja();
-            $k = DB::table('integrasi.kotak_keluar')->where('tujuan', 'aplicares')->first();
-            $this->assertSame(['menunggu', 0], [$k->status, (int) $k->percobaan]);
-            $this->assertTrue(now()->lt($k->coba_lagi_pada));
-            $this->assertSame(0, DB::table('integrasi.log_api')->where('tujuan', 'aplicares')->count());
-        } finally {
-            $lain->select('SELECT pg_advisory_unlock(hashtext(?), hashtext(?))', ['integrasi.aplicares', $bangsal]);
-        }
+        // Pekerja lain memegang sewa bangsal ini.
+        $sewa = app(SewaAgregat::class);
+        $token = (string) $sewa->ambil('aplicares:bangsal:'.$bangsal);
+        $this->assertNull($sewa->ambil('aplicares:bangsal:'.$bangsal));
+        $this->tt($kamar, '1', $kelas);
+        $this->pekerja();
+        $k = DB::table('integrasi.kotak_keluar')->where('tujuan', 'aplicares')->first();
+        $this->assertSame(['menunggu', 0, 'Menunggu kiriman bangsal yang sama selesai.'], [$k->status, (int) $k->percobaan, $k->error_terakhir]);
+        $this->assertTrue(now()->lt($k->coba_lagi_pada));
+        $this->assertSame(0, DB::table('integrasi.log_api')->where('tujuan', 'aplicares')->count());
+        $sewa->lepas('aplicares:bangsal:'.$bangsal, $token);
         DB::table('integrasi.kotak_keluar')->where('id', $k->id)->update(['coba_lagi_pada' => now()->subSecond()]);
         app(PengirimKiriman::class)->proses($k->id);
         $this->assertSame('terkirim', DB::table('integrasi.kotak_keluar')->where('id', $k->id)->value('status'));
