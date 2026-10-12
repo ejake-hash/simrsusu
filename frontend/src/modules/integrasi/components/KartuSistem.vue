@@ -56,10 +56,21 @@ async function uji(l: LingkunganIntegrasi) {
 
 const konfirmasiNonaktif = ref(false)
 const sibukStatus = ref(false)
-async function aktifkan(l: LingkunganIntegrasi) {
+/** Mengganti lingkungan aktif menahan kiriman lain dan (produksi) mulai mengirim data pasien asli: selalu dikonfirmasi. */
+const akanAktif = ref<LingkunganIntegrasi | null>(null)
+const bukaAktifkan = ref(false)
+const aktifkanBerisiko = computed(() => akanAktif.value === 'produksi' || (s.value.lingkungan_aktif !== null && s.value.lingkungan_aktif !== akanAktif.value))
+function mintaAktifkan(l: LingkunganIntegrasi) {
+  akanAktif.value = l
+  bukaAktifkan.value = true
+}
+async function aktifkan() {
+  const l = akanAktif.value
+  if (!l) return
   sibukStatus.value = true
   try {
     emit('berubah', await simpanKredensial(s.value.kode, { lingkungan: l, aktifkan: true }))
+    bukaAktifkan.value = false
     tampilkanToast(`${s.value.nama}: ${LABEL_LINGKUNGAN[l].toLowerCase()} kini aktif.`)
   } catch (err) {
     tampilkanToast(pesanError(err), 'error')
@@ -151,13 +162,31 @@ const tampilKolom = (k: KredensialLingkungan['kolom'][number]) =>
           <div v-if="bolehUbah" class="aksi">
             <button type="button" class="tombol" @click="ubah(k)">Ubah kredensial</button>
             <button type="button" class="tombol" :disabled="!k.lengkap || menguji !== null" @click="uji(k.lingkungan)">{{ menguji === k.lingkungan ? 'Menguji…' : 'Uji koneksi' }}</button>
-            <button v-if="!k.aktif && k.lengkap" type="button" class="tombol" :disabled="sibukStatus" @click="aktifkan(k.lingkungan)">Aktifkan</button>
+            <button v-if="!k.aktif && k.lengkap" type="button" class="tombol" :disabled="sibukStatus" @click="mintaAktifkan(k.lingkungan)">Aktifkan</button>
             <button v-if="k.aktif" type="button" class="tombol" :disabled="sibukStatus" @click="konfirmasiNonaktif = true">Nonaktifkan</button>
           </div>
         </section>
       </div>
     </div>
     <DialogKredensial v-if="pilihan" v-model:open="dialog" :sistem="s" :kredensial="pilihan" @selesai="selesai" />
+    <Dialog v-if="akanAktif" v-model:open="bukaAktifkan" :judul="`Aktifkan ${s.nama} ${LABEL_LINGKUNGAN[akanAktif].toLowerCase()}?`" :peringatan="aktifkanBerisiko" :sibuk="sibukStatus">
+      <p>Kiriman baru ke {{ s.nama }} dikirim ke lingkungan {{ LABEL_LINGKUNGAN[akanAktif].toLowerCase() }}.</p>
+      <p v-if="s.lingkungan_aktif && s.lingkungan_aktif !== akanAktif" class="catatan catatan-peringatan">
+        <Ikon nama="peringatan" :ukuran="16" />
+        <span>
+          Menggantikan {{ LABEL_LINGKUNGAN[s.lingkungan_aktif].toLowerCase() }}. Kiriman {{ LABEL_LINGKUNGAN[s.lingkungan_aktif].toLowerCase() }} yang belum terkirim
+          ({{ s.queue.menunggu }} menunggu, {{ s.queue.gagal }} gagal) menjadi tertahan dan tidak dipindah ke lingkungan baru.
+        </span>
+      </p>
+      <p v-if="akanAktif === 'produksi'" class="catatan catatan-bahaya">
+        <Ikon nama="peringatan" :ukuran="16" />
+        <span>Produksi mengirim data pasien asli ke {{ s.nama }}. Pastikan kredensial produksi milik RS ini dan sudah diuji.</span>
+      </p>
+      <template #aksi>
+        <button type="button" class="tombol" :disabled="sibukStatus" @click="bukaAktifkan = false">Batal</button>
+        <Tombol :varian="aktifkanBerisiko ? 'bahaya' : 'utama'" :sibuk="sibukStatus" @click="aktifkan">Aktifkan {{ LABEL_LINGKUNGAN[akanAktif].toLowerCase() }}</Tombol>
+      </template>
+    </Dialog>
     <Dialog v-model:open="konfirmasiNonaktif" :judul="`Nonaktifkan ${s.nama}?`" peringatan :sibuk="sibukStatus">
       <p class="catatan catatan-peringatan">
         <Ikon nama="peringatan" :ukuran="16" />

@@ -66,6 +66,8 @@ async function kirim() {
     tampilkanToast(`Kiriman ${k.jenis_resource} diantrekan ulang ke ${LABEL_SISTEM[k.tujuan]}.`)
     void qc.invalidateQueries({ queryKey: KUNCI_INTEGRASI.semua })
   } catch (err) {
+    // 409 (status/lingkungan berubah): tutup dialog dan muat ulang agar tombol mengikuti keadaan terbaru.
+    bukaKirim.value = false
     tampilkanToast(pesanError(err), 'error')
     void kueri.refetch()
   } finally {

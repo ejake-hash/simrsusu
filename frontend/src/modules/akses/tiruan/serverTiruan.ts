@@ -169,7 +169,8 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   tambahPeran(uid(112), 'penyiap_instalasi', 'Penyiap instalasi', ['pengaturan.penyiapan.lihat', 'pengaturan.penyiapan.perbaiki', 'master_data.katalog.lihat', 'master_data.katalog.input'])
   // Pengelola integrasi (1.9): konfigurasi + pemantauan kotak keluar per tujuan + log.
   tambahPeran(uid(113), 'contoh_integrasi', 'Contoh Pengelola Integrasi', [
-    ...['pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs'].flatMap((s) => ['lihat', 'input', 'perbaiki'].map((a) => `${s}.${a}`)),
+    // Sama dengan seeder contoh.integrasi: lihat + perbaiki (tanpa input).
+    ...['pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs'].flatMap((s) => ['lihat', 'perbaiki'].map((a) => `${s}.${a}`)),
     'integrasi.log.lihat',
   ])
   // Pengelola data pegawai (1.8d); bagian identitas (NIK utuh) tidak ikut, diberikan tersendiri lewat persetujuan.

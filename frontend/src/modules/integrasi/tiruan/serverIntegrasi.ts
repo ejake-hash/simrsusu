@@ -144,11 +144,15 @@ export function buatServerIntegrasi(opsi: OpsiServerIntegrasi) {
         s.nilai[l] = baru
         if (isi.kolom && Object.keys(isi.kolom).length) s.diubah[l] = { pada: iso(), oleh: opsi.pelaku() }
         if (isi.aktifkan && s.aktif !== l) {
-          for (const x of kiriman) if (x.tujuan === k && x.lingkungan === s.aktif && (x.status === 'menunggu' || x.status === 'gagal')) Object.assign(x, { status: 'tertahan', penyebab_tertahan: { kode: 'lingkungan_berubah', pesan: 'Lingkungan aktif berubah.' } })
+          // Sama dengan backend: kiriman lingkungan lain atau tanpa lingkungan yang belum terkirim menjadi tertahan.
+          for (const x of kiriman) if (x.tujuan === k && x.lingkungan !== l && (x.status === 'menunggu' || x.status === 'gagal')) Object.assign(x, { status: 'tertahan', penyebab_tertahan: { kode: 'lingkungan_berubah', pesan: 'Lingkungan aktif berubah.' } })
           s.aktif = l
           s.cb = { status: 'tertutup', gagal_beruntun: 0, sejak: null, coba_lagi_pada: null }
         }
-        if (isi.nonaktifkan) s.aktif = null
+        if (isi.nonaktifkan) {
+          for (const x of kiriman) if (x.tujuan === k && (x.status === 'menunggu' || x.status === 'gagal')) Object.assign(x, { status: 'tertahan', penyebab_tertahan: { kode: 'integrasi_nonaktif', pesan: 'Integrasi dinonaktifkan.' } })
+          s.aktif = null
+        }
         return ok({ data: status(k, true) })
       }
       if (a3 === 'uji-koneksi' && m === 'POST') {

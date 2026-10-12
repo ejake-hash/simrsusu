@@ -131,6 +131,34 @@ describe('Konfigurasi integrasi', () => {
     expect(pesanToast()).toContain('Kredensial ditolak server tujuan')
   })
 
+  it('Aktifkan produksi selalu dikonfirmasi: menyebut kiriman yang tertahan dan data pasien asli; Batal tidak mengirim apa pun', async () => {
+    server.sistem.get('satusehat')!.nilai.produksi = { client_id: 'client-produksi', organization_id: '10000005', client_secret: 'rahasia-produksi-sintetis-9999' }
+    await pasang(DaftarSistem)
+    await klik(tombol('Aktifkan', ling('satusehat', 'produksi')))
+    const d = dialog()!
+    expect(d.getAttribute('role')).toBe('alertdialog')
+    expect(d.textContent).toContain('Menggantikan sandbox')
+    expect(d.textContent).toContain('data pasien asli')
+    await klik(tombol('Batal', d))
+    expect(permintaan.some((p) => p.metode.toUpperCase() === 'PUT')).toBe(false)
+    await klik(tombol('Aktifkan', ling('satusehat', 'produksi')))
+    await klik(tombol('Aktifkan produksi', dialog()!))
+    expect(permintaan.find((p) => p.metode.toUpperCase() === 'PUT')?.isi).toEqual({ lingkungan: 'produksi', aktifkan: true })
+    expect(ling('satusehat', 'produksi').textContent).toContain('Aktif')
+    expect(server.kiriman.filter((k) => k.tujuan === 'satusehat' && k.status === 'gagal')).toHaveLength(0)
+  })
+
+  it('isian rahasia kosong lagi sesudah dialog dibatalkan lalu dibuka ulang', async () => {
+    await pasang(DaftarSistem)
+    await klik(tombol('Ubah kredensial', ling('bpjs_vclaim', 'sandbox')))
+    await isi('Secret key', 'ketikan-yang-dibatalkan-0000', dialog()!)
+    await klik(tombol('Batal', dialog()!))
+    expect(dialog()).toBeNull()
+    await klik(tombol('Ubah kredensial', ling('bpjs_vclaim', 'sandbox')))
+    expect(isian('Secret key', dialog()!).value).toBe('')
+    expect(permintaan.some((p) => p.metode.toUpperCase() === 'PUT')).toBe(false)
+  })
+
   it('pemantau per tujuan: kartu tanpa kredensial dan tanpa tombol ubah', async () => {
     siapkan(['integrasi.bpjs.lihat'])
     await pasang(DaftarSistem)
