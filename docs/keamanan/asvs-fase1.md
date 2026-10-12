@@ -6,7 +6,7 @@ sesudahnya nomor baris bisa bergeser, nama berkas dan simbol tetap. #83 dan runb
 penilaian; tanda "bergantung #83" dipertahankan untuk menunjukkan asal buktinya.
 
 Cara menilai: dari kode dan tes, bukan dari klaim dokumen. Bukti ditulis `berkas:baris` relatif terhadap `backend/`
-(atau `frontend/src/`, `docs/`). Runbook (`docs/operasional/`, #85) ditandai "(runbook)".
+(atau `frontend/src/`, `docs/`). Runbook (`docs/operasional/`, #85, commit `a7f594e`) ditandai "(runbook)"; rujukannya per bagian (§), bukan nomor baris.
 
 Hasil: **Lulus** = terpenuhi dan ada bukti di kode/tes; **Sebagian** = sebagian terpenuhi atau hanya bukti kode
 tanpa tes untuk bagian penting; **Tidak** = tidak terpenuhi; **n.a.** = fitur itu tidak ada di fase 1.
@@ -160,7 +160,7 @@ Integrasi, Notifikasi, TTE, ProfilRs, dan Instalasi melakukannya; modul Akses un
 | 4.2.1 | Data dan API sensitif terlindung dari IDOR | 1 | Sebagian | per objek benar di: persetujuan (`Application/AlurPersetujuan.php:148-153,251-262`), notifikasi/tugas (`app/Modules/Notifikasi/Http/Controllers/NotifikasiSayaController.php:41`, `KueriKotakKerja` terlihat/milik), unit (`app/Modules/MasterData/Http/Controllers/UnitOrganisasiController.php:72-74`), dokumen izin praktik (`app/Modules/Sdm/Http/Controllers/KredensialController.php:58,66,108`), TTE (`Penandatangan` `alasanTidakBoleh`), label #83 (`LabelAkunController` disaring `pengguna_id`; tes `l45: LabelSensitivitasTest.php:196`) | `akun/{akun}` dan turunannya tidak membandingkan cakupan penyunting dengan akun sasaran → T-1. Tugas pelaksana `peran` terlihat oleh semua pemegang peran tanpa melihat cakupan unit (R-14) |
 | 4.2.2 | Anti-CSRF kuat untuk fungsi terautentikasi; anti-otomasi/CSRF untuk yang tidak | 1 | Lulus | Sanctum stateful + `ValidateCsrfToken`, cookie `SameSite=Strict`; masuk hanya dari domain SPA (`PenyelesaiMasuk.php:43-48`); tes `AutentikasiTest.php:178,188` dengan `tests/Support/CsrfTetapDiperiksa.php` | 419 dipetakan ke 403 `csrf_tidak_valid` (`ErrorHandler.php:41`) |
 | 4.3.1 | Antarmuka admin memakai MFA | 1 | Sebagian | superadmin dan pemegang izin sensitif wajib MFA, tidak bisa dibebaskan (`Application/KebijakanMfa.php:50-77`); tes `HakAksesMenuTest.php:265`, `PengaturanAkunTest.php:329` | Izin `pengaturan.{peran,akun}.lihat` (daftar akun, Lihat sebagai) belum sensitif sehingga di jaringan RS bisa tanpa MFA — sudah tercatat di backlog Utang (1.2c/1.2d, "timbang di 1.5") |
-| 4.3.2 | Directory browsing mati; metadata berkas (.git, .DS_Store) tidak terbuka | 1 | Lulus | nginx: `root` = `frontend/dist`, `location ~ /\. { deny all; }`, `/horizon` 404 (runbook `nginx-php.md` §2); pemeriksaan `curl …/.env` (§7) | Bergantung runbook (belum merge) |
+| 4.3.2 | Directory browsing mati; metadata berkas (.git, .DS_Store) tidak terbuka | 1 | Lulus | nginx: `root` = `frontend/dist`, `location ~ /\. { deny all; }`, `/horizon` 404 (runbook `nginx-php.md` §2); pemeriksaan `curl …/.env` (§7) | Bergantung runbook (#85) |
 | 4.3.3 | Otorisasi tambahan (step-up) / pemisahan tugas untuk fungsi bernilai tinggi | 2 | Lulus — sebagian **bergantung #83** | kontrol ganda izin sensitif dan perubahan superadmin (`AlurPersetujuan`, K3/K4/K13; tes `PersetujuanAksesTest.php`), usulan data induk tiga orang (`MesinUsulan.php:95-97,117-121,148-169`), PIN TTE; #83: MFA ulang `butuh_mfa`, SIP/RKK (`l45: LapisLimaTest.php:49,67,78,94`) | #83: `butuh_mfa`/`butuh_kewenangan_klinis` bawaannya `false` untuk semua izin, jadi lapis 5 belum aktif tanpa perubahan data; dan kode penolakan lapis 5 hanya sampai ke klien lewat `can:`/`Gate::authorize` (S-6) |
 
 ## V5 Validation, Sanitization and Encoding
@@ -210,7 +210,7 @@ Integrasi, Notifikasi, TTE, ProfilRs, dan Instalasi melakukannya; modul Akses un
 | 7.2.2 | Semua keputusan kontrol akses bisa dicatat, yang gagal selalu dicatat | 2 | Tidak | `Gate::before` (`ModuleServiceProvider.php:57-67`) dan `ErrorHandler.php:42` tidak menulis audit/log | Lihat S-4 |
 | 7.3.1 | Komponen log meng-encode data agar tidak ada log injection | 2 | Sebagian | audit berbentuk kolom dan `jsonb` (aman); log berkas Laravel memakai `LineFormatter` yang membolehkan baris baru di pesan | Risiko kecil: pesan log aplikasi tidak memuat masukan pengguna (hasil pencarian `Log::` di `app/`) |
 | 7.3.3 | Log keamanan terlindung dari akses dan perubahan | 2 | Sebagian | `simrs_app` hanya `SELECT, INSERT` di `audit` (`docker/postgres/init/sql/02-database.sql:32,40`), rantai hash + anchor per jam (ADR 0003); tes `RantaiAuditTest.php:56,67,78,242` | Anchor ke penyimpanan terpisah dan ke SIEM = syarat go-live yang sudah tercatat di backlog Utang. Izin berkas `storage/logs` belum diatur runbook |
-| 7.3.4 | Sumber waktu tersinkron, zona jelas | 2 | Lulus | chrony wajib (runbook `instalasi.md:29,45`), `date.timezone = UTC` (runbook `nginx-php.md` §5), audit UTC (`CatatAktivitas.php:45`) | Bergantung runbook (belum merge) |
+| 7.3.4 | Sumber waktu tersinkron, zona jelas | 2 | Lulus | chrony wajib (runbook `instalasi.md`, kebutuhan server dan paket sistem), `date.timezone = UTC` (runbook `nginx-php.md` §5), audit UTC (`CatatAktivitas.php:45`) | Bergantung runbook (#85) |
 | 7.4.1 | Pesan umum saat error tak terduga | 1 | Lulus | `app/Core/Http/ErrorHandler.php:51` (500 `kesalahan_server`), debug ditolak di production (`PemeriksaanProduksi.php:30-32`); tes `MaskingLogTest.php:79,90` | Tanpa ID kejadian untuk dukungan (opsional di ASVS). Lihat R-7 |
 | 7.4.2 | Penanganan exception di seluruh kode | 2 | Lulus | `bootstrap/app.php:35-50`, `ApiError` dipakai konsisten | |
 | 7.4.3 | Penangan error "jalan terakhir" | 2 | Lulus | `bootstrap/app.php:45-49` → `ErrorHandler::render` untuk `api/*`, `sanctum/*` | |
@@ -231,13 +231,13 @@ Integrasi, Notifikasi, TTE, ProfilRs, dan Instalasi melakukannya; modul Akses un
 | **Total** | **78** | **17** | **8** | **18** | **121** |
 
 Butir yang hasilnya bergantung #83: 3.7.1 (Sebagian), 4.3.3 (Lulus sebagian), 2.8.4 (MFA ulang memakai jalur yang sama).
-Bila #83 tidak merge, 3.7.1 tetap Sebagian (hanya sandi lama dan PIN TTE).
+#83 sudah merge; 3.7.1 tetap Sebagian karena belum ada izin bertanda `butuh_mfa` (Utang 1.5).
 
 ### 2. Temuan Tinggi (wajib diperbaiki sebelum tiket 1.12 selesai)
 
 #### T-1. Cakupan izin pengelola akun dan peran tidak ditegakkan (ASVS 4.1.3, 4.2.1)
 
-**Status: celah ditutup di #86** (5c55e48): usulan butir 1 (`can.rs`) dan 3 (tes) selesai. Butir 2 (penugasan peran
+**Status: celah ditutup di #86** (5c55e48): usulan butir 1 (`can.rs`) selesai; butir 3 sebagian (tes 403 untuk 8 rute ditambah tes struktural semua rute); butir 4 (backlog diperbarui) selesai. Butir 2 (penugasan peran
 pengelola akses bercakupan unit ditolak `422 cakupan_harus_rs`) **belum**: butuh kode error baru di kontrak, dicatat di
 backlog Utang 1.12; endpoint-nya sudah menolak 403 untuk pemegang bercakupan unit, jadi celahnya tertutup. Middleware `can.rs:<izin>` (`app/Modules/Akses/Http/Middleware/IzinSeluruhRs.php`)
 mewajibkan izin bercakupan seluruh RS di semua rute `pengaturan.akun.*`/`pengaturan.peran.*`. Tes

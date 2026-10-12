@@ -54,7 +54,7 @@ Koneksi baru yang menembus batas VM gagal dibuka di bawah beban (timeout 60 deti
 Docker, bukan SIMRS (`hasil-uji-beban.md`, "Catatan metode"). Di Linux, `docker run --network host grafana/k6:2.3.0`
 setara dengan k6 native.
 
-`php -S` bukan server produksi; angka lokal hanya pegangan kasar per pekerja. Angka yang dibandingkan dengan anggaran
+`php -S` bukan server produksi; angka lokal hanya batas bawah kasar lingkungan uji. Angka yang dibandingkan dengan anggaran
 PRD 14.1 adalah hasil ke staging (php-fpm/Octane + PgBouncer).
 
 **pgbench audit** (sebagai `simrs_app`, di dalam kontainer/server PostgreSQL agar tidak lewat jaringan Docker):

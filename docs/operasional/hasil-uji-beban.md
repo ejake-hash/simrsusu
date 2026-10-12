@@ -93,4 +93,4 @@ Dijalankan sebagai `simrs_app` di dalam kontainer PostgreSQL (soket lokal), 20 d
   - Log nginx menunjukkan `upstream timed out while connecting`: koneksi baru yang menembus batas VM Docker gagal dibuka.
   - Karena itu angka di atas memakai k6 native dan server PHP di host. Hanya basis data dan Valkey yang tetap di VM, dan jalur itu pun menyumbang sebagian error di 200–400 VU.
 - **Tes lain di mesin yang sama menaikkan ekor latensi** (P99 puluhan detik pada percobaan pertama). Uji diulang saat mesin tidak menjalankan tes lain; beban rata-rata mesin 2–5.
-- **Server bawaan PHP bukan php-fpm/Octane.** Angkanya batas bawah kasar per pekerja, bukan kapasitas server produksi.
+- **Server bawaan PHP bukan php-fpm/Octane.** Angkanya batas bawah kasar lingkungan ini, bukan kapasitas server produksi.

@@ -134,7 +134,7 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   - `kop` (PRD 3.4/11.2) belum ada di profil RS. Kepala unit dan ketua KSM menyusul 1.8d (respons `null`).
   - Kontrak: setelah backend 1.8a merge, kembalikan `Penugasan.cakupan_label` ke `required`.
   - `App\Core\ProfilRs` memakai `App\Modules\Akses\Domain\Cakupan` (lapis 3 cakupan `rs`); pindahkan `Cakupan` ke Core bila ketergantungan Core → modul mengganggu.
-  - Lapis 3 cakupan `unit` kini dievaluasi dengan pohon unit (kueri rekursif tanpa cache); perlu diukur ulang di uji beban 1.12.
+  - Lapis 3 cakupan `unit` kini dievaluasi dengan pohon unit (kueri rekursif tanpa cache); belum terukur di uji beban lokal 1.12 (semua akun uji bercakupan RS) → ukur di staging.
   - **[Perlu pemilik]** `GET /profil-rs` dan berkasnya dari tamu (halaman masuk) kena rate limit 120/menit per IP. Di RS dengan satu NAT kuota ini bisa habis saat banyak orang membuka halaman masuk bersamaan. Melonggarkan rate limit menunggu keputusan pemilik (catatan sesi 2, tinjauan #38).
   - Penugasan ke unit yang sedang dinonaktifkan bersamaan bisa lolos (cek unit aktif di Akses tanpa kunci pohon MasterData); rendah, tinjau saat 1.2d menyentuh penugasan.
   - Untuk 1.2d: saat memberi penugasan, cakupan pemberi belum dibandingkan dengan cakupan yang diberikan — **ditutup sementara 1.12 (temuan ASVS 4.1.3):** rute `pengaturan.akun.*`/`pengaturan.peran.*` memakai `can.rs:` (izin wajib bercakupan seluruh RS), sehingga pemegang bercakupan unit ditolak; perbandingan cakupan pemberi vs yang diberikan tetap wajib saat admin delegasi per unit dibuat.
@@ -291,7 +291,7 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   - ~~`audit:verifikasi-rantai` kena batas 5 detik~~ **selesai 1.12**: per jendela `AUDIT_VERIFIKASI_JENDELA` (702 ribu baris
     utuh dalam 18 detik). Verifikasi berkala belum dijadwalkan di kode (runbook mengusulkan timer harian).
   - Setiap permintaan PHP membuka koneksi TCP baru ke PostgreSQL dan Valkey (tanpa persisten/PgBouncer); uji beban lokal
-    jenuh ±125 permintaan/detik per 8 pekerja dan error `Can't assign requested address` di atasnya. Produksi wajib
+    jenuh ±125 permintaan/detik (hambatan belum diketahui; basis data di VM 2 CPU) dan error `Can't assign requested address` di atasnya. Produksi wajib
     PgBouncer (PRD 14.1.1 butir 8); timbang `REDIS_PERSISTENT`/phpredis. `DB_CONNECT_TIMEOUT` (5 detik; bawaan pdo_pgsql 30)
     sudah ditambah 1.12. Koneksi Valkey tanpa `timeout`/`read_timeout` (dugaan penyebab permintaan 3m39s di uji lokal);
     tambahkan dengan hati-hati karena queue Horizon memakai blocking pop.
