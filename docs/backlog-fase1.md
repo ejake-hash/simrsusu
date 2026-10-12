@@ -159,6 +159,10 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   praktik antarpegawai, `berkas_terlalu_besar`, NIK tidak muncul di log aplikasi. Runbook: `upload_max_filesize` dan
   `post_max_size` PHP ≥ 12 MB agar batas paket referensi 10 MB, dokumen 5 MB, dan impor 2 MB tercapai sebelum batas PHP. Indeks
   `sdm.pegawai (dibuat_pada, id)` bila daftar pegawai membesar.
+- Utang 1.8e: **isi paket resmi belum dikemas** (wilayah Kemendagri, UCUM, subset LOINC, kode variabel RME) — menunggu
+  berkas dari pemilik/RS (`backend/database/referensi/SUMBER.md`); sampai itu langkah 4 wizard 1.8f tidak bisa selesai.
+  Kecil: `paket_referensi.dimuat_oleh` tanpa FK dan `sistem` tanpa CHECK; nomor baris kesalahan = nomor rekaman CSV
+  (bergeser bila sel memuat ganti baris, sama dengan impor 1.8b).
 - **[Perlu pemilik] Usulan (1.8d):** reset sandi oleh admin (sandi awal baru sekali tampil, wajib ganti) dan masa berlaku
   sandi awal; di luar API tiket 1.8d. Sampai itu sandi awal yang hilang tidak bisa dipulihkan.
 - **[Perlu pemilik] Usulan (1.8b):** daftar periksa baku atribut kamar (FR-08-19) sebagai data induk dengan endpoint

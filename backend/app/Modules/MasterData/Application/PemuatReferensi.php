@@ -42,6 +42,7 @@ final class PemuatReferensi
      */
     public function muat(string $sistem, string $isiBerkas, array $paket, bool $terapkan, ?string $olehId): array
     {
+        $this->periksaPaket($sistem, $paket);
         $baris = $this->baca($sistem, $isiBerkas);
         $kesalahan = $this->periksa($sistem, $baris);
         $sidik = $this->sidik($sistem, $baris);
@@ -73,7 +74,8 @@ final class PemuatReferensi
     private function terapkan(string $sistem, array $baris, array $paket, string $sidik, ?string $olehId): array
     {
         return DB::transaction(function () use ($sistem, $baris, $paket, $olehId, $sidik) {
-            // Pemuatan besar (wilayah ±90 ribu baris) melebihi batas 5 detik role aplikasi: batas khusus transaksi ini.
+            // Pemuatan besar (wilayah ±90 ribu baris) melebihi batas 5 detik role aplikasi: batas khusus transaksi ini. SET LOCAL
+            // berlaku sampai transaksi terluar selesai: panggil terapkan() di luar transaksi lain (controller dan konsol).
             DB::statement("SET LOCAL statement_timeout = '180s'");
             // Pemeriksaan FK induk wilayah berjalan per baris dengan rencana yang di-cache saat tabel masih kecil (seq scan):
             // tanpa ini memuat ulang ±90 ribu baris menjadi kuadratik. Rencana custom mengikuti ukuran tabel saat itu.
@@ -86,17 +88,43 @@ final class PemuatReferensi
             $ada = $this->yangAda($sistem, $baris);
             $hitung = $this->bandingkan($sistem, $baris, $ada);
             $this->simpan($sistem, $baris, $ada, $paket['versi']);
+            $paketId = (string) Str::uuid7();
             DB::table('inti.paket_referensi')->insert([
-                'id' => (string) Str::uuid7(), 'sistem' => $sistem, 'versi' => $paket['versi'], 'sumber' => $paket['sumber'],
+                'id' => $paketId, 'sistem' => $sistem, 'versi' => $paket['versi'], 'sumber' => $paket['sumber'],
                 'catatan_lisensi' => $paket['catatan_lisensi'] ?? null, 'jumlah_kode' => count($baris), 'sidik_isi' => $sidik,
                 'dimuat_pada' => now(), 'dimuat_oleh' => $olehId,
             ]);
-            $this->audit->catat('master_data.referensi_dimuat', $olehId, 'inti.paket_referensi', null, [
+            $this->audit->catat('master_data.referensi_dimuat', $olehId, 'inti.paket_referensi', $paketId, [
                 'sistem' => $sistem, 'versi' => $paket['versi'], 'sumber' => $paket['sumber'], 'jumlah_kode' => count($baris), ...$hitung,
             ]);
 
             return $hitung;
         });
+    }
+
+    /**
+     * Aturan isian paket, sama untuk endpoint dan konsol (sumber tunggal; controller juga memvalidasi bentuk permintaan).
+     *
+     * @param  array{versi: string, sumber: string, catatan_lisensi?: string|null}  $paket
+     */
+    private function periksaPaket(string $sistem, array $paket): void
+    {
+        $salah = [];
+        $panjang = fn (?string $nilai) => mb_strlen(trim((string) $nilai));
+        if ($panjang($paket['versi']) < 1 || $panjang($paket['versi']) > 50) {
+            $salah[] = ['kolom' => 'versi', 'pesan' => 'Versi 1–50 karakter.'];
+        }
+        if ($panjang($paket['sumber']) < 3 || $panjang($paket['sumber']) > 500) {
+            $salah[] = ['kolom' => 'sumber', 'pesan' => 'Sumber 3–500 karakter.'];
+        }
+        $lisensi = $panjang($paket['catatan_lisensi'] ?? null);
+        if ($lisensi > 1000 || ($sistem === 'loinc' && $lisensi === 0)) {
+            // LOINC: atribusi Regenstrief wajib (syarat lisensi).
+            $salah[] = ['kolom' => 'catatan_lisensi', 'pesan' => $sistem === 'loinc' && $lisensi === 0 ? 'Atribusi lisensi LOINC wajib diisi.' : 'Paling panjang 1000 karakter.'];
+        }
+        if ($salah !== []) {
+            throw new ApiError(422, 'validasi_gagal', 'Isian belum benar.', $salah);
+        }
     }
 
     /**

@@ -49,6 +49,10 @@ class PaketReferensiTest extends TestCase
         // Versi sama, isi lain: ditolak.
         $this->muat('wilayah', str_replace('Desa Dua', 'Desa Dua Baru', self::WILAYAH_V1), 'terapkan', '2025.1')
             ->assertStatus(409)->assertJsonPath('error.kode', 'versi_sudah_dimuat');
+        $this->muat('wilayah', str_replace('Desa Dua', 'Desa Dua Baru', self::WILAYAH_V1), 'pratinjau', '2025.1')
+            ->assertStatus(409)->assertJsonPath('error.kode', 'versi_sudah_dimuat');
+        $paketId = DB::table('inti.paket_referensi')->where('sistem', 'wilayah')->value('id');
+        $this->assertSame($paketId, DB::table('audit.log_aktivitas')->where('aksi', 'master_data.referensi_dimuat')->value('subjek_id'));
 
         // Versi baru: Desa Dua hilang (dinonaktifkan, tidak dihapus), Desa Satu berganti nama, Desa Tiga baru.
         $v2 = "kode,nama\n99,Provinsi Uji\n99.01,Kabupaten Uji\n99.01.01,Kecamatan Uji\n99.01.01.2001,Desa Satu Raya\n99.01.01.2003,Desa Tiga\n";
@@ -91,7 +95,14 @@ class PaketReferensiTest extends TestCase
         $this->artisan('referensi:muat', ['sistem' => 'referensi', 'berkas' => $berkas, '--versi' => 'r2', '--sumber' => 'Berkas uji sintetis'])->assertSuccessful();
         $this->assertFalse((bool) DB::table('inti.referensi')->where('kelompok', 'uji_agama')->where('kode', '2')->value('aktif'));
         $this->assertTrue((bool) DB::table('inti.referensi')->where('kelompok', 'uji_kawin')->where('kode', 'A')->value('aktif'));
+        // Aturan isian paket sama dengan endpoint: LOINC wajib atribusi, versi paling panjang 50.
+        file_put_contents($berkas, "kode,tampilan,kode_induk\n1-8,Uji,\n");
+        $this->artisan('referensi:muat', ['sistem' => 'loinc', 'berkas' => $berkas, '--versi' => 'l1', '--sumber' => 'Berkas uji sintetis'])->assertFailed();
+        $this->artisan('referensi:muat', ['sistem' => 'ucum', 'berkas' => $berkas, '--versi' => str_repeat('v', 51), '--sumber' => 'Berkas uji sintetis'])->assertFailed();
+        $this->assertFalse(DB::table('inti.paket_referensi')->whereIn('sistem', ['loinc', 'ucum'])->exists());
         unlink($berkas);
+        $this->muat('loinc', "kode,tampilan,kode_induk\n1-8,Uji,\n", 'pratinjau', 'l1')->assertStatus(422)
+            ->assertJsonPath('error.kode', 'validasi_gagal')->assertJsonPath('error.rincian.0.kolom', 'catatan_lisensi');
 
         $this->muat('ucum', "kode,tampilan,kode_induk\nmg,miligram,\nmL,mililiter,\n", 'terapkan', 'u1', 'Berkas uji sintetis', 'Contoh atribusi')->assertOk();
         $this->assertSame(2, DB::table('inti.terminologi')->where('sistem', 'ucum')->count());
