@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import AxeBuilder from '@axe-core/playwright'
@@ -75,6 +75,11 @@ test.beforeAll(async () => {
   const sisa = 30_000 - (Date.now() % 30_000)
   await new Promise((r) => setTimeout(r, sisa + 500))
 })
+// Tangkapan layar masuk repo publik: identitas RS harus fiktif ("RS Contoh Pendidikan", docs/brand/contoh), bukan sisa
+// profil spec lain.
+test.beforeAll(async ({ browser }, info) => {
+  if (TANGKAPAN) await pasangIdentitasContoh(browser, asalDari(info.project.use.baseURL))
+})
 
 const asalDari = (baseURL: string | undefined) => new URL(baseURL ?? '').origin
 /** Satu kali masuk per akun (rate limit masuk 10/menit per nama pengguna). */
@@ -101,6 +106,33 @@ async function jagaBatasLaju(akun: string) {
   const jeda = 61_000 - (sekarang - daftar[0]!)
   test.info().setTimeout(test.info().timeout + jeda)
   await new Promise((r) => setTimeout(r, jeda))
+}
+
+const BRAND_CONTOH = (berkas: string) => readFileSync(fileURLToPath(new URL(`../../docs/brand/contoh/${berkas}`, import.meta.url)))
+
+/** PUT /profil-rs + logo/motif fiktif lewat API (superadmin), dengan If-Match versi profil (kontrak 1.8a). */
+async function pasangIdentitasContoh(browser: Browser, asal: string) {
+  const k = await konteks(browser, asal, AKUN.superadmin, 1440)
+  const xsrf = decodeURIComponent((await k.cookies()).find((c) => c.name === 'XSRF-TOKEN')?.value ?? '')
+  const header = { Accept: 'application/json', Origin: asal, Referer: `${asal}/`, 'X-XSRF-TOKEN': xsrf }
+  const versi = async () => ((await (await k.request.get('/api/v1/profil-rs', { headers: header })).json()) as { data: { versi: string } }).data.versi
+  const ubah = await k.request.put('/api/v1/profil-rs', {
+    headers: { ...header, 'If-Match': `"${await versi()}"` },
+    data: {
+      nama: 'RS Contoh Pendidikan', kode_kemenkes: null, kelas: 'B', status_blu: null, kode_ppk_bpjs: null, alamat: null,
+      warna: { brand: '#1F5C99', accent: '#D97706' }, kontak_admin: { unit: 'Instalasi SIMRS', kontak: null },
+      dasar_perubahan: 'Identitas fiktif untuk tangkapan layar e2e',
+    },
+  })
+  expect(ubah.ok(), `${ubah.status()} ${await ubah.text()}`).toBeTruthy()
+  for (const [jenis, berkas] of [['logo', 'logo-rs-contoh.svg'], ['motif', 'motif-contoh.svg']] as const) {
+    const r = await k.request.put(`/api/v1/profil-rs/berkas/${jenis}`, {
+      headers: { ...header, 'If-Match': `"${await versi()}"` },
+      multipart: { berkas: { name: berkas, mimeType: 'image/svg+xml', buffer: BRAND_CONTOH(berkas) } },
+    })
+    expect(r.ok(), `${jenis} ${r.status()} ${await r.text()}`).toBeTruthy()
+  }
+  await k.close()
 }
 
 async function periksa(page: Page, kode: string, lebar: number) {
