@@ -14,7 +14,8 @@ import { formatSisaWaktu, formatTanggalWaktu } from '@/shared/utils/waktu'
  * bila server menjawab `pin_wajib`, kolom PIN muncul). Isi yang ditandatangani dihitung server, bukan dikirim klien.
  * Penanda tangan yang diminta ≠ akun yang masuk → mode "minta tanda tangan": tidak bisa menandatangani.
  * `tandatangani(pin)` dipanggil pemanggil dan melempar ApiError kontrak; modal yang menafsirkannya. PIN tidak
- * disimpan di luar state modal dan dikosongkan setiap selesai/ditutup. Esc dan fokus terjebak dari Dialog.
+ * disimpan di luar state modal dan dikosongkan setiap selesai/ditutup; kolom PIN memakai `autocomplete=one-time-code`
+ * agar pengelola sandi peramban tidak menawarkan menyimpannya (PRD 7.57.2). Esc dan fokus terjebak dari Dialog.
  */
 export interface ObjekTtd {
   id: string
@@ -31,7 +32,8 @@ const props = withDefaults(
     /** Penanda tangan yang diminta; kosong = akun yang masuk. */
     penanda?: { id: string; nama: string } | null
     sesiBerlakuSampai?: string | null
-    tandatangani: (pin: string | null) => Promise<void>
+    /** `pernyataan` = centang kalimat persetujuan (selalu true saat dipanggil; diteruskan ke server apa adanya). */
+    tandatangani: (pin: string | null, pernyataan: boolean) => Promise<void>
     /** Mode minta tanda tangan: kirim ke antrean penanda tangan (fase 1: tanpa endpoint, opsional). */
     minta?: (() => Promise<void>) | null
   }>(),
@@ -89,7 +91,7 @@ async function kirim() {
   error.value = null
   errorObjek.value = {}
   try {
-    await props.tandatangani(perluPin.value ? pin.value : null)
+    await props.tandatangani(perluPin.value ? pin.value : null, setuju.value)
     pin.value = ''
     buka.value = false
     emit('selesai')
@@ -192,7 +194,10 @@ const judul = computed(() => (lain.value ? 'Minta tanda tangan' : 'Tanda tangan 
             v-model="pin"
             type="password"
             inputmode="numeric"
-            autocomplete="off"
+            autocomplete="one-time-code"
+            data-1p-ignore
+            data-lpignore="true"
+            data-form-type="other"
             maxlength="6"
             class="isian pin"
             :disabled="terkunci"

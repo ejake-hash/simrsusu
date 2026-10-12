@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/vue-query'
 import { useSesiStore } from '@/app/sesi'
+import { ApiError } from '@/shared/api/klien'
 import { tandatangani } from './api'
 import type { HasilTandaTangan, JenisObjekTtd, StatusTtd } from './tipe'
 
@@ -23,8 +24,17 @@ export function perbaruiStatusTtd(perubahan: Partial<StatusTtd>) {
 export function useTandaTangan() {
   const qc = useQueryClient()
   return (objek: { jenis: JenisObjekTtd; id: string }[], setelah?: (hasil: HasilTandaTangan) => void) =>
-    async (pin: string | null) => {
-      const hasil = await tandatangani(objek, pin)
+    async (pin: string | null, pernyataan: boolean) => {
+      let hasil: HasilTandaTangan
+      try {
+        hasil = await tandatangani(objek, pin, pernyataan)
+      } catch (e) {
+        // Terkunci: status di store ikut diperbarui (halaman TTE, kartu keamanan) sebelum galat ditafsirkan modal.
+        if (e instanceof ApiError && e.kode === 'ttd_terkunci') {
+          perbaruiStatusTtd({ terkunci_sampai: new Date(Date.now() + (e.cobaLagiDetik ?? 900) * 1000).toISOString(), sesi_berlaku_sampai: null })
+        }
+        throw e
+      }
       perbaruiStatusTtd({ sesi_berlaku_sampai: hasil.meta.sesi_berlaku_sampai })
       for (const o of objek) void qc.invalidateQueries({ queryKey: KUNCI_TTD.verifikasi(o.jenis, o.id) })
       setelah?.(hasil)

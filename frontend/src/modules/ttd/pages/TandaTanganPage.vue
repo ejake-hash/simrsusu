@@ -39,7 +39,9 @@ function petakan(e: unknown, kolom: string[]): { kolom: Record<string, string>; 
   if (!(e instanceof ApiError)) return { kolom: {}, umum: 'Respons server tidak dikenali. Coba lagi.' }
   const hasil: Record<string, string> = {}
   for (const r of e.rincian) if (typeof r.kolom === 'string' && kolom.includes(r.kolom) && r.pesan) hasil[r.kolom] = String(r.pesan)
-  if (e.status === 403 && e.kode === 'ttd_terkunci') return { kolom: hasil, umum: `${e.message} Coba lagi${e.cobaLagiDetik ? ` dalam ${Math.ceil(e.cobaLagiDetik / 60)} menit` : ' nanti'}.` }
+  if (e.status === 403 && e.kode === 'ttd_terkunci') {
+    return { kolom: hasil, umum: `Tanda tangan terkunci karena PIN salah 5 kali. Coba lagi${e.cobaLagiDetik ? ` dalam ${Math.ceil(e.cobaLagiDetik / 60)} menit` : ' nanti'}.` }
+  }
   return { kolom: hasil, umum: Object.keys(hasil).length ? null : e.message }
 }
 
@@ -149,10 +151,10 @@ async function gantiPin() {
           </KolomIsian>
           <div class="dua-kolom">
             <KolomIsian v-slot="a" label="PIN baru" :error="errorAktivasi.pin" petunjuk="6 angka; bukan angka sama, berulang, atau berurutan.">
-              <input v-bind="a" v-model="aktivasi.pin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" class="isian pin" @input="aktivasi.pin = angka(aktivasi.pin)" />
+              <input v-bind="a" v-model="aktivasi.pin" type="password" inputmode="numeric" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-form-type="other" maxlength="6" class="isian pin" @input="aktivasi.pin = angka(aktivasi.pin)" />
             </KolomIsian>
             <KolomIsian v-slot="a" label="Ulangi PIN" :error="errorAktivasi.pin_ulang">
-              <input v-bind="a" v-model="aktivasi.pin_ulang" type="password" inputmode="numeric" autocomplete="off" maxlength="6" class="isian pin" @input="aktivasi.pin_ulang = angka(aktivasi.pin_ulang)" />
+              <input v-bind="a" v-model="aktivasi.pin_ulang" type="password" inputmode="numeric" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-form-type="other" maxlength="6" class="isian pin" @input="aktivasi.pin_ulang = angka(aktivasi.pin_ulang)" />
             </KolomIsian>
           </div>
           <p v-if="pesanAktivasi" class="catatan catatan-bahaya" role="alert">
@@ -172,14 +174,14 @@ async function gantiPin() {
         </div>
         <form class="kartu-isi" novalidate @submit.prevent="gantiPin">
           <KolomIsian v-slot="a" label="PIN lama" :error="errorGanti.pin_lama">
-            <input v-bind="a" v-model="ganti.pin_lama" type="password" inputmode="numeric" autocomplete="off" maxlength="6" class="isian pin" :disabled="terkunci" @input="ganti.pin_lama = angka(ganti.pin_lama)" />
+            <input v-bind="a" v-model="ganti.pin_lama" type="password" inputmode="numeric" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-form-type="other" maxlength="6" class="isian pin" :disabled="terkunci" @input="ganti.pin_lama = angka(ganti.pin_lama)" />
           </KolomIsian>
           <div class="dua-kolom">
             <KolomIsian v-slot="a" label="PIN baru" :error="errorGanti.pin_baru">
-              <input v-bind="a" v-model="ganti.pin_baru" type="password" inputmode="numeric" autocomplete="off" maxlength="6" class="isian pin" :disabled="terkunci" @input="ganti.pin_baru = angka(ganti.pin_baru)" />
+              <input v-bind="a" v-model="ganti.pin_baru" type="password" inputmode="numeric" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-form-type="other" maxlength="6" class="isian pin" :disabled="terkunci" @input="ganti.pin_baru = angka(ganti.pin_baru)" />
             </KolomIsian>
             <KolomIsian v-slot="a" label="Ulangi PIN baru" :error="errorGanti.pin_ulang">
-              <input v-bind="a" v-model="ganti.pin_ulang" type="password" inputmode="numeric" autocomplete="off" maxlength="6" class="isian pin" :disabled="terkunci" @input="ganti.pin_ulang = angka(ganti.pin_ulang)" />
+              <input v-bind="a" v-model="ganti.pin_ulang" type="password" inputmode="numeric" autocomplete="one-time-code" data-1p-ignore data-lpignore="true" data-form-type="other" maxlength="6" class="isian pin" :disabled="terkunci" @input="ganti.pin_ulang = angka(ganti.pin_ulang)" />
             </KolomIsian>
           </div>
           <p v-if="pesanGanti" class="catatan catatan-bahaya" role="alert">

@@ -157,9 +157,9 @@ describe('Tanda tangan keputusan persetujuan', () => {
 
 describe('TtdModal', () => {
   const dua = { id: ID_SUPERADMIN_DUA, nama: 'Contoh Superadmin Kedua' }
-  const tandatangani = (objek: { id: string }[]) => async (pin: string | null) => {
+  const tandatangani = (objek: { id: string }[]) => async (pin: string | null, pernyataan: boolean) => {
     const { tandatangani: api } = await import('./api')
-    await api(objek.map((o) => ({ jenis: 'persetujuan_akses' as const, id: o.id })), pin)
+    await api(objek.map((o) => ({ jenis: 'persetujuan_akses' as const, id: o.id })), pin, pernyataan)
   }
 
   it('massal: peringatan per objek tetap tampil; satu objek belum diputuskan → galat di butirnya dan tidak ada yang ditandatangani', async () => {
@@ -215,6 +215,33 @@ describe('TtdModal', () => {
     expect(dialog()?.textContent).toContain('Tanda tangan terkunci karena PIN salah 5 kali.')
     expect(dialog()?.textContent).toMatch(/Coba lagi dalam/)
     expect(document.querySelector<HTMLButtonElement>('button[form="form-ttd"]')!.disabled).toBe(true)
+  })
+})
+
+describe('Kolom PIN tidak disimpan pengelola sandi peramban (PRD 7.57.2)', () => {
+  it('semua kolom PIN di halaman TTE dan TtdModal memakai one-time-code dan penanda abaikan pengelola sandi', async () => {
+    const periksa = () => {
+      const pin = [...document.querySelectorAll<HTMLInputElement>('input[type="password"][inputmode="numeric"]')]
+      expect(pin.length).toBeGreaterThan(0)
+      for (const el of pin) {
+        expect(el.getAttribute('autocomplete')).toBe('one-time-code')
+        expect(el.hasAttribute('data-1p-ignore')).toBe(true)
+        expect(el.getAttribute('data-lpignore')).toBe('true')
+      }
+      return pin.length
+    }
+    await pasang(TandaTanganPage)
+    expect(periksa()).toBe(2)
+    document.body.innerHTML = ''
+    server.ttd.aktifkan(ID_SUPERADMIN)
+    masukSebagai(ID_SUPERADMIN, 'contoh.superadmin', 'Contoh Superadmin')
+    await pasang(TandaTanganPage)
+    expect(periksa()).toBe(3)
+    document.body.innerHTML = ''
+    const w = await pasang(TtdModal, { open: false, objek: [{ id: 'x', judul: 'PSA-1' }], pengguna: { id: ID_SUPERADMIN, nama: 'Contoh Superadmin' }, tandatangani: async () => {} })
+    await w.setProps({ open: true })
+    await tenang()
+    expect(periksa()).toBe(1)
   })
 })
 

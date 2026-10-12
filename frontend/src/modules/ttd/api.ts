@@ -20,8 +20,9 @@ export async function ajukanResetTtd(akunId: string, isian: { alasan: string; da
   const { data } = await klien.post<{ data: PersetujuanAkses }>(`/ttd/${akunId}/reset`, isian)
   return data.data
 }
-export async function tandatangani(objek: { jenis: JenisObjekTtd; id: string }[], pin: string | null): Promise<HasilTandaTangan> {
-  const { data } = await klien.post<HasilTandaTangan>('/ttd/tandatangani', { objek, pin, pernyataan_disetujui: true })
+/** `pernyataanDisetujui` = pengguna mencentang kalimat persetujuan yang ditampilkan bersama ringkasan isi (PRD 7.57.2 f). */
+export async function tandatangani(objek: { jenis: JenisObjekTtd; id: string }[], pin: string | null, pernyataanDisetujui: boolean): Promise<HasilTandaTangan> {
+  const { data } = await klien.post<HasilTandaTangan>('/ttd/tandatangani', { objek, pin, pernyataan_disetujui: pernyataanDisetujui })
   return data
 }
 export async function verifikasiTtd(jenis: JenisObjekTtd, id: string): Promise<TandaTangan[]> {
