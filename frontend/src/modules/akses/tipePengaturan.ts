@@ -229,3 +229,46 @@ export interface IsianIzinKhusus {
   /** Menindaklanjuti permintaan akses akun ini (sejak 1.2d). */
   permintaan_akses_id?: string | null
 }
+
+// ── Lapis 4: label sensitivitas (kontrak v0.14.0, tiket 1.5) ──
+
+/** Label data induk (PRD 11.2). penyetuju_peran null = label belum bisa diberikan ke akun mana pun. */
+export interface LabelSensitivitas {
+  id: string
+  kode: string
+  nama: string
+  uraian: string | null
+  butuh_relasi_perawatan: boolean
+  penyetuju_peran: { id: string; kode: string; nama: string } | null
+  aktif: boolean
+}
+
+export type StatusIzinLabel = 'menunggu' | 'berlaku' | 'berakhir' | 'batal' | 'ditolak'
+
+/** Izin label sebuah akun: selalu lewat persetujuan pejabat PDP dan berbatas waktu. */
+export interface IzinLabelAkun {
+  id: string
+  label: { kode: string; nama: string }
+  /** Saat disetujui; null selama menunggu atau bila ditolak. */
+  berlaku_dari: string | null
+  berlaku_sampai: string
+  status: StatusIzinLabel
+  /** status berlaku dan di dalam masa berlaku saat ini. */
+  berlaku_sekarang: boolean
+  persetujuan: { id: string; nomor: string }
+  dasar_pemberian: string
+  alasan: string
+  diberikan_oleh: Pelaku | null
+  disetujui_oleh: Pelaku | null
+  alasan_batal: string | null
+  dibatalkan_oleh: Pelaku | null
+  dibatalkan_pada: string | null
+  dibuat_pada: string
+}
+
+export interface IsianIzinLabel {
+  label_kode: string
+  berlaku_sampai: string
+  dasar_pemberian: string
+  alasan: string
+}

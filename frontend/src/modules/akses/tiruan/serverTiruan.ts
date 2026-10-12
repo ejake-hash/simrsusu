@@ -1,5 +1,5 @@
 import type { GrupMenu, Menu, MenuSaya } from '../tipeMenu'
-import type { AkunRinci, CakupanJenis, IzinKhusus, IzinNode, NodeMenu, Penugasan, PeranRinci, PohonMenu, StatusMfaAkun } from '../tipePengaturan'
+import type { AkunRinci, CakupanJenis, IzinKhusus, IzinLabelAkun, IzinNode, LabelSensitivitas, NodeMenu, Penugasan, PeranRinci, PohonMenu, StatusMfaAkun } from '../tipePengaturan'
 import type { JenisPersetujuan, PermintaanAkses, PersetujuanAkses } from '../tipePersetujuan'
 import { buatPohon, izinMenu, uid } from './dataPengaturan'
 
@@ -149,6 +149,12 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
     peran.set(id, { id, kode, nama, uraian: 'Peran sintetis untuk lokal/staging.', bawaan_sistem: false, wajib_mfa: false, status: 'aktif', izin: new Set(izin), versi: 1, diubah_pada: '2026-10-01T02:00:00.000Z', ...isi })
 
   const SA = uid(101)
+  // 1.5: label data induk PRD 11.2 (butuh_relasi_perawatan true untuk semua, keputusan pemilik 12 Okt 2026); penyetuju
+  // kosong sampai RS menetapkannya. Izin label per akun.
+  const labelTiruan: LabelSensitivitas[] = [
+    ['hiv', 'HIV'], ['psikiatri', 'Psikiatri'], ['kekerasan_seksual', 'Kekerasan seksual'], ['genetik', 'Genetik'], ['privasi_tinggi', 'Privasi tinggi'],
+  ].map(([kode, nama], i) => ({ id: uid(1500 + i), kode: kode!, nama: nama!, uraian: null, butuh_relasi_perawatan: true, penyetuju_peran: null, aktif: true }))
+  const labelAkun = new Map<string, IzinLabelAkun[]>()
   // Superadmin juga memegang Profil RS (1.8a-be: MenuBawaan::SUB_MENU_SUPERADMIN).
   tambahPeran(SA, 'superadmin', 'Superadmin', izinMenu(pohon, []).concat(['pengaturan.peran', 'pengaturan.akun'].flatMap((k) => ['lihat', 'input', 'perbaiki'].map((a) => `${k}.${a}`)), ['pengaturan.profil_rs.lihat', 'pengaturan.profil_rs.perbaiki'], ['lihat', 'input', 'perbaiki'].map((a) => `pengaturan.penyiapan.${a}`), ['lihat', 'input', 'perbaiki'].map((a) => `pengaturan.persetujuan.${a}`)), {
     bawaan_sistem: true,
@@ -448,6 +454,8 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
       case 'izin_khusus': return `Tambah pengecualian ${izin} untuk ${akunNama}`
       case 'penyetuju_izin': return `Tetapkan peran ${peranNama} sebagai penyetuju izin ${izin}`
       case 'reset_ttd': return `Reset tanda tangan elektronik ${akunNama}`
+      case 'izin_label': return `Beri izin label ${o.label?.nama ?? '-'} untuk ${akunNama}`
+      case 'penyetuju_label': return `Tetapkan peran ${peranNama} sebagai penyetuju label ${o.label?.nama ?? '-'}`
     }
   }
 
@@ -651,6 +659,87 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
       return ajukan('izin_sensitif', { jenis: 'penyetuju_izin', peran: ringkas(target.id), izin: { kode, label: labelIzin(kode) } }, [SA], () => {
         info.izin.penyetuju_peran = ringkas(target.id)
       }, { peranId: target.id, izinKode: kode, dasar: dasar!, alasan: null })
+    }
+
+    // ── 1.5: label sensitivitas, izin label akun (persetujuan pejabat PDP), MFA ulang (kontrak v0.14.0) ──
+    if (m === 'POST' && r.jalur === '/saya/mfa/verifikasi-ulang') {
+      // Tiruan: kode 000000 dianggap salah agar alur galat bisa dicoba di dev.
+      if (String(isi.kode ?? '').trim() === '000000') return error(422, 'kode_mfa_salah', 'Kode verifikasi salah.')
+      return ok({ data: { mfa_terverifikasi_pada: iso(), berlaku_sampai: new Date(sekarang().getTime() + 15 * 60_000).toISOString() } })
+    }
+    if (a0 === 'label-sensitivitas') {
+      if (m === 'GET' && !a1) return ok({ data: labelTiruan, meta: { kursor_berikutnya: null } })
+      const lbl = labelTiruan.find((l) => l.kode === decodeURIComponent(a1 ?? ''))
+      if (!lbl) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
+      if (m === 'PUT' && a2 === 'penyetuju') {
+        const dasar = teks(isi, 'dasar_perubahan', 3, 200)
+        if (salah(dasar)) return dasar
+        const target = typeof isi.peran_id === 'string' ? peran.get(isi.peran_id) : undefined
+        if (!target || target.status !== 'aktif') return error(422, 'peran_tidak_valid', 'Pilih peran aktif.', [{ kolom: 'peran_id', pesan: 'Pilih peran aktif.' }])
+        if (pegangPeran(target.id)) return error(403, 'peran_sendiri', 'Anda tidak bisa menunjuk peran yang Anda pegang.')
+        if (persetujuan.some((x) => x.objek.jenis === 'penyetuju_label' && x.objek.label?.kode === lbl.kode && masihMenunggu(x))) {
+          return error(409, 'persetujuan_ganda', 'Penggantian penyetuju label ini masih menunggu.')
+        }
+        return ajukan('izin_sensitif', { jenis: 'penyetuju_label', peran: ringkas(target.id), label: { kode: lbl.kode, nama: lbl.nama } }, [SA], () => {
+          lbl.penyetuju_peran = ringkas(target.id)
+        }, { peranId: target.id, dasar: dasar!, alasan: null })
+      }
+    }
+    if (a0 === 'akun' && a1 && a2 === 'label') {
+      const a = akun.get(a1)
+      if (!a) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
+      const daftar = labelAkun.get(a.id) ?? []
+      labelAkun.set(a.id, daftar)
+      // Status dihitung saat dibaca (kontrak): pengajuan ditolak/kedaluwarsa/ditarik = ditolak; lewat masa = berakhir.
+      for (const l of daftar) {
+        const p = persetujuan.find((x) => x.id === l.persetujuan.id)
+        if (l.status === 'menunggu' && p && ['ditolak', 'kedaluwarsa', 'dibatalkan'].includes(statusSekarang(p))) l.status = 'ditolak'
+        if (l.status === 'berlaku' && new Date(l.berlaku_sampai) <= sekarang()) l.status = 'berakhir'
+      }
+      if (m === 'GET' && !a3) {
+        const kini = daftar.map((l) => ({ ...l, berlaku_sekarang: l.status === 'berlaku' }))
+        return ok({ data: [...kini].reverse(), meta: { kursor_berikutnya: null } })
+      }
+      if (a.id === penggunaId) return error(403, 'diri_sendiri', 'Perubahan akun sendiri dilakukan superadmin lain.')
+      if (terkunciSuperadmin(a)) return error(403, 'akun_superadmin', 'Akses akun superadmin hanya diubah oleh superadmin lain.')
+      if (m === 'POST' && !a3) {
+        const dasar = teks(isi, 'dasar_pemberian', 3, 200)
+        if (salah(dasar)) return dasar
+        const alasan = teks(isi, 'alasan', 5, 500)
+        if (salah(alasan)) return alasan
+        const lbl = labelTiruan.find((l) => l.kode === isi.label_kode)
+        if (!lbl) return error(404, 'tidak_ditemukan', 'Label tidak ditemukan.')
+        if (!lbl.penyetuju_peran) return error(422, 'penyetuju_label_belum_ditetapkan', 'Label ini belum punya penyetuju (pejabat PDP).')
+        const sampai = typeof isi.berlaku_sampai === 'string' ? isi.berlaku_sampai : ''
+        // AKSES_LABEL_MAKS_HARI bawaan 365 hari sejak diajukan (kontrak v0.14.0).
+        if (!sampai || new Date(sampai) <= sekarang() || new Date(sampai).getTime() > sekarang().getTime() + 365 * 86_400_000) {
+          return error(422, 'tanggal_tidak_valid', 'Tanggal berakhir harus di masa depan dan paling lama 365 hari.', [{ kolom: 'berlaku_sampai', pesan: 'Paling lama 365 hari dari sekarang.' }])
+        }
+        if (daftar.some((l) => l.label.kode === lbl.kode && l.status === 'menunggu')) return error(409, 'persetujuan_ganda', 'Izin label yang sama masih menunggu persetujuan.')
+        if (daftar.some((l) => l.label.kode === lbl.kode && l.status === 'berlaku')) return error(409, 'label_masih_berlaku', 'Izin label ini masih berlaku untuk akun ini.')
+        const baris: IzinLabelAkun = {
+          id: idBaru(), label: { kode: lbl.kode, nama: lbl.nama }, berlaku_dari: null, berlaku_sampai: sampai, status: 'menunggu', berlaku_sekarang: false,
+          persetujuan: { id: '', nomor: '' }, dasar_pemberian: dasar!, alasan: alasan!, diberikan_oleh: namaAkun(penggunaId), disetujui_oleh: null,
+          alasan_batal: null, dibatalkan_oleh: null, dibatalkan_pada: null, dibuat_pada: iso(),
+        }
+        const hasil = ajukan('izin_label', { jenis: 'izin_label', akun: { id: a.id, nama_pengguna: a.nama_pengguna, nama: a.nama }, label: { kode: lbl.kode, nama: lbl.nama }, berlaku_sampai: sampai },
+          [lbl.penyetuju_peran.id], () => {
+            Object.assign(baris, { status: 'berlaku', berlaku_dari: iso() })
+          }, { sasaranAkunId: a.id, dasar: dasar!, alasan: alasan! })
+        const p = (hasil.isi as { data: PersetujuanAkses }).data
+        baris.persetujuan = { id: p.id, nomor: p.nomor }
+        daftar.push(baris)
+        return hasil
+      }
+      if (m === 'POST' && a3 && a4 === 'batal') {
+        const alasan = teks(isi, 'alasan_batal', 5, 500)
+        if (salah(alasan)) return alasan
+        const x = daftar.find((l) => l.id === a3)
+        if (!x) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
+        if (x.status !== 'berlaku') return error(409, 'sudah_tidak_berlaku', 'Izin label ini sudah tidak berlaku.')
+        Object.assign(x, { status: 'batal', alasan_batal: alasan, dibatalkan_oleh: namaAkun(penggunaId), dibatalkan_pada: iso() })
+        return ok({ data: { ...x, berlaku_sekarang: false } })
+      }
     }
 
     if (a0 === 'peran') {

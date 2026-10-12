@@ -8,6 +8,7 @@ import { useKelasLayar } from '@/shared/composables/useKelasLayar'
 import DaftarPersetujuan from '../components/persetujuan/DaftarPersetujuan.vue'
 import RincianPersetujuan from '../components/persetujuan/RincianPersetujuan.vue'
 import TabPenyetujuIzin from '../components/persetujuan/TabPenyetujuIzin.vue'
+import TabPenyetujuLabel from '../components/persetujuan/TabPenyetujuLabel.vue'
 import TabPermintaan from '../components/persetujuan/TabPermintaan.vue'
 import type { TabPersetujuan } from '../tipePersetujuan'
 
@@ -28,6 +29,8 @@ const daftarTab = computed(() => [
   { nilai: 'saya_ajukan', label: 'Yang saya ajukan' },
   ...(boleh('pengaturan.akun.lihat') && !ponsel.value ? [{ nilai: 'permintaan', label: 'Permintaan akses' }] : []),
   ...(boleh('pengaturan.peran.lihat') && !ponsel.value ? [{ nilai: 'penyetuju', label: 'Penyetuju izin' }] : []),
+  // Label sensitivitas (1.5): daftar label butuh pengaturan.akun.lihat, pilihan peran butuh pengaturan.peran.lihat.
+  ...(boleh('pengaturan.peran.lihat') && boleh('pengaturan.akun.lihat') && !ponsel.value ? [{ nilai: 'penyetuju-label', label: 'Penyetuju label' }] : []),
 ])
 const tab = computed({
   get: () => {
@@ -71,9 +74,10 @@ watch(terpilih, async (id) => {
       </template>
       <template #permintaan><TabPermintaan /></template>
       <template #penyetuju><TabPenyetujuIzin /></template>
+      <template #penyetuju-label><TabPenyetujuLabel /></template>
     </Tabs>
     <p v-if="ponsel && (boleh('pengaturan.akun.lihat') || boleh('pengaturan.peran.lihat'))" class="catatan catatan-netral ponsel">
-      Permintaan akses dan penyetuju izin dikelola dari tablet atau komputer, agar perubahan akses tidak dibuat dari layar sempit.
+      Permintaan akses, penyetuju izin, dan penyetuju label dikelola dari tablet atau komputer, agar perubahan akses tidak dibuat dari layar sempit.
     </p>
   </HalamanModul>
 </template>

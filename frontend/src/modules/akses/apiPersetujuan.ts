@@ -52,3 +52,9 @@ export async function aturPenyetujuIzin(
 export async function ambilSaranPeran(): Promise<SaranPeran[]> {
   return data(await klien.get('/akun/saran-peran'))
 }
+
+/** Penyetuju (pejabat PDP) sebuah label sensitivitas: selalu 202 menunggu persetujuan superadmin lain (K13). */
+export async function aturPenyetujuLabel(kode: string, isian: { peran_id: string; dasar_perubahan: string }): Promise<PersetujuanAkses> {
+  const { data } = await klien.put<{ data: PersetujuanAkses }>(`/label-sensitivitas/${encodeURIComponent(kode)}/penyetuju`, isian)
+  return data.data
+}

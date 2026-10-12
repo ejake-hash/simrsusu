@@ -101,3 +101,12 @@ export async function gantiSandi(isian: { sandi_lama: string; sandi_baru: string
 export async function keluar(): Promise<void> {
   await klien.post('/autentikasi/keluar')
 }
+
+/**
+ * MFA ulang di sesi berjalan (kontrak v0.14.0, K11): sesudah berhasil, aksi `butuh_mfa` boleh sampai `berlaku_sampai`.
+ * 422 kode_mfa_salah dihitung ke penguncian yang sama dengan masuk.
+ */
+export async function verifikasiUlangMfa(metode: MetodeMfa, kode: string): Promise<{ mfa_terverifikasi_pada: string; berlaku_sampai: string }> {
+  const { data } = await klien.post<{ data: { mfa_terverifikasi_pada: string; berlaku_sampai: string } }>('/saya/mfa/verifikasi-ulang', { metode, kode })
+  return data.data
+}

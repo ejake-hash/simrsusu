@@ -3,10 +3,11 @@ import { createApp, watch } from 'vue'
 import { createPinia } from 'pinia'
 import '@/design-system/tokens.css'
 import '@/design-system/dasar.css'
-import { aturPenangan401, aturPenanganWajibGantiSandi, ApiError, klien } from '@/shared/api/klien'
+import { aturPenangan401, aturPenanganMfaUlang, aturPenanganWajibGantiSandi, ApiError, klien } from '@/shared/api/klien'
 import { vCan } from '@/shared/composables/usePermission'
 import App from './App.vue'
 import { lupakanSesi, sambungIzin } from './menu'
+import { jawabMfaUlang, lupakanMasaMfaUlang, mfaUlangTerbuka, mintaMfaUlang } from './mfaUlang'
 import { muatProfilRs } from './profilRs'
 import { router } from './router'
 import { useSesiStore } from './sesi'
@@ -41,11 +42,18 @@ aturPenanganWajibGantiSandi(() => {
   if (sekarang.name !== 'ganti-sandi') void router.replace({ name: 'ganti-sandi', query: { kembali: sekarang.fullPath } })
 })
 
+// 403 mfa_ulang_diperlukan (aksi butuh_mfa, K11): minta kode lewat dialog, lalu klien mengulang permintaan itu.
+aturPenanganMfaUlang(mintaMfaUlang)
+
 // Keluar atau sesi berakhir: buang menu, izin, dan cache data akun ini.
 watch(
   () => useSesiStore().pengguna,
   (pengguna) => {
-    if (!pengguna) lupakanSesi(queryClient)
+    if (!pengguna) {
+      lupakanSesi(queryClient)
+      if (mfaUlangTerbuka.value) jawabMfaUlang(false)
+      lupakanMasaMfaUlang()
+    }
   },
 )
 

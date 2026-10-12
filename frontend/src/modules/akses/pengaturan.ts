@@ -18,6 +18,8 @@ export const KUNCI = {
   semuaAkun: ['pengaturan', 'akun'] as const,
   akun: (id: string) => ['pengaturan', 'akun', id] as const,
   menuAkun: (id: string) => ['pengaturan', 'akun', id, 'menu'] as const,
+  labelAkun: (id: string) => ['pengaturan', 'akun', id, 'label'] as const,
+  labelSensitivitas: ['pengaturan', 'label-sensitivitas'] as const,
   /** Awalan antrean dan rincian persetujuan akses (tiket 1.2d). */
   persetujuan: ['pengaturan', 'persetujuan'] as const,
   daftarPersetujuan: (tab: string, status: string | undefined) => ['pengaturan', 'persetujuan', 'daftar', tab, status ?? 'semua'] as const,
