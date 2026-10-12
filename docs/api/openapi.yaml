@@ -4235,7 +4235,7 @@ components:
         isian: { type: string, examples: [kelas_rawat_id] }
         label_isian: { type: string, examples: ['Kelas rawat'] }
         lama: { type: [string, 'null'], examples: ['Kelas 3'], description: "null = belum ada (tambah)" }
-        baru: { type: [string, 'null'], examples: ['Kelas 1'], description: "null = dihapus/ditutup" }
+        baru: { type: [string, 'null'], examples: ['Kelas 1', 'Ditutup mulai 15-10-2026'], description: "Selalu teks untuk tambah/ubah/tutup (tutup: \"Ditutup mulai <tanggal>\"); null hanya di riwayat versi bila isian dikosongkan" }
     RiwayatUsulan:
       type: object
       required: [aksi, oleh, pada, catatan, putaran]
