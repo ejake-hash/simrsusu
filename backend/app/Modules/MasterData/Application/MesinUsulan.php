@@ -39,9 +39,10 @@ final class MesinUsulan
         $alur = $this->alur($isi['jenis_data']);
         $this->pastikanPeran($pengusul, $alur->peran_pengusul_id, 'bukan_pengusul_alur', 'Usulan jenis data ini diajukan oleh peran pemilik datanya.');
         $this->pastikanTanggal($isi['berlaku_dari']);
-        [$perubahan, $ringkasan] = $this->periksa($pengusul, $isi['perubahan'], $isi['berlaku_dari'], null);
+        [$perubahan, $ringkasan] = $this->periksa($pengusul, $isi['perubahan'], $isi['berlaku_dari']);
 
         return DB::transaction(function () use ($pengusul, $isi, $perubahan, $ringkasan, $alur) {
+            $this->kunciObjek();
             $this->pastikanTidakBentrok($perubahan, null);
             $u = new UsulanDataInduk([
                 'nomor' => $this->nomor(), 'jenis_data' => $isi['jenis_data'], 'perubahan' => $perubahan, 'ringkasan' => $ringkasan,
@@ -66,9 +67,10 @@ final class MesinUsulan
         }
         $this->pastikanTahap($u, ['dikembalikan']);
         $this->pastikanTanggal($isi['berlaku_dari']);
-        [$perubahan, $ringkasan] = $this->periksa($pengusul, $isi['perubahan'], $isi['berlaku_dari'], $u->id);
+        [$perubahan, $ringkasan] = $this->periksa($pengusul, $isi['perubahan'], $isi['berlaku_dari']);
 
         return DB::transaction(function () use ($pengusul, $u, $isi, $perubahan, $ringkasan) {
+            $this->kunciObjek();
             $u = $this->kunci($u);
             $this->pastikanTahap($u, ['dikembalikan']);
             $this->pastikanTidakBentrok($perubahan, $u->id);
@@ -96,6 +98,7 @@ final class MesinUsulan
 
         return DB::transaction(function () use ($pemverifikasi, $u, $catatan, $alur) {
             $u = $this->kunci($u);
+            $this->pastikanBukanPengusul($pemverifikasi, $u);
             $this->pastikanTahap($u, ['diusulkan']);
             $u->forceFill(['tahap' => 'diverifikasi', 'diverifikasi_oleh' => $pemverifikasi->id, 'diverifikasi_pada' => now(),
                 'diubah_oleh' => $pemverifikasi->id, 'revisi' => $u->revisi + 1])->save();
@@ -120,6 +123,11 @@ final class MesinUsulan
 
         $u = DB::transaction(function () use ($penyetuju, $u, $catatan, $alur) {
             $u = $this->kunci($u);
+            // Dicek ulang sesudah kunci: verifikasi dan setujui yang bersamaan tidak boleh menembus pemisahan tugas.
+            $this->pastikanBukanPengusul($penyetuju, $u);
+            if ($u->diverifikasi_oleh === $penyetuju->id) {
+                throw new ApiError(403, 'sudah_memverifikasi', 'Pemverifikasi tidak bisa menyetujui usulan yang ia verifikasi.');
+            }
             $this->pastikanTahap($u, ['diverifikasi']);
             $u->forceFill(['tahap' => 'disetujui', 'disetujui_oleh' => $penyetuju->id, 'disetujui_pada' => now(),
                 'diubah_oleh' => $penyetuju->id, 'revisi' => $u->revisi + 1])->save();
@@ -156,6 +164,10 @@ final class MesinUsulan
 
         return DB::transaction(function () use ($peninjau, $u, $catatan, $alur, $tahapSemula) {
             $u = $this->kunci($u);
+            $this->pastikanBukanPengusul($peninjau, $u);
+            if ($tahapSemula === 'diverifikasi' && $u->diverifikasi_oleh === $peninjau->id) {
+                throw new ApiError(403, 'sudah_memverifikasi', 'Pemverifikasi tidak bisa mengembalikan usulan yang ia verifikasi.');
+            }
             $this->pastikanTahap($u, [$tahapSemula === 'diverifikasi' ? 'diverifikasi' : 'diusulkan']);
             $u->forceFill(['tahap' => 'dikembalikan', 'diubah_oleh' => $peninjau->id, 'revisi' => $u->revisi + 1])->save();
             $this->kejadian($u, 'dikembalikan', $peninjau->id, $catatan);
@@ -194,6 +206,10 @@ final class MesinUsulan
                 $alasanGagal = $e->getStatusCode() === 412 ? 'Objek berubah sejak diusulkan.' : $e->getMessage();
             } catch (ModelNotFoundException) {
                 $alasanGagal = 'Objek tidak ditemukan lagi.';
+            } catch (\Throwable $e) {
+                // Kesalahan tak terduga tidak membuat usulan macet di tahap disetujui (perubahan dibatalkan savepoint).
+                report($e);
+                $alasanGagal = 'Kesalahan sistem saat menerapkan. Hubungi admin, lalu ajukan ulang bila masih perlu.';
             }
 
             $u->forceFill($alasanGagal === null
@@ -206,20 +222,29 @@ final class MesinUsulan
         });
     }
 
-    /** Tugas terjadwal: semua usulan disetujui yang tanggalnya ≤ hari ini (mengejar bila server mati), satu transaksi per usulan. */
+    /**
+     * Tugas terjadwal: semua usulan disetujui yang tanggalnya ≤ hari ini (mengejar bila server mati), satu transaksi per
+     * usulan, per kelompok 500 sampai habis. Usulan yang tetap disetujui karena galat tidak diambil ulang di jalan ini.
+     */
     public function terapkanJatuhTempo(): int
     {
-        $id = UsulanDataInduk::query()->where('tahap', 'disetujui')->where('berlaku_dari', '<=', SuntinganBerversi::hariIni())
-            ->orderBy('berlaku_dari')->orderBy('id')->limit(500)->pluck('id');
-        foreach ($id as $usulanId) {
-            try {
-                $this->terapkan($usulanId);
-            } catch (\Throwable $e) {
-                report($e);
+        $jumlah = 0;
+        $sudah = [];
+        do {
+            $id = UsulanDataInduk::query()->where('tahap', 'disetujui')->where('berlaku_dari', '<=', SuntinganBerversi::hariIni())
+                ->whereNotIn('id', $sudah)->orderBy('berlaku_dari')->orderBy('id')->limit(500)->pluck('id')->all();
+            foreach ($id as $usulanId) {
+                $sudah[] = $usulanId;
+                try {
+                    $this->terapkan($usulanId);
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+                $jumlah++;
             }
-        }
+        } while (count($id) === 500);
 
-        return $id->count();
+        return $jumlah;
     }
 
     /**
@@ -267,7 +292,7 @@ final class MesinUsulan
      * @param  list<array<string, mixed>>  $butir
      * @return array{0: list<array<string, mixed>>, 1: string} butir lengkap (objek_label, nilai_lama, revisi_objek) dan ringkasan
      */
-    private function periksa(Pengguna $pengusul, array $butir, string $berlakuDari, ?string $kecualiUsulan): array
+    private function periksa(Pengguna $pengusul, array $butir, string $berlakuDari): array
     {
         $rincian = [];
         $hasil = [];
@@ -323,6 +348,12 @@ final class MesinUsulan
         }
 
         return $rincian;
+    }
+
+    /** Satu objek di satu usulan berjalan: pemeriksaan dan penyimpanan diserialkan (kunci transaksi). */
+    private function kunciObjek(): void
+    {
+        DB::statement("SELECT pg_advisory_xact_lock(hashtext('master_data.usulan_objek'))");
     }
 
     /** @param  list<array<string, mixed>>  $perubahan */

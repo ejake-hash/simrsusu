@@ -31,6 +31,24 @@ final class CatatVersi
     }
 
     /**
+     * Versi pertama banyak objek baru sekaligus (impor CSV 1.8b).
+     *
+     * @param  list<array{0: string, 1: string, 2: array<string, mixed>}>  $objek  [objek_jenis, objek_id, sesudah]
+     */
+    public function catatBaru(array $objek, string $berlakuDari, string $dasar, ?string $oleh): void
+    {
+        $sekarang = now()->format('Y-m-d H:i:s.uP');
+        $baris = array_map(fn (array $o) => [
+            'id' => (string) Str::uuid7(), 'objek_jenis' => $o[0], 'objek_id' => $o[1], 'versi' => 1, 'sebelum' => null,
+            'sesudah' => json_encode($o[2]), 'berlaku_dari' => $berlakuDari, 'usulan_id' => $this->usulanId, 'dasar' => $dasar,
+            'dibuat_oleh' => $oleh, 'dibuat_pada' => $sekarang,
+        ], $objek);
+        foreach (array_chunk($baris, 500) as $potong) {
+            DB::table('inti.data_induk_versi')->insert($potong);
+        }
+    }
+
+    /**
      * @param  array<string, mixed>|null  $sebelum  null = objek dibuat
      * @param  array<string, mixed>  $sesudah
      */

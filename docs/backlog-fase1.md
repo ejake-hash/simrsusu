@@ -778,6 +778,9 @@ Aturan rinci (kontrak v0.9.0):
     putaran itu: nomor, jenis_data, putaran, perubahan (objek_jenis, aksi, objek_id, nilai_lama, nilai_baru; tanpa
     label dan tanpa id objek hasil tambah), berlaku_dari, alasan, dasar, pengusul. Dedup tanda
     tangan per isi (unik ttd.tanda_tangan menjadi objek + pengguna + hash_isi), agar kirim ulang bisa ditandatangani lagi.
+  - Utang (tinjauan #63): daftar usulan menghitung `dapat`/`objek_berubah`/`tampilan` per baris (banyak query pada
+    batas besar; muat sekaligus per halaman); bila alur tanpa peran, tugas verifikasi ikut terkirim ke peran pengusul;
+    `dapat.tandatangani` membaca ttd.tanda_tangan langsung (antarmuka modul Ttd menyusul).
   - Utang: tutup sementara/buka kembali TT (periode penutupan + perhitungan kapasitas) belum ada; usulan pembatalan
     oleh pengusul; layar konfigurasi alur; objek yang dibuat di usulan yang sama tidak bisa dirujuk butir berikutnya
     (mis. kamar baru + TT di kamar itu = dua usulan).

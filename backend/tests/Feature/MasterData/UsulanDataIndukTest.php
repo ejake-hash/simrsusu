@@ -2,9 +2,12 @@
 
 namespace Tests\Feature\MasterData;
 
+use App\Core\Http\ApiError;
 use App\Core\Instalasi\StatusInstalasi;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\Peran;
+use App\Modules\MasterData\Application\KelolaTempatTidur;
+use App\Modules\MasterData\Application\MesinUsulan;
 use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Models\TempatTidur;
 use App\Modules\MasterData\Models\UnitOrganisasi;
@@ -92,6 +95,9 @@ class UsulanDataIndukTest extends TestCase
         $this->artisan('master-data:terapkan-usulan')->assertSuccessful();
         $this->artisan('master-data:terapkan-usulan')->assertSuccessful();
         $this->assertSame(4, TempatTidur::query()->where('kamar_id', $this->data['kamar'])->count());
+        // Kapasitas berubah mulai besok (hari usulan berlaku); hari sebelumnya tetap 2.
+        $this->assertSame(4, KelolaTempatTidur::jumlahDihitung($this->data['kamar'], $besok));
+        $this->assertSame(2, KelolaTempatTidur::jumlahDihitung($this->data['kamar'], Carbon::parse($besok)->subDay()->toDateString()));
         $u = UsulanDataInduk::query()->findOrFail($id);
         $this->assertSame('berlaku', $u->tahap);
         $this->assertSame('Bangsal ICU: 2 → 4 TT', $u->ringkasan);
@@ -147,6 +153,8 @@ class UsulanDataIndukTest extends TestCase
 
     public function test_validasi_aturan_1_8b_dan_gagal_diterapkan_bila_objek_berubah(): void
     {
+        $versiAwal = DB::table('inti.data_induk_versi')->count();
+        $auditAwal = DB::table('audit.log_aktivitas')->where('aksi', 'like', 'master_data.tempat_tidur%')->count();
         $this->masukSebagai($this->pengusul);
         $salah = $this->minta('POST', '/api/v1/usulan-data-induk', $this->isi([
             $this->ttBaru('1'),
@@ -159,6 +167,11 @@ class UsulanDataIndukTest extends TestCase
         $this->minta('POST', '/api/v1/usulan-data-induk', $this->isi([$this->ttBaru('1')]))
             ->assertStatus(422)->assertJsonPath('error.rincian.0.kode', 'kode_sudah_dipakai')->assertJsonPath('error.rincian.0.kolom', 'perubahan.0.kode');
         $this->minta('POST', '/api/v1/usulan-data-induk', $this->isi([$this->ttBaru('5')], '2020-01-01'))->assertStatus(422)->assertJsonPath('error.kode', 'tanggal_tidak_valid');
+        // Uji kering yang lolos pun tidak meninggalkan versi, audit perubahan, maupun TT.
+        $this->minta('POST', '/api/v1/usulan-data-induk', $this->isi([$this->ttBaru('5')]))->assertCreated();
+        $this->assertSame($versiAwal, DB::table('inti.data_induk_versi')->count());
+        $this->assertSame($auditAwal, DB::table('audit.log_aktivitas')->where('aksi', 'like', 'master_data.tempat_tidur%')->count());
+        $this->assertFalse(TempatTidur::query()->where('kode', 'C-4-401-5')->exists());
 
         $tt = $this->data['tt'][1];
         $id = $this->minta('POST', '/api/v1/usulan-data-induk', $this->isi([
@@ -241,6 +254,24 @@ class UsulanDataIndukTest extends TestCase
         $this->minta('POST', '/api/v1/ttd/tandatangani', ['objek' => $objek, 'pin' => self::PIN, 'pernyataan_disetujui' => true])->assertOk()->assertJsonPath('data.0.baru', true);
         $status = array_column(array_column($this->minta('GET', "/api/v1/ttd/verifikasi/usulan_data_induk/$id")->assertOk()->json('data'), 'verifikasi'), 'status');
         $this->assertSame(['isi_berubah', 'sah'], $status);
+    }
+
+    public function test_pemisahan_tugas_dicek_ulang_sesudah_baris_dikunci(): void
+    {
+        $this->masukSebagai($this->pengusul);
+        $id = $this->minta('POST', '/api/v1/usulan-data-induk', $this->isi([$this->ttUbah($this->data['tt'][0], ['isolasi' => true])]))->assertCreated()->json('data.id');
+        // Baris dibaca sebelum verifikasi (seperti permintaan setujui yang datang bersamaan), lalu orang yang sama memverifikasi.
+        $basi = UsulanDataInduk::query()->findOrFail($id);
+        $mesin = app(MesinUsulan::class);
+        $this->actingAs($this->pemverifikasi);
+        $mesin->verifikasi($this->pemverifikasi, UsulanDataInduk::query()->findOrFail($id), null);
+        try {
+            $mesin->setujui($this->pemverifikasi, $basi, null);
+            $this->fail('Pemverifikasi tidak boleh menyetujui lewat data basi.');
+        } catch (ApiError $e) {
+            $this->assertSame('sudah_memverifikasi', $e->kode);
+        }
+        $this->assertSame('diverifikasi', UsulanDataInduk::query()->findOrFail($id)->tahap);
     }
 
     private function setujuiOlehDuaOrang(string $id): void
