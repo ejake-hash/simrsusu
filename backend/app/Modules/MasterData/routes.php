@@ -7,6 +7,7 @@ use App\Modules\MasterData\Http\Controllers\KapasitasTempatTidurController;
 use App\Modules\MasterData\Http\Controllers\KelasRawatController;
 use App\Modules\MasterData\Http\Controllers\KsmController;
 use App\Modules\MasterData\Http\Controllers\LokasiController;
+use App\Modules\MasterData\Http\Controllers\PaketReferensiController;
 use App\Modules\MasterData\Http\Controllers\PoliklinikController;
 use App\Modules\MasterData\Http\Controllers\RiwayatVersiController;
 use App\Modules\MasterData\Http\Controllers\TempatTidurController;
@@ -65,4 +66,8 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::post('usulan-data-induk/{usulan}/kembalikan', [UsulanDataIndukController::class, 'kembalikan']);
     Route::post('usulan-data-induk/{usulan}/kirim-ulang', [UsulanDataIndukController::class, 'kirimUlang']);
     Route::get('data-induk/{jenis}/{objekId}/riwayat-versi', RiwayatVersiController::class)->whereIn('jenis', ['ruang', 'kamar', 'tempat_tidur']);
+
+    // Paket referensi (tiket 1.8e): izin master_data.katalog.input cakupan rs, diperiksa di controller.
+    Route::post('paket-referensi/{sistem}/muat', [PaketReferensiController::class, 'muat'])
+        ->whereIn('sistem', ['wilayah', 'referensi', 'icd10', 'icd9cm', 'loinc', 'ucum']);
 });

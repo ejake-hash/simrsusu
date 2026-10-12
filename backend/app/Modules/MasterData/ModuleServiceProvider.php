@@ -6,6 +6,7 @@ use App\Modules\Akses\Application\DataUnit;
 use App\Modules\MasterData\Application\CatatVersi;
 use App\Modules\MasterData\Application\KapasitasTempatTidur;
 use App\Modules\MasterData\Application\PohonUnit;
+use App\Modules\MasterData\Console\MuatReferensi;
 use App\Modules\MasterData\Console\RekamKapasitasTempatTidur;
 use App\Modules\MasterData\Console\TerapkanUsulan;
 use App\Modules\MasterData\Domain\PemeriksaPenempatan;
@@ -32,7 +33,7 @@ class ModuleServiceProvider extends ServiceProvider
         $this->loadRoutesFrom(__DIR__.'/routes.php');
         Event::listen(KapasitasTempatTidurBerubah::class, [KapasitasTempatTidur::class, 'tanganiPerubahan']);
         if ($this->app->runningInConsole()) {
-            $this->commands([RekamKapasitasTempatTidur::class, TerapkanUsulan::class]);
+            $this->commands([RekamKapasitasTempatTidur::class, TerapkanUsulan::class, MuatReferensi::class]);
         }
     }
 }
