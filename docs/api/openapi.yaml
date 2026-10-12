@@ -3393,8 +3393,9 @@ paths:
   #   tetapi tidak ada di versi baru ditandai tidak aktif (tidak dihapus, tetap terbaca di data historis); kode yang
   #   muncul lagi diaktifkan kembali. Untuk `referensi`, snapshot berlaku per `kelompok` yang ada di berkas.
   # - Versi = kunci pemuatan per sistem (`inti.paket_referensi` unik sistem + versi, dengan sidik isi). Memuat ulang
-  #   sistem + versi yang sama dengan isi sama = idempoten: 200, `diterapkan` true, semua jumlah 0, tanpa baris paket dan
-  #   audit baru. Isi berbeda dengan versi yang sama = 409 `versi_sudah_dimuat` (pakai nomor versi lain). Untuk
+  #   sistem + versi yang sama dengan isi sama = idempoten bila versi itu pemuatan terakhir sistem tersebut: 200,
+  #   `diterapkan` true, jumlah perubahan (baru/diubah/dinonaktifkan/diaktifkan lagi) 0, tanpa baris paket dan audit baru.
+  #   Versi lama yang sudah digantikan versi lain tidak bisa dimuat ulang (409 `versi_sudah_dimuat`; pakai versi baru). Isi berbeda dengan versi yang sama = 409 `versi_sudah_dimuat` (pakai nomor versi lain). Untuk
   #   `referensi`, setiap berkas (satu atau beberapa kelompok) memakai versinya sendiri (mis. `agama-2025.1`).
   # - Pemuatan terakhir yang menentukan kode mana yang aktif; pemuatan bersamaan untuk sistem yang sama diserialkan.
   # - Paket referensi bukan data induk berpemilik: tidak lewat usulan berjenjang dan tidak terkena `harus_lewat_usulan`.
@@ -3447,6 +3448,7 @@ paths:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/HasilMuatReferensi' } } }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
         '413': { description: "Berkas melebihi batas unggah server web" }
         '422': { $ref: '#/components/responses/Error' }
 components:
