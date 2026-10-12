@@ -1897,7 +1897,7 @@ flowchart LR
   LIS & PX --> API
   PG --> PGR
   MOD --> RD & S3 & MS
-  classDef c fill:#E8F4EC,stroke:#006937
+  classDef c fill:#E9EFF5,stroke:#1F5C99
   classDef d fill:#F8FAFC,stroke:#64748B
 ```
 
