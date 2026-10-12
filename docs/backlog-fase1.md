@@ -148,8 +148,11 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   dinamis); PATCH TT tidak mengembalikan `peringatan` (kelas/ekstra tidak mengubah jumlah TT kamar).
   Dari tinjauan subagen #46 (sisa): nama berawalan `=`/`+`/`-`/`@` diterima impor/API → wajib dinetralkan saat ekspor CSV
   pertama dibuat (injeksi formula); nomor baris kesalahan impor = nomor rekaman CSV (berbeda bila sel memuat baris baru).
-- PRD menyusul (1.8d): 10.3.2 belum menyebut 403 `wajib_ganti_sandi` sesudah masuk dengan sandi awal, dan 9.1 belum
-  memuat bagian `sdm.pegawai.identitas`; aturannya ada di badan tiket 1.8d, PRD diperbarui di PR [Perlu pemilik] terpisah.
+- PRD 1.8d (10.3.2 `403 wajib_ganti_sandi`, 9.1 bagian `sdm.pegawai.identitas`): selesai di PRD v0.10.13 (#52).
+- PRD v0.10.14 mendokumentasikan 1.6, 1.7, 1.8c, 1.8e. Selisih kode dengan aturan PRD yang tertulis (Idempotency-Key,
+  polling vs WebSocket, "100% lewat usulan", TTE pengesahan, `*_versi`, query lintas modul, K1/K2/K7/K10 di 17.2, dll.)
+  diusulkan di PR [Perlu pemilik] tersendiri; 1.8f (`inti.penyiapan_konfirmasi`, `profil_rs.siap_melayani_sejak`)
+  didokumentasikan di PRD berikutnya.
 - Utang 1.8d: layar persetujuan K4 belum memperingatkan bila superadmin diberikan ke akun pegawai `akan_keluar`; dokumen
   izin praktik yang sudah tertulis ke disk bisa tertinggal bila transaksi gagal sesudahnya (jalur privat, tanpa rujukan);
   modul SDM membaca `akses.pengguna`/`inti.unit_organisasi` langsung untuk daftar pegawai (belum lewat antarmuka modul);
@@ -884,8 +887,8 @@ Aturan rinci (kontrak v0.11.0):
     `post_max_size` PHP ≥ 12 MB, `memory_limit` PHP ≥ 128 MB, nginx
     `client_max_body_size` ≥ 12m dan `proxy_read_timeout`/`fastcgi_read_timeout` ≥ 60 s (berkas diunggah dua kali:
     pratinjau lalu terapkan). Usul nanti: pratinjau mengembalikan token agar terapkan tidak perlu unggah ulang.
-  - Utang PRD (menyusul PR [Perlu pemilik]): 11.2 belum memuat kolom `aktif`, `versi_terakhir`, `dinonaktifkan_pada`
-    (wilayah/referensi/terminologi) dan `sidik_isi` (paket_referensi); nama sistem huruf kecil di API dan tabel.
+  - PRD 11.2 (kolom `aktif`, `versi_terakhir`, `dinonaktifkan_pada`, `sidik_isi`, nama sistem huruf kecil) dan rincian
+    pemuat di 7.54: PRD v0.10.14.
   - **Isi paket dikemas menunggu berkas resmi** (pemilik/RS): wilayah (Kemendagri), UCUM (unitsofmeasure.org),
     subset LOINC (akun Regenstrief), kode variabel RME (Kemenkes). Repo memuat SUMBER.md per paket dan berkas contoh
     sintetis untuk tes; ICD-10/ICD-9-CM tidak pernah di repo (K7).
