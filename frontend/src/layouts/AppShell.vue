@@ -6,6 +6,7 @@ import { useProfilRs } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
 import NotifikasiToast from '@/design-system/components/NotifikasiToast.vue'
 import Ikon from '@/design-system/ikon/Ikon.vue'
+import LoncengNotifikasi from '@/modules/notifikasi/components/LoncengNotifikasi.vue'
 import { useKelasLayar } from '@/shared/composables/useKelasLayar'
 import PemilihUnitKerja from './PemilihUnitKerja.vue'
 import PencarianMenu from './PencarianMenu.vue'
@@ -171,6 +172,7 @@ async function keluar() {
           <PemilihUnitKerja />
           <PencarianMenu />
 
+          <LoncengNotifikasi />
           <div class="akun">
             <span class="avatar" aria-hidden="true">{{ inisial }}</span>
             <span class="akun-teks">

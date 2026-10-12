@@ -45,6 +45,9 @@ export const router = createRouter({
         { path: 'pengaturan/profil-rs', name: 'pengaturan-profil-rs', component: () => import('@/modules/organisasi/pages/ProfilRsPage.vue'), meta: { judul: 'Profil rumah sakit' } },
         { path: 'master-data/organisasi', name: 'master-data-organisasi', component: () => import('@/modules/organisasi/pages/OrganisasiPage.vue'), meta: { judul: 'Organisasi, Unit, Ruang & Tempat Tidur' } },
         { path: 'sdm/pegawai', name: 'sdm-pegawai', component: () => import('@/modules/sdm/pages/PegawaiPage.vue'), meta: { judul: 'Data pegawai' } },
+        { path: 'master-data/jenis-tugas', name: 'master-data-jenis-tugas', component: () => import('@/modules/notifikasi/pages/JenisTugasPage.vue'), meta: { judul: 'Jenis Tugas, Tenggat & Eskalasi' } },
+        // Notifikasi akun sendiri: tanpa izin khusus (/saya/*), bukan halaman menu.
+        { path: 'notifikasi', name: 'notifikasi', component: () => import('@/modules/notifikasi/pages/NotifikasiPage.vue'), meta: { judul: 'Notifikasi' } },
         // Halaman modul didaftarkan di atas baris ini. Jalur lain: Segera hadir bila ada di menu, selain itu tidak ditemukan.
         { path: ':jalur(.*)*', name: 'menu', component: () => import('@/layouts/HalamanMenu.vue') },
       ],

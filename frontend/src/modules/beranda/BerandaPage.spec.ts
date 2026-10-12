@@ -64,9 +64,8 @@ describe('BerandaPage', () => {
     expect(w.findAll('h2').map((h) => h.text())).toEqual(['Modul saya', 'Kotak kerja', 'Keamanan akun', 'Pintasan', 'Informasi umum'])
   })
 
-  it('kotak kerja jujur tanpa angka; keamanan akun menyebut masuk sebelumnya dari luar jaringan RS', async () => {
+  it('keamanan akun menyebut masuk sebelumnya dari luar jaringan RS (kotak kerja diuji di notifikasi.spec)', async () => {
     const { w } = await pasang(BerandaPage)
-    expect(w.text()).toContain('Tugas dan pengingat tampil di sini setelah modul notifikasi aktif.')
     expect(w.text()).toContain('dari luar jaringan RS')
     expect(w.text()).toContain('Bukan Anda yang masuk?')
   })
