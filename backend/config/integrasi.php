@@ -12,7 +12,8 @@ return [
     'simulator' => (bool) env('INTEGRASI_SIMULATOR', false),
 
     // Alamat sistem luar per lingkungan. Tidak bisa diubah lewat API (SSRF). Nilai bawaan dari catatan lapangan
-    // (docs/integrasi/catatan-lapangan-bridging.md §1.2, §2, §15.1, §24): **perlu verifikasi** ke dokumen resmi
+    // (catatan lapangan bridging di luar repo, `/Users/ejake/Documents/SIMRS Tipe B/catatan-lapangan-bridging.md` §1.2,
+    // §2, §15.1, §24): **perlu verifikasi** ke dokumen resmi
     // BPJS/Kemenkes sebelum produksi.
     'alamat' => [
         'bpjs_vclaim' => [
