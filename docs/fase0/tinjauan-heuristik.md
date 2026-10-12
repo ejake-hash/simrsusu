@@ -1,6 +1,6 @@
 # Tinjauan heuristik prototipe — Fase 0 (mode produk)
 
-Tanggal: 10 Oktober 2026 · Bahan: `docs/html/` (20 halaman, data fiktif) · Rujukan: PRD Lampiran E.1 dan 5.1 butir 9–17.
+Tanggal: 10 Oktober 2026 · Bahan: prototipe HTML (20 halaman, data fiktif; sejak repo publik disimpan di luar repo, `/Users/ejake/Documents/SIMRS Tipe B/html/`) · Rujukan: PRD Lampiran E.1 dan 5.1 butir 9–17.
 
 **Metode.** 10 heuristik Nielsen, keselamatan pasien, dan WCAG 2.1 AA. Setiap halaman dirender di 1440×900 dan 390×844, lalu alur utamanya dijalankan dengan skrip. Keparahan: 4 = keselamatan pasien atau kebocoran data, 3 = mayor, 2 = minor, 1 = kosmetik.
 

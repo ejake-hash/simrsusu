@@ -32,7 +32,7 @@ final class ProfilRs extends Model
     public const UPDATED_AT = 'diubah_pada';
 
     /** Paket identitas bawaan produk (Karsitara) selama instalasi belum mengisi warnanya sendiri. */
-    public const WARNA_BAWAAN = ['brand' => '#006937', 'accent' => '#F3C300'];
+    public const WARNA_BAWAAN = ['brand' => '#1F5C99', 'accent' => '#D97706'];
 
     public const JENIS_BERKAS = ['logo', 'motif', 'foto'];
 

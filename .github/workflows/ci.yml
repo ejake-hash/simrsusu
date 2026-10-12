@@ -3,7 +3,12 @@ name: CI
 on:
   push:
     branches: [main]
+  # Repo publik: hanya pull_request (token baca saja untuk PR dari fork). Jangan memakai pull_request_target.
   pull_request:
+
+# Token GITHUB_TOKEN baca saja untuk semua job; job yang perlu lebih harus menyatakannya sendiri.
+permissions:
+  contents: read
 
 jobs:
   backend:
@@ -128,6 +133,8 @@ jobs:
       E2E_SDM_MFA_RAHASIA: ONSG2YLEMJUW4U3ENVQWI3LJNZJWI3LB
       # TTE sintetis (tiket 1.6): kunci server dan PIN sekali pakai untuk database CI; bukan rahasia. Kunci 1 menit agar
       # uji 5 PIN salah tidak menunggu 15 menit.
+      # PERINGATAN: kunci TTD_KUNCI (dan KREDENSIAL_KUNCI) di berkas ini adalah nilai uji sintetis yang publik. DILARANG
+      # dipakai di server mana pun; server membuat kuncinya sendiri dan menyimpannya di vault/.env.
       TTD_KUNCI: base64:ZTJlLWNpLXR0ZC1rdW5jaS1zZXJ2ZXItc2ludGV0aXM=
       AKUN_SINTETIS_TTD_PIN: "482916"
       E2E_TTD_PIN: "482916"

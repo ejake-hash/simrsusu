@@ -3,6 +3,7 @@
 namespace Tests\Feature\ProfilRs;
 
 use App\Core\ProfilRs\KontrasWarna;
+use App\Core\ProfilRs\PemeriksaBerkas;
 use App\Core\ProfilRs\ProfilRs;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -21,7 +22,7 @@ class ProfilRsTest extends TestCase
 
     private const ISIAN = [
         'nama' => 'RS Contoh Sintetis', 'kode_kemenkes' => '1234567', 'kelas' => 'B', 'status_blu' => true,
-        'kode_ppk_bpjs' => '0000R001', 'alamat' => 'Jl. Contoh No. 1', 'warna' => ['brand' => '#006937', 'accent' => '#F3C300'],
+        'kode_ppk_bpjs' => '0000R001', 'alamat' => 'Jl. Contoh No. 1', 'warna' => ['brand' => '#1F5C99', 'accent' => '#D97706'],
         'kontak_admin' => ['unit' => 'Instalasi SIMRS', 'kontak' => 'ext. 1234'], 'dasar_perubahan' => 'Wizard langkah 2',
     ];
 
@@ -36,7 +37,7 @@ class ProfilRsTest extends TestCase
         $this->mulaiSesiSpa();
         $kosong = $this->assertSesuaiKontrak($this->minta('GET', '/api/v1/profil-rs')->assertOk(), 'GET', '/profil-rs');
         $kosong->assertJsonPath('data.nama', null)->assertJsonPath('data.versi', '0')
-            ->assertJsonPath('data.paket_identitas.warna', ['brand' => '#006937', 'accent' => '#F3C300'])
+            ->assertJsonPath('data.paket_identitas.warna', ['brand' => '#1F5C99', 'accent' => '#D97706'])
             ->assertJsonPath('data.kontak_admin.unit', 'admin SIMRS')->assertJsonPath('data.instalasi_demo', false)
             ->assertJsonMissingPath('data.rinci');
         $this->assertStringContainsString('Cookie', (string) $kosong->headers->get('Vary'));
@@ -73,7 +74,7 @@ class ProfilRsTest extends TestCase
 
     public function test_kontras_kurang_ditolak_dengan_rasio(): void
     {
-        $this->assertSame([], KontrasWarna::periksa(['brand' => '#006937', 'accent' => '#F3C300']), 'Paket contoh RS USU sah.');
+        $this->assertSame([], KontrasWarna::periksa(['brand' => '#1F5C99', 'accent' => '#D97706']), 'Paket contoh RS Contoh Pendidikan sah.');
         [$superadmin, $rahasia] = $this->superadminBerMfa();
         $this->masukSebagai($superadmin, $rahasia);
 
@@ -100,6 +101,16 @@ class ProfilRsTest extends TestCase
 
         $this->masukSebagai($this->buatPengguna());
         $this->assertSesuaiKontrak($this->mintaDenganVersi('PUT', '/api/v1/profil-rs', '3', self::ISIAN)->assertForbidden(), 'PUT', '/profil-rs');
+    }
+
+    public function test_paket_contoh_fiktif_lolos_pemeriksa_berkas(): void
+    {
+        // Paket identitas fiktif "RS Contoh Pendidikan" (repo publik): bisa diunggah apa adanya.
+        $pemeriksa = app(PemeriksaBerkas::class);
+        foreach (['logo' => 'logo-rs-contoh.svg', 'motif' => 'motif-contoh.svg'] as $jenis => $berkas) {
+            $hasil = $pemeriksa->periksa($jenis, (string) file_get_contents(base_path("../docs/brand/contoh/$berkas")));
+            $this->assertSame('image/svg+xml', $hasil['tipe'], $berkas);
+        }
     }
 
     public function test_unggah_logo_tampil_publik_dan_svg_berskrip_ditolak(): void

@@ -1,5 +1,5 @@
 /**
- * Ikon garis 24×24 dari prototipe docs/html (stroke currentColor). Nama ikon menu = kode menu
+ * Ikon garis 24×24 dari prototipe HTML (di luar repo) (stroke currentColor). Nama ikon menu = kode menu
  * (`ikon` di GET /saya/menu); nama yang tidak dikenal memakai `umum`. Isi SVG hanya dari peta ini,
  * tidak pernah dari respons server.
  */

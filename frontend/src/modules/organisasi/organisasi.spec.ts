@@ -289,7 +289,7 @@ describe('Profil rumah sakit', () => {
       jalur: '/profil-rs',
       kueri: new URLSearchParams(),
       header: { 'if-match': '"1"' },
-      isi: { nama: 'RS Lain', kode_kemenkes: null, kelas: null, status_blu: null, kode_ppk_bpjs: null, alamat: null, warna: { brand: '#006937', accent: '#F3C300' }, kontak_admin: { unit: 'IT', kontak: null }, dasar_perubahan: 'uji' },
+      isi: { nama: 'RS Lain', kode_kemenkes: null, kelas: null, status_blu: null, kode_ppk_bpjs: null, alamat: null, warna: { brand: '#1F5C99', accent: '#D97706' }, kontak_admin: { unit: 'IT', kontak: null }, dasar_perubahan: 'uji' },
     })
     await isi('Nama rumah sakit', 'RS Saya')
     await isi('Dasar perubahan', 'SK Direktur 2/2026')
@@ -308,7 +308,7 @@ describe('Profil rumah sakit', () => {
       jalur: '/profil-rs',
       kueri: new URLSearchParams(),
       header: { 'if-match': '"1"' },
-      isi: { nama: 'RS Lain', kode_kemenkes: null, kelas: null, status_blu: null, kode_ppk_bpjs: null, alamat: null, warna: { brand: '#006937', accent: '#F3C300' }, kontak_admin: { unit: 'IT', kontak: '0812' }, dasar_perubahan: 'uji' },
+      isi: { nama: 'RS Lain', kode_kemenkes: null, kelas: null, status_blu: null, kode_ppk_bpjs: null, alamat: null, warna: { brand: '#1F5C99', accent: '#D97706' }, kontak_admin: { unit: 'IT', kontak: '0812' }, dasar_perubahan: 'uji' },
     })
     await qcUji.refetchQueries({ queryKey: KUNCI_ORG.profil })
     await tenang()

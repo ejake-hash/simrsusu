@@ -156,7 +156,7 @@ const profilRs = useProfilRs()
   margin: 12px 12px 12px 0;
   padding: 48px;
   border-radius: 20px;
-  background: linear-gradient(160deg, var(--usu-gelap) 0%, var(--brand-800) 55%, var(--brand-900) 100%);
+  background: linear-gradient(160deg, var(--panel-merek) 0%, var(--brand-800) 55%, var(--brand-900) 100%);
   color: var(--surface);
 }
 /* Motif identitas RS (PRD 5.3.2 aturan 4: hanya halaman masuk, antrean, cetak). */
@@ -211,7 +211,7 @@ const profilRs = useProfilRs()
 }
 .judul-merek em {
   font-style: normal;
-  color: var(--usu-kuning);
+  color: var(--penekanan-panel);
 }
 .lead-merek {
   max-width: 440px;

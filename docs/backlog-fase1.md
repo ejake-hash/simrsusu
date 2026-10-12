@@ -19,7 +19,7 @@
 | 1.1c | Pendaftaran MFA hanya dari jaringan RS + superadmin pertama lewat konsol. Catatan: penanda superadmin sementara audit `akses.superadmin_dibuat`; e2e butuh `PROKSI_TEPERCAYA=127.0.0.1` | Selesai | #22 |
 | 1.0d | Ganti Redis ke Valkey: dua instans (cache `allkeys-lru`, sesi+antrean `noeviction`), compose, CI, dokumentasi. Catatan: `valkey/valkey:9.1.2-alpine`; CI menjalankan Valkey lewat `docker compose` (kontainer `services:` tidak bisa diberi argumen); skrip install esbuild/fsevents ditolak lewat `allowScripts` | Selesai | #21 |
 | 1.0e | Fondasi ketahanan beban (PRD 14.1.1): batas waktu per role, paginasi berbatas, antrean per jenis, batas laju per pengguna, `/siap`, kerangka k6. Catatan: paginasi tidak memakai `cursorPaginate()` (mikrodetik hilang); Horizon 5, dasbor ditolak di luar local sampai 1.2; batas laju bawaan 120/menit per akun, layar kerja 600 | Selesai | #23 |
-| 1.0c | Nama modul bahasa Indonesia (backend dan frontend). Catatan: panel Spek dev di `docs/html` masih menyebut nama lama (di luar lingkup) | Selesai | #16 |
+| 1.0c | Nama modul bahasa Indonesia (backend dan frontend). Catatan: panel Spek dev di prototipe HTML (di luar repo) masih menyebut nama lama (di luar lingkup) | Selesai | #16 |
 | 1.0f | Antrean setelah commit, penghitung batas laju di instans `noeviction`, aturan bersih-bersih tiket di CLAUDE.md. Catatan: store `batas-laju` = `cache.limiter`; tes memakai `array` (`CACHE_LIMITER_STORE`) agar `travel()` berlaku | Selesai | #25 |
 | 1.2a | Backend akses: tabel menu/peran/izin/penugasan, seeder menu dari prototipe, `AccessEvaluator` lapis 1–3, `GET /api/v1/saya/menu`, superadmin sementara → peran. Catatan: menu bawaan di `MenuBawaan` (dipasang migrasi), halaman yang sudah dibangun ditandai `TERSEDIA`; izin lewat `can:<menu>.<sub_menu>.<aksi>`; e2e kerangka kini ke backend asli dengan `contoh.dokter` | Selesai | #27 |
 | 1.2b | Frontend kerangka aplikasi: `AppShell` + `SidebarMenu` dinamis (kontrak `docs/api/openapi.yaml`), `SegeraHadirPage`, responsif PRD 5.5. Catatan: menu aktif tanpa halaman frontend juga ke `SegeraHadirPage`; jalur di luar menu = *Halaman tidak ditemukan* (tidak dibedakan dari tidak diizinkan); e2e masih memakai menu tiruan (lihat utang) | Selesai | #26 |
@@ -81,7 +81,7 @@ Endpoint di luar tiket = "[Perlu pemilik]". Sesi 2 memakai data tiruan dari kont
 | K5 | Pembuatan akun | Akun dibuat dari data pegawai (1.8d). Akun peserta didik menunggu modul 46 (fase 5) | Satu akun = satu pegawai (11.2) |
 | K6 | Wizard langkah 6–7 (penjamin, tarif, formularium) | Kerangka langkah dibuat di 1.8f, isinya di awal fase 2 (sebelum pendaftaran). Instalasi tetap "belum bisa melayani pasien" sampai langkah itu lengkap | Tarif adalah modul besar milik fase 2 |
 | K7 | Paket referensi | Dikemas: wilayah, UCUM, subset LOINC (atribusi), kode variabel RME. ICD-10/ICD-9-CM: **tidak dikemas**, diimpor dari berkas milik RS (mis. dari E-Klaim) | Lisensi WHO perlu verifikasi (FR-54-09) |
-| K8 | Kriteria keluar Fase 1 tanpa RS | Sandbox BPJS/SATUSEHAT diganti **simulator + uji kontrak** berbasis `docs/integrasi/catatan-lapangan-bridging.md`. Sambungan sandbox nyata dipindah menjadi syarat **masuk pilot fase 2** bersama SUS dan design partner. PRD 16/16.1 sudah diubah di PRD v0.10.12 (disetujui pemilik) | Kredensial sandbox diberikan ke faskes, bukan vendor [Medium] |
+| K8 | Kriteria keluar Fase 1 tanpa RS | Sandbox BPJS/SATUSEHAT diganti **simulator + uji kontrak** berbasis `/Users/ejake/Documents/SIMRS Tipe B/catatan-lapangan-bridging.md` (di luar repo). Sambungan sandbox nyata dipindah menjadi syarat **masuk pilot fase 2** bersama SUS dan design partner. PRD 16/16.1 sudah diubah di PRD v0.10.12 (disetujui pemilik) | Kredensial sandbox diberikan ke faskes, bukan vendor [Medium] |
 | K9 | Kredensial integrasi | Tabel `integrasi.kredensial_api` terenkripsi dengan **kunci khusus** `KREDENSIAL_KUNCI` (bukan APP_KEY, bisa dirotasi), tidak pernah dikirim ke layar (hanya 4 karakter terakhir), antarmuka `PenyimpanRahasia` agar vault bisa dipasang kemudian | Menyelaraskan FR-54-08 ("vault") dengan 11.2 (`kredensial_api`) untuk instalasi on-premise tanpa vault |
 | K10 | TTE fase 1 | T1 (PIN + Ed25519) penuh. T2/PSrE: antarmuka adapter + simulator saja; penyedia dipilih saat kontrak PSrE | PRD 7.57.3: API PSrE belum diverifikasi |
 | K11 | MFA ulang untuk aksi sensitif | Izin `butuh_mfa` meminta TOTP bila verifikasi MFA terakhir di sesi > 15 menit | Lapis 5 (9.2.2); angka di konfigurasi |
@@ -109,7 +109,14 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
 - Daftar sandi bocor diperbarui dari SecLists terbaru (ADR 0001, `SUMBER.md`).
 
 **Repo dan teknis**
-- Aturan cabang `main` (merge hanya lewat PR, check `backend`/`frontend`/`e2e` wajib hijau) **belum aktif**: GitHub Free menolak proteksi cabang dan rulesets untuk repo privat. Perlu GitHub Pro atau repo dipindah ke organisasi berpaket Team. Sampai itu, merge setelah CI hijau dijaga lewat kebiasaan kerja.
+- **Repo publik sejak 12 Okt 2026** (keputusan pemilik; aturan di CLAUDE.md "Repo publik"). Proteksi cabang dan rulesets
+  kini bisa diaktifkan di GitHub Free untuk repo publik: **perlu pemilik** menyalakan aturan `main` (merge hanya lewat PR,
+  check `backend`/`frontend`/`e2e` wajib hijau). Sampai itu dijaga lewat kebiasaan kerja.
+- Private vulnerability reporting diaktifkan (SECURITY.md). LICENSE: hak cipta, bukan open source.
+- **[Perlu pemilik] Riwayat git** masih memuat berkas yang dihapus di PR kebersihan repo publik (logo/foto/motif RS USU,
+  `docs/html/`, catatan lapangan bridging) dan tangkapan layar di branch `lampiran/*` yang sudah dihapus (commit lama
+  tetap bisa diakses lewat SHA atau deskripsi PR lama). Membersihkannya butuh penulisan ulang riwayat + force-push
+  (merusak clone dan PR terbuka) atau permintaan ke GitHub Support; keputusan pemilik.
 - Dependensi frontend tertinggal satu-dua versi mayor (per 11 Okt 2026): `vite` 6 → 8, `@vitejs/plugin-vue` 5 → 6, `typescript` 5.8 → 7, `vue-tsc` 2 → 3, `vue-router` 4 → 5, `@vue/tsconfig` 0.7 → 0.9. Naikkan dalam tiket sendiri, bukan sambil lalu.
 - Dari library PRD 10.4 sudah dipakai: axios, TanStack Query (1.2b), VeeValidate + Zod dan Reka UI (1.2c-fe). VeeValidate 4.15 membaca zod 4 lewat adapter sementara `design-system/form/skemaZod.ts`: hapus saat vee-validate 5 stabil (Standard Schema). Zod klasik ~47 KB gzip di chunk formulir; pertimbangkan `zod/mini` di 1.11. Tailwind belum dipasang (komponen memakai CSS bertoken `dasar.css`).
 - Hak akses 1.2a yang belum lengkap: `peran_menu.tingkat_akses/urutan_khusus/label_khusus` (PRD 11.2, layar 9.3) belum dibuat, aksi diambil dari `peran_izin`; cakupan `pasien_dirawat` belum dievaluasi (butuh relasi perawatan); `inti.modul_aktif.unit_organisasi_id` belum berkunci tamu dan modul per unit belum dipakai (menunggu `inti.unit_organisasi`); persetujuan pemilik data untuk izin sensitif dan perubahan peran superadmin di 1.2d (sampai itu ditolak dengan 409 `butuh_persetujuan`/`peran_bawaan_terkunci`, bukan disimpan diam-diam).
@@ -232,10 +239,10 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   - Pratinjau identitas memakai turunan warna `turunanTema()`, bukan token bawaan, sehingga warna bawaan di pratinjau bisa sedikit berbeda dari tampilan nyata (tidak berdampak, hanya pratinjau).
   - Cakupan penugasan di dialog: hanya Seluruh RS dan Unit kerja (kontrak). KSM dan pasien yang dirawat tampil nonaktif sampai kontraknya ada.
   - CI e2e kini menjalankan `db:seed` (DatabaseSeeder: akun + organisasi sintetis), bukan hanya AkunSintetisSeeder. e2e profil RS mengubah nama RS dan logo instalasi e2e; jalankan ulang seeder/DB baru sebelum run lokal bila perlu profil kosong.
-  - Berkas contoh paket RS USU dipindah dari `frontend/public/` ke `docs/brand/turunan/` (logo, foto, motif) agar tidak ikut build produksi (PRD 3.4); untuk demo internal, unggah lewat layar Profil rumah sakit.
+  - Berkas contoh paket RS USU dipindah dari `frontend/public/` ke `docs/brand/turunan/`; sejak repo publik (12 Okt 2026) dihapus dari repo dan diganti paket fiktif `docs/brand/contoh/` (unggah lewat layar Profil rumah sakit).
   - **Untuk sesi 1 / keputusan stack:** unggah berkas memakai `PUT` multipart (kontrak v0.3.0). Symfony hanya mengurai body multipart pada PUT di PHP ≥ 8.4 (`Request::createFromGlobals`, `request_parse_body`); di PHP 8.3 `$_FILES` kosong sehingga setiap unggahan ditolak 422. CI dan lokal memakai 8.4 sehingga tidak tertangkap, padahal `composer.json` dan CLAUDE.md menulis PHP 8.3+. Pilih: naikkan syarat ke PHP 8.4 (`composer.json` + CLAUDE.md), atau ubah kontrak ke `POST`.
-  - Halaman profil RS dan organisasi belum punya pasangan di prototipe `docs/html/` (masterdata.html hanya katalog); tata letak mengikuti pola halaman Peran & izin.
-- Teks yang sengaja masih memuat istilah lama: migrasi yang sudah berjalan (sejarah, maju saja), ADR 0003 (diberi catatan nama baru), `docs/fase0/`, prototipe `docs/html/`, badan tiket lama di backlog, dan bagian "Kerja berkelanjutan" di CLAUDE.md (teks disetujui pemilik repo apa adanya).
+  - Halaman profil RS dan organisasi belum punya pasangan di prototipe HTML di luar repo (masterdata.html hanya katalog); tata letak mengikuti pola halaman Peran & izin.
+- Teks yang sengaja masih memuat istilah lama: migrasi yang sudah berjalan (sejarah, maju saja), ADR 0003 (diberi catatan nama baru), `docs/fase0/`, prototipe HTML (di luar repo), badan tiket lama di backlog, dan bagian "Kerja berkelanjutan" di CLAUDE.md (teks disetujui pemilik repo apa adanya).
 - Nama ikon yang dikenal frontend = kode menu prototipe (`frontend/src/design-system/ikon/ikon.ts`: `beranda`, `pendaftaran`, `igd`, `rawat_jalan`, `rawat_inap`, `kamar_operasi`, `penunjang`, `farmasi`, `rekam_medis`, `kasir`, `casemix`, `mutu`, `sdm`, `logistik`, `penelitian`, `pendidikan`, `integrasi`, `dasbor`, `master_data`, `pengaturan`). Seeder menu 1.2a memakai nama ini; nama lain tampil sebagai ikon umum.
 - Sidebar ringkas 64 px (tablet mendatar) tidak menampilkan sub-menu. Halaman sub-menu modul memakai `layouts/HalamanModul.vue` (gerbang izin lihat, judul, navigasi sub-menu saudara, pesan ponsel untuk layar kelas terbatas); menu aktif dengan sub-menu tanpa halaman sendiri otomatis menjadi `HalamanIndukModul` (kartu sub-menu). Wajib dipakai modul berikutnya (1.2c-fe).
 - Lonceng notifikasi di header prototipe belum dibuat (tiket 1.7). Pemilih unit kerja (1.8a-fe, `layouts/PemilihUnitKerja.vue`, `app/unitKerja.ts`) hanya konteks tampilan di memori; belum dipakai layar mana pun dan hilang saat muat ulang. Modul klinis yang memakainya (mis. daftar pasien ruang) menentukan apakah perlu disimpan per sesi.
@@ -243,9 +250,9 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
 
 Branch `lampiran/pr-1.4b` berisi gambar yang dirujuk deskripsi PR #10; jangan dihapus selama gambar itu masih dibutuhkan.
 
-Motif `docs/brand/motif-usu.svg` dibuat ulang (bukan berkas resmi pedoman); hanya untuk pengembangan sampai dicocokkan dengan `PATTERN DESIGN USU.ai` dari Humas/Promosi USU.
+Motif dan foto gedung paket RS USU (`docs/brand/motif-usu.svg`, `docs/brand/turunan/`) dihapus dari repo sejak repo publik (12 Okt 2026); demo memakai motif fiktif `docs/brand/contoh/motif-contoh.svg`.
 
-Panel merek halaman masuk memakai foto gedung dari paket identitas (contoh RS USU: `docs/brand/turunan/foto-rs-usu.webp`, turunan `docs/brand/RS USU Gedung.jpg`: dipotong 16:10, tanpa EXIF/GPS; diunggah lewat Pengaturan → Profil rumah sakit, tidak ikut build sejak 1.8a-fe) menggantikan ilustrasi peta tempat tidur. Prototipe `docs/html/login.html` masih memakai peta tempat tidur. Hak pakai foto untuk materi di luar pengembangan belum dikonfirmasi ke Humas/Promosi USU.
+Panel merek halaman masuk memakai foto gedung dari paket identitas bila RS mengunggahnya (diunggah lewat Pengaturan → Profil rumah sakit; berkas RS nyata tidak disimpan di repo).
 
 ---
 
@@ -351,7 +358,7 @@ Tabel      : akses.menu, akses.peran, akses.izin, akses.peran_izin, akses.peran_
              akses.pengguna_izin_khusus (PRD 11.1); kolom akses.peran.wajib_mfa (boolean); inti.modul_aktif
 Pekerjaan  :
   1. Migrasi tabel di atas (UUIDv7, *_pada, tanpa SoftDeletes, pembatalan lewat status).
-  2. Seeder menu dari sidebar prototipe docs/html: grup Pelayanan / Pendapatan / Tata Kelola, semua menu dan
+  2. Seeder menu dari sidebar prototipe HTML (di luar repo): grup Pelayanan / Pendapatan / Tata Kelola, semua menu dan
      sub-menunya (kode Indonesia stabil, mis. igd.papan), fase dari PRD D.3. Modul aktif awal: beranda, data_induk.
   3. AccessEvaluator lapis 1 (menu/bagian), 2 (aksi), 3 (cakupan data) dengan rumus PRD 9.2.5:
      cabut per akun selalu menang; tanpa pemberian = ditolak. Cache per akun di Valkey cache, dihapus saat
@@ -383,7 +390,7 @@ Tujuan     : Setelah masuk, pengguna melihat kerangka aplikasi seperti prototipe
 FR         : PRD 5.2, 5.4 (AppShell, SidebarMenu, PermissionGate/v-can), 5.5 (responsif), 10.4, 9.2.5
 Kontrak    : docs/api/openapi.yaml → GET /api/v1/saya/menu. Sampai 1.2a merge, pakai data tiruan yang
              dibuat dari contoh di kontrak (MSW atau modul tiruan di mode dev/test saja).
-Acuan      : sidebar dan header di docs/html/home.html (wajib: grup, label, ikon, menu aktif, kartu RS, kolom
+Acuan      : sidebar dan header di prototipe `home.html` (di luar repo) (wajib: grup, label, ikon, menu aktif, kartu RS, kolom
              cari pasien sebagai placeholder nonaktif bertanda "segera"; dibuang: angka lencana palsu)
 Pekerjaan  :
   1. AppShell + SidebarMenu: dirender dari /saya/menu (TanStack Query, ETag); menu aktif mengikuti rute;
@@ -398,7 +405,7 @@ Uji penerimaan:
   - Unit: menu dari respons tiruan dirender per grup; item "segera" membuka SegeraHadirPage; v-can menyembunyikan.
   - e2e di 1440, 1024, 768, 390 px: sidebar sesuai kelas layar; tidak ada gulir horizontal halaman.
   - Setelah 1.2a merge: e2e ke backend asli dengan contoh.dokter (menu sesuai perannya).
-  - Tangkapan layar berdampingan dengan docs/html/home.html (sidebar dan header) di PR.
+  - Tangkapan layar berdampingan dengan prototipe `home.html` (di luar repo) (sidebar dan header) di PR.
 Di luar lingkup tiket: isi beranda/kotak kerja (1.7), pencarian pasien global (fase 2), halaman data induk (1.2c).
 ```
 
@@ -452,7 +459,7 @@ Di luar lingkup tiket: mengganti nama modul domain (Akses, Pendaftaran, dll.), i
 ## [SIMRS] Akses · 1.2c Paket halaman: Pengaturan → Peran & izin, Akun & akses
 
 Sumber kebenaran: PRD v0.10.9 (9.1, 9.2, 9.3 "Aturan layar…", 10.3.2), kontrak `docs/api/openapi.yaml` v0.2.0.
-Acuan visual: `docs/html/masterdata.html` bagian Hak akses dan Akun (bukan acuan data atau perilaku; PRD > prototipe).
+Acuan visual: prototipe `masterdata.html` (di luar repo) bagian Hak akses dan Akun (bukan acuan data atau perilaku; PRD > prototipe).
 
 **Letak menu (keputusan 17.2 #21):** sub-menu pindah dari Master Data ke Pengaturan Sistem, sesuai PRD 9.1.
 
@@ -554,7 +561,7 @@ Tujuan     : Superadmin mengelola peran dan akses akun dari layar yang aman dipa
 FR         : PRD 9.3 (aturan layar, MD-1…MD-4), 5.1 butir 9–17, 5.5, FR-09-08 (Lihat sebagai)
 Kontrak    : docs/api/openapi.yaml v0.2.0. Sampai 1.2c-be merge: data tiruan dibuat dari skema/contoh kontrak
              (mode dev/test saja), termasuk respons galat 403/409/412/422.
-Acuan      : docs/html/masterdata.html bagian Hak akses dan Akun + tabel "dipertahankan/diubah/dibuang" di paket 1.2c
+Acuan      : prototipe `masterdata.html` (di luar repo) bagian Hak akses dan Akun + tabel "dipertahankan/diubah/dibuang" di paket 1.2c
 Pekerjaan  :
   1. Komponen bersama NavigasiSubMenu (design-system): halaman induk modul (/pengaturan) menampilkan
      sub-menu dari /saya/menu sebagai kartu/tab; wajib karena sidebar 64 px tidak menampilkan sub-menu.
@@ -640,7 +647,7 @@ Di luar lingkup tiket: admin delegasi per unit (FR-09-07, fase 2), tinjauan akse
 Tujuan     : Setelah masuk, pengguna langsung tahu modul apa yang ia punya, bisa membukanya dalam satu klik atau
              lewat keyboard, dan melihat informasi keamanan akunnya. Modul yang belum dibangun membuka Segera hadir.
 FR         : PRD 5.1 butir 9–17, 5.4 (AppShell), 5.5 (Beranda wajib berfungsi di <768 px), 9.2.5, 10.4, FR-54-10
-Acuan      : docs/html/home.html. Dipertahankan: salam, kisi modul berkartu (ikon, nama, ringkasan sub-menu),
+Acuan      : prototipe `home.html` (di luar repo). Dipertahankan: salam, kisi modul berkartu (ikon, nama, ringkasan sub-menu),
              blok Kotak kerja, Pintasan, Ctrl K. Diubah: kisi modul hanya berisi menu milik akun (dari /saya/menu),
              bukan semua "modul peragaan". Dibuang: angka KPI/tugas tiruan, tombol "Peragaan · lihat sebagai",
              tautan anjungan/display/halaman masuk (bukan menu kerja).
@@ -1115,7 +1122,7 @@ Tujuan     : Semua kiriman ke BPJS/SATUSEHAT melewati satu gerbang yang tahan si
 FR         : PRD 10 (Integration Gateway + outbox), pola teknis wajib (adapter ExternalGateway, circuit breaker, retry
              eksponensial, idempotency key, outbox, log dengan masking, dasbor kesehatan, sandbox & mock),
              FR-49-01, 04, 05, 06, 07; FR-50-01 (baca saja), 03, 07, 08; 11.2 integrasi.*; keputusan K8, K9
-Rujukan    : docs/integrasi/catatan-lapangan-bridging.md (perilaku nyata dan jebakan; ikuti bagian "Selisih dengan PRD")
+Rujukan    : `/Users/ejake/Documents/SIMRS Tipe B/catatan-lapangan-bridging.md` (di luar repo) (perilaku nyata dan jebakan; ikuti bagian "Selisih dengan PRD")
 API (be)   : GET /integrasi/sistem (status per sistem: lingkungan, kredensial terisi, circuit breaker, queue, error
              terakhir), PUT /integrasi/sistem/{kode}/kredensial (tulis saja; respons hanya 4 karakter terakhir),
              POST /integrasi/sistem/{kode}/uji-koneksi, GET /integrasi/kotak-keluar (kursor; filter status/tujuan),

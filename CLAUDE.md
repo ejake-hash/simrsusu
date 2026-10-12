@@ -4,7 +4,8 @@
 1. **`docs/prd.md`** — kebutuhan, aturan bisnis, regulasi, database, hak akses, UI. Selalu dibaca lebih dulu untuk bagian yang dikerjakan.
 2. **File ini** — ringkasan konvensi yang paling sering dilanggar.
 3. **Skill di `.claude/skills/`** — pola teknis umum. Bila contoh di skill bertentangan dengan 1 atau 2, **ikuti 1 dan 2**. Empat skill pihak ketiga yang bentrok sudah diberi blok "Aturan proyek SIMRS" di bagian atasnya.
-4. **Prototipe `docs/html/`** — contoh tampilan dengan data fiktif. Bila berbeda dengan PRD, ikuti PRD dan laporkan selisihnya.
+4. **Prototipe HTML di luar repo** (`/Users/ejake/Documents/SIMRS Tipe B/html/`) — contoh tampilan. Bila berbeda dengan PRD, ikuti PRD dan laporkan selisihnya.
+   Catatan lapangan bridging BPJS/SATUSEHAT juga di luar repo: `/Users/ejake/Documents/SIMRS Tipe B/catatan-lapangan-bridging.md` (bukti perilaku, bukan dokumen resmi).
 
 ## Stack (tetap)
 - Backend: **PHP 8.3+** (CI memakai 8.4), **Laravel 12**, modular monolith di `backend/app/Modules/*` (PRD 10.3).
@@ -76,12 +77,24 @@ merge (bisa revert); proteksi cabang tidak aktif (GitHub Free), jadi aturan ini 
    cukup untuk sesi baru melanjutkan setelah konteks dibersihkan.
 6. **Sesi menganggur** meninjau PR sesi lain sebelum mengambil tiket baru.
 
+## Repo publik (keputusan pemilik, 12 Okt 2026)
+Repo ini **publik**. Dilarang menambah ke repo (termasuk PR, lampiran, fixture, seed, dan pesan commit):
+- **data RS nyata** (pasien, pegawai, nomor kartu/NIK/RM, kode PPK/faskes nyata, alamat, kontak);
+- **dokumen pihak ketiga** (dokumen RS, pedoman identitas, catatan lapangan aplikasi lain, katalog/spesifikasi BPJS atau
+  Kemenkes yang tidak boleh disebar ulang) — rujuk dengan jalur lokal di luar repo, jangan salin;
+- **rahasia** (kredensial, kunci, token, sandi); nilai uji sintetis di `phpunit.xml`/CI ditandai dan dilarang dipakai
+  di server;
+- **aset identitas RS** (logo, foto gedung, motif, nama RS sebagai identitas demo). Demo, e2e, dan tangkapan layar
+  memakai identitas fiktif "RS Contoh Pendidikan" (`docs/brand/contoh/`). Lampiran PR (branch `lampiran/*`) juga fiktif.
+Berkas yang pernah di-commit tetap ada di riwayat git; bila terlanjur, laporkan ke pemilik (jangan force-push sendiri).
+Lisensi: `LICENSE` (hak cipta, bukan open source). Celah keamanan: `SECURITY.md`.
+
 <!-- simrs-skills -->
 ## Konvensi wajib (ringkasan PRD)
 
 **Produk generik (PRD 3.4)**
 - Satu instalasi = satu RS (tidak multi-tenant). Beda antar-RS = data induk, aturan, atau `inti.modul_aktif`; **dilarang** cabang kode per RS (`if rs == ...`) atau fork per pelanggan.
-- Nama, logo, kop, dan warna merek dari `inti.profil_rs.paket_identitas`. Paket RS USU hanya contoh; jangan dipakai di demo publik.
+- Nama, logo, kop, dan warna merek dari `inti.profil_rs.paket_identitas`. Paket contoh untuk demo/e2e: fiktif "RS Contoh Pendidikan" (lihat "Repo publik").
 - Keputusan yang biasanya dari RS ada di PRD 17.2. Butir bertanda *perlu verifikasi* tidak boleh dikodekan keras.
 - Aturan UX 5.1 butir 9–17 adalah syarat terima komponen bersama (identitas 2 penanda, TTE hanya pemilik akun, aksi massal tidak menelan peringatan).
 

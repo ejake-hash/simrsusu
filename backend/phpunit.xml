@@ -24,6 +24,7 @@
         <env name="ARGON_MEMORY" value="1024"/>
         <env name="ARGON_TIME" value="1"/>
         <!-- TTE (tiket 1.6): kunci server sintetis khusus tes dan KDF minimum agar tes cepat. -->
+        <!-- PERINGATAN: TTD_KUNCI (dan KREDENSIAL_KUNCI) di sini nilai uji sintetis yang publik; DILARANG dipakai di server. -->
         <env name="TTD_KUNCI" value="base64:dGVzLXR0ZC1rdW5jaS1zZXJ2ZXItc2ludGV0aXMtMzI="/>
         <env name="TTD_KDF" value="minimum"/>
         <env name="SANCTUM_STATEFUL_DOMAINS" value="localhost:5173"/>

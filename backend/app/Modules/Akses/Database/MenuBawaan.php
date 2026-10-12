@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
- * Menu bawaan produk (PRD 9.1) dari sidebar prototipe docs/html: grup → menu → sub-menu. Nomor
+ * Menu bawaan produk (PRD 9.1) dari sidebar prototipe HTML (di luar repo): grup → menu → sub-menu. Nomor
  * modul dari 9.1 (status aktif mengikuti inti.modul_aktif), fase dari D.3 dan 16.
  *
  * Dipasang lewat migrasi dan aman diulang (dicocokkan per kode). Menambah menu atau menandai

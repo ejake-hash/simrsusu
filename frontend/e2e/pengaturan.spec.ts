@@ -272,7 +272,7 @@ test('1440 px: profil RS — kontras diuji sebelum simpan; nama dan logo baru ta
   await form.getByLabel('Dasar perubahan').fill('SK Direktur E2E/profil')
   await form.getByRole('button', { name: 'Simpan profil' }).click()
   await expect(form.getByText('Kontras warna belum cukup')).toBeVisible()
-  await form.getByRole('textbox', { name: 'Warna utama', exact: true }).fill('#006937')
+  await form.getByRole('textbox', { name: 'Warna utama', exact: true }).fill('#1F5C99')
   await expect(page.getByRole('img', { name: 'Pratinjau identitas' })).toBeVisible()
   await form.getByRole('button', { name: 'Simpan profil' }).click()
   await expect(page.getByText('Profil rumah sakit disimpan.')).toBeVisible()

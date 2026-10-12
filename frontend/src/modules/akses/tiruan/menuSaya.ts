@@ -2,7 +2,7 @@ import type { Menu, MenuSaya } from '../tipeMenu'
 
 /**
  * Data tiruan GET /api/v1/saya/menu: contoh di docs/api/openapi.yaml v0.2.x (beranda, igd + igd.papan,
- * pengaturan + peran/akun, izin) ditambah menu sidebar docs/html/home.html
+ * pengaturan + peran/akun, izin) ditambah menu sidebar prototipe home.html (di luar repo, CLAUDE.md)
  * agar kerangka bisa dibandingkan dengan prototipe. Fase dari PRD D.3 dan 16. Kode, rute, dan ikon
  * menu tambahan hanya perkiraan; yang berlaku adalah seeder menu 1.2a.
  * Dipakai unit test; tidak masuk build produksi. Menu yang dihitung dari peran ada di serverTiruan.ts.
