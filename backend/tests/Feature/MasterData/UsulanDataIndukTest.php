@@ -58,6 +58,12 @@ class UsulanDataIndukTest extends TestCase
         $this->data = $this->icu();
     }
 
+    public function test_sub_menu_usulan_tersedia(): void
+    {
+        // Layar dibangun di 1.8c-fe; menu yang tidak tersedia tampil sebagai Segera hadir.
+        $this->assertTrue((bool) DB::table('akses.menu')->where('kode', 'master_data.usulan')->value('tersedia'));
+    }
+
     public function test_icu_ditambah_tt_berlaku_besok_dengan_pemisahan_tugas_dan_penerapan_idempoten(): void
     {
         $besok = Carbon::parse(SuntinganBerversi::hariIni())->addDay()->toDateString();
