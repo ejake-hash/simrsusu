@@ -29,15 +29,22 @@ final class VerifikasiRantai extends Command
         }
 
         [$awal, $akhir] = $batas;
-        $putus = $rantai->barisPutusPertama($awal, $akhir);
-        if ($putus !== null) {
-            // Hanya penanda baris; isi baris tidak dicetak karena bisa memuat data pribadi.
-            $this->error("Rantai PUTUS pada urutan {$putus->urutan} (id {$putus->id}, terjadi_pada {$putus->terjadi_pada}).");
+        // Per jendela urutan: tiap jendela mengambil hash pendahulunya sendiri, jadi sambungan antarjendela ikut diperiksa.
+        $jendela = max(1, (int) config('audit.verifikasi_jendela'));
+        $jumlah = 0;
+        for ($a = $awal; $a <= $akhir; $a += $jendela) {
+            $b = min($akhir, $a + $jendela - 1);
+            $putus = $rantai->barisPutusPertama($a, $b);
+            if ($putus !== null) {
+                // Hanya penanda baris; isi baris tidak dicetak karena bisa memuat data pribadi.
+                $this->error("Rantai PUTUS pada urutan {$putus->urutan} (id {$putus->id}, terjadi_pada {$putus->terjadi_pada}).");
 
-            return self::FAILURE;
+                return self::FAILURE;
+            }
+            $jumlah += $rantai->jumlahBaris($a, $b);
         }
 
-        $this->info("Rantai utuh: {$rantai->jumlahBaris($awal, $akhir)} baris, urutan {$awal}–{$akhir}.");
+        $this->info("Rantai utuh: {$jumlah} baris, urutan {$awal}–{$akhir}.");
 
         return $this->periksaAnchor($rantai, $berkas, $batas, $sampai === null) ? self::SUCCESS : self::FAILURE;
     }

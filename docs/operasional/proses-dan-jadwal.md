@@ -207,9 +207,10 @@ dipilih RS (keputusan no. 7 di README). Yang bisa diperiksa dari repo:
 | Cadangan | Lihat [cadangan-pemulihan.md §3](cadangan-pemulihan.md#3-basis-data) | berkas harian ada dan tidak kosong |
 
 **Usulan** (tidak ada di kode; keputusan no. 5 di README): verifikasi rantai audit harian untuk hari kemarin lewat
-timer systemd. `audit:verifikasi-rantai` berjalan sebagai `simrs_app` dengan `statement_timeout` 5 detik; verifikasi
-seluruh tabel akan melewati batas itu saat tabel besar, jadi pakai rentang satu hari. Waktu yang dibutuhkan untuk
-satu hari data RS belum diukur.
+timer systemd. `audit:verifikasi-rantai` berjalan sebagai `simrs_app`; sejak 1.12 rantai diperiksa per jendela
+`AUDIT_VERIFIKASI_JENDELA` (bawaan 50.000 baris) sehingga tiap query di bawah `statement_timeout` 5 detik. Uji lokal:
+702.714 baris dalam 18 detik ([hasil-uji-beban.md](hasil-uji-beban.md)). Harian cukup rentang hari kemarin; verifikasi
+penuh berkala (mis. bulanan) juga aman.
 
 `/etc/systemd/system/karsitara-verifikasi-audit.service`:
 

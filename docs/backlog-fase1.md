@@ -288,8 +288,15 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   - `BerkasAnchor` tidak memeriksa hasil tulis: disk `local` `'throw' => false`, sehingga `audit:ekspor-anchor` sukses walau
     mount anchor terlepas (berkas jatuh ke disk server aplikasi). `append` menulis ulang berkas bulan berjalan utuh tiap
     jam, jadi WORM/append-only tidak bisa dipasang pada berkas itu.
-  - `audit:verifikasi-rantai` berjalan sebagai `simrs_app` dengan batas 5 detik; perlu `SET LOCAL statement_timeout`
-    sendiri sebelum tabel audit besar. Verifikasi berkala belum dijadwalkan (runbook mengusulkan timer harian).
+  - ~~`audit:verifikasi-rantai` kena batas 5 detik~~ **selesai 1.12**: per jendela `AUDIT_VERIFIKASI_JENDELA` (702 ribu baris
+    utuh dalam 18 detik). Verifikasi berkala belum dijadwalkan di kode (runbook mengusulkan timer harian).
+  - Setiap permintaan PHP membuka koneksi TCP baru ke PostgreSQL dan Valkey (tanpa persisten/PgBouncer); uji beban lokal
+    jenuh ±125 permintaan/detik per 8 pekerja dan error `Can't assign requested address` di atasnya. Produksi wajib
+    PgBouncer (PRD 14.1.1 butir 8); timbang `REDIS_PERSISTENT`/phpredis. `DB_CONNECT_TIMEOUT` (5 detik) sudah ditambah 1.12.
+  - Temuan ASVS Sedang/Rendah (S-1…S-6, R-1…R-20) di `docs/keamanan/asvs-fase1.md` §3, termasuk batas umur sesi mutlak
+    dan notifikasi peristiwa keamanan (perlu keputusan pemilik untuk angka). Dari tinjauan #86: pemegang izin
+    `pengaturan.akun/peran` bercakupan unit masih melihat sub-menunya di sidebar (semua endpoint 403); tugas permintaan
+    akses dikirim ke semua pemegang `pengaturan.akun.perbaiki` tanpa melihat cakupan.
   - `queue:prune-failed` dan `horizon:snapshot` belum dijadwalkan; `config/database.php` belum punya `sslrootcert` untuk
     `DB_SSLMODE=verify-full`.
   - Sesudah pemulihan yang kehilangan data: kiriman integrasi yang sudah terkirim bisa kembali `menunggu` (kirim ganda),

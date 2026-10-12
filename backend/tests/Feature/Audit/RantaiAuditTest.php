@@ -75,6 +75,19 @@ class RantaiAuditTest extends TestCase
             ->assertFailed();
     }
 
+    public function test_verifikasi_per_jendela_tetap_memeriksa_sambungan_antarjendela(): void
+    {
+        config(['audit.verifikasi_jendela' => 2]);
+        $urutan = $this->tulisTerkomit(7);
+        $this->artisan('audit:verifikasi-rantai')->expectsOutputToContain('Rantai utuh: 7 baris')->assertSuccessful();
+
+        // Baris pertama jendela ketiga dihapus: putusnya terlihat di baris sesudahnya, di jendela itu juga.
+        $this->superuser()->delete('DELETE FROM audit.log_aktivitas WHERE urutan = ?', [$urutan[4]]);
+        $this->artisan('audit:verifikasi-rantai')
+            ->expectsOutputToContain("Rantai PUTUS pada urutan {$urutan[5]}")
+            ->assertFailed();
+    }
+
     public function test_hapus_baris_ekor_hanya_terdeteksi_lewat_anchor(): void
     {
         $urutan = $this->tulisTerkomit(4);
