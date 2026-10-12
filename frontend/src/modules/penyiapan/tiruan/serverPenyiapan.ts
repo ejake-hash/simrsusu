@@ -129,8 +129,9 @@ export function buatServerPenyiapan(opsi: OpsiServerPenyiapan) {
     const idempoten = sama !== undefined
     const hasil: HasilMuatReferensi = {
       sistem, versi, mode, diterapkan: false, jumlah_baris: data.length, jumlah_salah: kesalahan.length,
-      jumlah_baru: idempoten ? 0 : Math.max(data.length - sebelumnya, 0), jumlah_diubah: 0,
-      jumlah_dinonaktifkan: idempoten ? 0 : Math.max(sebelumnya - data.length, 0), jumlah_diaktifkan_lagi: 0,
+      // Ada baris salah → ringkasan perubahan 0 (sama dengan backend).
+      jumlah_baru: idempoten || kesalahan.length ? 0 : Math.max(data.length - sebelumnya, 0), jumlah_diubah: 0,
+      jumlah_dinonaktifkan: idempoten || kesalahan.length ? 0 : Math.max(sebelumnya - data.length, 0), jumlah_diaktifkan_lagi: 0,
       kesalahan: kesalahan.slice(0, 500), kesalahan_terpotong: kesalahan.length > 500,
     }
     if (mode === 'pratinjau') return ok({ data: hasil })

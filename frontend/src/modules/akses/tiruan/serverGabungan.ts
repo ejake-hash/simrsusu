@@ -1,5 +1,6 @@
 import { buatServerNotifikasi } from '../../notifikasi/tiruan/serverNotifikasi'
 import { buatServerLokasi } from '../../organisasi/tiruan/serverLokasi'
+import { buatServerIntegrasi } from '../../integrasi/tiruan/serverIntegrasi'
 import { buatServerOrganisasi } from '../../organisasi/tiruan/serverOrganisasi'
 import { buatServerPenyiapan } from '../../penyiapan/tiruan/serverPenyiapan'
 import { buatServerSdm } from '../../sdm/tiruan/serverSdm'
@@ -31,6 +32,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     akses.tambahPenugasanDev('contoh_data_induk')
     akses.tambahPenugasanDev('contoh_sdm')
     akses.tambahPenugasanDev('penyiap_instalasi')
+    akses.tambahPenugasanDev('contoh_integrasi')
   }
   unitMilikSaya = akses.unitMilikSaya
   const lokasi = buatServerLokasi({ unit: organisasi.ringkasUnit, unitContoh: organisasi.akar.irna, sekarang: opsi.sekarang })
@@ -70,6 +72,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     sekarang: opsi.sekarang,
   })
   const penyiapan = buatServerPenyiapan({ boleh: akses.bolehSaya, pelaku: () => ({ id: opsi.penggunaId ?? ID_SUPERADMIN, nama: 'Contoh Superadmin' }), sekarang: opsi.sekarang })
+  const integrasi = buatServerIntegrasi({ boleh: akses.bolehSaya, pelaku: () => ({ id: opsi.penggunaId ?? ID_SUPERADMIN, nama: 'Contoh Superadmin' }), sekarang: opsi.sekarang })
   // TtdSintetisSeeder: superadmin kedua (penyetuju kontrol ganda) sudah punya TTE aktif.
   ttd.aktifkan(ID_SUPERADMIN_DUA)
   statusTtd = ttd.status
@@ -95,11 +98,12 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     ttd,
     usulan,
     penyiapan,
+    integrasi,
     tangani: (r: PermintaanTiruan): ResponsTiruan | Promise<ResponsTiruan> | null => {
       if (akses.wajibGantiSandi() && !bebasGantiSandi(r)) {
         return { status: 403, isi: { error: { kode: 'wajib_ganti_sandi', pesan: 'Ganti sandi awal Anda lebih dulu.', rincian: [] } } }
       }
-      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r)
+      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r)
     },
   }
 }

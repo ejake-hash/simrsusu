@@ -167,6 +167,12 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   ])
   // Penyiap instalasi (1.8f, MenuBawaan::PERAN_PENYIAP): konfirmasi langkah + muat paket referensi (katalog.input).
   tambahPeran(uid(112), 'penyiap_instalasi', 'Penyiap instalasi', ['pengaturan.penyiapan.lihat', 'pengaturan.penyiapan.perbaiki', 'master_data.katalog.lihat', 'master_data.katalog.input'])
+  // Pengelola integrasi (1.9): konfigurasi + pemantauan kotak keluar per tujuan + log.
+  tambahPeran(uid(113), 'contoh_integrasi', 'Contoh Pengelola Integrasi', [
+    // Sama dengan seeder contoh.integrasi: lihat + perbaiki (tanpa input).
+    ...['pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs'].flatMap((s) => ['lihat', 'perbaiki'].map((a) => `${s}.${a}`)),
+    'integrasi.log.lihat',
+  ])
   // Pengelola data pegawai (1.8d); bagian identitas (NIK utuh) tidak ikut, diberikan tersendiri lewat persetujuan.
   tambahPeran(uid(109), 'contoh_sdm', 'Contoh Admin SDM', [
     ...['pegawai', 'kredensial'].flatMap((s) => ['lihat', 'input', 'perbaiki'].map((a) => `sdm.${s}.${a}`)),

@@ -56,8 +56,9 @@ function pilihBerkas(e: Event) {
   kesalahanTerapkan.value = []
   kesalahanIsian.value = { ...kesalahanIsian.value, berkas: f && f.size > BATAS_BYTE ? PESAN_BESAR : undefined }
 }
-/** Isian berubah sesudah pratinjau: pratinjau harus diulang sebelum terapkan. */
+/** Isian berubah sesudah pratinjau: pratinjau harus diulang sebelum terapkan; error versi lama tidak berlaku lagi. */
 watch([versi, sumber, lisensi], () => (hasil.value = null))
+watch(versi, () => (kesalahanIsian.value = { ...kesalahanIsian.value, versi: undefined }))
 
 async function jalankan(mode: 'pratinjau' | 'terapkan') {
   const e: typeof kesalahanIsian.value = {}
@@ -88,7 +89,8 @@ async function jalankan(mode: 'pratinjau' | 'terapkan') {
       kesalahanIsian.value = { versi: 'Versi ini sudah pernah dimuat. Pakai nomor versi lain.' }
       hasil.value = null
     } else if (err instanceof ApiError && err.kode === 'berkas_tidak_valid') {
-      kesalahanIsian.value = { berkas: [err.message, err.rincian[0]?.pesan].filter(Boolean).join(' ') }
+      // Backend bisa mengisi rincian[0].pesan sama dengan pesan utama: tampilkan sekali.
+      kesalahanIsian.value = { berkas: [...new Set([err.message, err.rincian[0]?.pesan].filter(Boolean))].join(' ') }
     } else if (err instanceof ApiError && err.kode === 'validasi_gagal' && err.rincian.length) {
       kesalahanIsian.value = Object.fromEntries(err.rincian.map((r) => [String(r.kolom), String(r.pesan)]))
     } else if (err instanceof ApiError && err.status === 413) {
