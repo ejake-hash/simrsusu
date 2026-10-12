@@ -70,10 +70,13 @@ final class PengirimKiriman
         }
         try {
             $nilai = (array) $this->kredensial->nilai($kiriman->tujuan, $aktif);
-        } catch (ApiError $e) {
-            // Kunci kredensial belum/tidak dikonfigurasi: bukan gangguan sistem luar; dicoba lagi nanti tanpa menambah percobaan.
-            $this->sirkuit->catatError($kiriman->tujuan, $e->getMessage());
-            $this->simpan($baris, ['coba_lagi_pada' => now()->addMinutes(5), 'error_terakhir' => $e->getMessage()]);
+        } catch (Throwable $e) {
+            // Kunci kredensial belum dikonfigurasi atau tidak cocok (rotasi belum lengkap): bukan gangguan sistem luar;
+            // dicoba lagi nanti tanpa menambah percobaan. Pesan selain ApiError tidak disimpan.
+            $pesan = $e instanceof ApiError ? $e->getMessage() : 'Kredensial tidak bisa dibuka; periksa KREDENSIAL_KUNCI/KREDENSIAL_KUNCI_LAMA.';
+            $this->sirkuit->lepasJatah($kiriman->tujuan);
+            $this->sirkuit->catatError($kiriman->tujuan, $pesan);
+            $this->simpan($baris, ['coba_lagi_pada' => now()->addMinutes(5), 'error_terakhir' => $pesan]);
 
             return;
         }
