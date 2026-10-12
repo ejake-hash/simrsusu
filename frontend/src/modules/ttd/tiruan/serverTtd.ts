@@ -167,7 +167,8 @@ export function buatServerTtd(opsi: OpsiServerTtd) {
       const salah = daftar.flatMap((o, i) => {
         const p = o.jenis === 'persetujuan_akses' ? opsi.persetujuan(o.id) : null
         if (!p) return [{ kolom: `objek.${i}`, kode: 'tidak_ditemukan', pesan: 'Objek tidak ada atau tidak boleh Anda lihat.' }]
-        if (p.status === 'menunggu') return [{ kolom: `objek.${i}`, kode: 'belum_diputuskan', pesan: `${p.nomor} belum diputuskan.` }]
+        // Seperti backend: hanya keputusan disetujui/ditolak (bukan menunggu, ditarik, atau kedaluwarsa).
+        if (p.status !== 'disetujui' && p.status !== 'ditolak') return [{ kolom: `objek.${i}`, kode: 'belum_diputuskan', pesan: `${p.nomor} belum diputuskan.` }]
         if (p.diputuskanOleh !== saya) return [{ kolom: `objek.${i}`, kode: 'bukan_pemutus', pesan: `${p.nomor} hanya ditandatangani pemutusnya.` }]
         return []
       })

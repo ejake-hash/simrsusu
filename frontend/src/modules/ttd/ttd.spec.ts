@@ -146,6 +146,19 @@ describe('Tanda tangan keputusan persetujuan', () => {
     expect(document.body.textContent).toMatch(/Isi berubah sesudah ditandatangani Contoh Superadmin Kedua/)
   })
 
+  it('pengajuan yang ditarik pengajunya: tidak ada tombol tanda tangan (diputuskan_oleh terisi, tetapi bukan keputusan)', async () => {
+    const awal = minta('GET', `/peran/${KASIR}`)
+    const izin = [...(awal.isi as { data: { izin: string[] } }).data.izin, 'pengaturan.akun.lihat', 'pengaturan.akun.input']
+    const r = minta('PUT', `/peran/${KASIR}/izin`, { izin, dasar_perubahan: 'SK 4/2026' }, { 'if-match': awal.header!.ETag! })
+    const p = (r.isi as { perubahan: { menunggu_persetujuan: PersetujuanAkses[] } }).perubahan.menunggu_persetujuan[0]!
+    server.ttd.aktifkan(ID_SUPERADMIN)
+    masukSebagai(ID_SUPERADMIN, 'contoh.superadmin', 'Contoh Superadmin')
+    expect(minta('POST', `/persetujuan-akses/${p.id}/batalkan`, { alasan: 'Salah peran (sintetis)' }).status).toBe(200)
+    await pasang(RincianPersetujuan, { id: p.id })
+    expect(document.querySelector('section[aria-labelledby="judul-ttd-persetujuan"]')).toBeTruthy()
+    expect(tombol('Tandatangani keputusan')).toBeUndefined()
+  })
+
   it('bukan pemutus: tidak ada tombol tanda tangan, tetapi status verifikasi tetap terlihat', async () => {
     const p = persetujuanDiputuskanDua()
     masukSebagai(ID_SUPERADMIN, 'contoh.superadmin', 'Contoh Superadmin')
@@ -179,7 +192,16 @@ describe('TtdModal', () => {
     await tenang()
     expect(dialog()?.textContent).toContain('2 dokumen, masing-masing ditandatangani dan tercatat terpisah')
     expect(dialog()?.textContent).toContain('Masih menunggu keputusan.')
-    await centang()
+    ;(dialog()!.querySelector('label.centang input') as HTMLInputElement).click()
+    await tenang()
+    await isi('PIN tanda tangan', PIN_TIRUAN)
+    // Butir berperingatan wajib dikonfirmasi sendiri (PRD 5.1 butir 12): centang massal tidak menelannya.
+    const sebelum = permintaan.filter((x) => x.jalur === '/ttd/tandatangani').length
+    await klik(tombol('Tanda tangani 2 dokumen'))
+    expect(dialog()?.textContent).toContain('Centang konfirmasi peringatan butir ini.')
+    expect(permintaan.filter((x) => x.jalur === '/ttd/tandatangani').length).toBe(sebelum)
+    ;(dialog()!.querySelector('label.konfirmasi input') as HTMLInputElement).click()
+    await tenang()
     await isi('PIN tanda tangan', PIN_TIRUAN)
     await klik(tombol('Tanda tangani 2 dokumen'))
     expect(dialog()?.querySelectorAll('.error-objek')).toHaveLength(1)

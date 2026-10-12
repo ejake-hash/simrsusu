@@ -54,7 +54,8 @@ const LABEL_JENIS: Record<PersetujuanAkses['jenis'], string> = {
 
 // ── Tanda tangan keputusan (1.6) ──
 const tandaTangan = ref<TandaTangan[]>([])
-const sayaPemutus = computed(() => !!p.value?.diputuskan_oleh && p.value.diputuskan_oleh.id === sesi.pengguna?.id)
+/** Hanya keputusan sungguhan (disetujui/ditolak) yang ditandatangani; pengajuan ditarik juga mengisi diputuskan_oleh. */
+const sayaPemutus = computed(() => !!p.value && ['disetujui', 'ditolak'].includes(p.value.status) && p.value.diputuskan_oleh?.id === sesi.pengguna?.id)
 const sudahSaya = computed(() => tandaTangan.value.some((t) => t.penanda_tangan.id === sesi.pengguna?.id && t.verifikasi.status === 'sah'))
 const ttdAktif = computed(() => sesi.pengguna?.ttd?.aktif ?? false)
 const dialogTtd = ref(false)

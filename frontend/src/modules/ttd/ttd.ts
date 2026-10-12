@@ -30,6 +30,7 @@ export function useTandaTangan() {
         hasil = await tandatangani(objek, pin, pernyataan)
       } catch (e) {
         // Terkunci: status di store ikut diperbarui (halaman TTE, kartu keamanan) sebelum galat ditafsirkan modal.
+        if (e instanceof ApiError && e.kode === 'pin_wajib') perbaruiStatusTtd({ sesi_berlaku_sampai: null })
         if (e instanceof ApiError && e.kode === 'ttd_terkunci') {
           perbaruiStatusTtd({ terkunci_sampai: new Date(Date.now() + (e.cobaLagiDetik ?? 900) * 1000).toISOString(), sesi_berlaku_sampai: null })
         }

@@ -10,7 +10,7 @@ import { formatSisaWaktu, formatTanggalWaktu } from '@/shared/utils/waktu'
 /**
  * Modal tanda tangan elektronik T1 (PRD 7.57.2, aturan UX 5.1: TTE hanya pemilik akun; aksi massal tidak menelan
  * peringatan). Menampilkan ringkasan setiap objek (beserta peringatannya), identitas penanda tangan = akun yang
- * sedang masuk, kalimat persetujuan yang wajib dicentang, dan PIN (tidak diminta selama sesi tanda tangan berlaku;
+ * sedang masuk, kalimat persetujuan yang wajib dicentang (butir berperingatan juga dikonfirmasi satu per satu), dan PIN (tidak diminta selama sesi tanda tangan berlaku;
  * bila server menjawab `pin_wajib`, kolom PIN muncul). Isi yang ditandatangani dihitung server, bukan dikirim klien.
  * Penanda tangan yang diminta ≠ akun yang masuk → mode "minta tanda tangan": tidak bisa menandatangani.
  * `tandatangani(pin)` dipanggil pemanggil dan melempar ApiError kontrak; modal yang menafsirkannya. PIN tidak
@@ -52,6 +52,8 @@ const perluPin = ref(true)
 const errorPin = ref<string | null>(null)
 const errorSetuju = ref<string | null>(null)
 const errorObjek = ref<Record<number, string>>({})
+/** PRD 5.1 butir 12: butir berperingatan dikonfirmasi satu per satu, tidak ikut tertelan centang massal. */
+const konfirmasiPeringatan = ref<Record<number, boolean>>({})
 const error = ref<string | null>(null)
 const belumAktif = ref(false)
 const terkunciSampai = ref<number | null>(null)
@@ -74,6 +76,7 @@ watch(buka, (b) => {
   errorPin.value = null
   errorSetuju.value = null
   errorObjek.value = {}
+  konfirmasiPeringatan.value = {}
   error.value = null
   belumAktif.value = false
   terkunciSampai.value = null
@@ -86,7 +89,9 @@ async function kirim() {
   if (sibuk.value || terkunci.value) return
   errorSetuju.value = setuju.value ? null : 'Centang pernyataan untuk menandatangani.'
   errorPin.value = perluPin.value && !/^[0-9]{6}$/.test(pin.value) ? 'Masukkan PIN 6 angka.' : null
-  if (errorSetuju.value || errorPin.value) return
+  const belumDikonfirmasi = props.objek.flatMap((o, i) => (o.peringatan && !konfirmasiPeringatan.value[i] ? [i] : []))
+  errorObjek.value = Object.fromEntries(belumDikonfirmasi.map((i) => [i, 'Centang konfirmasi peringatan butir ini.']))
+  if (errorSetuju.value || errorPin.value || belumDikonfirmasi.length) return
   sibuk.value = true
   error.value = null
   errorObjek.value = {}
@@ -168,6 +173,10 @@ const judul = computed(() => (lain.value ? 'Minta tanda tangan' : 'Tanda tangan 
             <b>{{ o.judul }}</b>
             <span v-if="o.ringkasan" class="ringkasan">{{ o.ringkasan }}</span>
             <span v-if="o.peringatan" class="peringatan"><Ikon nama="peringatan" :ukuran="14" />{{ o.peringatan }}</span>
+            <label v-if="o.peringatan && !lain" class="konfirmasi">
+              <input v-model="konfirmasiPeringatan[i]" type="checkbox" />
+              <span>Saya sudah membaca peringatan {{ o.judul }} dan tetap menandatanganinya.</span>
+            </label>
             <span v-if="errorObjek[i]" class="error-objek" role="alert"><Ikon nama="peringatan" :ukuran="14" />{{ errorObjek[i] }}</span>
           </li>
         </ol>
@@ -272,6 +281,22 @@ const judul = computed(() => (lain.value ? 'Minta tanda tangan' : 'Tanda tangan 
 }
 .peringatan {
   color: var(--warn);
+}
+.konfirmasi {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.konfirmasi input {
+  margin-top: 2px;
+}
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  .konfirmasi {
+    min-height: 44px;
+    align-items: center;
+  }
 }
 .error-objek {
   color: var(--danger);

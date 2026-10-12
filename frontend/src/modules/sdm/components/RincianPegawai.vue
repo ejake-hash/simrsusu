@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useSesiStore } from '@/app/sesi'
 import { tampilkanToast } from '@/design-system/components/toast'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import { pesanError } from '@/modules/akses/pengaturan'
@@ -38,6 +39,7 @@ import DialogPegawai from './DialogPegawai.vue'
 const props = defineProps<{ pegawaiId: string }>()
 const emit = defineEmits<{ tutup: []; berubah: [] }>()
 const qc = useQueryClient()
+const sesi = useSesiStore()
 
 const kueri = useQuery({ queryKey: computed(() => KUNCI_SDM.rinciPegawai(props.pegawaiId)), queryFn: () => ambilPegawai(props.pegawaiId) })
 const p = computed(() => kueri.data.value?.data ?? null)
@@ -231,7 +233,7 @@ const tgl = (t: string | null) => (t ? formatTanggal(`${t}T00:00:00`) : null)
             <code>{{ p.akun.nama_pengguna }}</code>
             <span class="pil" :class="p.akun.status === 'aktif' ? 'pil-ok' : 'pil-netral'">{{ p.akun.status === 'aktif' ? 'Aktif' : 'Nonaktif' }}</span>
             <RouterLink class="tombol" :to="{ path: '/pengaturan/akun', query: { akun: p.akun.id } }">Buka di Akun & akses</RouterLink>
-            <button v-if="boleh('sdm.kredensial.perbaiki')" type="button" class="tombol" @click="dialogResetTtd = true">Ajukan reset TTE</button>
+            <button v-if="boleh('sdm.kredensial.perbaiki') && p.akun.id !== sesi.pengguna?.id" type="button" class="tombol" @click="dialogResetTtd = true">Ajukan reset TTE</button>
           </p>
           <p v-else-if="p.punya_akun" class="ket">Pegawai ini sudah punya akun.</p>
           <p v-else class="ket">{{ p.status === 'keluar' ? 'Pegawai sudah keluar; akun tidak dapat dibuat.' : 'Belum punya akun.' }}</p>

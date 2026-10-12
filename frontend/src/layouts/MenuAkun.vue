@@ -34,7 +34,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', klikLuar))
 </script>
 
 <template>
-  <div class="menu-akun" @keydown.esc.stop="buka && tutup()">
+  <div class="menu-akun" @keydown.esc="(e: KeyboardEvent) => { if (buka) { e.stopPropagation(); tutup() } }">
     <button ref="tombol" type="button" class="tombol-ikon" aria-label="Menu akun" title="Menu akun" :aria-expanded="buka" :aria-controls="id" @click="alihkan">
       <Ikon nama="pengguna" />
     </button>
@@ -102,6 +102,12 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', klikLuar))
 @media (min-width: 768px) and (max-width: 1279.98px) {
   .panel a {
     min-height: 44px;
+  }
+}
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  .tombol-ikon {
+    width: 44px;
+    height: 44px;
   }
 }
 </style>
