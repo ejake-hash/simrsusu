@@ -103,7 +103,7 @@ export function buatServerUsulan(opsi: OpsiServerUsulan) {
         setujui: u.tahap === 'diverifikasi' && saya !== u.pengusul && saya !== u.pemverifikasi && opsi.boleh('master_data.usulan.setujui'),
         kembalikan: saya !== u.pengusul && ((u.tahap === 'diusulkan' && opsi.boleh('master_data.usulan.verifikasi')) || (u.tahap === 'diverifikasi' && saya !== u.pemverifikasi && opsi.boleh('master_data.usulan.setujui'))),
         kirim_ulang: u.tahap === 'dikembalikan' && saya === u.pengusul && opsi.boleh('master_data.usulan.input'),
-        tandatangani: pihak.includes(saya) && u.tahap !== 'dikembalikan' && !(opsi.sudahTtd?.(u.id, saya) ?? false),
+        tandatangani: pihak.includes(saya) && !(opsi.sudahTtd?.(u.id, saya) ?? false),
       },
     }
   }

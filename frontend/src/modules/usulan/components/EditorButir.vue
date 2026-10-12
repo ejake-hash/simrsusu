@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { pesanError } from '@/modules/akses/pengaturan'
-import { ambilKamar, ambilTempatTidur, semuaBangsalAktif, semuaKelasRawatAktif } from '@/modules/organisasi/apiLokasi'
+import { ambilKamar, ambilLokasi, ambilTempatTidur, semuaBangsalAktif, semuaKelasRawatAktif } from '@/modules/organisasi/apiLokasi'
 import PemilihLokasi from '@/modules/organisasi/components/PemilihLokasi.vue'
 import PemilihUnit from '@/modules/organisasi/components/PemilihUnit.vue'
 import { DAFTAR_FUNGSI, KUNCI_LOKASI, LABEL_JENIS_KELAMIN, LABEL_STATUS_LOKASI } from '@/modules/organisasi/lokasi'
@@ -37,7 +37,10 @@ const aksi = computed(() => (kunci.value ? (kunci.value.split('.')[1] as AksiUsu
 const kelas = useQuery({ queryKey: KUNCI_LOKASI.kelasAktif, queryFn: semuaKelasRawatAktif, enabled: computed(() => jenisObjek.value === 'tempat_tidur' && aksi.value !== 'tutup'), staleTime: 60_000 })
 const bangsal = useQuery({ queryKey: KUNCI_LOKASI.bangsalAktif, queryFn: semuaBangsalAktif, enabled: computed(() => jenisObjek.value === 'kamar'), staleTime: 60_000 })
 
-/** Prefill dari butir lama (kirim ulang). */
+/**
+ * Prefill dari butir lama (kirim ulang). `nilai_lama`/`nilai_baru` hanya memuat isian yang diubah, jadi untuk ubah nilai
+ * saat ini dimuat ulang dari 1.8b (isian lain tampil sesuai data induk sekarang) lalu ditimpa `nilai_baru`.
+ */
 watch(
   () => props.awal,
   (b) => {
@@ -52,6 +55,7 @@ watch(
     if (b.aksi === 'tambah' && b.objek_jenis === 'kamar') labelLokasi.value = t('lokasi_id')
     if (b.objek_jenis === 'ruang' && b.aksi === 'tambah') labelLokasi.value = t('induk_id')
     labelUnit.value = t('unit_organisasi_id')
+    if (b.aksi === 'ubah' && b.objek_id) void muat(b.objek_jenis, b.objek_id, null, b)
   },
   { immediate: true },
 )
@@ -71,29 +75,41 @@ async function pilihObjek(l: Lokasi | null) {
   objekId.value = null
   sekarang.value = {}
   if (!l || !jenisObjek.value) return
+  const id = jenisObjek.value === 'tempat_tidur' ? l.tempat_tidur_id : jenisObjek.value === 'kamar' ? l.kamar_id : l.id
+  if (!id) {
+    galatMuat.value = jenisObjek.value === 'tempat_tidur' ? 'Lokasi ini bukan tempat tidur.' : 'Ruang ini belum menjadi kamar rawat.'
+    return
+  }
+  await muat(jenisObjek.value, id, l)
+}
+/**
+ * Muat nilai saat ini objek dari 1.8b ke `sekarang`; untuk ubah, `nilai` mulai dari nilai saat ini (ditimpa `nilai_baru`
+ * butir lama saat kirim ulang). `l` = lokasi terpilih (label kamar dan data ruang tanpa permintaan tambahan).
+ */
+async function muat(jenis: ObjekDataInduk, id: string, l: Lokasi | null, awal: ButirUsulan | null = null) {
+  galatMuat.value = null
   memuat.value = true
   try {
-    if (jenisObjek.value === 'tempat_tidur') {
-      if (!l.tempat_tidur_id) throw new Error('Lokasi ini bukan tempat tidur.')
-      const t = (await ambilTempatTidur(l.tempat_tidur_id)).data
+    if (jenis === 'tempat_tidur') {
+      const t = (await ambilTempatTidur(id)).data
       objekId.value = t.id
       labelObjek.value = `TT ${t.kode}`
       sekarang.value = { kelas_rawat_id: t.kelas_rawat.id, aturan_jenis_kelamin: t.aturan_jenis_kelamin, isolasi: t.isolasi, ekstra: t.ekstra }
-    } else if (jenisObjek.value === 'kamar') {
-      if (!l.kamar_id) throw new Error('Ruang ini belum menjadi kamar rawat.')
-      const k = (await ambilKamar(l.kamar_id)).data
+    } else if (jenis === 'kamar') {
+      const k = (await ambilKamar(id)).data
       objekId.value = k.id
-      labelObjek.value = `Kamar ${l.kode_lengkap}`
+      if (l) labelObjek.value = `Kamar ${l.kode_lengkap}`
       sekarang.value = { bangsal_id: k.bangsal.id, kapasitas_maksimum: k.kapasitas_maksimum }
     } else {
-      objekId.value = l.id
-      labelObjek.value = `${l.kode_lengkap} · ${l.nama}`
-      sekarang.value = { nama: l.nama, fungsi: l.fungsi, unit_organisasi_id: l.unit?.id ?? null, status: l.status }
-      labelUnit.value = l.unit ? `${l.unit.kode} · ${l.unit.nama}` : null
+      const r = l ?? (await ambilLokasi(id)).data
+      objekId.value = r.id
+      labelObjek.value = `${r.kode_lengkap} · ${r.nama}`
+      sekarang.value = { nama: r.nama, fungsi: r.fungsi, unit_organisasi_id: r.unit?.id ?? null, status: r.status }
+      if (!awal || !('unit_organisasi_id' in awal.nilai_baru)) labelUnit.value = r.unit ? `${r.unit.kode} · ${r.unit.nama}` : null
     }
-    if (aksi.value === 'ubah') nilai.value = { ...sekarang.value }
+    if (aksi.value === 'ubah') nilai.value = { ...sekarang.value, ...(awal?.nilai_baru ?? {}) }
   } catch (e) {
-    galatMuat.value = e instanceof Error && !('status' in e) ? e.message : pesanError(e)
+    galatMuat.value = pesanError(e)
   } finally {
     memuat.value = false
   }

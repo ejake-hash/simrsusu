@@ -59,6 +59,7 @@ function hapus(i: number) {
 }
 
 async function kirim() {
+  error.value = null
   const e: Record<string, string> = {}
   if (!berlaku.value) e.berlaku_dari = 'Pilih tanggal berlaku.'
   else if (berlaku.value < hariIni()) e.berlaku_dari = 'Tidak boleh sebelum hari ini.'

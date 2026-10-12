@@ -123,7 +123,7 @@ const handlerTtd = computed(() =>
               <b>{{ LABEL_AKSI_BUTIR[`${b.objek_jenis}.${b.aksi}`] ?? `${b.aksi} ${b.objek_jenis}` }}</b>
               <span>{{ b.objek_label }}</span>
             </div>
-            <p v-if="b.objek_berubah" class="peringatan" role="alert"><Ikon nama="peringatan" :ukuran="14" />Objek ini berubah sejak diusulkan; penerapan akan gagal. Kembalikan untuk diperbarui.</p>
+            <p v-if="b.objek_berubah" class="peringatan"><Ikon nama="peringatan" :ukuran="14" />Objek ini berubah sejak diusulkan; penerapan akan gagal. Kembalikan untuk diperbarui.</p>
             <table class="diff">
               <caption class="sr-only">Perbedaan {{ b.objek_label }}</caption>
               <thead>

@@ -152,6 +152,9 @@ describe('Rincian dan tindakan', () => {
     const d = dialog()!
     expect(d.querySelector('h2')?.textContent).toBe(`Perbaiki dan kirim ulang ${u.nomor}`)
     expect(isian('Nama ruang', d).value).toBe('Ruang Melati 102 (renovasi)')
+    // Isian yang tidak diubah memakai nilai data induk saat ini (dimuat ulang dari 1.8b), bukan kosong/bawaan.
+    expect(isian('Fungsi', d).value).toBe('rawat_inap')
+    expect(isian('Status', d).value).toBe('aktif')
     await isi('Nama ruang', 'Ruang Melati 102 (renovasi tahap 1)', d)
     await isi('Dasar', 'Memo IPSRS 12/2026', d)
     await klik(document.querySelector<HTMLButtonElement>('button[form="form-usulan"]'))
