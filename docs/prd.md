@@ -6,13 +6,13 @@
 
 | Atribut | Nilai |
 |---|---|
-| Versi dokumen | 0.10.13 |
-| Tanggal | 11 Oktober 2026 |
+| Versi dokumen | 0.10.14 |
+| Tanggal | 12 Oktober 2026 |
 | Penyusun | Eza (Karyasistemnusantara) · disusun bersama Claude |
 | Sumber konteks | Lampiran 1 *Visual Layar SIMRS* (15 layar), Lampiran 2 *Visual Dasbor Berjenjang* (7 dasbor + contoh kewenangan), HTML *Dasbor Berjenjang Karsitara*, *Pedoman Identitas USU* (2021) dan folder Logo |
 | Tech stack | Laravel 12 (PHP 8.3+) · Vue 3 + TypeScript · PostgreSQL 16 · Valkey (kompatibel Redis) · Laravel Reverb |
 | Status | **Produk generik** (3.4). Fase 0 mode produk selesai dengan satu gerbang tertunda: uji SUS (16.1). Keputusan yang biasanya diambil RS dicatat sebagai keputusan produk di 17.2 dan dikonfirmasi tiap RS saat implementasi |
-| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · v0.10.1 hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) · v0.10.2 kontrak autentikasi dan MFA (10.3.2) · v0.10.3 header Retry-After (10.3.2) · v0.10.4 nama modul bahasa Indonesia (10.3, 10.4, D.3), menu *Segera hadir* (10.4), alur kerja per halaman (D.5) · v0.10.5 keputusan basis data dan Valkey (10.1), pendaftaran MFA hanya dari jaringan RS (10.3.2), superadmin pertama lewat konsol (FR-54-08) · v0.10.6 responsif dan perangkat (5.5), DoD uji kelas layar (D.7) · v0.10.7 ketahanan beban (14.1.1), DoD endpoint daftar (D.7) · v0.10.8 siapa wajib MFA dan batas kewenangan admin (10.3.2); kontrak API pertama di `docs/api/openapi.yaml` · v0.10.9 penyelarasan dengan implementasi hak akses tiket 1.2a: format kode menu dan izin (9.1), letak Akun & Peran di Pengaturan Sistem (9.1), aturan layar peran dan akun (9.3), kolom tabel `akses` (11.2) · v0.10.10 order penunjang dari semua pos dan pengembalian hasil ke perawat pasien saat ini (7.00.5, 7.19, 7.20), lokasi fisik bertingkat dan pengelolaan kamar/TT (7.08, 7.54, 11.2) · v0.10.11 istilah umum: glosarium 10.3.3, format `error`, `challenge_id`, kolom `email`, *rate limit*, *queue* (tiket 1.0g) · v0.10.12 kriteria keluar Fase 1 tanpa RS: simulator dan uji kontrak menggantikan sandbox nyata; sandbox nyata menjadi syarat masuk pilot Fase 2 (16, 16.1) · **v0.10.13** penyelarasan dengan implementasi tiket 1.2c–1.8d: kolom dan tabel `akses`/`sdm`/`inti` (11.2), sandi awal dan `403 wajib_ganti_sandi` (10.3.2), bagian `sdm.pegawai.identitas` (9.1) |
+| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · v0.10.1 hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) · v0.10.2 kontrak autentikasi dan MFA (10.3.2) · v0.10.3 header Retry-After (10.3.2) · v0.10.4 nama modul bahasa Indonesia (10.3, 10.4, D.3), menu *Segera hadir* (10.4), alur kerja per halaman (D.5) · v0.10.5 keputusan basis data dan Valkey (10.1), pendaftaran MFA hanya dari jaringan RS (10.3.2), superadmin pertama lewat konsol (FR-54-08) · v0.10.6 responsif dan perangkat (5.5), DoD uji kelas layar (D.7) · v0.10.7 ketahanan beban (14.1.1), DoD endpoint daftar (D.7) · v0.10.8 siapa wajib MFA dan batas kewenangan admin (10.3.2); kontrak API pertama di `docs/api/openapi.yaml` · v0.10.9 penyelarasan dengan implementasi hak akses tiket 1.2a: format kode menu dan izin (9.1), letak Akun & Peran di Pengaturan Sistem (9.1), aturan layar peran dan akun (9.3), kolom tabel `akses` (11.2) · v0.10.10 order penunjang dari semua pos dan pengembalian hasil ke perawat pasien saat ini (7.00.5, 7.19, 7.20), lokasi fisik bertingkat dan pengelolaan kamar/TT (7.08, 7.54, 11.2) · v0.10.11 istilah umum: glosarium 10.3.3, format `error`, `challenge_id`, kolom `email`, *rate limit*, *queue* (tiket 1.0g) · v0.10.12 kriteria keluar Fase 1 tanpa RS: simulator dan uji kontrak menggantikan sandbox nyata; sandbox nyata menjadi syarat masuk pilot Fase 2 (16, 16.1) · v0.10.13 penyelarasan dengan implementasi tiket 1.2c–1.8d: kolom dan tabel `akses`/`sdm`/`inti` (11.2), sandi awal dan `403 wajib_ganti_sandi` (10.3.2), bagian `sdm.pegawai.identitas` (9.1) · **v0.10.14** penyelarasan dokumentasi dengan implementasi tiket 1.6, 1.7, 1.8c, 1.8e tanpa aturan baru: tabel dan kolom `inti`/`akses`/`notifikasi`/`ttd` (11.1, 11.2), kode menu dan izin (9.1), kode status HTTP (10.3.1), rincian kotak kerja dan eskalasi (7.53), usulan data induk dan paket referensi (7.54), PIN, sesi, dan kunci server T1 (7.57) |
 
 > **Konvensi penandaan sumber**
 > - **[K]** = fitur/aturan tertulis eksplisit di dokumen konteks (Lampiran 1/2/HTML).
@@ -1335,6 +1335,20 @@ Daftar 13 INM pada konteks [K]: kebersihan tangan; penggunaan APD; identifikasi 
 | FR-53-08 | Kinerja tindak lanjut unit: % selesai tepat waktu, rata-rata keterlambatan | M | [K] |
 | FR-53-09 | Preferensi notifikasi per pengguna (kecuali notifikasi kritis tidak bisa dimatikan) | S | [I] |
 
+**Rincian yang sudah dibangun (tiket 1.7; tabel di 11.2 `inti.jenis_tugas`, `inti.tugas`, `inti.tugas_kejadian`, `notifikasi.*`):**
+
+| Pokok | Perilaku |
+|---|---|
+| Lahir dan selesai tugas (FR-53-02) | Tugas dibuat dan diselesaikan oleh **kejadian domain** modul pembuatnya, bukan tombol. Satu tugas terbuka per jenis + objek + pelaksana; kejadian yang terulang tidak menggandakan tugas. Pelaksana: satu akun, pemegang suatu peran, atau pemegang penugasan bercakupan suatu unit. Judul tugas tanpa data pasien; tautan langsung ke layar penyelesaian dari `tautan_layar` jenisnya |
+| Tab kotak kerja (FR-53-01) | Saling lepas. *Tugas saya*: milik akun (akun sendiri, peran yang dipegang, unit penugasannya) di tingkat 0–1. *Sudah dieskalasi*: milik akun di tingkat 2–3. *Unit saya*: bukan milik akun, di unit yang dikepalainya (termasuk turunannya) atau yang dieskalasikan kepadanya. *Selesai bulan ini*: tugas selesai sejak awal bulan (zona RS) dari dua kelompok itu. Satu tugas hanya bisa dibuka (`GET /api/v1/tugas/{id}`) oleh akun yang melihatnya di salah satu tab |
+| Waktu tingkat (FR-53-03, FR-53-04) | Dihitung saat tugas dibuat dari jenisnya: tenggat = waktu dibuat + `batas_menit`, atau dari tanggal objek (mis. tanggal izin praktik berakhir). Tingkat 1 `pengingat_menit` sebelum tenggat; tingkat 2 `teguran_menit` dan tingkat 3 `eskalasi_menit` sesudah tenggat (tingkat 3 tidak boleh sebelum tingkat 2). Tugas terjadwal tiap menit (queue `notifikasi`) menaikkan tingkat yang waktunya tercapai; aman diulang |
+| Penerima tingkat 2–3 (FR-53-03) | Tingkat 2: akun aktif kepala unit tugas (`inti.unit_organisasi.kepala_pegawai_id`), atau kepala unit teguran jenisnya bila tugas tanpa unit. Tingkat 3: kepala unit eskalasi jenisnya, atau kepala unit induk dari unit tingkat 2. Tanpa unit atau tanpa kepala, kejadian tetap dicatat dengan catatan "tanpa penerima". Penanda di dasbor Direktur menunggu modul dasbor (52) |
+| Jenis tugas (FR-53-04) | Layar Master Data → Jenis Tugas, Tenggat & Eskalasi (`master_data.jenis_tugas`). Jenis dipasang migrasi modul pembuatnya (tidak ada tambah jenis dari layar); RS mengubah nama, tenggat, waktu tiap tingkat, unit teguran/eskalasi, kritis, dan aktif, dengan dasar perubahan |
+| Jenis bawaan fase 1 (FR-53-05) | `PERSETUJUAN_AKSES_MENUNGGU`, `PERMINTAAN_AKSES`, `IZIN_PRAKTIK_BERAKHIR` (dibuat 30 hari sebelum izin berakhir; selesai saat izin pengganti dicatat), `USULAN_DATA_INDUK` (7.54). Angka awal tenggat dan tingkat adalah data migrasi yang diubah RS di layar, **perlu verifikasi** kebijakan RS. Jenis klinis FR-53-05 lainnya dipasang modulnya di fase berikut |
+| Notifikasi tanpa tugas | `AKUN_TERKUNCI` (kritis, ke pemilik akun, 14.2), `TTD_TERKUNCI` (kritis, ke pemilik dan atasan langsung, 7.57.2), `TTD_DICABUT` (ke pemilik). Notifikasi akun terkunci dan TTE terkunci paling banyak satu per jam per akun |
+| Kanal dan preferensi (FR-53-06, FR-53-09) | In-app selalu. Email lewat queue `notifikasi` bila akun punya alamat dan preferensinya menyala; kritis selalu. Pesan singkat lewat antarmuka adapter `PengirimPesanSingkat`. Preferensi per akun per jenis (`email`, `pesan_singkat`); jenis kritis tidak bisa dimatikan (`422 notifikasi_kritis`). "Tandai semua dibaca" tidak menandai notifikasi kritis |
+| Riwayat (FR-53-07) | Linimasa `dibuat`, `pengingat`, `teguran`, `eskalasi`, `selesai`, `batal` dengan tingkat, penerima, kanal, dan catatan |
+
 ### 7.54 Master Data & Kendali Akses
 | ID | Kebutuhan | Prio | Sumber |
 |---|---|---|---|
@@ -1352,6 +1366,19 @@ Daftar 13 INM pada konteks [K]: kebersihan tangan; penggunaan APD; identifikasi 
 | FR-54-13 | **Penunjuk arah**: kode dan nama lokasi (gedung, lantai, ruang) tampil di tiket antrean, display, anjungan, pesan ke pasien, dan surat kontrol. Denah per lantai opsional (unggah gambar, titik ruang ditandai) | S | [I] |
 | FR-54-14 | Penyiapan awal lokasi lewat **templat impor CSV** di wizard (FR-54-08 langkah 3) dan validasi: kode unik per induk, tidak ada siklus, TT hanya di bawah ruang | M | [I] |
 
+**Usulan perubahan data induk (FR-54-01, FR-54-02), yang sudah dibangun (tiket 1.8c):**
+
+| Pokok | Perilaku |
+|---|---|
+| Alur per jenis data (FR-54-01) | `inti.alur_usulan` per `jenis_data`: peran pengusul (pemilik data), peran pemverifikasi, peran penyetuju. Kolom kosong = siapa pun pemegang izinnya. Data awal kosong, diisi RS (**perlu verifikasi**). Pengusul, pemverifikasi, dan penyetuju harus tiga orang berbeda (`403 pengusul_sendiri`, `403 sudah_memverifikasi`) |
+| Jenis data fase 1 | `ruang_tt`: satu usulan berisi 1–50 butir perubahan (TT tambah/ubah/tutup, kamar tambah/ubah, ruang tambah/ubah) dengan satu `berlaku_dari`, alasan, dan dasar. Nomor `UDI-<tahun>-<urut>` |
+| Tahap (FR-54-02) | `diusulkan` → `diverifikasi` → `disetujui` → `berlaku`. Pemverifikasi atau penyetuju boleh `dikembalikan` dengan catatan wajib; pengusul memperbaiki dan mengirim ulang (putaran +1; isi tiap putaran disimpan). `berlaku` dan `gagal_diterapkan` final |
+| Validasi | Aturan 7.08/FR-54-11…14 yang sama dijalankan sebagai uji kering saat diusulkan dan dikirim ulang (hari acuan = `berlaku_dari`, tidak ada yang tersimpan), dan sungguhan saat diterapkan. Nilai lama dan revisi objek dipotret saat diusulkan. Satu objek hanya di satu usulan yang berjalan (tahap diusulkan, diverifikasi, disetujui): `409 objek_sedang_diusulkan` |
+| Penerapan | Tugas terjadwal pukul 00.00 zona RS, dan langsung saat disetujui bila `berlaku_dari` ≤ hari ini. Semua butir satu usulan diterapkan dalam satu transaksi; aman diulang. Objek yang berubah sejak diusulkan → `gagal_diterapkan` dengan alasan, pengusul diberi tahu. Pelaku perubahan = penyetuju; dasar = nomor usulan + dasar usulan |
+| Versi dan jejak (FR-54-02) | Setiap perubahan ruang/kamar/TT menambah satu baris `inti.data_induk_versi` (isi sebelum dan sesudah, tanggal berlaku, usulan bila ada, dasar), dibaca lewat `GET /api/v1/data-induk/{jenis}/{id}/riwayat-versi`. Riwayat tahap di `inti.usulan_data_induk_kejadian` dan audit |
+| Tugas dan TTE | Tugas `USULAN_DATA_INDUK` (7.53): tahap diusulkan → pemverifikasi, diverifikasi → penyetuju, dikembalikan/gagal → pengusul; tugas tahap sebelumnya selesai saat tahap berganti. Pengusul, pemverifikasi, dan penyetuju putaran itu dapat menandatangani usulan dengan T1 (objek `usulan_data_induk`, 7.57.2) |
+| Izin | Sub-menu `master_data.usulan`: `lihat`, `input` (mengusulkan, mengirim ulang), dan aksi tambahan `verifikasi`, `setujui` (9.1); cakupan seluruh RS |
+
 **Paket referensi (FR-54-09)**
 
 | Paket | Cara masuk | Catatan lisensi/sumber | Keyakinan |
@@ -1365,6 +1392,16 @@ Daftar 13 INM pada konteks [K]: kebersihan tangan; penggunaan APD; identifikasi 
 | UCUM (satuan) | Dikemas | Bebas dipakai | [High] |
 | Referensi BPJS (poli, dokter, faskes, diagnosa) | Tidak dikemas; ditarik lewat VClaim per instalasi | Kredensial RS | [High] |
 | Agama, pendidikan, pekerjaan, status kawin, dll. | Dikemas | Mengikuti kode variabel RME/SATUSEHAT; daftar kode resmi **perlu verifikasi** | [Medium] |
+
+**Pemuat paket referensi, yang sudah dibangun (tiket 1.8e; tabel di 11.2 `inti.paket_referensi`, `wilayah`, `referensi`, `terminologi`):**
+
+| Pokok | Perilaku |
+|---|---|
+| Jalan masuk | `POST /api/v1/paket-referensi/{sistem}/muat` (unggah berkas untuk wizard FR-54-08 langkah 4; izin `master_data.katalog.input`) dan perintah konsol `php artisan referensi:muat <sistem> <berkas>` dengan aturan yang sama. Sistem: `wilayah`, `referensi`, `icd10`, `icd9cm`, `loinc`, `ucum` |
+| Pratinjau dan terapkan | Mode `pratinjau` menghitung kode baru, diubah, dinonaktifkan, dan diaktifkan lagi tanpa menyimpan; mode `terapkan` menyimpan dalam satu transaksi dan mencatat audit `master_data.referensi_dimuat`. Baris salah dilaporkan dengan nomor barisnya; terapkan berkas yang masih punya baris salah ditolak seluruhnya (`422 muat_tidak_valid`) |
+| Versi | Satu pemuatan = isi lengkap satu versi satu sistem (`referensi`: per kelompok di berkas). Versi dikenali dari sidik isi: versi sama dengan isi sama yang merupakan pemuatan terakhir sistem itu tidak mengubah apa pun; versi sama dengan isi lain, atau versi lama yang sudah digantikan, ditolak `409 versi_sudah_dimuat` |
+| Kode lama (FR-54-09) | Kode tidak pernah dihapus: kode yang tidak ada di versi baru menjadi `aktif = false` dengan `dinonaktifkan_pada`; kode yang muncul lagi diaktifkan kembali |
+| Batas | Berkas paling besar 10 MB / 120.000 baris; LOINC wajib `catatan_lisensi` (atribusi) |
 
 ### 7.55 Ambulans [I]
 | ID | Kebutuhan | Prio |
@@ -1406,6 +1443,22 @@ Daftar 13 INM pada konteks [K]: kebersihan tangan; penggunaan APD; identifikasi 
 | f. Ada cara menunjukkan **persetujuan** penanda tangan | Layar konfirmasi menampilkan ringkasan isi dan kalimat "Saya menyatakan isi ini benar dan saya menandatanganinya", lalu PIN. Tanda tangan massal (misal 12 resep sekaligus) menampilkan daftar dokumen yang ditandatangani |
 
 **Aturan keamanan PIN:** 6 digit, tidak boleh berurutan/berulang, 5 kali salah → terkunci 15 menit dan atasan diberi tahu; PIN tidak pernah dikirim lewat log; layar PIN tidak menyimpan riwayat isian. **Sesi tanda tangan** boleh berlaku 15 menit untuk penandatanganan berurutan di ruang yang sama (konfigurasi), tetapi setiap dokumen tetap tercatat terpisah.
+
+**Rincian T1 yang sudah dibangun (tiket 1.6; tabel di 11.2 `ttd.*`):**
+
+| Pokok | Perilaku |
+|---|---|
+| Aktivasi (FR-57-01) | Oleh pemilik akun sendiri dari menu akun, dengan sandi akun (salah sandi dibatasi laju seperti ganti sandi, 14.2) dan PIN dua kali. Satu kredensial aktif per akun per tingkat. Tidak ada jalur bagi orang lain untuk menetapkan PIN atau menandatangani atas nama pemilik |
+| Aturan PIN | Tepat 6 angka; ditolak bila berurutan naik/turun (123456, 654321) atau berulang (111111, 121212, 123123): `422 pin_lemah`. Ganti PIN memakai PIN lama dan membungkus ulang kunci privat yang sama |
+| Penguncian | PIN salah dihitung per kredensial (termasuk saat ganti PIN), dipulihkan saat PIN benar. Batas tercapai → `403 ttd_terkunci` dengan header `Retry-After`, notifikasi kritis `TTD_TERKUNCI` ke pemilik dan atasan langsung (7.53). Angka 5 kali dan 15 menit di konfigurasi (`TTD_MAKS_PIN_SALAH`, `TTD_KUNCI_MENIT`) |
+| Kunci server (huruf a–b) | Sebelum Argon2id, PIN di-HMAC dengan kunci server `TTD_KUNCI` dari env/vault (tidak pernah di DB), baik untuk `pin_hash` maupun kunci pembungkus. Salinan DB saja tidak cukup untuk menebak PIN 6 digit. Kunci lama untuk rotasi di `TTD_KUNCI_LAMA`. Kunci server tidak tersedia → `503 ttd_belum_dikonfigurasi`; kunci hilang = TTE diaktifkan ulang, tanda tangan lama tetap terverifikasi karena verifikasi hanya butuh kunci publik |
+| Pembungkus kunci privat (huruf a) | XChaCha20-Poly1305 dengan kunci turunan PIN; data tambahan mengikat bungkusan ke akun dan kunci publiknya sehingga bungkusan tidak bisa dipindah ke akun lain. Garam dan parameter Argon2id tersimpan di kredensial |
+| Sesi tanda tangan | Sesudah PIN benar, penandatanganan berikutnya di sesi login yang sama tidak meminta PIN selama `TTD_SESI_MENIT` (15). Kunci privat sesi dibungkus kunci acak: bungkusan di sesi server, kunci acaknya di cookie `HttpOnly` `SameSite=Strict`. Sesi berakhir saat keluar, ganti sandi, ganti PIN, terkunci, atau kredensial dicabut, juga di sesi login lain akun itu |
+| Isi kanonik (huruf c) | Dihitung server dari kolom tersimpan objek (penyedia isi per jenis objek), bukan dikirim klien: JSON dengan kunci terurut di setiap tingkat, tanpa spasi, UTF-8 → SHA-256. Pesan yang ditandatangani Ed25519 mengikat jenis dan id objek, hash isi, cap waktu (UTC, mikrodetik), dan akun penanda tangan |
+| Penandatanganan (FR-57-02, huruf f) | `POST /api/v1/ttd/tandatangani`: penanda tangan selalu akun yang masuk; 1–50 objek sekaligus, satu baris `ttd.tanda_tangan` per objek; `pernyataan_disetujui` wajib `true`. Semua objek diperiksa dulu: satu tidak boleh → tidak ada yang ditandatangani (`422 objek_tidak_bisa_ditandatangani`). Objek dengan isi sama yang sudah ditandatangani akun itu tidak digandakan; bila isinya berubah, tanda tangan baru dibuat dan yang lama tetap ada. Objek fase 1: `persetujuan_akses` (oleh pemutusnya) dan `usulan_data_induk` (oleh pelaku putaran itu) |
+| Verifikasi (FR-57-03) | `GET /api/v1/ttd/verifikasi/{objek_jenis}/{objek_id}` (hanya bila akun boleh melihat objeknya) menghitung ulang setiap tanda tangan: `sah`, `isi_berubah`, atau `tanda_tangan_tidak_sah` |
+| Pencabutan | Kredensial yang direset berstatus `dicabut` (tidak dihapus; kunci publiknya tetap untuk verifikasi), pemilik diberi tahu (`TTD_DICABUT`) dan mengaktifkan ulang sendiri dengan pasangan kunci dan PIN baru. Pengajuan reset lewat persetujuan akses jenis `reset_ttd` (11.2 `akses.persetujuan_akses`) |
+| T2 (FR-57-04) | Antarmuka `PenyediaTte` dengan simulator untuk uji alur asinkron; belum ada penyedia nyata (7.57.3) |
 
 **Cap waktu:** waktu server tersinkron NTP; untuk T2 dan S memakai cap waktu dari PSrE.
 
@@ -1483,7 +1536,7 @@ Persyaratan teknis: refresh terjadwal (mis. 07.00 WIB harian + near-real-time un
 ## 9. Struktur Menu dan Pengaturan Menu per Akun
 
 ### 9.1 Pohon menu lengkap
-Menu disimpan di tabel `akses.menu` (bukan hard-coded), tiga tingkat: **grup** (huruf kapital di bawah), **menu**, dan **sub-menu**. Setiap item punya **kode stabil** `<menu>.<sub_menu>` (misal `farmasi.telaah_resep`; menu tanpa sub-menu cukup `<menu>`, misal `beranda`; bagian `<menu>.<sub_menu>.<bagian>`), dipakai rute frontend dan pohon hak akses. **Kode izin aksi** = kode sub-menu atau bagian + jenis aksi: `<menu>.<sub_menu>.<aksi>` (misal `farmasi.telaah_resep.sahkan`, `pengaturan.akun.perbaiki`), dan inilah yang diperiksa server (`can:<kode izin>`) serta dikirim ke frontend untuk `v-can`. Kode ditulis snake_case bahasa Indonesia dan tidak diubah setelah dipakai peran; mengganti label tidak mengganti kode. Sub-menu dan bagian adalah unit terkecil yang diberikan superadmin (9.2). Sidebar dirender dari API `GET /api/v1/saya/menu` yang hanya mengembalikan sub-menu yang boleh diakses. Bagian yang sudah dipakai: `sdm.pegawai.identitas` (NIK pegawai utuh; izin `sdm.pegawai.identitas.lihat` sensitif tanpa penyetuju bawaan, jadi RS menetapkan pemilik datanya lebih dulu — 9.2.4, K3); data bagian yang tidak diizinkan tidak dikirim server.
+Menu disimpan di tabel `akses.menu` (bukan hard-coded), tiga tingkat: **grup** (huruf kapital di bawah), **menu**, dan **sub-menu**. Setiap item punya **kode stabil** `<menu>.<sub_menu>` (misal `farmasi.telaah_resep`; menu tanpa sub-menu cukup `<menu>`, misal `beranda`; bagian `<menu>.<sub_menu>.<bagian>`), dipakai rute frontend dan pohon hak akses. **Kode izin aksi** = kode sub-menu atau bagian + jenis aksi: `<menu>.<sub_menu>.<aksi>` (misal `farmasi.telaah_resep.sahkan`, `pengaturan.akun.perbaiki`), dan inilah yang diperiksa server (`can:<kode izin>`) serta dikirim ke frontend untuk `v-can`. Kode ditulis snake_case bahasa Indonesia dan tidak diubah setelah dipakai peran; mengganti label tidak mengganti kode. Sub-menu dan bagian adalah unit terkecil yang diberikan superadmin (9.2). Sidebar dirender dari API `GET /api/v1/saya/menu` yang hanya mengembalikan sub-menu yang boleh diakses. Bagian yang sudah dipakai: `sdm.pegawai.identitas` (NIK pegawai utuh; izin `sdm.pegawai.identitas.lihat` sensitif tanpa penyetuju bawaan, jadi RS menetapkan pemilik datanya lebih dulu — 9.2.4, K3); data bagian yang tidak diizinkan tidak dikirim server. Setiap sub-menu mendapat aksi dasar `lihat`, `input`, `perbaiki`; aksi lain didaftarkan pengembang per sub-menu. Kode yang sudah dipakai tiket 1.6–1.8e: `master_data.jenis_tugas` (Jenis Tugas, Tenggat & Eskalasi, 7.53), `master_data.usulan` (Usulan Perubahan, dengan aksi tambahan `verifikasi` dan `setujui`, 7.54), `master_data.katalog.input` (memuat paket referensi, FR-54-09), dan `sdm.kredensial.perbaiki` (mengajukan reset TTE, 7.57.2). Kotak kerja, notifikasi, dan aktivasi TTE milik akun sendiri memakai sumber `saya` (`/api/v1/saya/tugas`, `/saya/notifikasi`, `/saya/ttd/*`) tanpa izin menu.
 
 ```
 BERANDA
@@ -1609,6 +1662,7 @@ MASTER DATA
  ├─ Penjamin & Kontrak                                       [45, 54]
  ├─ Indikator & Target                                       [32, 54]
  ├─ Jenis Tugas, Tenggat & Eskalasi                          [53, 54]
+ ├─ Usulan Perubahan (data induk berjenjang)                 [54]
  └─ Template Formulir RME                                    [26, 54]
 
 PENGATURAN SISTEM
@@ -1893,7 +1947,8 @@ app/
 | Kunci JSON | `snake_case` bahasa Indonesia, sama dengan kolom; ID berupa UUIDv7; waktu ISO 8601 dengan zona | `{"nomor_rm": "00-48-21-07", "dibuat_pada": "2026-10-10T09:12:00+07:00"}` |
 | Daftar | Paginasi kursor `?kursor=&batas=`; filter sebagai query; respons `{data: [...], meta: {kursor_berikutnya}}` | `GET /api/v1/kunjungan?poli=PD&tanggal=2026-10-10` |
 | Bagian halaman | Respons hanya memuat bagian yang diizinkan (9.2.5); bagian yang tidak diizinkan **tidak dikirim**, bukan `null` | — |
-| Error | Satu format untuk semua: `{"error": {"kode": "akses_ditolak", "pesan": "…", "rincian": [...]}}`; `pesan` bahasa Indonesia untuk pengguna dan **tidak memuat data pasien**; status HTTP standar (400, 401, 403, 404, 409, 422, 429, 503); token CSRF tidak valid = 403 `csrf_tidak_valid` (bukan 419 bawaan Laravel) | `403 {"error":{"kode":"akses_ditolak","pesan":"Anda tidak punya izin untuk tindakan ini."}}` |
+| Error | Satu format untuk semua: `{"error": {"kode": "akses_ditolak", "pesan": "…", "rincian": [...]}}`; `pesan` bahasa Indonesia untuk pengguna dan **tidak memuat data pasien**; status HTTP standar (400, 401, 403, 404, 409, 412, 413, 422, 428, 429, 503; 413 = berkas melebihi batas unggah server web); token CSRF tidak valid = 403 `csrf_tidak_valid` (bukan 419 bawaan Laravel) | `403 {"error":{"kode":"akses_ditolak","pesan":"Anda tidak punya izin untuk tindakan ini."}}` |
+| Versi dan cache | Endpoint ubah yang ditandai "Wajib If-Match" di kontrak menerima ETag/`versi` dari GET terakhir: tidak cocok `412 versi_berubah`, tidak ada `428 if_match_wajib`. GET yang membawa `If-None-Match` dengan ETag yang masih sama dijawab `304` | `GET /api/v1/saya/notifikasi` → `304` |
 | Idempotensi | Aksi yang memicu kiriman eksternal atau tanda tangan menerima header `Idempotency-Key` | `POST /api/v1/bpjs/sep` |
 | Autentikasi | SPA: cookie Sanctum stateful + CSRF; mesin-ke-mesin: token Sanctum bercakupan; kios: token perangkat (7.01.1) | — |
 
@@ -2060,7 +2115,7 @@ Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis
 
 | Skema | Isi |
 |---|---|
-| `inti` | organisasi, unit, referensi, wilayah, penjamin, tugas |
+| `inti` | organisasi, unit, referensi, wilayah, penjamin, tugas, usulan dan versi data induk, paket referensi |
 | `akses` | pengguna, peran, izin, menu, akses darurat |
 | `pasien` | identitas pasien, kontak, penjaminan, penanda |
 | `kunjungan` | episode perawatan, kunjungan per pos, perpindahan antar-pos, antrean, SEP, rujukan, triase, tempat tidur |
@@ -2077,9 +2132,9 @@ Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis
 | `pendidikan` | peserta didik, rotasi, supervisi |
 | `riset` | protokol, uji klinik, permintaan data |
 | `integrasi` | kotak keluar, log API, pemetaan kode, kewajiban laporan |
-| `notifikasi` | notifikasi |
+| `notifikasi` | notifikasi, preferensi notifikasi |
 | `dokumen` | berkas, versi, cetak terkendali |
-| `ttd` | kredensial, permintaan, dan bukti tanda tangan elektronik |
+| `ttd` | kredensial, permintaan, bukti tanda tangan elektronik, dan aturan tingkat per jenis dokumen |
 | `audit` | log aktivitas, log akses RM, tampilan dasbor |
 | `analitik` | materialized view untuk dasbor |
 | `sistem` | tabel bawaan Laravel (jobs, failed_jobs, cache, sessions, migrations, personal_access_tokens) — tetap bahasa Inggris |
@@ -2091,7 +2146,7 @@ Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis
 |---|---|
 | `profil_rs` | id, nama, kode_kemenkes, kelas, status_blu, satusehat_org_id, kode_ppk_bpjs, alamat, paket_identitas jsonb (logo, kop, warna brand/accent), status_penyiapan |
 | `modul_aktif` | modul_no, unit_organisasi_id (null = seluruh RS), aktif_sejak, diaktifkan_oleh |
-| `paket_referensi` | id, sistem, versi, sumber, catatan_lisensi, dimuat_pada, dimuat_oleh, jumlah_kode |
+| `paket_referensi` | id, sistem (`wilayah`/`referensi`/`icd10`/`icd9cm`/`loinc`/`ucum`), versi, sumber, catatan_lisensi (wajib untuk LOINC), dimuat_pada, dimuat_oleh (kosong = perintah konsol), jumlah_kode, sidik_isi (SHA-256 isi ternormalisasi). Satu baris per sistem + versi (unik) |
 | `unit_organisasi` | id, induk_id, kode, nama, jenis (instalasi/bidang/bagian/ruang/poli/depo), kepala_pegawai_id (eskalasi tugas), satusehat_lokasi_id, pusat_biaya_id, status (aktif/nonaktif), berlaku_dari |
 | `ksm` | id, kode, nama, ketua_pegawai_id |
 | `lokasi` | id, induk_id, jenis (situs/gedung/sayap/lantai/ruang/tempat_tidur), kode, kode_lengkap, nama, fungsi, unit_organisasi_id (pengelola saat ini), status, berlaku_dari, berlaku_sampai, satusehat_lokasi_id, denah_berkas_id, posisi_denah jsonb (FR-54-11…14) |
@@ -2100,14 +2155,19 @@ Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis
 | `bangsal` / `kamar` / `tempat_tidur` | bangsal: id, unit_organisasi_id, kelas_layanan; kamar: id, bangsal_id, lokasi_id (ruang), nomor, kapasitas_maksimum, atribut_standar jsonb (FR-08-19); tempat_tidur: id, kamar_id, lokasi_id, kode (tidak dipakai ulang), kelas_rawat_id, aturan_jenis_kelamin, isolasi, ekstra (TT lonjakan), satusehat_lokasi_id, status_operasional (aktif/akan_ditutup/ditutup), berlaku_dari, berlaku_sampai, status_saat_ini |
 | `kapasitas_tempat_tidur_harian` | tanggal, bangsal_id, kelas_rawat_id, jumlah_tersedia, jumlah_ekstra — penyebut BOR/BTO/TOI (FR-08-18) |
 | `kelas_rawat` | id, kode (III, II, I, VIP, KRIS), kode_aplicares, berlaku_dari |
-| `wilayah` | id, tingkat (provinsi/kabupaten/kecamatan/kelurahan), kode_kemendagri, nama, induk_id |
-| `referensi` | id, kelompok (agama, pekerjaan, pendidikan, …), kode, label, aktif |
-| `terminologi` | id, sistem (ICD10, ICD9CM, ICD10IM, LOINC, SNOMED, UCUM), kode, tampilan, versi, kode_induk |
+| `wilayah` | id, tingkat (provinsi/kabupaten/kecamatan/kelurahan), kode_kemendagri (unik), nama, induk_id, aktif, versi_terakhir, dinonaktifkan_pada |
+| `referensi` | id, kelompok (agama, pekerjaan, pendidikan, …), kode, label, aktif, versi_terakhir, dinonaktifkan_pada; unik (kelompok, kode) |
+| `terminologi` | id, sistem (huruf kecil: `icd10`, `icd9cm`, `loinc`, `ucum`; ICD-10-IM dan SNOMED bila dimuat), kode, tampilan, kode_induk, aktif, versi_terakhir (versi paket terakhir yang memuat kode ini), dinonaktifkan_pada; unik (sistem, kode). Kode tidak pernah dihapus (FR-54-09) |
 | `penjamin` | id, jenis (bpjs/umum/asuransi/perusahaan/sponsor/jamkesda/jasa_raharja), nama, tpa, kontrak_id |
 | `pusat_biaya` | id, kode, nama, jenis (produksi/penunjang/administrasi) |
-| `jenis_tugas` | id, kode (RESUME_BELUM_TTE_48J, TBAK_24J, TUNGGU_KAMAR_4J, …), uraian, batas_menit, tingkat_eskalasi jsonb, tautan_layar, aktif |
-| `tugas` | id, jenis_tugas_id, objek_jenis, objek_id, pasien_id, penerima_pengguna_id/peran/unit, tenggat_pada, tingkat_saat_ini, status (terbuka/selesai/batal), selesai_pada |
-| `tugas_kejadian` | tugas_id, jenis (dibuat/pengingat/teguran/eskalasi/selesai), terjadi_pada, penerima, kanal |
+| `jenis_tugas` | id, kode (stabil; fase 1 `PERSETUJUAN_AKSES_MENUNGGU`, `PERMINTAAN_AKSES`, `IZIN_PRAKTIK_BERAKHIR`, `USULAN_DATA_INDUK`; nanti RESUME_BELUM_TTE_48J, TBAK_24J, TUNGGU_KAMAR_4J, …), nama, uraian, modul, objek_jenis, tautan_layar (rute dengan `{objek_id}`), tenggat_dari (dibuat/objek), batas_menit, pengingat_menit (negatif, sebelum tenggat), teguran_menit, eskalasi_menit (≥ teguran_menit), unit_teguran_id, unit_eskalasi_id, kritis, aktif |
+| `tugas` | id, jenis_tugas_id, objek_jenis, objek_id, pasien_id (fase 2), judul (tanpa data pasien), tautan, pelaksana_jenis (pengguna/peran/unit) + pelaksana_id, unit_id (unit teguran tingkat 2), unit_eskalasi_id, tenggat_pada, pengingat_pada, teguran_pada, eskalasi_pada, tingkat_saat_ini (0–3), kritis, status (terbuka/selesai/batal), selesai_pada, alasan_selesai. Satu tugas terbuka per jenis + objek + pelaksana (indeks unik) |
+| `tugas_kejadian` | id, tugas_id, jenis (dibuat/pengingat/teguran/eskalasi/selesai/batal), tingkat, terjadi_pada, penerima jsonb (id akun), kanal jsonb (in_app/email/pesan_singkat), catatan |
+| `alur_usulan` | id, jenis_data (unik), peran_pengusul_id, peran_pemverifikasi_id, peran_penyetuju_id (kosong = siapa pun pemegang izinnya) (FR-54-01) |
+| `usulan_data_induk` | id, nomor (UDI-…), jenis_data (fase 1 `ruang_tt`), perubahan jsonb (butir putaran terakhir: objek_jenis, aksi, objek_id, objek_label, nilai_lama, nilai_baru, revisi_objek, objek_id_hasil), ringkasan, berlaku_dari, alasan, dasar, tahap (diusulkan/diverifikasi/disetujui/berlaku/dikembalikan/gagal_diterapkan), putaran, diusulkan_oleh, diusulkan_pada, diverifikasi_oleh, diverifikasi_pada, disetujui_oleh, disetujui_pada, diterapkan_pada, gagal_alasan (FR-54-02) |
+| `usulan_data_induk_putaran` | id, usulan_id, putaran (unik per usulan), perubahan jsonb, berlaku_dari, alasan, dasar, ringkasan, diajukan_pada. Isi tiap putaran; hanya ditambah |
+| `usulan_data_induk_kejadian` | id, usulan_id, aksi, oleh (kosong = sistem), pada, catatan, putaran. Riwayat tahap; hanya ditambah |
+| `data_induk_versi` | id, objek_jenis (ruang/kamar/tempat_tidur), objek_id, versi (unik per objek), sebelum jsonb, sesudah jsonb, berlaku_dari, usulan_id (kosong = perubahan langsung), dasar, dibuat_oleh, dibuat_pada. Hanya ditambah |
 
 #### `akses` — akun, peran, menu, akses
 | Tabel | Kolom utama |
@@ -2124,7 +2184,7 @@ Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis
 | `label_sensitivitas` | id, kode (hiv/psikiatri/kekerasan_seksual/genetik/privasi_tinggi), uraian, butuh_relasi_perawatan |
 | `pengguna_label` | pengguna_id, label_sensitivitas_id, berlaku_sampai, disetujui_oleh (pejabat PDP) |
 | `admin_delegasi` | id, pengguna_id, cakupan_unit_id, peran_boleh_ditugaskan jsonb, berlaku_sampai, ditetapkan_oleh |
-| `persetujuan_akses` | id, nomor (PSA-…), grup_id (satu pengajuan = satu baris per peran penyetuju), jenis (izin_sensitif/peran_superadmin/pengecualian), objek_jenis (izin_peran/penugasan/pengakhiran_penugasan/izin_khusus/penyetuju_izin), objek jsonb, peran_id, izin_id, sasaran_pengguna_id, penyetuju_peran_id, status (menunggu/disetujui/ditolak/kedaluwarsa/dibatalkan), diajukan_oleh, alasan, dasar, kedaluwarsa_pada (7 hari), diputuskan_oleh, diputuskan_pada, catatan_keputusan, diterapkan_pada |
+| `persetujuan_akses` | id, nomor (PSA-…), grup_id (satu pengajuan = satu baris per peran penyetuju), jenis (izin_sensitif/peran_superadmin/pengecualian/reset_ttd), objek_jenis (izin_peran/penugasan/pengakhiran_penugasan/izin_khusus/penyetuju_izin/reset_ttd), objek jsonb, peran_id, izin_id, sasaran_pengguna_id, penyetuju_peran_id atau penyetuju_pengguna_id (tepat satu; penyetuju orang tertentu, mis. atasan langsung untuk reset TTE), status (menunggu/disetujui/ditolak/kedaluwarsa/dibatalkan), diajukan_oleh, alasan, dasar, kedaluwarsa_pada (7 hari), diputuskan_oleh, diputuskan_pada, catatan_keputusan, diterapkan_pada |
 | `permintaan_akses` | id, nomor (PMA-…), pengguna_id, menu_id atau izin_id (tepat satu), alasan, status (menunggu/ditindaklanjuti/ditolak), diputuskan_oleh, diputuskan_pada, catatan_keputusan |
 | `cache_menu_efektif` (Redis, bukan tabel) | kunci per pengguna; dihapus saat peran, penugasan, pengecualian, atau izin praktik berubah |
 | `menu_favorit` | pengguna_id, menu_id, urutan |
@@ -2369,12 +2429,14 @@ Hak bawaan diatur dengan `ALTER DEFAULT PRIVILEGES` sehingga tabel baru otomatis
 #### `notifikasi`, `dokumen`, `ttd`, `audit`, `analitik`
 | Tabel | Kolom utama |
 |---|---|
-| `notifikasi.notifikasi` (partisi) | pengguna_id, judul, isi, tautan, prioritas, dibaca_pada |
+| `notifikasi.notifikasi` (partisi bulanan) | id, pengguna_id, jenis (kode jenis tugas atau pemberitahuan), judul, isi (tanpa data pasien), tautan, prioritas (biasa/penting/kritis), tugas_id, dibaca_pada, dibuat_pada. Bukan *append-only*: `dibaca_pada` diubah saat dibaca |
+| `notifikasi.preferensi` | id, pengguna_id, jenis, email, pesan_singkat; unik (pengguna_id, jenis). Tanpa baris = bawaan (email menyala bila akun punya alamat) (FR-53-09) |
 | `dokumen.dokumen` | id, jenis, sumber_jenis, sumber_id, kunci_penyimpanan, hash_sha256, versi, status_ttd, kode_verifikasi (QR) |
 | `dokumen.cetak_terkendali` | dokumen_id, dicetak_oleh, dicetak_pada, alasan, jumlah, penerima |
-| `ttd.kredensial` | id, pengguna_id, tingkat (internal/psre), penyedia (internal/privy/peruri/vida/bsre/…), id_penyedia, serial_sertifikat, berlaku_sampai, kunci_publik, kunci_privat_terbungkus (internal), pin_hash (argon2id), percobaan_gagal, terkunci_sampai, status |
-| `ttd.permintaan` | id, dokumen_id, penanda_tangan_id, tingkat, penyedia, status (menunggu/terkirim/ditandatangani/ditolak/kedaluwarsa/gagal), id_transaksi_penyedia, dibuat_pada, selesai_pada, biaya |
-| `ttd.tanda_tangan` | id, dokumen_id/objek_jenis+objek_id, penanda_tangan (pengguna/pasien/wali/saksi), metode (pin/psre/tablet_otp/segel), hash_isi, nilai_tanda_tangan, serial_sertifikat, cap_waktu, bukti jsonb (perangkat, ip, otp_ref, citra_goresan), ditandatangani_pada |
+| `ttd.kredensial` | id, pengguna_id, tingkat (internal/psre), penyedia (internal/privy/peruri/vida/bsre/simulator/…), id_penyedia, serial_sertifikat, berlaku_sampai, kunci_publik (Ed25519), kunci_privat_terbungkus (internal), garam, parameter_kdf jsonb (parameter Argon2id dan id kunci server), pin_hash (argon2id), percobaan_gagal, terkunci_sampai, status (aktif/dicabut), diaktifkan_pada, dicabut_pada, dicabut_oleh, alasan_cabut. Satu kredensial aktif per pengguna + tingkat; yang dicabut tidak dihapus |
+| `ttd.permintaan` | id, objek_jenis + objek_id (dokumen_id: fase 2), penanda_tangan_id, tingkat, penyedia, status (menunggu/terkirim/ditandatangani/ditolak/kedaluwarsa/gagal), id_transaksi_penyedia (unik), hash_isi, dibuat_pada, selesai_pada, biaya. Fase 1 hanya dipakai simulator T2 |
+| `ttd.tanda_tangan` | id, dokumen_id (fase 2)/objek_jenis+objek_id, penanda_tangan_jenis (pengguna/pasien/wali/saksi) + pengguna_id, kredensial_id, tingkat (T1/T2/S/P), metode (pin/psre/tablet_otp/segel), hash_isi, nilai_tanda_tangan, serial_sertifikat, cap_waktu, bukti jsonb (perangkat, ip, otp_ref, citra_goresan; untuk T1 cara buka kunci pin/sesi, tanpa PIN), ditandatangani_pada. Unik (objek_jenis, objek_id, pengguna_id, hash_isi). `simrs_app` tanpa `UPDATE` di tabel ini |
+| `ttd.aturan_tingkat` | id, jenis_dokumen (unik), tingkat (T1/T2/S/P), keterangan, aktif (FR-57-05). Data awal `persetujuan_akses` → T1 |
 | `audit.log_aktivitas` (partisi) | pengguna_id, aksi, subjek_jenis, subjek_id, sebelum jsonb, sesudah jsonb, ip, perangkat, terjadi_pada, hash_rantai |
 | `audit.log_akses` (partisi) | pengguna_id, pasien_id, kunjungan_id, layar, aksi (lihat/cetak/ekspor), alasan, terjadi_pada, ip |
 | `audit.tampilan_dasbor` | pengguna_id, dasbor, bagian, terjadi_pada |
