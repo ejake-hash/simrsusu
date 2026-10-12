@@ -168,9 +168,13 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
     alamat per lingkungan (`INTEGRASI_APLICARES_*` kosong), nama isian `bed/update`/`bed/create` selain
     `kodekelas`/`koderuang` (`namaruang`, `kapasitas`, `tersedia*`), kode sukses (`1`/`200`) dan kode "ruang belum
     terdaftar" (kini setiap penolakan update dicoba `bed/create` sekali) — *perlu verifikasi*, DoD D.7. Satu ruang
-    Aplicares = bangsal × kelas rawat; TT ekstra tidak dihitung. `tersedia*` = kapasitas sampai keterisian TT ada
-    (penempatan pasien, fase 2). Urutan kiriman per agregat (catatan #76) diselesaikan dengan membaca keadaan terkini
-    saat dikirim.
+    Aplicares = bangsal × kode kelas Aplicares (kelas rawat berkode sama dijumlah); TT ekstra tidak dihitung; ruang yang
+    hilang (kelas diubah, kamar pindah, kode diubah) dikirim kapasitas 0 dari `integrasi.ruang_aplicares`. `tersedia*` =
+    kapasitas sampai keterisian TT ada (penempatan pasien, fase 2); karena itu kiriman **produksi ditahan**
+    (`isian_belum_diverifikasi`) sampai `INTEGRASI_APLICARES_TERVERIFIKASI=true` — syarat masuk pilot fase 2. Urutan
+    kiriman per agregat (catatan #76): kunci advisory per bangsal + baca keadaan terkini saat dikirim. Belum memicu
+    kiriman langsung (menunggu sinkron harian 00.15): perubahan aturan jenis kelamin TT, nama/kode bangsal. Kode PPK yang
+    diubah tidak menurunkan ruang di PPK lama.
   - Kode BPJS untuk "data tidak ditemukan" di simulator (`201`) asumsi; sukses VClaim = `200` (catatan §1.4).
   - Butir be 8 (catatan lapangan "Selisih dengan PRD" no. 1 merujuk K9): catatan lapangan kini milik pemilik di luar repo
     (repo publik), jadi tidak bisa diubah dari repo; **perlu pemilik** memperbarui catatannya bila ingin. Di repo, K9

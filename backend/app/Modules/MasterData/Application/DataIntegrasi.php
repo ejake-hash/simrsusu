@@ -11,9 +11,10 @@ use Illuminate\Support\Facades\DB;
 final class DataIntegrasi
 {
     /**
-     * Ruang Aplicares sebuah bangsal pada satu tanggal: satu baris per kelas rawat yang pernah punya TT di bangsal itu.
-     * Kelas yang semua TT-nya sudah ditutup tetap muncul dengan kapasitas 0 agar angka di BPJS ikut turun. TT ekstra
-     * (lonjakan) tidak dihitung. Jumlah per aturan jenis kelamin TT.
+     * Ruang Aplicares sebuah bangsal pada satu tanggal: satu baris per kelas rawat yang punya TT (aktif atau sudah ditutup)
+     * di kamar bangsal itu; kelas yang semua TT-nya ditutup muncul dengan kapasitas 0. Kelas yang hilang karena TT diubah
+     * kelasnya atau kamar dipindah tidak muncul lagi (Integrasi menurunkannya dari catatan ruang yang pernah dikirim). TT
+     * ekstra (lonjakan) tidak dihitung. Jumlah per aturan jenis kelamin TT.
      *
      * @return array{kode: string, nama: string, unit_organisasi_id: string, kelas: list<array{kode: string, nama: string, kode_aplicares: string|null, kapasitas: int, laki_laki: int, perempuan: int, campur: int}>}|null
      */

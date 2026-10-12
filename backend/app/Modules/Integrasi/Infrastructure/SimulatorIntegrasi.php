@@ -140,7 +140,8 @@ final class SimulatorIntegrasi
     /**
      * Aplicares (catatan §24): ref/kelas, bed/update (ruang harus sudah terdaftar), bed/create (ruang belum terdaftar).
      * Ruang disimpan per lingkungan + kode PPK dengan kunci kodekelas|koderuang. Kode sukses `1` dan kode penolakan
-     * `0` adalah asumsi simulator (perlu verifikasi); daftar kelas sintetis.
+     * `0` adalah asumsi simulator (perlu verifikasi); daftar kelas sintetis. Kodekelas berawalan `TOLAK` selalu ditolak
+     * (untuk menguji penolakan per ruang).
      *
      * @param  array<string, mixed>  $isi
      */
@@ -163,6 +164,9 @@ final class SimulatorIntegrasi
             if (! is_int($isi[$k] ?? null) || $isi[$k] < 0) {
                 return $tolak("$k harus bilangan bulat ≥ 0");
             }
+        }
+        if (str_starts_with($isi['kodekelas'], 'TOLAK')) {
+            return $tolak('Kode kelas tidak dikenal');
         }
         if ($isi['tersedia'] > $isi['kapasitas']) {
             return $tolak('tersedia melebihi kapasitas');
