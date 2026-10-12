@@ -3574,7 +3574,10 @@ paths:
   # - Lingkungan: setiap kiriman terikat ke lingkungan aktif saat kiriman dibuat (`Kiriman.lingkungan`) dan hanya dikirim
   #   ke lingkungan itu. Mengaktifkan lingkungan lain membuat kiriman `menunggu`/`gagal` lingkungan lama menjadi
   #   `tertahan` (`lingkungan_berubah`); kiriman itu tidak pernah berpindah lingkungan (data uji tidak ke produksi, data
-  #   asli tidak ke sandbox).
+  #   asli tidak ke sandbox). Kiriman yang dibuat saat sistem tanpa lingkungan aktif berlingkungan null dan `tertahan`
+  #   (`integrasi_nonaktif`); kiriman itu tidak dikirim otomatis, dan baru diikat ke lingkungan aktif lewat kirim ulang
+  #   (aksi eksplisit pengguna). Kirim ulang otomatis FR-49-05 hanya untuk penyebab data induk, tidak untuk
+  #   `lingkungan_berubah` dan `integrasi_nonaktif`.
   # - Kotak keluar: status `menunggu` → `terkirim`; `gagal` sesudah batas percobaan (retry eksponensial; kirim ulang manual);
   #   `tertahan` bila data induk kurang (penyebab + unit pemilik data, FR-49-04) dan dikirim ulang otomatis sesudah data
   #   induk diperbaiki (FR-49-05). Idempotency key per kiriman: kirim ulang tidak menggandakan di sistem luar.
@@ -3742,7 +3745,8 @@ paths:
         induknya saat dikirim. Audit `integrasi.kirim_ulang`.
         - 409 `kiriman_tidak_bisa_dikirim_ulang`: status `menunggu` atau `terkirim`.
         - 409 `lingkungan_tidak_aktif`: lingkungan kiriman bukan lingkungan aktif sistem itu (kiriman tidak dipindah
-          lingkungan; buat ulang dari sumbernya bila perlu).
+          lingkungan; buat ulang dari sumbernya bila perlu), atau kiriman berlingkungan null sementara sistem belum punya
+          lingkungan aktif. Kiriman berlingkungan null diikat ke lingkungan aktif saat dikirim ulang.
       responses:
         '200':
           description: Kiriman sesudah diantrekan ulang
@@ -5195,7 +5199,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         tujuan: { $ref: '#/components/schemas/SistemIntegrasi' }
-        lingkungan: { $ref: '#/components/schemas/LingkunganIntegrasi' }
+        lingkungan: { oneOf: [{ $ref: '#/components/schemas/LingkunganIntegrasi' }, { type: 'null' }], description: "Lingkungan aktif saat kiriman dibuat; null = dibuat saat integrasi nonaktif" }
         jenis_resource: { type: string, examples: [Location, Organization, bed_update] }
         objek_jenis: { type: string, description: "Agregat lokal (`agregat_jenis`, PRD 11.2)", examples: [lokasi, unit_organisasi, bangsal] }
         objek_id: { type: string, format: uuid }
@@ -5213,7 +5217,7 @@ components:
             pesan: { type: string }
         pemilik_unit: { oneOf: [{ $ref: '#/components/schemas/RingkasUnit' }, { type: 'null' }], description: "Unit pemilik data induk yang perlu diperbaiki" }
         id_luar: { type: [string, 'null'], description: "ID di sistem luar sesudah terkirim (mis. id Location SATUSEHAT)" }
-        dapat_kirim_ulang: { type: boolean, description: "Status gagal/tertahan, lingkungan = lingkungan aktif, dan penonton memegang izin perbaiki tujuan itu" }
+        dapat_kirim_ulang: { type: boolean, description: "Status gagal/tertahan, lingkungan = lingkungan aktif (atau null dan sistem punya lingkungan aktif), dan penonton memegang izin perbaiki tujuan itu" }
         dibuat_pada: { type: string, format: date-time }
     LogIntegrasi:
       type: object
