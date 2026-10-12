@@ -38,7 +38,7 @@
 | 1.7-be / 1.7-fe | Notifikasi, kotak kerja, jenis tugas, eskalasi 3 tingkat | be: Selesai (kontrak #51, backend #53); fe: Selesai (#60). Catatan fe: lonceng di header (polling 30 detik, ETag/304, `X-Permintaan-Latar` hanya pada polling), halaman `/notifikasi` (belum dibaca, semua, preferensi), kotak kerja di Beranda dengan riwayat tugas, Master Data → Jenis Tugas, Tenggat & Eskalasi | #51, #53 |
 | 1.6-be / 1.6-fe | TTE T1: aktivasi PIN, kunci Ed25519, TtdModal, verifikasi, tanda tangan massal; adapter PSrE + simulator | be: Selesai (kontrak #56, backend #57). Catatan be: modul `Ttd`, kunci server `TTD_KUNCI`, seeder `TtdSintetisSeeder`; dedup tanda tangan per isi sejak 1.8c; fe: Selesai (#62). Catatan fe: TtdModal dan BadgeTtd di design-system, halaman `/tanda-tangan` (aktivasi, ganti PIN) dari menu akun, tanda tangan keputusan di rincian persetujuan, `reset_ttd`/penyetuju orang di 1.2d, Ajukan reset TTE di data pegawai | #56, #57, #62 |
 | 1.5-be / 1.5-fe | Lapis 4 (label sensitivitas) dan 5 (izin praktik, RKK, MFA ulang) | Siap setelah 1.8d, 1.2d, 1.6 | — |
-| 1.9-be / 1.9-fe | Gateway integrasi: outbox, adapter BPJS/SATUSEHAT/Aplicares, simulator, layar Konfigurasi & status | be: **Sebagian** (kontrak #75, backend #76, VClaim baca #79). Selesai: kredensial (K9), outbox + retry + circuit breaker + tertahan (FR-49-04/05), log disamarkan, simulator (K8), uji koneksi, VClaim baca (peserta, rujukan FKTP→RS, referensi), langkah 8 penyiapan. **Sisa menunggu dokumen resmi** (lihat utang 1.9): penangan SATUSEHAT Organization/Location/IHS/KFA, Aplicares bed/update. fe: dikerjakan sesi 2 | #75, #76, #79 |
+| 1.9-be / 1.9-fe | Gateway integrasi: outbox, adapter BPJS/SATUSEHAT/Aplicares, simulator, layar Konfigurasi & status | be: **Sebagian** (kontrak #75, backend #76, VClaim baca #79). Selesai: kredensial (K9), outbox + retry + circuit breaker + tertahan (FR-49-04/05), log disamarkan, simulator (K8), uji koneksi, VClaim baca (peserta, rujukan FKTP→RS, referensi), langkah 8 penyiapan. **Sisa menunggu dokumen resmi** (lihat utang 1.9): penangan SATUSEHAT Organization/Location/IHS/KFA, Aplicares bed/update. fe: Selesai (PR ini). Catatan fe: Pengaturan → Konfigurasi integrasi (kartu per sistem, kredensial tulis-saja, aktifkan/nonaktifkan dengan konfirmasi, uji koneksi), Integrasi → SATUSEHAT / Bridging BPJS (kartu pemantau + kotak keluar, kirim ulang), Integrasi → Log integrasi; sub-menu TERSEDIA (migrasi `2026_10_13_160000`); e2e `integrasi` (contoh.integrasi, simulator) | #75, #76, #79, #80 |
 | 1.11 | Design system: komponen inti PRD 5.4 yang dipakai fase 1, katalog komponen (dev) | Selesai | #36 |
 | 1.12 | Gerbang keluar Fase 1: uji beban, cek keamanan, runbook instalasi (PRD 16 sudah di v0.10.12) | Siap setelah semua | — |
 | 1.10 | SSO (OIDC/SAML) ke penyedia identitas RS/universitas; tombol tampil hanya bila dikonfigurasi | **Terhambat**: perlu data IdP dari RS/USU | — |
@@ -978,10 +978,6 @@ Aturan rinci (kontrak v0.12.0):
     karena superadmin tidak memegang data induk (PRD 9.2.4); panduan instalasi perlu menjelaskan penugasannya;
     syarat `referensi` belum memeriksa kelengkapan kelompok; PRD 11.2 belum memuat `inti.penyiapan_konfirmasi` dan
     `profil_rs.siap_melayani_sejak` (didokumentasikan sesudah merge).
-  - Utang (catatan sesi 1, PRD #77): `profil_rs.status_penyiapan` diisi `selesai` saat langkah 2 dikonfirmasi tetapi
-    tidak turun bila langkah 2 kemudian mundur, sedangkan deskripsi kontrak `ProfilRs.rinci.status_penyiapan` menyiratkan
-    ikut status langkah 2. Usul: perjelas kontrak ("selesai sejak langkah 2 pertama kali dikonfirmasi"; GET /penyiapan
-    tidak menulis), bukan menulis saat GET.
   - Utang tinjauan #70 (tidak memblokir): syarat unit dan kelas rawat belum memeriksa `berlaku_dari` (kontrak: "≥ 1
     aktif"); tes penolakan cakupan unit (lapis 3) untuk /penyiapan belum ada.
 ```
