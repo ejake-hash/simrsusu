@@ -150,7 +150,7 @@ export function buatServerOrganisasi(opsi: OpsiServerOrganisasi = {}) {
         const warna = (isi.warna ?? {}) as { brand?: string; accent?: string }
         const brand = rgb(warna.brand ?? '')
         const accent = rgb(warna.accent ?? '')
-        if (!brand || !accent) return error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom: brand ? 'warna.accent' : 'warna.brand', pesan: 'Warna HEX 6 digit, mis. #006937.' }])
+        if (!brand || !accent) return error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom: brand ? 'warna.accent' : 'warna.brand', pesan: 'Warna HEX 6 digit, mis. #1F5C99.' }])
         const kurang: Record<string, unknown>[] = []
         const rb = rasio(brand, PUTIH)
         if (rb < 4.5) kurang.push({ kolom: 'warna.brand', rasio: rb, minimal: 4.5, pesan: `Kontras warna utama dengan putih ${rb.toFixed(2).replace('.', ',')}:1, minimal 4,5:1.` })

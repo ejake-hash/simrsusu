@@ -1,22 +1,22 @@
 # DESIGN.md — Karsitara SIMRS
 
-> Sumber nilai: **PRD 5.3** (identitas visual dari Pedoman Identitas USU) dan
+> Sumber nilai: **PRD 5.3** dan
 > **`frontend/src/design-system/tokens.css`**. File ini **tidak** menyalin nilai warna agar
 > tidak ada dua sumber token. Bila berbeda, PRD yang berlaku.
 > Prioritas: keselamatan input, lalu kecepatan kerja petugas, lalu keterbacaan, baru estetika.
 
 ## Identitas
-- Warna `--brand-*` dan `--accent` serta logo RS berasal dari paket identitas per instalasi (PRD 3.4); nilai di bawah adalah paket contoh RS USU. Token status, triase, dan netral milik produk dan tidak diganti per RS.
-- Logo produk **Karsitara** (sidebar, halaman masuk), logo **RS USU** (kartu RS, kop dokumen), **Karya Sistem Nusantara** (kaki halaman masuk). Aturan: PRD 5.3.1.
-- File asli di `docs/brand/`; aplikasi memakai versi web di `frontend/public/logo/`. Lambang USU **tidak** dipakai di aplikasi.
-- Warna utama hijau USU (`--brand-600`), aksen emas (`--accent`, hanya isian/garis), teks `--text`. Huruf **Public Sans**; kode/No. RM **JetBrains Mono**.
+- Warna `--brand-*` dan `--accent` serta logo RS berasal dari paket identitas per instalasi (PRD 3.4); palet bawaan produk = paket contoh fiktif "RS Contoh Pendidikan" (`docs/brand/contoh/`). Token status, triase, dan netral milik produk dan tidak diganti per RS.
+- Logo produk **Karsitara** (sidebar, halaman masuk), logo **RS** dari paket identitas (kartu RS, kop dokumen), **Karya Sistem Nusantara** (kaki halaman masuk). Aturan: PRD 5.3.1.
+- Logo produk di `docs/brand/`; aplikasi memakai versi web di `frontend/public/logo/`. Logo dan aset identitas RS nyata **tidak** disimpan di repo (repo publik).
+- Warna utama bawaan biru (`--brand-600`), aksen jingga (`--accent`, hanya isian/garis), teks `--text`. Huruf **Public Sans**; kode/No. RM **JetBrains Mono**.
 
 ## Aturan token yang sering terlewat (PRD 5.3.2)
-- Teks bernuansa emas memakai `--accent-ink`, bukan `--accent`.
+- Teks bernuansa aksen memakai `--accent-ink`, bukan `--accent`.
 - Tepi input, select, tombol sekunder memakai **`--border-input`** (≥ 3:1), bukan `--border`/`--border-strong`.
-- Warna triase (`--triase-*`) hanya di papan IGD dan triase; emas tidak dipakai di layar IGD.
+- Warna triase (`--triase-*`) hanya di papan IGD dan triase; aksen tidak dipakai di layar IGD.
 - Status tidak boleh hanya warna: selalu teks + ikon.
-- Motif grafis USU hanya di halaman masuk, layar antrean, dan cetak; tidak di layar kerja klinis.
+- Motif grafis paket identitas hanya di halaman masuk, layar antrean, dan cetak; tidak di layar kerja klinis.
 
 ## Pola layar klinis
 - Wajib: PRD 5.1 butir 9–17 (identitas nama lengkap + No. RM + tanggal lahir di setiap daftar/pemilih/modal; `TtdModal` menampilkan pasien dan hanya untuk pemilik akun; konfirmasi aksi tak terbalikkan; Esc dan fokus modal).
@@ -42,4 +42,4 @@ pengembangan). Pakai ini sebelum membuat yang baru; warna hanya dari token (uji 
 
 ## Komponen bersama (PRD 5.4 dan Lampiran D.4)
 - `AppShell`, `SidebarMenu`, `PermissionGate`/`v-can`, `TtdModal`, `CpptLinimasa`, `DataTable`, `PatientHeader`, `KpiCard`, `StatusBadge`. Dibuat sekali di `frontend/src/design-system/` atau `frontend/src/shared/`, tidak dibuat ulang per modul.
-- Contoh perilaku ada di prototipe `docs/html/` (tombol **Spek dev** di tiap halaman).
+- Contoh perilaku ada di prototipe HTML di luar repo, `/Users/ejake/Documents/SIMRS Tipe B/html/` (tombol **Spek dev** di tiap halaman).

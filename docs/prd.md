@@ -6,13 +6,13 @@
 
 | Atribut | Nilai |
 |---|---|
-| Versi dokumen | 0.10.14 |
+| Versi dokumen | 0.10.16 |
 | Tanggal | 12 Oktober 2026 |
 | Penyusun | Eza (Karyasistemnusantara) · disusun bersama Claude |
 | Sumber konteks | Lampiran 1 *Visual Layar SIMRS* (15 layar), Lampiran 2 *Visual Dasbor Berjenjang* (7 dasbor + contoh kewenangan), HTML *Dasbor Berjenjang Karsitara*, *Pedoman Identitas USU* (2021) dan folder Logo |
 | Tech stack | Laravel 12 (PHP 8.3+) · Vue 3 + TypeScript · PostgreSQL 16 · Valkey (kompatibel Redis) · Laravel Reverb |
 | Status | **Produk generik** (3.4). Fase 0 mode produk selesai dengan satu gerbang tertunda: uji SUS (16.1). Keputusan yang biasanya diambil RS dicatat sebagai keputusan produk di 17.2 dan dikonfirmasi tiap RS saat implementasi |
-| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · v0.10.1 hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) · v0.10.2 kontrak autentikasi dan MFA (10.3.2) · v0.10.3 header Retry-After (10.3.2) · v0.10.4 nama modul bahasa Indonesia (10.3, 10.4, D.3), menu *Segera hadir* (10.4), alur kerja per halaman (D.5) · v0.10.5 keputusan basis data dan Valkey (10.1), pendaftaran MFA hanya dari jaringan RS (10.3.2), superadmin pertama lewat konsol (FR-54-08) · v0.10.6 responsif dan perangkat (5.5), DoD uji kelas layar (D.7) · v0.10.7 ketahanan beban (14.1.1), DoD endpoint daftar (D.7) · v0.10.8 siapa wajib MFA dan batas kewenangan admin (10.3.2); kontrak API pertama di `docs/api/openapi.yaml` · v0.10.9 penyelarasan dengan implementasi hak akses tiket 1.2a: format kode menu dan izin (9.1), letak Akun & Peran di Pengaturan Sistem (9.1), aturan layar peran dan akun (9.3), kolom tabel `akses` (11.2) · v0.10.10 order penunjang dari semua pos dan pengembalian hasil ke perawat pasien saat ini (7.00.5, 7.19, 7.20), lokasi fisik bertingkat dan pengelolaan kamar/TT (7.08, 7.54, 11.2) · v0.10.11 istilah umum: glosarium 10.3.3, format `error`, `challenge_id`, kolom `email`, *rate limit*, *queue* (tiket 1.0g) · v0.10.12 kriteria keluar Fase 1 tanpa RS: simulator dan uji kontrak menggantikan sandbox nyata; sandbox nyata menjadi syarat masuk pilot Fase 2 (16, 16.1) · v0.10.13 penyelarasan dengan implementasi tiket 1.2c–1.8d: kolom dan tabel `akses`/`sdm`/`inti` (11.2), sandi awal dan `403 wajib_ganti_sandi` (10.3.2), bagian `sdm.pegawai.identitas` (9.1) · **v0.10.14** penyelarasan dokumentasi dengan implementasi tiket 1.6, 1.7, 1.8c, 1.8e tanpa aturan baru: tabel dan kolom `inti`/`akses`/`notifikasi`/`ttd` (11.1, 11.2), kode menu dan izin (9.1), kode status HTTP (10.3.1), rincian kotak kerja dan eskalasi (7.53), usulan data induk dan paket referensi (7.54), PIN, sesi, dan kunci server T1 (7.57) |
+| Riwayat | v0.1 analisis konteks · v0.2 audit regulasi · v0.3 model episode, CPPT lintas pos, rawat jalan multi-poli · v0.4 hak akses sampai tingkat bagian halaman dan per akun (9.2), keamanan rinci (14.2) · v0.5 panduan serah terima ke tim pengembang (Lampiran D), prototipe diselaraskan · v0.6 identitas visual dari Pedoman Identitas USU (5.3) · v0.7 anjungan, perjalanan antrean, menu Rekam Medis · v0.8 token lengkap dan triase, aset logo, role basis data · v0.9 konvensi API (10.3.1), rincian role `simrs_analitik`/`simrs_baca` (11.1) · v0.10 mode produk generik (3.4), Fase 0 tanpa RS (16.1), log keputusan (17.2), aturan UX dari tinjauan heuristik (5.1 butir 9–17), wizard penyiapan dan paket referensi (FR-54-08…10), Lampiran E · v0.10.1 hasil tiket autentikasi: pengecualian skema untuk `simrs_analitik` (11.1), CSRF 403 (10.3.1), penguncian nama fiktif dan sesi (14.2) · v0.10.2 kontrak autentikasi dan MFA (10.3.2) · v0.10.3 header Retry-After (10.3.2) · v0.10.4 nama modul bahasa Indonesia (10.3, 10.4, D.3), menu *Segera hadir* (10.4), alur kerja per halaman (D.5) · v0.10.5 keputusan basis data dan Valkey (10.1), pendaftaran MFA hanya dari jaringan RS (10.3.2), superadmin pertama lewat konsol (FR-54-08) · v0.10.6 responsif dan perangkat (5.5), DoD uji kelas layar (D.7) · v0.10.7 ketahanan beban (14.1.1), DoD endpoint daftar (D.7) · v0.10.8 siapa wajib MFA dan batas kewenangan admin (10.3.2); kontrak API pertama di `docs/api/openapi.yaml` · v0.10.9 penyelarasan dengan implementasi hak akses tiket 1.2a: format kode menu dan izin (9.1), letak Akun & Peran di Pengaturan Sistem (9.1), aturan layar peran dan akun (9.3), kolom tabel `akses` (11.2) · v0.10.10 order penunjang dari semua pos dan pengembalian hasil ke perawat pasien saat ini (7.00.5, 7.19, 7.20), lokasi fisik bertingkat dan pengelolaan kamar/TT (7.08, 7.54, 11.2) · v0.10.11 istilah umum: glosarium 10.3.3, format `error`, `challenge_id`, kolom `email`, *rate limit*, *queue* (tiket 1.0g) · v0.10.12 kriteria keluar Fase 1 tanpa RS: simulator dan uji kontrak menggantikan sandbox nyata; sandbox nyata menjadi syarat masuk pilot Fase 2 (16, 16.1) · v0.10.13 penyelarasan dengan implementasi tiket 1.2c–1.8d: kolom dan tabel `akses`/`sdm`/`inti` (11.2), sandi awal dan `403 wajib_ganti_sandi` (10.3.2), bagian `sdm.pegawai.identitas` (9.1) · v0.10.14 penyelarasan dokumentasi dengan implementasi tiket 1.6, 1.7, 1.8c, 1.8e tanpa aturan baru: tabel dan kolom `inti`/`akses`/`notifikasi`/`ttd` (11.1, 11.2), kode menu dan izin (9.1), kode status HTTP (10.3.1), rincian kotak kerja dan eskalasi (7.53), usulan data induk dan paket referensi (7.54), PIN, sesi, dan kunci server T1 (7.57) · (v0.10.15 diusulkan di PR [Perlu pemilik] #72) · **v0.10.16** repo publik: paket identitas dan palet bawaan fiktif "RS Contoh Pendidikan" (5.3.1, 5.3.2, 17.2 #19–20), rujukan prototipe dan catatan lapangan ke luar repo |
 
 > **Konvensi penandaan sumber**
 > - **[K]** = fitur/aturan tertulis eksplisit di dokumen konteks (Lampiran 1/2/HTML).
@@ -29,7 +29,7 @@
 2. [Tujuan, Sasaran, dan Ukuran Keberhasilan](#2-tujuan-sasaran-dan-ukuran-keberhasilan)
 3. [Lingkup dan Batasan](#3-lingkup-dan-batasan)
 4. [Persona dan Peran Pengguna](#4-persona-dan-peran-pengguna)
-5. [Prinsip Produk dan Desain UI (paket identitas; contoh RS USU)](#5-prinsip-produk-dan-desain-ui)
+5. [Prinsip Produk dan Desain UI (paket identitas)](#5-prinsip-produk-dan-desain-ui)
 6. [Katalog Modul (01–58)](#6-katalog-modul)
 7. [Spesifikasi Fitur per Modul](#7-spesifikasi-fitur-per-modul)
 8. [Dasbor Berjenjang (Dasbor 1–7)](#8-dasbor-berjenjang)
@@ -260,53 +260,48 @@ Butir 9–17 ditambahkan dari tinjauan heuristik Fase 0 (Lampiran E). Semuanya s
 │ Mutu ... │  Footer: tanggal-jam server · unit aktif · versi          │
 └──────────┴──────────────────────────────────────────────────────────┘
 ```
-Sidebar 248px (collapsible ke 64px ikon), hanya menampilkan menu yang diizinkan untuk akun. Bagian atas sidebar memuat logo Karsitara; di bawahnya kartu RS berisi logo RS USU dan nama resmi rumah sakit (5.3.1).
+Sidebar 248px (collapsible ke 64px ikon), hanya menampilkan menu yang diizinkan untuk akun. Bagian atas sidebar memuat logo Karsitara; di bawahnya kartu RS berisi logo RS (paket identitas) dan nama resmi rumah sakit (5.3.1).
 
 ### 5.3 Identitas visual dan design token
 
-> **Paket identitas RS USU (contoh).** Seluruh 5.3.1–5.3.2 di bawah adalah isi paket identitas untuk instalasi RS USU (3.4). Untuk RS lain, logo dan warna `--brand-*`/`--accent` diganti dari wizard penyiapan; aturan kontras, token status, triase, dan netral tetap berlaku untuk semua paket.
+> **Paket identitas.** Logo dan warna `--brand-*`/`--accent` RS diisi dari paket identitas per instalasi (3.4; Pengaturan → Profil rumah sakit). Palet bawaan dan paket contoh untuk demo/e2e adalah identitas **fiktif** "RS Contoh Pendidikan" (`docs/brand/contoh/`); repo publik tidak memuat aset identitas RS nyata. Aturan kontras, token status, triase, dan netral berlaku untuk semua paket.
 
-**Sumber:** *Pedoman Identitas Universitas Sumatera Utara* (2021, 44 halaman) dan file logo resmi di folder `Logo` (Karsitara, Karya Sistem Nusantara, RS USU). Pedoman itu ditulis untuk komunikasi universitas (logo, cetak, presentasi), **bukan untuk antarmuka aplikasi**. Jadi warna dan huruf diturunkan dari pedoman, sedangkan aturan aplikasi (kontras, status, triase) ditambahkan di sini [I].
+**Sumber:** aturan antarmuka (kontras, status, triase) disusun untuk aplikasi [I]. Pedoman identitas tiap RS (logo, cetak) diserahkan RS saat implementasi dan disimpan di luar repo.
 
 #### 5.3.1 Logo
 
 | Logo | Dipakai di | Aturan |
 |---|---|---|
 | **Karsitara** (`Artboard 4.png`; versi putih `Karsitara_Putih.png`) | Sidebar atas, halaman masuk | Logo produk. Tidak diubah warna atau rasionya; versi putih hanya di latar gelap |
-| **RS USU** (`RS USU.png`) | Kartu RS di sidebar, halaman masuk, kop dokumen keluar | Logo pemilik layanan, selalu bersama nama resmi RS |
+| **Logo RS** (paket identitas, 3.4) | Kartu RS di sidebar, halaman masuk, kop dokumen keluar | Logo pemilik layanan, selalu bersama nama resmi RS. Demo dan e2e memakai logo fiktif "RS Contoh Pendidikan" (`docs/brand/contoh/`) |
 | **Karya Sistem Nusantara** (`KSN_Logo.png`) | Kaki halaman masuk ("Dikembangkan oleh") | Tidak tampil di layar kerja |
-| **Lambang USU** | **Tidak dipakai di aplikasi** | Pedoman 1.2: lambang hanya untuk keperluan legal dan seremonial (ijazah, sertifikat, SK) |
 
-- Jarak aman minimal ¼ tinggi lambang di sekeliling logo dan jarak ≥ 10 mm dari tepi pada dokumen cetak (pedoman 1.10–1.11).
-- Ukuran minimal logo pada dokumen cetak: 10–20 mm sesuai variasi (pedoman 1.9).
-- **Dilarang** mengubah rasio, warna, rotasi, memotong, memberi bayangan atau emboss (pedoman 1.12).
-- **File asli** disimpan di repo `docs/brand/` dan tidak dimuat aplikasi. Aplikasi memakai **versi web**: SVG bila tersedia, atau PNG tinggi 64 px (dua kali ukuran tampil) di bawah 20 KB per file di `frontend/public/logo/`. File asli PNG 10.000 px (± 300 KB) tidak boleh dimuat di layar kerja (anggaran kinerja 14.1).
-- **Perlu dari klien:** logo RS USU dalam format vektor (SVG/AI). File yang ada hanya PNG 512 px, cukup untuk layar tetapi kurang tajam untuk kop dan cetak.
+- Jarak aman, ukuran minimal, dan larangan mengubah logo RS mengikuti pedoman identitas RS masing-masing (diserahkan saat implementasi, disimpan di luar repo). Lambang institusi (untuk keperluan legal/seremonial) tidak dipakai di aplikasi.
+- **File asli logo produk** disimpan di repo `docs/brand/` dan tidak dimuat aplikasi. Aplikasi memakai **versi web**: SVG bila tersedia, atau PNG tinggi 64 px (dua kali ukuran tampil) di bawah 20 KB per file di `frontend/public/logo/`. File asli PNG 10.000 px (± 300 KB) tidak boleh dimuat di layar kerja (anggaran kinerja 14.1).
+- **Aset identitas RS nyata tidak disimpan di repo** (repo publik): RS mengunggahnya lewat Pengaturan → Profil rumah sakit; RS sebaiknya menyerahkan logo dalam format vektor (SVG) untuk kop dan cetak.
 
 #### 5.3.2 Warna
 
-Warna formal dan kasual pedoman (hal. 30–31). Nilai HEX diambil dari tampilan pedoman; **dua HEX tercetak tidak cocok dengan RGB-nya**: Pantone 349 C tertulis `#006973` padahal RGB 0/105/55 = `#006937` (yang tampil di pedoman), dan beberapa HEX formal berbeda tipis dari RGB-nya. Sistem memakai warna yang tampil di pedoman [Medium confidence — perlu konfirmasi bagian Humas/Promosi USU].
+Palet bawaan produk = paket contoh fiktif "RS Contoh Pendidikan" (warna utama `#1F5C99`, aksen `#D97706`). Paket identitas RS menimpa `--brand-*`, `--ring`, dan `--accent*`; turunannya dihitung frontend (`frontend/src/app/tema.ts`) dengan jaminan kontras yang sama, dan skala bawaan di bawah adalah hasil turunan itu. Token status, triase, dan netral milik produk dan tidak diganti per RS. Warna kop dan dokumen cetak diambil dari paket identitas RS.
 
 | Token | Nilai | Asal | Pemakaian | Kontras |
 |---|---|---|---|---|
-| `--brand-600` | `#006937` | Pantone 349 C (kasual) | Tombol utama, menu aktif, tautan | putih di atasnya 6,8:1 |
-| `--brand-800` / `--brand-900` | `#004A27` / `#0B3A22` | turunan 349 C | Teks di latar hijau muda, panel gelap | — |
-| `--brand-50` / `--brand-25` | `#E8F4EC` / `#F4FAF6` | turunan | Latar item aktif, baris terpilih | teks `--brand-600` 6,0:1 |
-| `--usu-gelap` | `#135851` | latar halaman pembatas pedoman | Panel merek (halaman masuk) | putih 8,3:1 |
-| `--usu-hijau` | `#487629` | Pantone 364 C (formal) | Kop dokumen dan cetak | — |
-| `--accent` (`--usu-emas`) | `#F3C300` | Pantone 7406 C (formal) | **Isian saja**: garis penanda, badge notifikasi, aksen kartu RS | teks hitam di atasnya 10,1:1 |
-| `--accent-ink` | `#7A5A00` | turunan emas | Teks bernuansa emas | 6,4:1 |
-| `--usu-kuning` | `#FAE345` | Pantone 106 C | Teks penekanan di latar gelap | 6,3:1 pada `#135851` |
-| `--text` | `#1D1D1B` | Pantone Black | Teks utama | — |
+| `--brand-600` | `#1F5C99` | warna utama paket contoh | Tombol utama, menu aktif, tautan | putih di atasnya 6,9:1 |
+| `--brand-800` / `--brand-900` | `#16406B` / `#113354` | turunan | Teks di latar merek muda, panel gelap | `--brand-800` di `--brand-50` 9,1:1 |
+| `--brand-50` / `--brand-25` | `#E9EFF5` / `#F4F7FA` | turunan | Latar item aktif, baris terpilih | — |
+| `--panel-merek` | `#14385A` | produk | Panel merek (halaman masuk) | putih 12,0:1 |
+| `--accent` | `#D97706` | aksen paket contoh | **Isian saja**: garis penanda, badge notifikasi, aksen kartu RS | — |
+| `--accent-ink` | `#6D3C03` | turunan aksen | Teks bernuansa aksen | ≥ 4,5:1 di `--accent-bg` dan putih |
+| `--penekanan-panel` | `#FFD166` | produk | Teks penekanan di panel merek | 8,4:1 pada `#14385A` |
+| `--text` | `#1D1D1B` | netral | Teks utama | — |
 | `--muted` / `--subtle` | `#565C63` / `#686E75` | netral | Label, metadata | ≥ 4,5:1 |
-| `--danger` | `#C21E15` | turunan Pantone 485 C (`#E1251B`) | Kritis, gagal | 6,0:1 (`#E1251B` hanya 4,7:1 dan gagal di latar merah muda) |
-| `--warn` / `--warn-bg` | `#8A5A00` / `#FFF4D6` | turunan Pantone 137 C | Mendekati batas | 5,4:1 |
+| `--danger` | `#C21E15` | produk | Kritis, gagal | 6,0:1 |
+| `--warn` / `--warn-bg` | `#8A5A00` / `#FFF4D6` | produk | Mendekati batas | 5,4:1 |
 | `--success` / `--success-bg` | `#187A3E` / `#E7F5EC` | hijau fungsional | Selesai, normal | 4,8:1 |
-| `--info` / `--info-bg` | `#2457C5` / `#EAF1FF` | **tidak ada di pedoman** [I] | Informasi | 5,7:1 |
-| `--brand-700` / `--brand-500` / `--brand-100` | `#005A2F` / `#1F8A4C` / `#CDE7D6` | turunan 349 C | Hover tombol utama; tepi fokus; garis tipis bernuansa hijau | `--brand-500` di putih 4,4:1, **jangan untuk teks kecil** |
+| `--info` / `--info-bg` | `#2457C5` / `#EAF1FF` | produk [I] | Informasi | 5,7:1 |
+| `--brand-700` / `--brand-500` / `--brand-100` | `#1A4E82` / `#4779AB` / `#D2DEEB` | turunan | Hover tombol utama; tepi fokus; garis tipis bernuansa merek | `--brand-500` di putih 4,6:1, **jangan untuk teks kecil** |
 | `--danger-bg` | `#FDECEA` | turunan | Latar pesan/badge kritis | teks `--danger` 5,3:1 |
-| `--accent-bg` | `#FEF6D6` | turunan emas | Latar penanda bernuansa emas | teks `--accent-ink` 5,9:1 |
-| `--usu-merah` / `--usu-hitam` | `#E1251B` / `#1D1D1B` | Pantone 485 C / Black | Dokumen cetak dan kop; bukan untuk status di layar | — |
+| `--accent-bg` | `#F9EBDA` | turunan aksen | Latar penanda bernuansa aksen | teks `--accent-ink` ≥ 4,5:1 |
 
 **Permukaan, garis, dan fokus** [I — diturunkan untuk antarmuka, tidak ada di pedoman]:
 
@@ -328,13 +323,13 @@ Warna formal dan kasual pedoman (hal. 30–31). Nilai HEX diambil dari tampilan 
 | `--triase-hijau` | `#187A3E` | putih | 5,4:1 |
 | `--triase-hitam` | `#1D1D1B` | putih | 16,9:1 |
 
-Kuning triase dan emas USU hampir tidak bisa dibedakan (1,1:1), karena itu aturan butir 3 di bawah wajib.
+Kuning triase dan aksen kuning/emas sebuah paket identitas bisa sulit dibedakan, karena itu aturan butir 3 di bawah wajib.
 
 **Risiko dan aturan pakai:**
-1. **Hijau merek dan hijau "berhasil" berdekatan.** Status tidak boleh bergantung pada warna saja: selalu ada teks dan ikon (5.1 butir 4). Tombol utama hijau solid; status berhasil berupa badge hijau muda dengan ikon centang.
-2. **Emas USU tidak lolos kontras sebagai teks** (1,7:1 di latar putih). Emas hanya untuk isian dan garis; teks memakai `--accent-ink`.
-3. **Emas dan kuning triase mudah tertukar.** Di layar IGD dan papan triase, emas merek tidak dipakai sama sekali.
-4. Motif grafis pedoman (Pengabdian, Ulos, Melayu, dan lain-lain; file `PATTERN DESIGN USU.ai`) hanya dipakai di halaman masuk, layar tunggu antrean, dan cetak. **Tidak dipakai di layar kerja klinis**, agar tetap tenang dan mudah dibaca.
+1. **Warna merek bisa berdekatan dengan warna status** (mis. paket bernuansa hijau). Status tidak boleh bergantung pada warna saja: selalu ada teks dan ikon (5.1 butir 4). Tombol utama warna merek solid; status berhasil berupa badge hijau muda dengan ikon centang.
+2. **Aksen tidak dipakai sebagai teks** (aksen terang tidak lolos kontras di latar putih). Aksen hanya untuk isian dan garis; teks memakai `--accent-ink`.
+3. **Aksen dan kuning triase bisa tertukar.** Di layar IGD dan papan triase, aksen merek tidak dipakai sama sekali.
+4. Motif grafis paket identitas hanya dipakai di halaman masuk, layar tunggu antrean, dan cetak. **Tidak dipakai di layar kerja klinis**, agar tetap tenang dan mudah dibaca.
 
 #### 5.3.3 Huruf, ukuran, dan lain-lain
 
@@ -2906,7 +2901,7 @@ Tanpa akses ke RS, tiga hal tidak bisa dikerjakan apa adanya. Penggantinya lebih
 3. Log keputusan 17.2 disetujui pemilik produk. ☐
 4. **Gerbang SUS dipindah:** SUS ≥ 70 (protokol E.2) wajib tercapai **sebelum pilot fase 2**, bukan sebelum fase 1. Fase 1 (fondasi) boleh mulai karena hampir tidak bergantung pada alur kerja klinis.
 5. **Design partner:** minimal satu RS meninjau 17.2 dan mengikuti uji SUS sebelum pilot fase 2. Tanpa ini, fase 2 hanya boleh berjalan sampai lingkungan staging.
-6. **Sandbox integrasi dipindah:** kredensial sandbox BPJS (VClaim/Antrean) dan SATUSEHAT diterbitkan untuk fasilitas kesehatan, bukan vendor tanpa RS mitra [Medium confidence — perlu konfirmasi ke BPJS dan Kemenkes]. Karena itu kriteria keluar Fase 1 memakai **simulator dalam repo + uji kontrak** yang dibangun dari perilaku nyata yang terdokumentasi (`docs/integrasi/catatan-lapangan-bridging.md`). **Uji koneksi ke sandbox nyata dengan kredensial RS mitra** menjadi syarat masuk pilot fase 2, bersama butir 4 dan 5. Simulator tidak membuktikan kesesuaian dengan versi API terbaru; selisihnya dicatat saat sandbox nyata dicoba.
+6. **Sandbox integrasi dipindah:** kredensial sandbox BPJS (VClaim/Antrean) dan SATUSEHAT diterbitkan untuk fasilitas kesehatan, bukan vendor tanpa RS mitra [Medium confidence — perlu konfirmasi ke BPJS dan Kemenkes]. Karena itu kriteria keluar Fase 1 memakai **simulator dalam repo + uji kontrak** yang dibangun dari perilaku nyata yang terdokumentasi (`/Users/ejake/Documents/SIMRS Tipe B/catatan-lapangan-bridging.md` (di luar repo)). **Uji koneksi ke sandbox nyata dengan kredensial RS mitra** menjadi syarat masuk pilot fase 2, bersama butir 4 dan 5. Simulator tidak membuktikan kesesuaian dengan versi API terbaru; selisihnya dicatat saat sandbox nyata dicoba.
 
 Strategi go-live: **bertahap per unit** dengan feature flag, dukungan *floor walker* 24/7 dua minggu pertama, prosedur downtime teruji.
 
@@ -2958,8 +2953,8 @@ Setiap baris berisi keputusan produk (berlaku sekarang), bagian yang dibuat konf
 | 16 | Penerimaan dokumen elektronik pihak luar | Bawaan cetak terkendali untuk e-resep narkotika, berita acara pemusnahan, surat kematian, visum | Daftar dokumen | Konfirmasi dinkes/BPOM/Dukcapil/penyidik |
 | 17 | Pasien WNA dan tanpa NIK | Identitas disimpan (paspor/tanpa identitas, B-01, B-03); pengiriman ke SATUSEHAT ditahan di kotak keluar sampai ID tersedia. Aturan SATUSEHAT untuk kasus ini *perlu verifikasi* | — | Juknis SATUSEHAT terbaru |
 | 18 | Logbook pendidikan | Pseudonim bawaan; templat DPIA disediakan | Aturan pseudonim | Penetapan pejabat PDP RS |
-| 19 | Logo RS | Paket identitas per instalasi (3.4); logo RS USU hanya untuk instalasi/uji RS USU | Logo, kop | Berkas vektor dan izin pemakaian |
-| 20 | HEX pedoman USU | Tetap memakai nilai hasil render (5.3.2) untuk paket RS USU | Warna paket | Konfirmasi Humas USU |
+| 19 | Logo RS | Paket identitas per instalasi (3.4); aset identitas RS tidak disimpan di repo, demo/e2e memakai paket fiktif | Logo, kop | Berkas vektor dan izin pemakaian |
+| 20 | Warna paket identitas RS | Diisi RS lewat Profil rumah sakit; palet bawaan produk fiktif (5.3.2) | Warna paket | Warna dan pedoman identitas dari RS |
 | 21 | Letak Akun & Peran di menu | Di **Pengaturan Sistem** (9.1: `pengaturan.akun`, `pengaturan.peran`, `pengaturan.audit`), bukan di Master Data seperti prototipe `masterdata.html`. Master Data untuk data rujukan dengan alur usulan pemilik data; pengaturan akun dan peran adalah administrasi keamanan instalasi | Label menu | — |
 
 ---
@@ -3328,7 +3323,7 @@ Temuan keparahan 3 menjadi **syarat terima** tiket modul terkait (dicantumkan di
 | Unsur | Ketentuan |
 |---|---|
 | Peserta | Minimal 5 orang per kelompok peran, 5 kelompok: petugas pendaftaran, dokter, perawat, apoteker/TTK, kasir. Tenaga kesehatan atau staf administrasi RS mana pun; belum pernah melihat prototipe |
-| Bahan | Prototipe `docs/html/` dengan data fiktif; tidak ada data pasien asli |
+| Bahan | Prototipe HTML di luar repo (`/Users/ejake/Documents/SIMRS Tipe B/html/`) dengan data fiktif; tidak ada data pasien asli |
 | Tugas per kelompok | Pendaftaran: daftarkan pasien lama BPJS ke poli dan terbitkan SEP. Dokter: tulis SOAP, beri resep, sahkan dengan PIN. Perawat: berikan obat terjadwal di eMAR termasuk satu obat dengan cek ganda. Apoteker: telaah resep yang punya satu masalah dosis lalu serahkan obat. Kasir: terima pembayaran pasien umum dan cetak kuitansi |
 | Ukuran | Selesai/tidak, waktu, jumlah kesalahan (terutama salah pasien), lalu kuesioner SUS segera setelah tugas |
 | Penilaian | Butir ganjil: skor − 1; butir genap: 5 − skor; jumlah × 2,5 → 0–100. Target **≥ 70 per kelompok** dan **≥ 75 rata-rata** (G-8); tidak ada kesalahan salah pasien |

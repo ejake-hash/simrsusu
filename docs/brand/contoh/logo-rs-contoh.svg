@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 96" width="360" height="96" role="img" aria-label="RS Contoh Pendidikan (identitas fiktif)">
+  <title>RS Contoh Pendidikan (identitas fiktif)</title>
+  <rect x="4" y="8" width="80" height="80" rx="18" fill="#1F5C99"/>
+  <rect x="36" y="22" width="16" height="52" rx="3" fill="#FFFFFF"/>
+  <rect x="18" y="40" width="52" height="16" rx="3" fill="#FFFFFF"/>
+  <circle cx="70" cy="22" r="8" fill="#D97706"/>
+  <text x="100" y="46" font-family="Public Sans, Arial, sans-serif" font-size="30" font-weight="700" fill="#14385A">RS Contoh</text>
+  <text x="100" y="78" font-family="Public Sans, Arial, sans-serif" font-size="24" font-weight="500" fill="#1F5C99">Pendidikan</text>
+</svg>

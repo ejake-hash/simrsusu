@@ -8,7 +8,7 @@ export function profilRsTiruan(isi: Partial<Omit<ProfilRsApi, 'paket_identitas' 
     nama: null,
     instalasi_demo: false,
     ...lain,
-    paket_identitas: { warna: { brand: '#006937', accent: '#F3C300' }, logo_url: null, motif_url: null, foto_url: null, ...paket_identitas },
+    paket_identitas: { warna: { brand: '#1F5C99', accent: '#D97706' }, logo_url: null, motif_url: null, foto_url: null, ...paket_identitas },
     kontak_admin: { unit: 'admin SIMRS', kontak: null, ...kontak_admin },
   }
 }
