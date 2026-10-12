@@ -19,7 +19,8 @@ final class Penyamar
     /** Tambahan per sistem (kontrak v0.13.0: allowlist per sistem). */
     private const BOLEH_SISTEM = [
         'bpjs_vclaim' => ['kode'],
-        'aplicares' => ['kode', 'kodekelas'],
+        'aplicares' => ['kode', 'kodekelas', 'namakelas', 'koderuang', 'namaruang', 'kapasitas', 'tersedia', 'tersediapria', 'tersediawanita',
+            'tersediapriawanita'],
         'satusehat' => ['resourcetype', 'id', 'issue', 'severity', 'details', 'diagnostics', 'coding', 'system', 'entry',
             'resource', 'meta', 'lastupdated', 'versionid', 'physicaltype', 'mode', 'partof'],
     ];

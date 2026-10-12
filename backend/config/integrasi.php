@@ -30,6 +30,10 @@ return [
         ],
     ],
 
+    // Aplicares produksi: kiriman ditahan (`isian_belum_diverifikasi`) sampai isian bed/update dicocokkan dengan dokumen
+    // resmi BPJS dan keterisian TT tersedia (fase 2). Sandbox dan simulator tidak terpengaruh.
+    'aplicares_isian_terverifikasi' => (bool) env('INTEGRASI_APLICARES_TERVERIFIKASI', false),
+
     // Batas waktu satu panggilan HTTP (detik). Uji koneksi memakai batas sendiri.
     'batas_waktu' => (int) env('INTEGRASI_BATAS_WAKTU', 20),
     'batas_waktu_uji' => 15,

@@ -88,6 +88,12 @@ final class PengirimKiriman
 
             return;
         }
+        if ($hasil->tunda) {
+            $this->sirkuit->lepasJatah($kiriman->tujuan);
+            $this->simpan($baris, ['coba_lagi_pada' => now()->addMinute(), 'error_terakhir' => $hasil->pesan]);
+
+            return;
+        }
         if ($hasil->berhasil) {
             $this->sirkuit->berhasil($kiriman->tujuan);
             $this->simpan($baris, ['status' => 'terkirim', 'terkirim_pada' => now(), 'coba_lagi_pada' => null, 'error_terakhir' => null,
