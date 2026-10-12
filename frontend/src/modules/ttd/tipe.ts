@@ -14,7 +14,7 @@ export interface StatusTtd {
   reset_menunggu: boolean
 }
 
-export type JenisObjekTtd = 'persetujuan_akses'
+export type JenisObjekTtd = 'persetujuan_akses' | 'usulan_data_induk'
 export type StatusVerifikasi = 'sah' | 'isi_berubah' | 'tanda_tangan_tidak_sah'
 
 export interface TandaTangan {

@@ -161,7 +161,10 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   tambahPeran(uid(105), 'contoh_kasir', 'Contoh Kasir', [...izinMenu(pohon, ['kasir']), 'kasir.tagihan.cetak', 'kasir.tagihan.lihat_rupiah'], { wajib_mfa: true })
   tambahPeran(uid(106), 'contoh_lama', 'Contoh Peran Lama', [], { status: 'nonaktif' })
   // Pemilik data induk organisasi (1.8a-be: akun contoh.data.induk); superadmin tidak memegangnya.
-  tambahPeran(uid(107), 'contoh_data_induk', 'Contoh Admin Data Induk', ['organisasi', 'jenis_tugas'].flatMap((s) => ['lihat', 'input', 'perbaiki'].map((a) => `master_data.${s}.${a}`)))
+  tambahPeran(uid(107), 'contoh_data_induk', 'Contoh Admin Data Induk', [
+    ...['organisasi', 'jenis_tugas', 'usulan'].flatMap((s) => ['lihat', 'input', 'perbaiki'].map((a) => `master_data.${s}.${a}`)),
+    'master_data.usulan.verifikasi', 'master_data.usulan.setujui',
+  ])
   // Pengelola data pegawai (1.8d); bagian identitas (NIK utuh) tidak ikut, diberikan tersendiri lewat persetujuan.
   tambahPeran(uid(109), 'contoh_sdm', 'Contoh Admin SDM', [
     ...['pegawai', 'kredensial'].flatMap((s) => ['lihat', 'input', 'perbaiki'].map((a) => `sdm.${s}.${a}`)),

@@ -23,6 +23,7 @@ import type { Kamar, Lokasi, TempatTidur } from '../../tipeLokasi'
 import DialogKamar from './DialogKamar.vue'
 import DialogTempatTidur from './DialogTempatTidur.vue'
 import DialogTutupTt from './DialogTutupTt.vue'
+import RiwayatVersi from '@/modules/usulan/components/RiwayatVersi.vue'
 
 /**
  * Panel rinci satu lokasi (GET /lokasi/{id}, ETag untuk ubah). Ruang: panel kamar (bangsal, kapasitas, peringatan
@@ -208,6 +209,9 @@ const ttNode = computed(() => tt.data.value ?? null)
             <li v-for="p in poli.data.value" :key="p.id">{{ p.kode }} · {{ p.nama }} <span class="pil" :class="p.status === 'aktif' ? 'pil-ok' : 'pil-netral'">{{ p.status === 'aktif' ? 'Aktif' : 'Nonaktif' }}</span></li>
           </ul>
         </template>
+        <!-- Riwayat versi 1.8c: ruang dan kamarnya. -->
+        <RiwayatVersi jenis="ruang" :objek-id="l.id" />
+        <RiwayatVersi v-if="kamarId" :key="kamarId" jenis="kamar" :objek-id="kamarId" />
       </section>
 
       <!-- Node TT: rincian tempat tidur. -->
@@ -246,6 +250,7 @@ const ttNode = computed(() => tt.data.value ?? null)
             <dd>{{ ttNode.data.alasan_tutup }}</dd>
           </div>
         </dl>
+        <RiwayatVersi v-if="ttId" :key="ttId" jenis="tempat_tidur" :objek-id="ttId" />
       </section>
 
       <template v-if="l.jenis === 'ruang'">
