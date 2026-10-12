@@ -52,6 +52,7 @@ export const router = createRouter({
         { path: 'pengaturan/persetujuan/:id', redirect: (ke) => ({ path: '/pengaturan/persetujuan', query: { ...ke.query, id: String(ke.params.id) } }) },
         { path: 'sdm/pegawai/:pegawai', redirect: (ke) => ({ path: '/sdm/pegawai', query: { pegawai: String(ke.params.pegawai) } }) },
         { path: 'pengaturan/persetujuan', name: 'pengaturan-persetujuan', component: () => import('@/modules/akses/pages/PersetujuanPage.vue'), meta: { judul: 'Persetujuan akses' } },
+        { path: 'pengaturan/penyiapan', name: 'pengaturan-penyiapan', component: () => import('@/modules/penyiapan/pages/PenyiapanPage.vue'), meta: { judul: 'Penyiapan instalasi' } },
         { path: 'pengaturan/profil-rs', name: 'pengaturan-profil-rs', component: () => import('@/modules/organisasi/pages/ProfilRsPage.vue'), meta: { judul: 'Profil rumah sakit' } },
         { path: 'master-data/organisasi', name: 'master-data-organisasi', component: () => import('@/modules/organisasi/pages/OrganisasiPage.vue'), meta: { judul: 'Organisasi, Unit, Ruang & Tempat Tidur' } },
         { path: 'sdm/pegawai', name: 'sdm-pegawai', component: () => import('@/modules/sdm/pages/PegawaiPage.vue'), meta: { judul: 'Data pegawai' } },

@@ -4,6 +4,7 @@ import { useMenuSaya } from '@/app/menu'
 import { useProfilRs } from '@/app/profilRs'
 import { useSesiStore } from '@/app/sesi'
 import { useKelasLayar } from '@/shared/composables/useKelasLayar'
+import PitaPenyiapan from '@/modules/penyiapan/components/PitaPenyiapan.vue'
 import { modulSaya, salam } from '../beranda'
 import InformasiUmum from '../components/InformasiUmum.vue'
 import KartuModul from '../components/KartuModul.vue'
@@ -49,6 +50,8 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', saatTerli
       {{ tanggal }}<template v-if="peran"> · {{ peran }}</template>
     </p>
   </div>
+
+  <PitaPenyiapan />
 
   <section v-if="!ponsel" class="kartu modul" aria-labelledby="judul-modul">
     <div class="kartu-kepala">
