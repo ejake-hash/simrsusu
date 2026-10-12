@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.9.0
+  version: 0.11.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -40,6 +40,8 @@ info:
     v0.9.0: Usulan perubahan data induk berjenjang (tiket 1.8c): /usulan-data-induk (+ verifikasi, setujui, kembalikan,
     kirim-ulang), /data-induk/{jenis}/{id}/riwayat-versi; 409 `harus_lewat_usulan` di 1.8b sesudah instalasi siap
     melayani; TTE objek `usulan_data_induk`.
+    v0.10.0 (diusulkan, #64): lapis 4–5 hak akses (tiket 1.5), menunggu pemilik.
+    v0.11.0: Paket data referensi (tiket 1.8e): POST /paket-referensi/{sistem}/muat (pratinjau/terapkan, snapshot per versi).
 servers:
   - url: /api/v1
 security:
@@ -3384,6 +3386,76 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # Paket data referensi (tiket 1.8e; PRD FR-54-08 langkah 4, FR-54-09, 11.2 inti.paket_referensi/wilayah/referensi/
+  # terminologi; keputusan K7). Instalasi baru memuat data rujukan nasional dengan sumber dan versi yang jelas.
+  # - Satu pemuatan = satu versi lengkap satu sistem (snapshot): kode di berkas ditambah/diperbarui; kode yang sudah ada
+  #   tetapi tidak ada di versi baru ditandai tidak aktif (tidak dihapus, tetap terbaca di data historis); kode yang
+  #   muncul lagi diaktifkan kembali. Untuk `referensi`, snapshot berlaku per `kelompok` yang ada di berkas.
+  # - Versi = kunci pemuatan per sistem (`inti.paket_referensi` unik sistem + versi, dengan sidik isi). Memuat ulang
+  #   sistem + versi yang sama dengan isi sama = idempoten bila versi itu pemuatan terakhir sistem tersebut: 200,
+  #   `diterapkan` true, jumlah perubahan (baru/diubah/dinonaktifkan/diaktifkan lagi) 0, tanpa baris paket dan audit baru.
+  #   Pratinjau pemuatan ulang itu: 200, `diterapkan` false, jumlah perubahan 0. Versi lama yang sudah digantikan versi
+  #   lain tidak bisa dimuat ulang, dan isi berbeda dengan versi yang sama ditolak: keduanya 409 `versi_sudah_dimuat`
+  #   (pakai nomor versi lain). Untuk `referensi`, setiap berkas (satu atau beberapa kelompok) memakai versinya sendiri
+  #   (mis. `agama-2025.1`).
+  # - Pemuatan terakhir yang menentukan kode mana yang aktif; pemuatan bersamaan untuk sistem yang sama diserialkan.
+  # - Paket referensi bukan data induk berpemilik: tidak lewat usulan berjenjang dan tidak terkena `harus_lewat_usulan`.
+  # - Nama sistem di API huruf kecil; di `inti.terminologi.sistem` sama (PRD 11.2 menulis ICD10, ICD9CM, LOINC, UCUM).
+  # - Isi paket: wilayah, UCUM, subset LOINC (atribusi Regenstrief), kode variabel RME dikemas produk (berkas dari sumber
+  #   resmi, SUMBER.md per paket); ICD-10/ICD-9-CM hanya dari berkas yang disediakan RS (K7, tidak ada berkas ICD di repo).
+  #   KFA dan referensi BPJS ditarik lewat API di 1.9; SNOMED CT tidak dikemas.
+  # - Juga lewat konsol: `php artisan referensi:muat <sistem> <berkas> --versi= --sumber=` (aturan dan validasi sama).
+  # ---------------------------------------------------------------------------
+  /paket-referensi/{sistem}/muat:
+    parameters:
+      - { in: path, name: sistem, required: true, schema: { $ref: '#/components/schemas/SistemReferensi' } }
+    post:
+      operationId: muatPaketReferensi
+      summary: Muat satu versi paket referensi dari CSV (pratinjau dulu, lalu terapkan)
+      description: |
+        Izin: master_data.katalog.input, cakupan `rs` (wizard penyiapan langkah 4). Berkas CSV UTF-8 (RFC 4180, baris pertama
+        judul kolom; BOM dan pemisah `;` diterima), paling besar 10 MB dan 120.000 baris data; diproses sinkron dengan target
+        < 30 detik untuk 100.000 baris (PRD 14.1.1; wilayah ±91 ribu kelurahan). Judul kolom per sistem:
+        - `wilayah`: `kode,nama` — kode Kemendagri bertitik (`11`, `11.01`, `11.01.01`, `11.01.01.2001`); tingkat
+          (provinsi/kabupaten/kecamatan/kelurahan) dan induk diturunkan dari kode.
+        - `referensi`: `kelompok,kode,label` — kelompok snake_case (mis. agama, pendidikan, pekerjaan, status_kawin).
+        - `icd10`, `icd9cm`, `loinc`, `ucum`: `kode,tampilan,kode_induk` (kode_induk boleh kosong).
+        - `mode=pratinjau`: tidak menyimpan; ringkasan perubahan dan baris salah.
+        - `mode=terapkan`: memeriksa ulang; satu baris salah → 422 `muat_tidak_valid` (`rincian` = baris salah, paling banyak
+          500; tidak ada yang disimpan); bila semua benar → satu transaksi + satu baris `inti.paket_referensi` (versi yang sama
+          tidak digandakan) + audit `master_data.referensi_dimuat`.
+        - 422 `berkas_tidak_valid` (bukan CSV UTF-8, judul kolom tidak sesuai, melebihi batas baris).
+        - Versi sama dengan isi sama yang merupakan pemuatan terakhir sistem itu: 200 tanpa perubahan (jumlah perubahan 0;
+          `diterapkan` true pada terapkan, false pada pratinjau), tanpa baris paket dan audit baru.
+        - 409 `versi_sudah_dimuat` (pratinjau dan terapkan): versi itu sudah dimuat dengan isi berbeda, atau sudah
+          digantikan pemuatan versi lain untuk sistem yang sama. Pakai nomor versi baru.
+        - 422 `validasi_gagal` kolom `catatan_lisensi` untuk `loinc` bila kosong (atribusi Regenstrief wajib).
+        Kode salah per baris: `kolom_wajib`, `kode_tidak_valid`, `kode_ganda`, `induk_tidak_ditemukan`, `nilai_tidak_valid`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [berkas, mode, versi, sumber]
+              properties:
+                berkas: { type: string, contentMediaType: text/csv }
+                mode: { type: string, enum: [pratinjau, terapkan] }
+                versi: { type: string, minLength: 1, maxLength: 50, examples: ['2025.1', 'agama-2025.1'] }
+                sumber: { type: string, minLength: 3, maxLength: 500, description: "Asal berkas (instansi/URL/nomor dokumen)" }
+                catatan_lisensi: { type: [string, 'null'], maxLength: 1000, description: "Mis. atribusi Regenstrief untuk LOINC" }
+      responses:
+        '200':
+          description: Hasil pratinjau atau penerapan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/HasilMuatReferensi' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '413': { description: "Berkas melebihi batas unggah server web" }
+        '422': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -4325,6 +4397,25 @@ components:
         dasar: { type: string }
         diubah_oleh: { $ref: '#/components/schemas/Pelaku' }
         diubah_pada: { type: string, format: date-time }
+    SistemReferensi:
+      type: string
+      enum: [wilayah, referensi, icd10, icd9cm, loinc, ucum]
+    HasilMuatReferensi:
+      type: object
+      required: [sistem, versi, mode, diterapkan, jumlah_baris, jumlah_salah, jumlah_baru, jumlah_diubah, jumlah_dinonaktifkan, jumlah_diaktifkan_lagi, kesalahan, kesalahan_terpotong]
+      properties:
+        sistem: { $ref: '#/components/schemas/SistemReferensi' }
+        versi: { type: string }
+        mode: { type: string, enum: [pratinjau, terapkan] }
+        diterapkan: { type: boolean }
+        jumlah_baris: { type: integer, minimum: 0 }
+        jumlah_salah: { type: integer, minimum: 0, description: "Jumlah baris salah (kesalahan dipotong 500)" }
+        jumlah_baru: { type: integer, minimum: 0 }
+        jumlah_diubah: { type: integer, minimum: 0, description: "Kode yang ada dengan nama/tampilan/induk berbeda" }
+        jumlah_dinonaktifkan: { type: integer, minimum: 0, description: "Kode aktif yang tidak ada di versi ini" }
+        jumlah_diaktifkan_lagi: { type: integer, minimum: 0 }
+        kesalahan: { type: array, maxItems: 500, items: { $ref: '#/components/schemas/KesalahanBarisImpor' } }
+        kesalahan_terpotong: { type: boolean }
     StatusPermintaan:
       type: string
       enum: [menunggu, ditindaklanjuti, ditolak]
