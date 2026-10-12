@@ -20,7 +20,8 @@ cd backend
 composer install && cp .env.example .env && php artisan key:generate
 php artisan migrate --database=pgsql_migrator
 composer test                        # migrasi simrs_test sebagai migrator, lalu phpunit
-php artisan db:seed                  # akun sintetis contoh.admisi/perawat/dokter (ditolak di production)
+php artisan db:seed                  # akun sintetis contoh.* (ditolak di production); paket identitas dari
+                                     # PAKET_IDENTITAS_CONTOH_DIR bila diisi (docs/brand/README.md)
 php artisan serve                    # http://127.0.0.1:8000
 
 cd ../frontend

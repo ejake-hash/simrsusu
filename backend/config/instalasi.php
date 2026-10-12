@@ -18,5 +18,8 @@ return [
             'motif' => (int) env('IDENTITAS_BATAS_MOTIF_KB', 500),
             'foto' => (int) env('IDENTITAS_BATAS_FOTO_KB', 2048),
         ],
+        // Folder paket identitas di luar repo untuk instalasi lokal/staging (PaketIdentitasContohSeeder; format di
+        // docs/brand/README.md). Kosong = dilewati, identitas tetap netral.
+        'paket_contoh_dir' => env('PAKET_IDENTITAS_CONTOH_DIR'),
     ],
 ];

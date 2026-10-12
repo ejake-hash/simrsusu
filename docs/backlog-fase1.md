@@ -311,9 +311,15 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
     `DB_SSLMODE=verify-full`.
   - Sesudah pemulihan yang kehilangan data: kiriman integrasi yang sudah terkirim bisa kembali `menunggu` (kirim ganda),
     dan anchor jendela yang hilang tidak akan cocok lagi. Prosedur menunggu pemilik (runbook README, keputusan no. 4).
-- Utang tinjauan #78 (repo publik, palet fiktif): panel merek halaman masuk (`--panel-merek`) tetap biru sedangkan
-  gradiennya ikut `--brand-800/900` paket RS, dan kontras `--penekanan-panel` belum terjamin untuk sembarang paket.
-  Arah: panel memakai warna paket RS (turunan `turunanTema()`) dengan cek kontras otomatis seperti `--accent-ink`.
+- ~~Utang tinjauan #78~~ **selesai**: panel merek halaman masuk memakai token sendiri (`--panel-merek`, `-tengah`,
+  `-akhir`, `-sorot`, `--penekanan-panel`) yang diturunkan `turunanTema()` dari warna paket RS dengan cek kontras
+  otomatis (teks putih dan `--brand-100` ≥ 4,5:1 di setiap titik gradien termasuk sorot; penekanan dari aksen ≥ 4,5:1);
+  palet bawaan di `tokens.css` tidak berubah. Keputusan pemilik 12 Okt 2026 (panel ikut warna paket RS). **PRD 5.3.2**
+  masih mencatat `--panel-merek`/`--penekanan-panel` berasal "produk" dan paket hanya menimpa `--brand-*`, `--ring`,
+  `--accent*`: diselaraskan di PR PRD v0.10.20 sesudah kode merge (tambah `--panel-merek-tengah/-akhir/-sorot`).
+- Paket identitas instalasi lokal/staging: `PaketIdentitasContohSeeder` (dipanggil `DatabaseSeeder` di local/staging)
+  memasang profil RS dari folder di luar repo (`PAKET_IDENTITAS_CONTOH_DIR`, format di `docs/brand/README.md`) lewat
+  `KelolaProfilRs` (kontras, pemeriksaan berkas, audit). Kosong = identitas netral. Berkas dan warna RS nyata tidak di repo.
 - Sesudah 1.8f-fe:
   - Layar penyiapan tidak menghitung apa pun sendiri: status, syarat, dan tombol dari `GET /penyiapan` (`dapat_*`). Langkah tanpa layar pengisi (penjamin/tarif, formularium, kredensial integrasi, modul aktif) hanya menampilkan keterangan; tautan langkah 1 ke Akun & akses (superadmin kedua dibuat dari konsol atau akun pegawai).
   - Muat paket referensi hanya untuk pemegang `master_data.katalog.input` (peran `penyiap_instalasi`); superadmin melihat daftar paket tanpa tombol muat. 409 `versi_sudah_dimuat` tampil di kolom versi dengan satu pesan umum; pratinjau tanpa perubahan tampil "Tidak ada perubahan; versi ini sudah termuat".

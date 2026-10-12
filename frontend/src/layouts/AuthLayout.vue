@@ -156,7 +156,7 @@ const profilRs = useProfilRs()
   margin: 12px 12px 12px 0;
   padding: 48px;
   border-radius: 20px;
-  background: linear-gradient(160deg, var(--panel-merek) 0%, var(--brand-800) 55%, var(--brand-900) 100%);
+  background: linear-gradient(160deg, var(--panel-merek) 0%, var(--panel-merek-tengah) 55%, var(--panel-merek-akhir) 100%);
   color: var(--surface);
 }
 /* Motif identitas RS (PRD 5.3.2 aturan 4: hanya halaman masuk, antrean, cetak). */
@@ -177,7 +177,7 @@ const profilRs = useProfilRs()
   width: 520px;
   height: 520px;
   border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--brand-500) 45%, transparent), transparent 65%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--panel-merek-sorot) 45%, transparent), transparent 65%);
 }
 .panel-merek > * {
   position: relative;
@@ -226,8 +226,8 @@ const profilRs = useProfilRs()
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--surface) 14%, transparent);
   border-radius: 16px;
-  background: var(--brand-900);
-  box-shadow: 0 24px 48px -24px var(--brand-900);
+  background: var(--panel-merek-akhir);
+  box-shadow: 0 24px 48px -24px var(--panel-merek-akhir);
 }
 .foto img {
   position: absolute;
@@ -237,12 +237,12 @@ const profilRs = useProfilRs()
   object-fit: cover;
   object-position: 50% 40%;
 }
-/* Gelap di bawah agar keterangan terbaca dan foto menyatu dengan panel hijau. */
+/* Gelap di bawah agar keterangan terbaca dan foto menyatu dengan panel merek. */
 .foto::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, color-mix(in srgb, var(--brand-900) 85%, transparent), transparent 45%);
+  background: linear-gradient(to top, color-mix(in srgb, var(--panel-merek-akhir) 85%, transparent), transparent 45%);
 }
 .foto figcaption {
   position: absolute;
