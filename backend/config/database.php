@@ -98,8 +98,8 @@ return [
             'search_path' => env('DB_SEARCH_PATH', 'sistem,public'),
             'timezone' => 'UTC',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
-            // Batas waktu membuka koneksi (detik; pdo_pgsql memakainya sebagai connect_timeout). Tanpa ini permintaan bisa
-            // menunggu batas TCP sistem operasi (menit) saat basis data tidak terjangkau (PRD 14.1.1 butir 2; uji beban 1.12).
+            // Batas waktu membuka koneksi (detik; pdo_pgsql memakainya sebagai connect_timeout). Tanpa opsi ini pdo_pgsql
+            // menunggu 30 detik saat basis data tidak menjawab (PRD 14.1.1 butir 2; uji beban 1.12).
             'options' => extension_loaded('pdo_pgsql') ? [PDO::ATTR_TIMEOUT => (int) env('DB_CONNECT_TIMEOUT', 5)] : [],
         ],
 
@@ -117,8 +117,8 @@ return [
             'search_path' => env('DB_SEARCH_PATH', 'sistem,public'),
             'timezone' => 'UTC',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
-            // Batas waktu membuka koneksi (detik; pdo_pgsql memakainya sebagai connect_timeout). Tanpa ini permintaan bisa
-            // menunggu batas TCP sistem operasi (menit) saat basis data tidak terjangkau (PRD 14.1.1 butir 2; uji beban 1.12).
+            // Batas waktu membuka koneksi (detik; pdo_pgsql memakainya sebagai connect_timeout). Tanpa opsi ini pdo_pgsql
+            // menunggu 30 detik saat basis data tidak menjawab (PRD 14.1.1 butir 2; uji beban 1.12).
             'options' => extension_loaded('pdo_pgsql') ? [PDO::ATTR_TIMEOUT => (int) env('DB_CONNECT_TIMEOUT', 5)] : [],
         ],
 

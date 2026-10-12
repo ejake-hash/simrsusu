@@ -1,12 +1,12 @@
 # Daftar periksa OWASP ASVS 4.0.3 Level 2 — Fase 1
 
-Tiket 1.12 butir be 3, 12 Okt 2026. Kode yang dinilai: `origin/main` (63e5b2b, sesudah #82) dan cabang
-`feat/akses-lapis45` (tiket 1.5, PR #83, belum merge). Butir yang hanya terpenuhi oleh kode #83 ditandai
-**bergantung #83**.
+Tiket 1.12 butir be 3, 12 Okt 2026. Kode yang dinilai: commit `63e5b2b` (main sesudah #82) dan cabang tiket 1.5
+(`7e38d00`, PR #83). **Nomor baris di kolom bukti mengacu ke commit itu** (bukti bertanda #83 ke `7e38d00`); di main
+sesudahnya nomor baris bisa bergeser, nama berkas dan simbol tetap. #83 dan runbook (#85) **sudah merge** sejak
+penilaian; tanda "bergantung #83" dipertahankan untuk menunjukkan asal buktinya.
 
 Cara menilai: dari kode dan tes, bukan dari klaim dokumen. Bukti ditulis `berkas:baris` relatif terhadap `backend/`
-(atau `frontend/src/`, `docs/`). Runbook dirujuk dari cabang `docs/runbook-1.12` (belum merge) dan ditandai
-"(runbook)".
+(atau `frontend/src/`, `docs/`). Runbook (`docs/operasional/`, #85) ditandai "(runbook)".
 
 Hasil: **Lulus** = terpenuhi dan ada bukti di kode/tes; **Sebagian** = sebagian terpenuhi atau hanya bukti kode
 tanpa tes untuk bagian penting; **Tidak** = tidak terpenuhi; **n.a.** = fitur itu tidak ada di fase 1.
@@ -24,7 +24,7 @@ resmi diberi tanda *perlu cek teks ASVS* (lihat bagian akhir).
 | No. | Butir (ringkas) | L | Hasil | Bukti | Catatan |
 |---|---|---|---|---|---|
 | 2.1.1 | Sandi pilihan pengguna minimal 12 karakter | 1 | Lulus | `app/Modules/Akses/ModuleServiceProvider.php:72` (`max(12, …)`), `app/Modules/Akses/Application/GantiSandi.php:41-42`; tes `tests/Feature/Akses/SandiTest.php:18`, `tests/Feature/Sdm/PegawaiTest.php:95` | Angka konfigurasi tidak bisa menurunkan batas 12 |
-| 2.1.2 | Sandi ≥ 64 karakter diizinkan, > 128 ditolak | 1 | Sebagian | `GantiSandi.php:14,42` (`max:200`), `Http/Requests/MasukRequest.php:19` (`max:1024`), `Console/BuatSuperadminPertama.php:50` (`max:1024`) | 64 diizinkan; batas atas 200/1024, bukan 128. Frontend tanpa `maxlength` (`design-system/form/IsianSandi.vue`) |
+| 2.1.2 | Sandi ≥ 64 karakter diizinkan, > 128 ditolak | 1 | Sebagian | `GantiSandi.php:42` (`max:200`), `Http/Requests/MasukRequest.php:19` (`max:1024`), `Console/BuatSuperadminPertama.php:50` (`max:1024`) | 64 diizinkan; batas atas 200/1024, bukan 128. Frontend tanpa `maxlength` (`design-system/form/IsianSandi.vue`) |
 | 2.1.3 | Tidak ada pemotongan sandi | 1 | Lulus | `config/hashing.php:19` (argon2id, tanpa batas 72 bita seperti bcrypt) | Huruf kecil hanya untuk cek daftar bocor (`Infrastructure/DaftarSandiBocor.php:19`) |
 | 2.1.4 | Semua karakter Unicode cetak boleh | 1 | Lulus | aturan hanya `string`, `min`, `max` (`GantiSandi.php:42`) | NUL ditolak umum (`app/Core/Http/TolakKarakterNul.php`), bukan karakter cetak |
 | 2.1.5 | Pengguna bisa mengganti sandi | 1 | Lulus | `routes.php:62` `POST /saya/sandi`; tes `PegawaiTest.php:91-103` | |
@@ -237,7 +237,9 @@ Bila #83 tidak merge, 3.7.1 tetap Sebagian (hanya sandi lama dan PIN TTE).
 
 #### T-1. Cakupan izin pengelola akun dan peran tidak ditegakkan (ASVS 4.1.3, 4.2.1)
 
-**Status: diperbaiki di #86** (5c55e48). Middleware `can.rs:<izin>` (`app/Modules/Akses/Http/Middleware/IzinSeluruhRs.php`)
+**Status: celah ditutup di #86** (5c55e48): usulan butir 1 (`can.rs`) dan 3 (tes) selesai. Butir 2 (penugasan peran
+pengelola akses bercakupan unit ditolak `422 cakupan_harus_rs`) **belum**: butuh kode error baru di kontrak, dicatat di
+backlog Utang 1.12; endpoint-nya sudah menolak 403 untuk pemegang bercakupan unit, jadi celahnya tertutup. Middleware `can.rs:<izin>` (`app/Modules/Akses/Http/Middleware/IzinSeluruhRs.php`)
 mewajibkan izin bercakupan seluruh RS di semua rute `pengaturan.akun.*`/`pengaturan.peran.*`. Tes
 `PengaturanAkunTest::test_pengelola_bercakupan_unit_tidak_bisa_mengelola_akun_dan_peran` dan tes struktural
 `test_semua_rute_pengelolaan_akun_dan_peran_memakai_can_rs` (rute baru, termasuk label 1.5, ikut diperiksa). Uraian
@@ -342,7 +344,7 @@ unggahan; rate limit `GET /profil-rs` per IP di balik NAT.
   - nomor butir yang sengaja tidak dinilai: 4.1.4 dan 7.3.2 (dihapus di 4.0.3, duplikat), serta butir L3 (2.2.4–2.2.7,
     2.8.7, 3.6.x).
 - **Perilaku framework, bukan tes proyek:** 2.4.2 (salt argon2id), 3.2.2/3.2.4 (ID sesi), 5.1.1, 5.2.3.
-- **Bergantung runbook yang belum merge** (`docs/runbook-1.12`): 4.3.2, 7.3.4, header keamanan (CSP, HSTS,
+- **Bergantung runbook** (`docs/operasional/`, #85): 4.3.2, 7.3.4, header keamanan (CSP, HSTS,
   X-Frame-Options, Referrer-Policy), dan TLS 1.2+. Semuanya hanya di konfigurasi nginx contoh, tidak ditegakkan
   aplikasi.
 - **#83:**

@@ -52,7 +52,7 @@ Kolom **Produksi**: nilai yang diharapkan; `<...>` = isian per RS; "bawaan" = bi
 | `DB_USERNAME` | `simrs_app` | Role aplikasi tanpa DDL. |
 | `DB_PASSWORD` | `<sandi simrs_app>` | Vault. |
 | `DB_SEARCH_PATH` | `sistem,public` | Tabel bawaan Laravel di skema `sistem`. |
-| `DB_CONNECT_TIMEOUT` | `5` (bawaan) | Detik menunggu koneksi PostgreSQL terbuka (`PDO::ATTR_TIMEOUT` = `connect_timeout` libpq). Tanpa batas ini permintaan bisa menunggu menit saat basis data tidak terjangkau ([hasil-uji-beban.md](hasil-uji-beban.md)). Sejak 1.12. |
+| `DB_CONNECT_TIMEOUT` | `5` (bawaan) | Detik menunggu koneksi PostgreSQL terbuka (`PDO::ATTR_TIMEOUT` = `connect_timeout` libpq). Tanpa opsi ini pdo_pgsql menunggu 30 detik saat basis data tidak menjawab ([hasil-uji-beban.md](hasil-uji-beban.md)). Sejak 1.12. |
 | `DB_SSLMODE` | `verify-full` bila DB di server lain (bawaan `prefer`) | Tidak ada di `.env.example`. PRD 14.2: TLS antar-server. `config/database.php` tidak punya opsi `sslrootcert`, jadi libpq mencari sertifikat CA di `~/.postgresql/root.crt` milik pengguna proses (`www-data`, juga untuk Horizon dan cron). **Belum diuji**; lihat keputusan no. 8 di [README](README.md#keputusan-yang-perlu-pemilik-repo). |
 | `DB_MIGRATOR_USERNAME` | `simrs_migrator` | Koneksi `pgsql_migrator`. |
 | `DB_MIGRATOR_PASSWORD` | **tidak ditulis** di `.env` produksi | Diberikan sebagai variabel lingkungan saat migrasi saja ([instalasi.md §6](instalasi.md#6-migrasi-dan-cache-konfigurasi)). |

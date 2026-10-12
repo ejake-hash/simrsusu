@@ -47,7 +47,7 @@ Ringkas urutan pemasangan pertama:
 | Layar modul aktif | **Belum ada**; modul 53 dan 54 aktif dari migrasi (`inti.modul_aktif`), cukup untuk langkah 9 wizard. | `2026_10_11_120000_create_inti_modul_aktif_table.php` |
 | Pemeriksaan rantai audit berkala | `audit:verifikasi-rantai` **tidak** dijadwalkan di `routes/console.php`; hanya `audit:ekspor-anchor` yang berjalan tiap jam. | [proses-dan-jadwal.md §3](proses-dan-jadwal.md#3-scheduler-dan-daftar-jadwal) |
 | Pembersihan `sistem.failed_jobs` dan snapshot metrik Horizon | `queue:prune-failed` dan `horizon:snapshot` **tidak** dijadwalkan. | `routes/console.php` |
-| Ukuran server (CPU/RAM/disk) | **Belum ditetapkan resmi**; pegangan awal dari uji lokal ([hasil-uji-beban.md](hasil-uji-beban.md)), angka resmi dari uji staging. | instalasi.md §1 |
+| Ukuran server (CPU/RAM/disk) | **Belum ditetapkan resmi**; uji lokal ([hasil-uji-beban.md](hasil-uji-beban.md)) hanya batas bawah konservatif; angka resmi dari uji staging. | instalasi.md §1 |
 
 Layar konfigurasi integrasi (1.9-fe) **sudah ada**: Pengaturan Sistem → Konfigurasi integrasi (`/pengaturan/integrasi`,
 sub-menu `pengaturan.integrasi`), dengan pemantauan di Integrasi dan Laporan → SATUSEHAT / Bridging BPJS / Log integrasi.
@@ -76,4 +76,4 @@ Butir ini tidak diputuskan oleh runbook. Sampai diputuskan, runbook memakai pili
 | 6 | **Selisih batas waktu** dengan PRD (HTTP 60 vs 30 detik; klien eksternal 20 vs 10 detik), tabel di atas. | Mengikuti kode. |
 | 7 | **Tujuan peringatan** (email/alat pemantau RS) untuk Horizon, ruang disk, cadangan gagal. | Pemeriksaan lewat skrip dan log; tujuan per RS. |
 | 8 | **`DB_SSLMODE=verify-full`**: `config/database.php` belum punya opsi `sslrootcert`, jadi sertifikat CA harus dipasang di jalur bawaan libpq pengguna `www-data`. Belum diuji. | Lihat [konfigurasi-env.md §3](konfigurasi-env.md#3-basis-data). |
-| 9 | **Ukuran server** (CPU/RAM/disk, `pm.max_children`, `max_connections`). | Pegangan awal ±15 permintaan/detik per pekerja PHP (uji lokal 1.12); angka resmi dari uji staging. |
+| 9 | **Ukuran server** (CPU/RAM/disk, `pm.max_children`, `max_connections`). | Uji lokal 1.12 hanya batas bawah konservatif (hambatan belum diketahui); angka resmi dari uji staging. |

@@ -34,14 +34,26 @@ Skenario `masuk`: masuk lalu keluar, 30 kali per menit. Setiap tingkat berjalan 
 
 **Bacaan:**
 - **Sampai 100 VU** (±82 permintaan/detik), anggaran PRD 14.1 terpenuhi: baca P95 ≤ 200 ms, masuk P95 ≤ 500 ms, error 0%.
-- **Titik jenuh ±125 permintaan/detik** untuk 8 pekerja PHP. Sesudah itu laju tidak naik lagi, P95 melewati anggaran (402 ms pada 200 VU), dan error muncul. Hitungan kasarnya: sekitar 15 permintaan/detik per pekerja, atau ±65 ms CPU PHP per permintaan.
+- **Titik jenuh ±125 permintaan/detik** pada lingkungan ini. Sesudah itu laju tidak naik lagi, P95 melewati anggaran
+  (402 ms pada 200 VU), dan error muncul. **Hambatannya belum diketahui dan kemungkinan bukan pekerja PHP:** median
+  saat beban rendah 20–25 ms, jadi 8 pekerja PHP saja seharusnya sanggup ±300 permintaan/detik. Calon hambatan:
+  - PostgreSQL dan Valkey di VM Docker 2 CPU;
+  - koneksi TCP baru tiap permintaan (port efemeral habis);
+  - k6 di mesin yang sama.
+
+  Angka ini hanya batas bawah yang sangat konservatif, **bukan rumus ukuran server**.
 - **Profil acuan PRD 14.1.1** (800 pengguna serentak) belum bisa dibandingkan langsung. Satu VU di sini meminta ±1 kali per detik, jauh lebih rapat daripada pengguna nyata. Kebutuhan pekerja di server RS dihitung ulang dari uji staging dengan pola klik nyata.
 - **Error di 200–400 VU** bukan error aplikasi:
   - `Can't assign requested address` ke Valkey dan PostgreSQL: port efemeral host habis, karena **setiap permintaan PHP membuka koneksi TCP baru** ke Valkey dan PostgreSQL (tanpa koneksi persisten dan tanpa PgBouncer);
   - status 0: batas waktu klien saat antrean server penuh.
 
   Di produksi, PgBouncer (PRD 14.1.1 butir 8) dan koneksi Valkey persisten mengatasi yang pertama. Lihat Utang 1.12.
-- **Temuan yang diperbaiki di tiket ini:** tanpa batas waktu koneksi, satu permintaan menunggu **3 menit 39 detik** saat koneksi PostgreSQL gagal dibuka. Sekarang ada `DB_CONNECT_TIMEOUT` (bawaan 5 detik, `config/database.php`).
+- **Permintaan yang menggantung lama.** Satu permintaan tercatat **3 menit 39 detik** pada percobaan awal. Penyebabnya
+  belum dipastikan. pdo_pgsql sendiri sudah memutus koneksi yang tidak menjawab dalam 30 detik (diuji: 30,01 detik).
+  Dugaan terkuat adalah koneksi Valkey, yang konfigurasinya tanpa `timeout`/`read_timeout` (batas socket 60 detik dan
+  coba ulang). Tiket ini menambah `DB_CONNECT_TIMEOUT` (bawaan 5 detik, diuji 5,01 detik) agar kegagalan PostgreSQL
+  lebih cepat dari 30 detik. Batas waktu Valkey dicatat sebagai utang (perlu hati-hati: koneksi queue memakai blocking
+  pop Horizon).
 
 ## be 2: penulisan audit (pgbench, `tests/beban/audit/`)
 
@@ -67,6 +79,12 @@ Dijalankan sebagai `simrs_app` di dalam kontainer PostgreSQL (soket lokal), 20 d
   - Sebelum perbaikan, `audit:verifikasi-rantai` **gagal** karena `statement_timeout` 5 detik `simrs_app`, akibat satu query untuk seluruh rentang.
   - Sekarang verifikasi diproses per jendela `urutan` (`AUDIT_VERIFIKASI_JENDELA`, bawaan 50.000): utuh dalam 18 detik (±38 ribu baris per detik).
   - Tes `RantaiAuditTest::test_verifikasi_per_jendela_tetap_memeriksa_sambungan_antarjendela` membuktikan sambungan antarjendela ikut diperiksa.
+
+## Yang belum diukur
+
+- Penyaring cakupan `unit` di daftar kerja (utang backlog lapis 3): semua akun uji bercakupan seluruh RS.
+- Hambatan pada titik jenuh (lihat di atas), soak 8 jam, dan 2× beban puncak 1 jam (PRD 14.1.1). Semuanya diukur di
+  staging.
 
 ## Catatan metode
 

@@ -60,8 +60,8 @@ PRD 14.1 adalah hasil ke staging (php-fpm/Octane + PgBouncer).
 **pgbench audit** (sebagai `simrs_app`, di dalam kontainer/server PostgreSQL agar tidak lewat jaringan Docker):
 
 ```bash
-docker exec -i simrs-usu-postgres-1 sh -c 'cat > /tmp/kerja-lalu-catat.sql' < tests/beban/audit/kerja-lalu-catat.sql
-docker exec simrs-usu-postgres-1 pgbench -n -U simrs_app -d <db_uji> -f /tmp/kerja-lalu-catat.sql -c 32 -j 4 -T 20
+docker compose -p simrs-usu exec -T postgres sh -c 'cat > /tmp/kerja-lalu-catat.sql' < tests/beban/audit/kerja-lalu-catat.sql
+docker compose -p simrs-usu exec postgres pgbench -n -U simrs_app -d <db_uji> -f /tmp/kerja-lalu-catat.sql -c 32 -j 4 -T 20
 php artisan audit:verifikasi-rantai   # rantai harus tetap utuh sesudahnya
 ```
 

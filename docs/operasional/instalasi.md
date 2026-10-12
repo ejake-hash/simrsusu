@@ -28,14 +28,11 @@ Sesuaikan dengan server RS; jangan tulis nilai nyata ke repo.
 | nginx | versi stabil distribusi, dengan modul `realip` bila ada proksi di depannya | — |
 | Sinkronisasi waktu | chrony/NTP wajib di server aplikasi: kode MFA TOTP hanya diterima ±1 periode (30 detik) | `App\Modules\Akses\Domain\Totp`, `config/autentikasi.php` |
 
-**Ukuran CPU/RAM/disk:** belum ditetapkan sebagai angka resmi. Pegangan awal dari uji beban lokal 1.12
-([hasil-uji-beban.md](hasil-uji-beban.md)):
-- satu pekerja PHP melayani ±15 permintaan/detik (±65 ms CPU per permintaan);
-- 8 pekerja jenuh di ±125 permintaan/detik.
-
-Hitung `pm.max_children` dari puncak permintaan/detik RS dibagi 15, ditambah cadangan. RAM ±256 MB per pekerja menurut
-`memory_limit`; ukuran nyata diukur di staging. Pasang PgBouncer (PRD 14.1.1 butir 8): tanpa itu, setiap permintaan
-membuka koneksi baru ke PostgreSQL. Angka resmi ditetapkan dari uji staging dengan pola klik nyata (keputusan no. 9).
+**Ukuran CPU/RAM/disk:** belum ditetapkan sebagai angka resmi. Uji beban lokal 1.12 ([hasil-uji-beban.md](hasil-uji-beban.md)) hanya
+memberi batas bawah yang sangat konservatif (jenuh ±125 permintaan/detik di laptop dengan basis data di VM 2 CPU;
+hambatannya belum diketahui), **bukan rumus ukuran server**. RAM per pekerja PHP mengikuti `memory_limit` (256 MB).
+Pasang PgBouncer (PRD 14.1.1 butir 8): tanpa itu setiap permintaan membuka koneksi baru ke PostgreSQL. Angka resmi
+(CPU, RAM, `pm.max_children`, `max_connections`) ditetapkan dari uji staging dengan pola klik nyata (keputusan no. 9).
 
 **Koneksi keluar** yang dibutuhkan: SMTP RS (email notifikasi), dan bila integrasi dinyalakan, host BPJS/SATUSEHAT di
 `config/integrasi.php` (alamat bawaan dari catatan lapangan, **perlu verifikasi** ke dokumen resmi sebelum produksi).
