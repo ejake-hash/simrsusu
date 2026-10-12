@@ -150,7 +150,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
 
   const SA = uid(101)
   // Superadmin juga memegang Profil RS (1.8a-be: MenuBawaan::SUB_MENU_SUPERADMIN).
-  tambahPeran(SA, 'superadmin', 'Superadmin', izinMenu(pohon, []).concat(['pengaturan.peran', 'pengaturan.akun'].flatMap((k) => ['lihat', 'input', 'perbaiki'].map((a) => `${k}.${a}`)), ['pengaturan.profil_rs.lihat', 'pengaturan.profil_rs.perbaiki'], ['lihat', 'input', 'perbaiki'].map((a) => `pengaturan.persetujuan.${a}`)), {
+  tambahPeran(SA, 'superadmin', 'Superadmin', izinMenu(pohon, []).concat(['pengaturan.peran', 'pengaturan.akun'].flatMap((k) => ['lihat', 'input', 'perbaiki'].map((a) => `${k}.${a}`)), ['pengaturan.profil_rs.lihat', 'pengaturan.profil_rs.perbaiki'], ['lihat', 'input', 'perbaiki'].map((a) => `pengaturan.penyiapan.${a}`), ['lihat', 'input', 'perbaiki'].map((a) => `pengaturan.persetujuan.${a}`)), {
     bawaan_sistem: true,
     wajib_mfa: true,
     uraian: 'Mengelola menu, peran, dan akun. Tidak membuka rekam medis atau angka rupiah (PRD 9.2.4).',
@@ -165,6 +165,8 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
     ...['organisasi', 'jenis_tugas', 'usulan'].flatMap((s) => ['lihat', 'input', 'perbaiki'].map((a) => `master_data.${s}.${a}`)),
     'master_data.usulan.verifikasi', 'master_data.usulan.setujui',
   ])
+  // Penyiap instalasi (1.8f, MenuBawaan::PERAN_PENYIAP): konfirmasi langkah + muat paket referensi (katalog.input).
+  tambahPeran(uid(112), 'penyiap_instalasi', 'Penyiap instalasi', ['pengaturan.penyiapan.lihat', 'pengaturan.penyiapan.perbaiki', 'master_data.katalog.lihat', 'master_data.katalog.input'])
   // Pengelola data pegawai (1.8d); bagian identitas (NIK utuh) tidak ikut, diberikan tersendiri lewat persetujuan.
   tambahPeran(uid(109), 'contoh_sdm', 'Contoh Admin SDM', [
     ...['pegawai', 'kredensial'].flatMap((s) => ['lihat', 'input', 'perbaiki'].map((a) => `sdm.${s}.${a}`)),

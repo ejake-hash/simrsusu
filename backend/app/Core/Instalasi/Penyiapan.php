@@ -264,8 +264,10 @@ final class Penyiapan
         );
     }
 
-    /** @return list<array{kode: string, label: string, terpenuhi: bool, keterangan: ?string}> */
-    /** @param list<array{sistem: string, wajib: bool, versi: ?string, sumber: ?string, dimuat_pada: ?string, jumlah_kode_aktif: int}> $daftar */
+    /**
+     * @param  list<array{sistem: string, wajib: bool, versi: ?string, sumber: ?string, dimuat_pada: ?string, jumlah_kode_aktif: int}>  $daftar
+     * @return list<array{kode: string, label: string, terpenuhi: bool, keterangan: ?string}>
+     */
     private function syaratPaket(array $daftar): array
     {
         $paket = collect($daftar)->keyBy('sistem');

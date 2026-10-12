@@ -30,6 +30,12 @@ class PenyiapanTest extends TestCase
         $this->masukSebagai($this->superadmin, $rahasia);
     }
 
+    public function test_sub_menu_penyiapan_tersedia(): void
+    {
+        // Layar dibangun di 1.8f-fe.
+        $this->assertTrue((bool) DB::table('akses.menu')->where('kode', 'pengaturan.penyiapan')->value('tersedia'));
+    }
+
     public function test_instalasi_kosong_sembilan_langkah_belum_selesai(): void
     {
         $data = $this->muatStatus()->json('data');
