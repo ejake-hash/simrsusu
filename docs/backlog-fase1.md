@@ -227,6 +227,18 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   - Kepala unit/ketua KSM ditetapkan di dialog Ubah unit/KSM, hanya bila akun juga memegang `sdm.pegawai.lihat` (tanpa izin silang); yang sudah/akan keluar ditandai di rincian unit dan daftar KSM.
   - Belum ada: sub-menu SDM → Izin & kredensial (pemantauan masa berlaku lintas pegawai, prototipe `sdm.html`) masih Segera hadir; reset sandi oleh admin dan tautan aktivasi email menunggu usulan/1.7.
   - Utang dari tinjauan #58 (tidak memblokir): 403/404 pada muat ulang rincian pegawai sesudah data dimuat tetap menampilkan data lama tanpa tanda; penanda "hasil terpotong" di PemilihPegawai memakai angka 20, bukan kursor berikutnya; uji unit penangan 403 `wajib_ganti_sandi` asli (main.ts) dan penjaga router, serta PATCH selisih + 412 di DialogPegawai belum ada; teks kontrak GET /pegawai ("klien mengurutkan tampilan") diselaraskan sesi 1 di PR kontrak berikutnya.
+- Sesudah 1.9-fe:
+  - Pengaturan → Konfigurasi integrasi: kartu per sistem dari `GET /integrasi/sistem` (tanpa angka tiruan), kredensial
+    tulis-saja per lingkungan (isian rahasia `type=password`, kosong = tidak diubah, hanya isian yang berubah dikirim,
+    nilai tidak disimpan di luar dialog), aktifkan/nonaktifkan (dengan konfirmasi), uji koneksi (429 `Retry-After`).
+  - Integrasi → SATUSEHAT / Bridging BPJS: kartu pemantau (`kredensial` null bila tanpa `pengaturan.integrasi.lihat`)
+    + kotak keluar per tujuan; tombol kirim ulang hanya dari `dapat_kirim_ulang`; kiriman tanpa lingkungan diikat ke
+    lingkungan aktif (disebut di konfirmasi). Integrasi → Log integrasi: isi disamarkan dalam lipatan, halaman 20.
+  - Kotak keluar BPJS tanpa filter tujuan meminta semua tujuan yang diizinkan lalu menyaring VClaim/Aplicares di klien
+    (kontrak belum menerima beberapa `tujuan`); halaman bisa lebih pendek dari `batas` bila akun juga memegang SATUSEHAT.
+  - e2e `integrasi` (contoh.integrasi, simulator): kredensial SATUSEHAT sandbox → aktifkan → uji koneksi → log; mode
+    simulator mati/gangguan (circuit breaker di layar) dan kotak keluar berisi kiriman belum diuji e2e (kiriman nyata
+    menunggu penangan SATUSEHAT/Aplicares, sisa 1.9-be).
 - Utang tinjauan #78 (repo publik, palet fiktif): panel merek halaman masuk (`--panel-merek`) tetap biru sedangkan
   gradiennya ikut `--brand-800/900` paket RS, dan kontras `--penekanan-panel` belum terjamin untuk sembarang paket.
   Arah: panel memakai warna paket RS (turunan `turunanTema()`) dengan cek kontras otomatis seperti `--accent-ink`.

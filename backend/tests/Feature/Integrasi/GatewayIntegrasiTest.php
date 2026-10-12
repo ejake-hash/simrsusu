@@ -70,6 +70,13 @@ class GatewayIntegrasiTest extends TestCase
         app(DaftarPenangan::class)->pasang(new PenangananUji);
     }
 
+    public function test_sub_menu_integrasi_tersedia(): void
+    {
+        // Layar dibangun di 1.9-fe.
+        $tersedia = DB::table('akses.menu')->whereIn('kode', ['pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log'])->pluck('tersedia', 'kode');
+        $this->assertSame(['integrasi.bpjs' => true, 'integrasi.log' => true, 'integrasi.satusehat' => true, 'pengaturan.integrasi' => true], $tersedia->map(fn ($t) => (bool) $t)->sortKeys()->all());
+    }
+
     public function test_kredensial_tulis_saja_tanpa_nilai_rahasia_di_respons_db_dan_audit(): void
     {
         $r = $this->simpan('satusehat', 'sandbox', ['client_id' => 'klien-uji', 'client_secret' => self::RAHASIA_PANJANG, 'organization_id' => 'org-uji-1'], true)->assertOk();
