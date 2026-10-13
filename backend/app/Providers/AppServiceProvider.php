@@ -5,6 +5,9 @@ namespace App\Providers;
 use App\Core\Instalasi\StatusInstalasi;
 use App\Core\Instalasi\StatusPenyiapan;
 use App\Core\Log\InstallMasking;
+use App\Core\Lokal\Console\KodeMfa;
+use App\Core\Lokal\Console\SiapkanEnv;
+use App\Core\Lokal\PerintahLokal;
 use App\Core\PemeriksaanProduksi;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Schema\Blueprint;
@@ -47,6 +50,11 @@ class AppServiceProvider extends ServiceProvider
         $this->loadRoutesFrom(app_path('Core/Http/routes.php'));
         $this->loadRoutesFrom(app_path('Core/ProfilRs/routes.php'));
         $this->loadRoutesFrom(app_path('Core/Instalasi/routes.php'));
+
+        // Perintah lokal (tiket 1.16) tidak terdaftar sama sekali di production.
+        if ($this->app->runningInConsole() && PerintahLokal::diizinkan(app())) {
+            $this->commands([SiapkanEnv::class, KodeMfa::class]);
+        }
 
         // throttle:api dipasang ke grup `api` di bootstrap/app.php; nilai di config/rate_limit.php.
         RateLimiter::for('api', fn (Request $request) => self::batasPerPengguna(

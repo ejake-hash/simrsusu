@@ -26,7 +26,7 @@ final class AkunSintetisSeeder extends Seeder
     /** Akun tanpa peran dan pengecualian (Beranda "belum ada modul", tiket 1.2e). */
     public const TANPA_PERAN = 'contoh.tanpa.peran';
 
-    private const AKUN = [
+    public const AKUN = [
         'contoh.admisi' => 'Contoh Petugas Admisi',
         'contoh.perawat' => 'Contoh Perawat',
         'contoh.dokter' => 'Contoh Dokter',
@@ -58,6 +58,18 @@ final class AkunSintetisSeeder extends Seeder
         'contoh.usulan.pengusul' => 'Contoh Pengusul Usulan',
         'contoh.usulan.verifikator' => 'Contoh Verifikator Usulan',
         'contoh.usulan.penyetuju' => 'Contoh Penyetuju Usulan',
+    ];
+
+    /**
+     * Akun sintetis ber-MFA aktif dengan rahasia TOTP yang diketahui e2e: nama pengguna => kunci di config/autentikasi.php.
+     * Variabel .env-nya = kunci config dalam huruf besar (dipakai `lokal:siapkan-env` dan `lokal:kode-mfa`, tiket 1.16).
+     */
+    public const RAHASIA_MFA = [
+        'contoh.mfa' => 'akun_sintetis_mfa_rahasia',
+        'contoh.superadmin' => 'akun_sintetis_superadmin_mfa_rahasia',
+        'contoh.superadmin.dua' => 'akun_sintetis_superadmin_dua_mfa_rahasia',
+        'contoh.sdm' => 'akun_sintetis_sdm_mfa_rahasia',
+        'contoh.integrasi' => 'akun_sintetis_integrasi_mfa_rahasia',
     ];
 
     /** Profesi pegawai sintetis (selain ini non_kesehatan). */
@@ -112,13 +124,10 @@ final class AkunSintetisSeeder extends Seeder
         }
         Validator::make(['sandi' => $sandi], ['sandi' => ['required', Password::defaults()]])->validate();
 
-        [$rahasiaMfa, $rahasiaMfaAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_mfa_rahasia');
-        [$rahasiaSuperadmin, $rahasiaSuperadminAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_superadmin_mfa_rahasia');
-        [$rahasiaSuperadminDua, $rahasiaSuperadminDuaAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_superadmin_dua_mfa_rahasia');
-        [$rahasiaSdm, $rahasiaSdmAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_sdm_mfa_rahasia');
-        [$rahasiaIntegrasi, $rahasiaIntegrasiAcak] = $this->rahasiaTotp('autentikasi.akun_sintetis_integrasi_mfa_rahasia');
-        $rahasia = ['contoh.mfa' => $rahasiaMfa, 'contoh.superadmin' => $rahasiaSuperadmin, 'contoh.superadmin.dua' => $rahasiaSuperadminDua,
-            'contoh.sdm' => $rahasiaSdm, 'contoh.integrasi' => $rahasiaIntegrasi];
+        $rahasia = $rahasiaAcak = [];
+        foreach (self::RAHASIA_MFA as $namaPengguna => $kunciConfig) {
+            [$rahasia[$namaPengguna], $rahasiaAcak[$namaPengguna]] = $this->rahasiaTotp('autentikasi.'.$kunciConfig);
+        }
 
         $urutan = 0;
         foreach (self::AKUN as $namaPengguna => $nama) {
@@ -157,14 +166,10 @@ final class AkunSintetisSeeder extends Seeder
         $this->tugaskan('contoh.superadmin.dua', Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->firstOrFail());
 
         $this->command?->info('Akun sintetis: '.implode(', ', array_keys(self::AKUN)).'.');
-        $sekaliTampil = array_filter([
-            $dibuatAcak ? "Sandi acak (hanya ditampilkan sekali): {$sandi}" : null,
-            $rahasiaMfaAcak ? "Rahasia TOTP contoh.mfa (hanya ditampilkan sekali): {$rahasiaMfa}" : null,
-            $rahasiaSuperadminAcak ? "Rahasia TOTP contoh.superadmin (hanya ditampilkan sekali): {$rahasiaSuperadmin}" : null,
-            $rahasiaSuperadminDuaAcak ? "Rahasia TOTP contoh.superadmin.dua (hanya ditampilkan sekali): {$rahasiaSuperadminDua}" : null,
-            $rahasiaSdmAcak ? "Rahasia TOTP contoh.sdm (hanya ditampilkan sekali): {$rahasiaSdm}" : null,
-            $rahasiaIntegrasiAcak ? "Rahasia TOTP contoh.integrasi (hanya ditampilkan sekali): {$rahasiaIntegrasi}" : null,
-        ]);
+        $sekaliTampil = array_filter([$dibuatAcak ? "Sandi acak (hanya ditampilkan sekali): {$sandi}" : null]);
+        foreach (array_keys(array_filter($rahasiaAcak)) as $namaPengguna) {
+            $sekaliTampil[] = "Rahasia TOTP {$namaPengguna} (hanya ditampilkan sekali): {$rahasia[$namaPengguna]}";
+        }
         foreach ($sekaliTampil as $pesan) {
             $this->command?->warn($pesan);
         }

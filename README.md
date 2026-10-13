@@ -17,12 +17,16 @@ Demo, e2e, dan tangkapan layar memakai identitas **fiktif** "RS Contoh Pendidika
 docker compose up -d                 # PostgreSQL 16 (5433) + Valkey sesi/queue (6379) + Valkey cache (6380)
 
 cd backend
-composer install && cp .env.example .env && php artisan key:generate
+composer install
+php artisan lokal:siapkan-env        # tulis/lengkapi .env: kunci, rahasia TOTP + PIN akun sintetis, simulator
+                                     # (dicetak sekali); tidak menimpa nilai terisi, cadangan di ~/.karsitara/
+                                     # opsi: --paket-identitas=<folder di luar repo> --kemudahan-uji
 php artisan migrate --database=pgsql_migrator
 composer test                        # migrasi simrs_test sebagai migrator, lalu phpunit
 php artisan db:seed                  # akun sintetis contoh.* (ditolak di production); paket identitas dari
                                      # PAKET_IDENTITAS_CONTOH_DIR bila diisi (docs/brand/README.md)
 php artisan serve                    # http://127.0.0.1:8000
+php artisan lokal:kode-mfa           # kode TOTP saat ini untuk akun sintetis ber-MFA (hanya APP_ENV=local)
 
 cd ../frontend
 npm install
