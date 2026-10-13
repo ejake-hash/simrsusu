@@ -175,6 +175,20 @@ class ResetSandiTest extends TestCase
             ->assertFailed();
         $this->assertFalse($superadminB->refresh()->wajib_ganti_sandi);
 
+        // Jalan keluar: superadmin lain juga tidak bisa masuk → opsi eksplisit, konfirmasi kedua, tercatat di audit.
+        $pertanyaan = "Reset sandi {$superadminA->nama_pengguna}? Semua sesinya diputus dan sandi lama tidak berlaku.";
+        $this->artisan('akses:reset-sandi', ['nama_pengguna' => $superadminA->nama_pengguna, '--alasan' => 'Lupa sandi, B keluar RS', '--dasar' => self::DASAR, '--walau-ada-superadmin-lain' => true])
+            ->expectsConfirmation($pertanyaan, 'yes')
+            ->expectsConfirmation('Ada 1 superadmin aktif lain. Benar mereka juga tidak bisa masuk dan sudah diperiksa?', 'no')
+            ->assertFailed();
+        $this->artisan('akses:reset-sandi', ['nama_pengguna' => $superadminA->nama_pengguna, '--alasan' => 'Lupa sandi, B keluar RS', '--dasar' => self::DASAR, '--walau-ada-superadmin-lain' => true])
+            ->expectsConfirmation($pertanyaan, 'yes')
+            ->expectsConfirmation('Ada 1 superadmin aktif lain. Benar mereka juga tidak bisa masuk dan sudah diperiksa?', 'yes')
+            ->assertSuccessful();
+        $this->assertTrue($superadminA->refresh()->wajib_ganti_sandi);
+        $this->assertSame([$superadminB->id], json_decode($this->assertAuditTerakhir(ResetSandi::AUDIT_KONSOL, $superadminA->id)->sesudah, true)['superadmin_lain_aktif']);
+        $superadminA->forceFill(['wajib_ganti_sandi' => false])->save();
+
         $this->assertSame($hash, $akun->refresh()->sandi_hash);
         $this->assertFalse(DB::table('audit.log_aktivitas')->where('aksi', ResetSandi::AUDIT_KONSOL)->where('subjek_id', $akun->id)->exists());
     }

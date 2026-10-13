@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 
 /**
  * Konsol darurat (tiket 1.14): reset sandi bila tidak ada superadmin aktif lain yang bisa mereset lewat layar (ditolak
- * bila masih ada). Butuh akses server; sandi sementara hanya ditulis ke terminal sekali, tidak ke log. Audit
+ * bila masih ada, kecuali dengan --walau-ada-superadmin-lain yang tercatat di audit). Butuh akses server; sandi sementara hanya ditulis ke terminal sekali, tidak ke log. Audit
  * `akses.sandi_direset_konsol` dengan pengguna sistem operasi.
  */
 final class ResetSandiKonsol extends Command
@@ -18,6 +18,7 @@ final class ResetSandiKonsol extends Command
         {nama_pengguna : Akun yang direset}
         {--alasan= : Alasan reset (mis. lupa sandi, tidak ada superadmin lain)}
         {--dasar= : Nomor memo/berita acara verifikasi identitas}
+        {--walau-ada-superadmin-lain : Superadmin aktif lain juga tidak bisa masuk (keluar dari RS, autentikator hilang, lupa sandi)}
         {--force : Tanpa pertanyaan konfirmasi}';
 
     protected $description = 'Reset sandi akun dari server (darurat, bila tidak ada superadmin lain); sandi sementara dicetak sekali';
@@ -32,8 +33,10 @@ final class ResetSandiKonsol extends Command
             return self::FAILURE;
         }
 
-        if ($reset->adaSuperadminLain($akun)) {
-            $this->error('Masih ada superadmin aktif lain: reset sandi lewat Pengaturan → Akun & akses (kontrol ganda).');
+        $superadminLain = $reset->superadminLain($akun);
+        if ($superadminLain !== [] && ! $this->option('walau-ada-superadmin-lain')) {
+            $this->error('Masih ada superadmin aktif lain: reset sandi lewat Pengaturan → Akun & akses (kontrol ganda). Bila superadmin '
+                .'lain itu juga tidak bisa masuk, ulangi dengan --walau-ada-superadmin-lain (tercatat di audit).');
 
             return self::FAILURE;
         }
@@ -45,14 +48,18 @@ final class ResetSandiKonsol extends Command
 
             return self::FAILURE;
         }
-        if (! $this->option('force') && ! $this->confirm("Reset sandi {$akun->nama_pengguna}? Semua sesinya diputus dan sandi lama tidak berlaku.")) {
+        $setuju = $this->option('force') || (
+            $this->confirm("Reset sandi {$akun->nama_pengguna}? Semua sesinya diputus dan sandi lama tidak berlaku.")
+            && ($superadminLain === [] || $this->confirm('Ada '.count($superadminLain).' superadmin aktif lain. Benar mereka juga tidak bisa masuk dan sudah diperiksa?'))
+        );
+        if (! $setuju) {
             $this->warn('Dibatalkan.');
 
             return self::FAILURE;
         }
 
         try {
-            [$akun, $sandi] = $reset->lewatKonsol($akun, $alasan, $dasar, ...self::penggunaOs());
+            [$akun, $sandi] = $reset->lewatKonsol($akun, $alasan, $dasar, ...[...self::penggunaOs(), $superadminLain]);
         } catch (ApiError $e) {
             $this->error($e->getMessage());
 

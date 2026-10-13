@@ -44,12 +44,14 @@ final class ResetSandi
      * Konsol server (`akses:reset-sandi`): tanpa akun pelaku; yang tercatat pengguna sistem operasi (pengguna sudo bila
      * lewat sudo, dan pengguna efektif proses).
      *
+     * @param  list<string>  $superadminLainAktif  superadmin aktif lain yang dinyatakan tidak bisa masuk (opsi konsol)
      * @return array{0: Pengguna, 1: string}
      */
-    public function lewatKonsol(Pengguna $akun, string $alasan, string $dasar, string $penggunaOs, string $penggunaEfektif): array
+    public function lewatKonsol(Pengguna $akun, string $alasan, string $dasar, string $penggunaOs, string $penggunaEfektif, array $superadminLainAktif = []): array
     {
         return $this->reset($akun, null, self::AUDIT_KONSOL, [
             'alasan' => $alasan, 'dasar' => $dasar, 'pengguna_os' => $penggunaOs, 'pengguna_efektif' => $penggunaEfektif,
+            ...($superadminLainAktif !== [] ? ['superadmin_lain_aktif' => $superadminLainAktif] : []),
         ]);
     }
 
@@ -60,20 +62,22 @@ final class ResetSandi
     }
 
     /**
-     * Superadmin aktif selain akun ini. Konsol darurat hanya untuk keadaan tanpa superadmin lain; selama masih ada,
-     * reset lewat layar (kontrol ganda K4/K13).
+     * Superadmin aktif selain akun ini. Konsol darurat untuk keadaan tanpa superadmin lain; selama masih ada, reset lewat
+     * layar (kontrol ganda K4/K13), kecuali superadmin lain itu juga tidak bisa masuk (opsi eksplisit di konsol).
+     *
+     * @return list<string> id akun
      */
-    public function adaSuperadminLain(Pengguna $akun): bool
+    public function superadminLain(Pengguna $akun): array
     {
         return Pengguna::query()->where('status', 'aktif')->whereKeyNot($akun->id)
             ->whereIn('id', PenggunaPeran::query()->berlaku()
                 ->whereHas('peran', fn ($peran) => $peran->where('kode', MenuBawaan::PERAN_SUPERADMIN))
                 ->select('pengguna_id'))
-            ->exists();
+            ->pluck('id')->all();
     }
 
     /**
-     * @param  array<string, string>  $catatan
+     * @param  array<string, string|list<string>>  $catatan
      * @return array{0: Pengguna, 1: string}
      */
     private function reset(Pengguna $akun, ?string $pelakuId, string $aksi, array $catatan): array

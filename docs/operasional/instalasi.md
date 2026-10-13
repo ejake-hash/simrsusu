@@ -253,7 +253,9 @@ Status semua langkah: `/pengaturan/penyiapan` (izin `pengaturan.penyiapan.lihat`
    memverifikasi identitas tatap muka; sandi superadmin hanya oleh superadmin lain. Bila **tidak ada superadmin lain**
    yang bisa masuk, reset darurat di server (sandi sementara tampil sekali, akun wajib menggantinya saat masuk, semua
    sesinya diputus, audit `akses.sandi_direset_konsol` dengan `SUDO_USER` dan pengguna efektif proses). Perintah ini
-   menolak bila masih ada superadmin aktif lain:
+   menolak bila masih ada superadmin aktif lain; bila superadmin lain itu juga tidak bisa masuk (keluar dari RS,
+   autentikator hilang, lupa sandi), tambahkan `--walau-ada-superadmin-lain` setelah diperiksa (konfirmasi kedua; id
+   superadmin lain tercatat di audit):
 
    ```bash
    sudo -u www-data php artisan akses:reset-sandi <nama.pengguna> --alasan="<alasan>" --dasar="<no. berita acara>"
