@@ -41,6 +41,10 @@
 | 1.9-be / 1.9-fe | Gateway integrasi: outbox, adapter BPJS/SATUSEHAT/Aplicares, simulator, layar Konfigurasi & status | be: **Selesai** terhadap simulator (keputusan pemilik K8; kontrak #75, backend #76, VClaim baca #79, Aplicares #82, SATUSEHAT #84): kredensial (K9), outbox + retry + circuit breaker + tertahan (FR-49-04/05), log disamarkan, simulator, uji koneksi, VClaim baca (peserta, rujukan FKTP→RS, referensi), langkah 8 penyiapan, Aplicares bed/update per bangsal (produksi ditahan sampai isian diverifikasi), SATUSEHAT Organization/Location berjenjang + IHS Practitioner (sinkron tiap jam) + IHS pasien + KFA. Isian yang belum dicocokkan dengan dokumen resmi: lihat utang 1.9 (syarat pilot fase 2). fe: Selesai (#80). Catatan fe: Pengaturan → Konfigurasi integrasi (kartu per sistem, kredensial tulis-saja, aktifkan/nonaktifkan dengan konfirmasi, uji koneksi), Integrasi → SATUSEHAT / Bridging BPJS (kartu pemantau + kotak keluar, kirim ulang), Integrasi → Log integrasi; sub-menu TERSEDIA (migrasi `2026_10_13_160000`); e2e `integrasi` (contoh.integrasi, simulator) | #75, #76, #79, #80, #82, #84 |
 | 1.11 | Design system: komponen inti PRD 5.4 yang dipakai fase 1, katalog komponen (dev) | Selesai | #36 |
 | 1.12 | Gerbang keluar Fase 1: uji beban, cek keamanan, runbook instalasi (PRD 16 sudah di v0.10.12) | be: Selesai (runbook #85, temuan ASVS T-1 #86, uji beban + ASVS #87). Catatan: `docs/operasional/` (runbook + hasil uji pemulihan dan beban), `docs/keamanan/asvs-fase1.md`, `tests/beban/fase1.js` + `audit/*.sql`; verifikasi rantai per jendela, `DB_CONNECT_TIMEOUT`; keputusan pemilik di `docs/operasional/README.md` (compose produksi, S3, PITR, dll.). fe: Selesai (#88; jalan FINAL sesudah semua tiket fase 1 merge, main 163b558: 104 uji Playwright lulus). Catatan fe: `frontend/e2e/fase1.spec.ts` (20 layar + halaman masuk × 1440/1024/768/390, axe tanpa serius/kritis, tanpa gulir samping, daftar layar dicocokkan dengan `/saya/menu`); tangkapan layar identitas fiktif di branch `lampiran/fase1` (`docs/lampiran/fase1/`, diperiksa per gambar; PNG diabaikan di main); 1.5-fe Selesai (#89) | #85, #86, #87, #88, #89 |
+| 1.13-be / 1.13-fe | Perangkat tepercaya: MFA sekali per perangkat per periode, kebijakan diatur di layar | Siap dikerjakan | — |
+| 1.14-be / 1.14-fe | Reset sandi oleh admin + perintah konsol darurat | Siap dikerjakan | — |
+| 1.15-be / 1.15-fe | Tema bawaan dari pedoman identitas RS mitra; halaman masuk dapat diatur (teks, foto, motif) | Siap dikerjakan | — |
+| 1.16 | Perintah `php artisan lokal:siapkan-env` (tulis .env lokal otomatis) | Siap dikerjakan | — |
 | 1.10 | SSO (OIDC/SAML) ke penyedia identitas RS/universitas; tombol tampil hanya bila dikonfigurasi | **Terhambat**: perlu data IdP dari RS/USU | — |
 
 ## Jalur kerja sampai Fase 1 selesai
@@ -65,6 +69,7 @@ kontrak yang sama. Bila jalur sendiri kosong, ambil tiket jalur lain atau tinjau
 | 13 | 1.9-be Gateway integrasi + simulator | 1.8f-fe Wizard | 1.8b, 1.8f |
 | 14 | 1.12 Gerbang keluar Fase 1 (be) | 1.9-fe Integrasi | semua di atas |
 | 15 | — | 1.12 (fe: e2e menyeluruh, axe) | — |
+| 16 | 1.16 Siapkan .env lokal → 1.14-be → 1.13-be → 1.15-be | 1.15-fe (dari kontrak) → 1.14-fe → 1.13-fe | 1.12 |
 
 **Kontrak dulu.** Setiap tiket `-be` dimulai dengan PR kontrak `docs/api/openapi.yaml` berisi endpoint yang tercantum di
 tiket. PR kontrak ditinjau sesi 2 (pemakai) + subagen, lalu boleh merge sendiri karena mengikuti tiket yang disetujui.
@@ -1320,6 +1325,105 @@ Pekerjaan  :
         nyata, SUS ≥ 70, dan design partner sebagai syarat masuk pilot fase 2 — sudah disetujui pemilik di PRD v0.10.12.)
   fe 1. e2e menyeluruh semua layar fase 1 di 1440/1024/768/390 + axe; tangkapan layar ke docs/lampiran/fase1/.
 Uji penerimaan: semua butir di atas terdokumentasi; tidak ada temuan keamanan tingkat tinggi terbuka; CI hijau.
+```
+
+<!-- Paket tiket 1.13–1.16 disetujui pemilik produk 13 Okt 2026 (berkas tiket-1.13-1.16.md di luar repo, md5 6827ec7d9f73580aecf0ca7d7b29c82b).
+     Nama RS mitra di berkas sumber diganti "RS mitra" (repo publik). -->
+
+## [SIMRS] Akses · 1.13 Perangkat tepercaya (MFA tidak diminta setiap kali masuk)
+
+```
+Tujuan     : Pengguna ber-MFA (termasuk superadmin) tidak perlu memasukkan kode setiap kali masuk dari perangkat yang
+             sama, tanpa mematikan MFA. Menutup utang ADR 0002 "registri perangkat terdaftar".
+Keputusan  : MFA superadmin, peran sensitif, dan akses dari luar jaringan RS TIDAK bisa dimatikan (PRD 9.2.4,
+             10.3.2 tetap). Yang diatur adalah frekuensinya lewat perangkat tepercaya.
+Aturan     : - Setelah MFA berhasil, pengguna boleh mencentang "Percayai perangkat ini" → token perangkat acak (cookie
+               HttpOnly, Secure, SameSite=Strict, terpisah dari sesi) disimpan sebagai hash di akses.perangkat_tepercaya
+               (pengguna_id, nama perangkat dari user-agent, dibuat_pada, terakhir_dipakai_pada, berlaku_sampai,
+               dicabut_pada, alasan_cabut).
+             - Masuk dengan sandi benar + token perangkat sah + dari jaringan RS → tidak diminta MFA. Dari luar
+               jaringan RS → MFA tetap diminta (token perangkat tidak berlaku di luar jaringan RS).
+             - Kebijakan per peran (layar Peran & izin) dan bawaan instalasi (Pengaturan → Keamanan): masa percaya
+               0 (fitur mati) sampai maksimum. Bawaan: 30 hari; superadmin maksimum 7 hari; peran sensitif maksimum
+               14 hari (batas atas di konfigurasi, tidak bisa dinaikkan dari layar).
+             - Batas diam sesi di perangkat tepercaya mengikuti PRD 14.2 (60 menit), di perangkat lain 15 menit.
+             - Ganti sandi, reset sandi, reset MFA, nonaktif akun → semua perangkat tepercaya akun itu dicabut.
+             - Pengguna melihat dan mencabut perangkatnya sendiri (menu akun); admin mencabut perangkat akun lain.
+             - Audit: akses.perangkat_dipercaya, akses.perangkat_dicabut; MFA dilewati karena perangkat tercatat.
+             - MFA ulang untuk aksi sensitif (K11, lapis 5) TIDAK dilewati oleh perangkat tepercaya.
+Uji penerimaan:
+  - Superadmin MFA + centang → keluar → masuk lagi dari jaringan RS tanpa kode; dari IP luar jaringan RS → diminta kode.
+  - Setelah 7 hari (waktu dimajukan) superadmin diminta kode lagi; peran biasa 30 hari.
+  - Reset MFA/ganti sandi mencabut perangkat; token dicuri dipakai akun lain → ditolak (token terikat pengguna).
+  - Cookie token tidak bisa dibaca JavaScript; token tidak pernah di log.
+Di luar lingkup: WebAuthn/passkey (tiket lanjutan).
+```
+
+## [SIMRS] Akses · 1.14 Reset sandi oleh admin dan perintah konsol darurat
+
+```
+Tujuan     : Akun (termasuk superadmin) yang lupa sandi bisa dipulihkan tanpa menyentuh database.
+Yang sudah ada: ganti sandi sendiri (POST /saya/sandi), sandi awal saat akun dibuat (1.8d), reset MFA (1.2c).
+Aturan     : - POST /akun/{id}/sandi/reset (izin pengaturan.akun.perbaiki, alasan + dasar wajib): membuat sandi sementara
+               acak yang memenuhi aturan sandi, ditampilkan SEKALI ke admin, akun wajib ganti sandi saat masuk berikutnya,
+               semua sesi dan perangkat tepercaya akun itu dicabut, audit tanpa nilai sandi.
+             - Tidak bisa mereset sandi sendiri (pakai ganti sandi). Reset sandi superadmin hanya oleh superadmin lain
+               (kontrol ganda K4/K13: lewat persetujuan bila kebijakan mewajibkan, bawaan langsung oleh superadmin lain).
+             - Konsol darurat `php artisan akses:reset-sandi <nama_pengguna>` untuk keadaan tidak ada superadmin lain:
+               butuh akses server, menampilkan sandi sementara sekali di terminal, tidak menulis ke log, tercatat audit
+               "akses.sandi_direset_konsol".
+             - Halaman masuk: "Lupa sandi?" menjelaskan cara meminta reset ke unit admin (kontak dari profil RS).
+               Reset mandiri lewat email TIDAK dibuat di tiket ini (keputusan: RS memverifikasi identitas tatap muka).
+  fe       : tombol "Reset sandi" di Pengaturan → Akun & akses (dialog alasan + dasar, tampilan sandi sementara sekali
+             dengan tombol salin, peringatan "tidak akan ditampilkan lagi").
+Uji penerimaan: reset → sesi lama akun itu putus → masuk dengan sandi sementara → dipaksa ganti; superadmin mereset
+             dirinya → 403; perintah konsol berjalan dan tercatat audit; sandi tidak muncul di log mana pun.
+```
+
+## [SIMRS] Platform · 1.15 Tema bawaan pedoman identitas RS mitra dan halaman masuk yang dapat diatur
+
+```
+Tujuan     : Tampilan bawaan produk memakai palet dari pedoman identitas RS mitra (keputusan pemilik), halaman masuk kembali
+             ke rancangan awal (panel hijau, motif, foto gedung, keterangan foto), dan semua teks serta gambar panel
+             halaman masuk dapat diubah admin dari layar tanpa ubah kode.
+Keputusan  : - Palet bawaan di design-system kembali ke token sebelum #78: brand #006937 (hover #005A2F, fokus #1F8A4C),
+               panel gelap #135851, emas #F3C300 (isian/garis saja), kuning #FAE345 (teks penekanan di panel gelap),
+               merah/hitam pedoman untuk dokumen cetak. Kontras mengikuti catatan di token (PRD 5.3.2).
+             - Logo, nama RS, motif, dan foto TETAP dari paket identitas (profil RS / PaketIdentitasContohSeeder),
+               bukan berkas di repo, sampai pemilik menyatakan izin Humas RS mitra mencakup publikasi di repo publik.
+             - Instalasi yang mengisi warna merek sendiri tetap memakai warnanya (turunan + cek kontras dari #92).
+Halaman masuk dapat diatur (Pengaturan → Profil rumah sakit → tab "Halaman masuk"):
+  - lencana (≤ 60 karakter), judul (≤ 80) dengan bagian sorot (≤ 40), uraian (≤ 240), tiga butir fitur
+    (judul ≤ 30, uraian ≤ 120), foto panel (jpg/webp/png, dipotong 16:10, EXIF/GPS dibuang), keterangan foto (≤ 80),
+    tampilkan/sembunyikan motif. Bawaan = teks yang sekarang.
+  - Teks biasa saja (tanpa HTML/markdown), dibersihkan di server; pratinjau langsung di layar; simpan dengan dasar
+    perubahan dan versi (If-Match) seperti profil RS; audit.
+  - Cek kontras teks di atas panel tetap otomatis (pakai fungsi #92).
+Kontrak   : perluas GET/PUT /profil-rs dengan objek halaman_masuk; unggah foto lewat endpoint berkas yang ada.
+Uji penerimaan: instalasi kosong → halaman masuk hijau pedoman dengan teks bawaan; admin mengganti judul dan foto →
+             halaman masuk berubah tanpa build ulang; teks berisi <script> tersimpan sebagai teks biasa; e2e 4 lebar + axe;
+             tangkapan layar PR memakai identitas fiktif.
+```
+
+## [SIMRS] Platform · 1.16 Perintah siapkan .env lokal
+
+```
+Tujuan     : Pengembang dan pemilik repo tidak perlu menyalin atau membuat kunci .env lokal dengan tangan.
+Perintah   : php artisan lokal:siapkan-env [--paket-identitas=<folder>] [--kemudahan-uji]
+Aturan     : - Menolak berjalan bila APP_ENV=production atau .env berisi APP_ENV=production.
+             - Membuat backend/.env dari .env.example bila belum ada; bila ada, HANYA menambah kunci yang belum ada,
+               tidak pernah menimpa nilai yang sudah terisi. Cadangan .env dibuat di luar repo (~/.karsitara/cadangan-env/)
+               sebelum menulis.
+             - Mengisi otomatis: APP_KEY, TTD_KUNCI, KREDENSIAL_KUNCI (base64 32 bita acak), rahasia TOTP semua akun
+               sintetis (Base32), AKUN_SINTETIS_TTD_PIN (6 angka, bukan urut/ulang), AKUN_SINTETIS_SANDI (acak bila kosong),
+               AUTENTIKASI_MFA_JARINGAN_RS=127.0.0.1/32,::1/128, INSTALASI_DEMO=true, INTEGRASI_SIMULATOR=true.
+             - --paket-identitas mengisi PAKET_IDENTITAS_CONTOH_DIR. --kemudahan-uji mengisi AUTENTIKASI_BATAS_DIAM_MENIT=480,
+               AUTENTIKASI_MFA_ULANG_MENIT=480, SESSION_LIFETIME=600 dengan komentar "LOKAL".
+             - Di akhir mencetak tabel akun sintetis + kunci TOTP + PIN ke terminal (sekali), dan perintah
+               `php artisan lokal:kode-mfa` yang mencetak kode TOTP saat ini untuk akun sintetis (hanya local).
+             - Tidak menulis nilai rahasia ke log; tes memastikan perintah tidak terdaftar di production.
+Uji penerimaan: .env kosong → aplikasi bisa migrate, seed, dan masuk tanpa langkah manual; dijalankan dua kali tidak
+             mengubah nilai yang sudah ada; production → ditolak.
 ```
 
 ## [SIMRS] Akses · 1.10 SSO universitas (terhambat)
