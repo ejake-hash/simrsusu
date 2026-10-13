@@ -642,7 +642,8 @@ paths:
         tidak disimpan terbaca, dan tidak dicatat di log atau audit (`Cache-Control: no-store`). Sesudah reset:
         - `wajib_ganti_sandi` = true: masuk berikutnya dengan sandi sementara langsung ke layar ganti sandi
           (403 `wajib_ganti_sandi` di endpoint lain, sama dengan akun baru);
-        - semua sesi akun itu diputus (401 `sesi_dicabut`); perangkat tepercaya akun itu dicabut (sejak 1.13);
+        - semua sesi akun itu diputus (401 `belum_masuk` karena hash sandi berubah, atau `sesi_dicabut`; sama dengan
+          ganti sandi); perangkat tepercaya akun itu dicabut (sejak 1.13);
         - penguncian karena sandi salah dibuka (`terkunci_sampai` kosong, hitungan gagal nol); MFA tidak berubah
           (autentikator hilang = POST /akun/{id}/mfa/reset).
         Audit `akses.sandi_direset` dengan alasan dan dasar, tanpa nilai sandi.
