@@ -636,7 +636,8 @@ paths:
       operationId: resetSandiAkun
       summary: Reset sandi akun yang lupa sandi (sandi sementara ditampilkan sekali; wajib ganti saat masuk)
       description: |
-        Tiket 1.14. Izin: pengaturan.akun.perbaiki (izin sensitif: MFA ulang berlaku, 403 `mfa_ulang_diperlukan`).
+        Tiket 1.14. Izin: pengaturan.akun.perbaiki. Lapis 5 seperti izin lain: 403 `mfa_ulang_diperlukan` /
+        `mfa_belum_terdaftar` hanya bila izin itu bertanda `butuh_mfa` (bawaan tidak).
         Server membuat sandi sementara acak yang memenuhi aturan sandi (PRD 14.2). Sandi itu dikirim sekali di respons ini,
         tidak disimpan terbaca, dan tidak dicatat di log atau audit (`Cache-Control: no-store`). Sesudah reset:
         - `wajib_ganti_sandi` = true: masuk berikutnya dengan sandi sementara langsung ke layar ganti sandi
@@ -647,7 +648,8 @@ paths:
         Audit `akses.sandi_direset` dengan alasan dan dasar, tanpa nilai sandi.
         403 `diri_sendiri` (sandi sendiri diganti lewat POST /saya/sandi); 403 `akun_superadmin` bila akun pemegang
         superadmin direset oleh bukan superadmin (aturan sama dengan /akun/{id}/*; bawaan K4/K13: langsung oleh superadmin
-        lain, belum lewat persetujuan); 409 `akun_nonaktif` (aktifkan dulu lewat /akun/{id}/aktifkan).
+        lain; jalur persetujuan bila kebijakan RS mewajibkannya belum ada, dicatat di backlog); 409 `akun_nonaktif`
+        (aktifkan dulu lewat /akun/{id}/aktifkan).
         Tanpa superadmin lain: perintah konsol `php artisan akses:reset-sandi <nama_pengguna>` di server (audit
         `akses.sandi_direset_konsol`), bukan endpoint.
       requestBody:
@@ -2519,7 +2521,7 @@ paths:
         Akun baru tanpa peran; penugasan lewat /akun/{id}/penugasan.
         - 409 `pegawai_sudah_punya_akun` (satu akun = satu pegawai, K5); 409 `nama_pengguna_dipakai`; 409 `pegawai_keluar`
           (status pegawai `keluar`; pegawai `akan_keluar` masih bekerja, jadi boleh — akunnya nonaktif otomatis pada tanggalnya). Audit `akses.akun_dibuat` (tanpa sandi).
-        Sandi awal yang hilang belum bisa dipulihkan (reset sandi oleh admin di luar tiket ini, dicatat di backlog).
+        Sandi awal yang hilang dipulihkan lewat POST /akun/{id}/sandi/reset (sejak v0.15.0).
       requestBody:
         required: true
         content:
@@ -2616,7 +2618,8 @@ paths:
       operationId: gantiSandi
       summary: Ganti sandi akun yang sedang masuk
       description: |
-        Tanpa izin khusus. Selama `Saya.wajib_ganti_sandi` = true (akun baru dari /pegawai/{id}/akun), semua endpoint bersesi
+        Tanpa izin khusus. Selama `Saya.wajib_ganti_sandi` = true (akun baru dari /pegawai/{id}/akun, atau sesudah
+        POST /akun/{id}/sandi/reset), semua endpoint bersesi
         selain GET /saya, GET /saya/menu, POST /saya/sandi, POST /autentikasi/keluar, dan GET /profil-rs(/berkas/*) (identitas
         RS di layar ganti sandi) menjawab 403 `wajib_ganti_sandi`.
         Sandi baru mengikuti PRD 14.2 (panjang minimal dari konfigurasi, bawaan 12; cek sandi bocor) dan cek kontekstual:
@@ -4151,7 +4154,7 @@ components:
             warna:
               type: object
               required: [brand, accent]
-              description: "Dasar token --brand-600 dan --accent (PRD 5.3); turunan warna dihitung frontend. Bawaan = paket produk (sejak v0.15.0 #006937 dan #F3C300, palet bawaan tokens.css; tiket 1.15)."
+              description: "Dasar token --brand-600 dan --accent (PRD 5.3); turunan warna dihitung frontend. Bawaan = paket produk (sejak v0.15.0 #006937 dan #F3C300 = palet bawaan tokens.css sesudah tiket 1.15)."
               properties:
                 brand: { $ref: '#/components/schemas/WarnaHex' }
                 accent: { $ref: '#/components/schemas/WarnaHex' }
