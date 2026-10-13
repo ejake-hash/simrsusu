@@ -679,6 +679,7 @@ test('halaman masuk dapat diatur: teks dan foto baru tampil di /masuk tanpa buil
     })
     expect(r.ok(), `${r.status()} ${await r.text()}`).toBeTruthy()
   }
+})
 
 // ── Tiket 1.14: reset sandi oleh admin ──
 test('reset sandi: sesi lama akun putus, sandi sementara sekali tampil, masuk dengan sandi itu dipaksa ganti; akun sendiri tanpa tombol', async ({ page, browser }, info) => {
