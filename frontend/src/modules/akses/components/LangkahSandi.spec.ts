@@ -222,6 +222,11 @@ describe('LangkahSandi', () => {
     expect(pasang().get('.bantuan').text()).toBe('Lupa sandi atau akun terkunci? Hubungi admin SIMRS di ext. 1234.')
   })
 
+  it('lupa sandi: dijelaskan reset lewat petugas dengan verifikasi tatap muka (tiket 1.14), bukan email', () => {
+    pasangProfil('', '')
+    expect(pasang().get('.bantuan-rinci').text()).toBe('Petugas memverifikasi identitas Anda secara langsung, lalu memberi sandi sementara yang wajib diganti saat masuk.')
+  })
+
   it('teks bantuan tanpa kontak bila profil RS tidak mengisinya', () => {
     pasangProfil('', '')
     expect(pasang().get('.bantuan').text()).toBe('Lupa sandi atau akun terkunci? Hubungi admin SIMRS.')

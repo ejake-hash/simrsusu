@@ -43,7 +43,7 @@ onBeforeUnmount(() => clearInterval(detak))
 async function kirim() {
   if (proses.value || menunggu.value) return
   const e: typeof kesalahan.value = {}
-  if (!isian.lama) e.lama = dipaksa.value ? 'Isi sandi awal dari admin.' : 'Isi sandi lama.'
+  if (!isian.lama) e.lama = dipaksa.value ? 'Isi sandi dari admin.' : 'Isi sandi lama.'
   if (!isian.baru) e.baru = 'Isi sandi baru.'
   else if (isian.ulang !== isian.baru) e.ulang = 'Pengulangan tidak sama dengan sandi baru.'
   kesalahan.value = e
@@ -106,7 +106,7 @@ async function keluar() {
     <p class="lead">
       {{
         dipaksa
-          ? 'Anda masuk dengan sandi awal dari admin. Ganti dulu dengan sandi yang hanya Anda ketahui sebelum memakai SIMRS.'
+          ? 'Anda masuk dengan sandi dari admin (sandi awal akun baru atau sandi sementara sesudah reset). Ganti dulu dengan sandi yang hanya Anda ketahui sebelum memakai SIMRS.'
           : 'Sesudah diganti, sesi akun ini di perangkat lain diakhiri; sesi ini tetap masuk.'
       }}
     </p>
@@ -119,7 +119,7 @@ async function keluar() {
     </div>
 
     <form novalidate @submit.prevent="kirim">
-      <KolomIsian id="sandi-lama" v-slot="a" :label="dipaksa ? 'Sandi awal' : 'Sandi lama'" :error="kesalahan.lama">
+      <KolomIsian id="sandi-lama" v-slot="a" :label="dipaksa ? 'Sandi dari admin' : 'Sandi lama'" :error="kesalahan.lama">
         <IsianKataSandi v-bind="a" ref="inputLama" v-model="isian.lama" name="sandi_lama" autocomplete="current-password" />
       </KolomIsian>
       <KolomIsian

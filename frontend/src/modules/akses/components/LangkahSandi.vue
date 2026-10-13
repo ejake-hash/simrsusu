@@ -171,6 +171,10 @@ function tampilkanError(e: unknown): void {
       Lupa sandi atau akun terkunci? Hubungi {{ profil.unitAdmin }}<template v-if="profil.kontakAdmin">
         di <span class="kontak">{{ profil.kontakAdmin }}</span></template>.
     </p>
+    <!-- Tiket 1.14: reset hanya oleh admin setelah verifikasi tatap muka; tidak ada reset mandiri lewat email. -->
+    <p class="bantuan bantuan-rinci">
+      Petugas memverifikasi identitas Anda secara langsung, lalu memberi sandi sementara yang wajib diganti saat masuk.
+    </p>
   </section>
 </template>
 
@@ -203,6 +207,10 @@ h1 {
   color: var(--muted);
   font-size: 13px;
   text-align: center;
+}
+.bantuan-rinci {
+  margin-top: var(--space-1);
+  font-size: 12px;
 }
 .baris-tunggu {
   display: block;

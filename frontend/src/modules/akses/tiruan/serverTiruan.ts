@@ -360,6 +360,21 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   }
   const denganEtag = (p: PeranTiruan, status = 200, tambahan: Isi = {}) => ok({ data: peranRinci(p), ...tambahan }, status, { ETag: `"${p.versi}"` })
 
+  const akunRingkas = (a: AkunTiruan) => ({
+    id: a.id, nama_pengguna: a.nama_pengguna, nama: a.nama, status: a.status, terkunci_sampai: a.terkunci_sampai, login_terakhir_pada: a.login_terakhir_pada,
+    peran: a.penugasan.filter(berlaku).map((x) => ({ id: x.peran.id, nama: x.peran.nama, berlaku_sampai: x.berlaku_sampai })),
+    pengecualian: {
+      tambah: a.izin_khusus.filter((k) => berlaku(k) && k.efek === 'tambah').length,
+      cabut: a.izin_khusus.filter((k) => berlaku(k) && k.efek === 'cabut').length,
+    },
+    mfa_aktif: a.mfa_aktif_pada !== null,
+  })
+  /** Sandi sementara tiruan (dev/unit test): acak 20 karakter, tidak disimpan. */
+  const sandiSementara = () => {
+    const huruf = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+    return [...crypto.getRandomValues(new Uint32Array(20))].map((n) => huruf[n % huruf.length]).join('')
+  }
+
   function akunRinci(a: AkunTiruan): AkunRinci {
     const urut = <T extends Penugasan | IzinKhusus>(xs: T[]) =>
       xs.map(segarkan).sort((x, y) => Number(y.berlaku_sekarang) - Number(x.berlaku_sekarang) || y.dibuat_pada.localeCompare(x.dibuat_pada))
@@ -849,15 +864,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
           .filter((a) => !status || (status === 'terkunci' ? a.terkunci_sampai !== null && a.terkunci_sampai > iso() : a.status === status))
           .filter((a) => !peranId || peranBerlaku(a).some((p) => p.id === peranId))
           .filter((a) => !mfa || (mfa === 'aktif') === (a.mfa_aktif_pada !== null))
-          .map((a) => ({
-            id: a.id, nama_pengguna: a.nama_pengguna, nama: a.nama, status: a.status, terkunci_sampai: a.terkunci_sampai, login_terakhir_pada: a.login_terakhir_pada,
-            peran: a.penugasan.filter(berlaku).map((x) => ({ id: x.peran.id, nama: x.peran.nama, berlaku_sampai: x.berlaku_sampai })),
-            pengecualian: {
-              tambah: a.izin_khusus.filter((k) => berlaku(k) && k.efek === 'tambah').length,
-              cabut: a.izin_khusus.filter((k) => berlaku(k) && k.efek === 'cabut').length,
-            },
-            mfa_aktif: a.mfa_aktif_pada !== null,
-          }))
+          .map(akunRingkas)
         return halaman(daftar, r.kueri)
       }
       if (m === 'GET' && a1 === 'saran-peran') {
@@ -1031,6 +1038,17 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
         if (!a.mfa_aktif_pada) return error(409, 'mfa_belum_aktif', 'MFA akun ini belum aktif.')
         a.mfa_aktif_pada = null
         return ok({ data: statusMfa(a) })
+      }
+      // ── 1.14: reset sandi oleh admin (kontrak v0.15.0); diri_sendiri dan akun_superadmin dijaga di atas ──
+      if (m === 'POST' && a2 === 'sandi' && a3 === 'reset') {
+        const alasan = teks(isi, 'alasan', 5, 500)
+        if (salah(alasan)) return alasan
+        const dasar = teks(isi, 'dasar', 3, 200)
+        if (salah(dasar)) return dasar
+        if (a.status === 'nonaktif') return error(409, 'akun_nonaktif', 'Akun ini nonaktif. Aktifkan akun lebih dulu.')
+        a.wajib_ganti_sandi = true
+        a.terkunci_sampai = null
+        return ok({ data: { akun: akunRingkas(a), sandi_sementara: sandiSementara() } }, 200, { 'Cache-Control': 'no-store' })
       }
     }
     return null

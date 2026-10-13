@@ -8,6 +8,7 @@ import { formatTanggalWaktu } from '@/shared/utils/waktu'
 import { ambilAkun } from '../../apiPengaturan'
 import type { IndeksMatriks } from '../../matriks'
 import { KUNCI, pesanError } from '../../pengaturan'
+import DialogResetSandi from './DialogResetSandi.vue'
 import DialogStatusAkun from './DialogStatusAkun.vue'
 import TabLabel from './TabLabel.vue'
 import TabLihatSebagai from './TabLihatSebagai.vue'
@@ -42,6 +43,7 @@ watch(
 )
 
 const dialogStatus = ref(false)
+const dialogSandi = ref(false)
 /** Nonaktif/aktif hanya untuk akun yang boleh diubah akun ini (bukan diri sendiri, bukan superadmin oleh non-superadmin). */
 const bolehUbahStatus = computed(() => !!akun.value && akun.value.dapat_diubah && boleh('pengaturan.akun.perbaiki'))
 
@@ -79,6 +81,8 @@ function berubah(teks: string) {
         <button type="button" class="tombol" :class="{ 'tombol-bahaya': akun.status === 'aktif' }" @click="dialogStatus = true">
           {{ akun.status === 'aktif' ? 'Nonaktifkan akun' : 'Aktifkan akun' }}
         </button>
+        <!-- Tiket 1.14: akun nonaktif diaktifkan dulu (server 409 akun_nonaktif). -->
+        <button v-if="akun.status === 'aktif'" type="button" class="tombol" @click="dialogSandi = true">Reset sandi</button>
       </div>
       <div class="kartu-isi">
         <p v-if="akun.diri_sendiri" class="catatan catatan-netral catatan-atas">
@@ -106,6 +110,13 @@ function berubah(teks: string) {
           <template #mfa><TabMfa :akun="akun" @berubah="berubah" /></template>
         </Tabs>
       </div>
+      <DialogResetSandi
+        v-model:open="dialogSandi"
+        :akun-id="akun.id"
+        :nama-akun="akun.nama"
+        :nama-pengguna="akun.nama_pengguna"
+        @selesai="(h) => berubah(`Sandi ${h.nama_pengguna} direset; sesinya diputus dan pemiliknya wajib mengganti sandi saat masuk.`)"
+      />
       <DialogStatusAkun
         v-model:open="dialogStatus"
         :akun="akun"
@@ -128,6 +139,9 @@ function berubah(teks: string) {
   gap: var(--space-1);
 }
 .aksi-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   padding-bottom: 0;
 }
 .catatan-atas {

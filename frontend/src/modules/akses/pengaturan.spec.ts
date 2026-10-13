@@ -319,6 +319,54 @@ describe('Rincian akun', () => {
   })
 })
 
+describe('Reset sandi oleh admin (tiket 1.14)', () => {
+  const AKUN_TERKUNCI = uid(5)
+  const minta = (metode: string, jalur: string, isi: unknown = null) =>
+    server.tangani({ metode, jalur, kueri: new URLSearchParams(), header: {}, isi }) as { status: number; isi: { data?: Record<string, unknown>; error?: { kode: string } } }
+
+  it('alasan + dasar wajib; sandi sementara tampil sekali dengan salin, lalu dibuang saat dialog ditutup; kunci akun dibuka', async () => {
+    const salin = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: salin }, configurable: true })
+    await pasang(RincianAkun, { akunId: AKUN_TERKUNCI, indeks: null })
+    await klik(tombol('Reset sandi'))
+    const dialog = () => document.querySelector('[role="alertdialog"]')!
+    expect(dialog().textContent).toContain('Semua sesi akun ini diputus')
+    await klik([...dialog().querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Reset sandi'))
+    expect(dialog().textContent).toContain('Tulis alasan')
+
+    await isi('Alasan', 'Pemilik lupa sandi, datang langsung')
+    await isi('Dasar', 'Tiket layanan 77')
+    await klik([...dialog().querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Reset sandi'))
+    expect(dialog().querySelector('code.sandi')).toBeNull()
+    expect(dialog().querySelector('.sandi')!.textContent).toMatch(/^•{16,}Disembunyikan$/)
+    expect(dialog().textContent).toContain('Sandi ini tidak akan ditampilkan lagi')
+    await klik([...dialog().querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Tampilkan'))
+    const sandi = dialog().querySelector('code.sandi')!.textContent!
+    expect(sandi).toMatch(/^\S{16,}$/)
+    await klik([...dialog().querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Salin sandi'))
+    expect(salin).toHaveBeenCalledWith(sandi)
+    expect(dialog().textContent).toContain('Sandi sementara tersalin ke papan klip.')
+
+    await klik(tombol('Selesai'))
+    expect(document.body.textContent).not.toContain(sandi)
+    expect(document.body.textContent).toContain('Sandi contoh.terkunci direset')
+    expect(minta('GET', `/akun/${AKUN_TERKUNCI}`).isi.data!.terkunci_sampai).toBeNull()
+  })
+
+  it('tidak ada tombol untuk akun sendiri dan akun nonaktif; server tetap menolak (403 diri_sendiri, 409 akun_nonaktif)', async () => {
+    await pasang(RincianAkun, { akunId: ID_SUPERADMIN, indeks: null })
+    expect(tombol('Reset sandi')).toBeUndefined()
+    expect(minta('POST', `/akun/${ID_SUPERADMIN}/sandi/reset`, { alasan: 'Uji diri sendiri', dasar: 'Uji' }).isi.error!.kode).toBe('diri_sendiri')
+
+    document.body.innerHTML = ''
+    minta('POST', `/akun/${AKUN_KASIR}/nonaktifkan`, { alasan: 'Cuti panjang pegawai' })
+    await pasang(RincianAkun, { akunId: AKUN_KASIR, indeks: null })
+    expect(tombol('Aktifkan akun')).toBeTruthy()
+    expect(tombol('Reset sandi')).toBeUndefined()
+    expect(minta('POST', `/akun/${AKUN_KASIR}/sandi/reset`, { alasan: 'Uji nonaktif', dasar: 'Uji' }).isi.error!.kode).toBe('akun_nonaktif')
+  })
+})
+
 describe('HalamanModul (gerbang halaman sub-menu)', () => {
   function halaman() {
     return defineComponent({ render: () => h(HalamanModul, { izin: 'pengaturan.peran.lihat', judul: 'Peran & izin', kelasTerbatas: true }, { default: () => h('p', 'isi rahasia') }) })

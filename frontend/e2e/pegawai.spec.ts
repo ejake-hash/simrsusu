@@ -169,7 +169,7 @@ test('buat akun dari pegawai: sandi awal sekali tampil; masuk pertama dipaksa ga
   await p.getByRole('button', { name: 'Masuk', exact: true }).click()
   await expect(p).toHaveURL(/\/ganti-sandi/)
   await expect(p.getByRole('heading', { level: 1, name: 'Buat sandi Anda sendiri' })).toBeVisible()
-  await p.getByLabel('Sandi awal', { exact: true }).fill(sandiAwal)
+  await p.getByLabel('Sandi dari admin', { exact: true }).fill(sandiAwal)
   await p.getByLabel('Sandi baru', { exact: true }).fill(`${NAMA_PENGGUNA}-panjang-sekali`)
   await p.getByLabel('Ulangi sandi baru', { exact: true }).fill(`${NAMA_PENGGUNA}-panjang-sekali`)
   const ditolak = p.waitForResponse((r) => r.url().endsWith('/api/v1/saya/sandi'))
@@ -180,7 +180,7 @@ test('buat akun dari pegawai: sandi awal sekali tampil; masuk pertama dipaksa ga
   await expect(p).toHaveURL(/\/ganti-sandi/)
 
   const sandiBaru = `Lembah-Hijau-${AKHIRAN}-Sintetis!`
-  await p.getByLabel('Sandi awal', { exact: true }).fill(sandiAwal)
+  await p.getByLabel('Sandi dari admin', { exact: true }).fill(sandiAwal)
   await p.getByLabel('Sandi baru', { exact: true }).fill(sandiBaru)
   await p.getByLabel('Ulangi sandi baru', { exact: true }).fill(sandiBaru)
   await p.getByRole('button', { name: 'Simpan sandi baru' }).click()

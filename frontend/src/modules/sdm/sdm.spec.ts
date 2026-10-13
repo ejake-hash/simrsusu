@@ -261,13 +261,13 @@ describe('Ganti sandi', () => {
 
     await pasang(GantiSandiPage, {}, '/ganti-sandi?kembali=/sdm/pegawai')
     expect(document.querySelector('h1')?.textContent).toBe('Buat sandi Anda sendiri')
-    await isi('Sandi awal', 'salah-sekali')
+    await isi('Sandi dari admin', 'salah-sekali')
     await isi('Sandi baru', 'contoh.superadmin-panjang')
     await isi('Ulangi sandi baru', 'contoh.superadmin-panjang')
     await klik(document.querySelector<HTMLButtonElement>('button[type="submit"]'))
     expect(document.body.textContent).toContain('Sandi awal salah.')
 
-    await isi('Sandi awal', SANDI_TIRUAN)
+    await isi('Sandi dari admin', SANDI_TIRUAN)
     await klik(document.querySelector<HTMLButtonElement>('button[type="submit"]'))
     expect(document.body.textContent).toContain('tidak boleh memuat nama pengguna')
 
