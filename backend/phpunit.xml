@@ -30,6 +30,12 @@
         <env name="KREDENSIAL_KUNCI" value="base64:dGVzLWtyZWRlbnNpYWwta3VuY2ktc2ludGV0aXMtMzI="/>
         <env name="INTEGRASI_SIMULATOR" value="true"/>
         <env name="SANCTUM_STATEFUL_DOMAINS" value="localhost:5173"/>
+        <!-- Bawaan produk, dikunci agar .env lokal (opsi kemudahan uji lokal:siapkan-env, instalasi demo) tidak mengubah hasil tes. -->
+        <env name="AUTENTIKASI_BATAS_DIAM_MENIT" value="15"/>
+        <env name="AUTENTIKASI_MFA_ULANG_MENIT" value="15"/>
+        <env name="SESSION_LIFETIME" value="120"/>
+        <env name="INSTALASI_DEMO" value="false"/>
+        <env name="PAKET_IDENTITAS_CONTOH_DIR" value=""/>
         <!-- Klien tes (127.0.0.1) di dalam jaringan RS; uji "dari luar" memakai REMOTE_ADDR lain. -->
         <env name="AUTENTIKASI_MFA_JARINGAN_RS" value="127.0.0.1/32,::1/128"/>
         <!-- Hanya untuk tes pemalsuan audit (RantaiAuditTest); sama dengan docker-compose dan CI. -->

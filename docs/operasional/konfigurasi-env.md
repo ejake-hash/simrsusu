@@ -9,6 +9,8 @@ Aturan umum:
 
 - `.env` produksi hanya ada di server (`chmod 640`, pemilik admin, grup `www-data`), **tidak pernah** di repo, tiket,
   atau chat. Salinan rahasia (kunci, sandi) disimpan di vault RS (PRD 14.2).
+- `php artisan lokal:siapkan-env` (tiket 1.16) hanya untuk lokal/pengembangan: tidak terdaftar dan menolak berjalan bila
+  `APP_ENV=production`. Kunci produksi dibuat sendiri dan disimpan di vault.
 - Konfigurasi di-cache (`php artisan optimize`). Setelah mengubah `.env`: `php artisan optimize`, lalu
   `php artisan horizon:terminate` dan `systemctl reload php8.4-fpm`.
 - Variabel lingkungan proses mengalahkan `.env`, kecuali bila konfigurasi sudah di-cache.
