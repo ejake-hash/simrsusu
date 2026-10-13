@@ -199,7 +199,10 @@ final class SiapkanEnv extends Command
     private function nilaiSekarang(int $i, string $kunci): ?string
     {
         try {
-            return (string) (Dotenv::parse($this->baris[$i])[$kunci] ?? '');
+            // Baris yang tidak terbaca utuh (mis. kutip terbuka, nilai banyak baris) tidak menghasilkan kunci: dibiarkan.
+            $hasil = Dotenv::parse($this->baris[$i]);
+
+            return array_key_exists($kunci, $hasil) ? (string) $hasil[$kunci] : null;
         } catch (Throwable) {
             return null;
         }

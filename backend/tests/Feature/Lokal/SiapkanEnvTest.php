@@ -141,6 +141,11 @@ class SiapkanEnvTest extends TestCase
         $this->assertStringStartsWith('base64:', (string) $env['TTD_KUNCI']);
         $this->assertSame('Karsitara SIMRS', $env['MAIL_FROM_NAME']);
         $this->assertStringContainsString("\nMAIL_FROM_NAME=\"\${APP_NAME}\"\n", (string) file_get_contents($this->env()));
+
+        // Nilai berkutip banyak baris tidak dipotong.
+        file_put_contents($this->env(), "APP_ENV=local\nINSTALASI_DEMO=\"banyak\nbaris\"\n");
+        $this->artisan('lokal:siapkan-env')->assertSuccessful();
+        $this->assertSame("banyak\nbaris", $this->nilai()['INSTALASI_DEMO']);
     }
 
     public function test_paket_identitas_tidak_menimpa_nilai_terisi(): void
