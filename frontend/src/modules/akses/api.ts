@@ -43,9 +43,13 @@ export async function kirimSandi(isian: IsianSandi): Promise<Langkah> {
   return langkahDariRespons(data)
 }
 
-/** Langkah 2a: kode TOTP atau kode cadangan. */
-export async function kirimKodeMfa(challengeId: string, metode: MetodeMfa, kode: string): Promise<Langkah> {
-  const { data } = await klien.post('/autentikasi/mfa', { challenge_id: challengeId, metode, kode }, { tangani401Sendiri: true })
+/**
+ * Langkah 2a: kode TOTP atau kode cadangan. `percayai` (1.13) dikirim hanya bila dicentang; token perangkat dipasang
+ * server sebagai cookie HttpOnly, tidak pernah lewat badan respons atau penyimpanan peramban.
+ */
+export async function kirimKodeMfa(challengeId: string, metode: MetodeMfa, kode: string, percayai = false): Promise<Langkah> {
+  const isi = { challenge_id: challengeId, metode, kode, ...(percayai ? { percayai_perangkat: true } : {}) }
+  const { data } = await klien.post('/autentikasi/mfa', isi, { tangani401Sendiri: true })
   return langkahDariRespons(data)
 }
 
@@ -56,10 +60,10 @@ export async function mintaRahasiaMfa(challengeId: string): Promise<RahasiaMfa> 
 }
 
 /** Langkah 2c: konfirmasi pendaftaran; kode cadangan hanya dikirim server sekali di sini. */
-export async function konfirmasiDaftarMfa(challengeId: string, kode: string): Promise<{ langkah: Langkah; kodeCadangan: string[] }> {
+export async function konfirmasiDaftarMfa(challengeId: string, kode: string, percayai = false): Promise<{ langkah: Langkah; kodeCadangan: string[] }> {
   const { data } = await klien.post<{ kode_cadangan?: unknown }>(
     '/autentikasi/mfa/daftar/konfirmasi',
-    { challenge_id: challengeId, kode },
+    { challenge_id: challengeId, kode, ...(percayai ? { percayai_perangkat: true } : {}) },
     { tangani401Sendiri: true },
   )
   const kodeCadangan = Array.isArray(data.kode_cadangan) ? data.kode_cadangan.map(String) : []

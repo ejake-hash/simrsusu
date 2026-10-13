@@ -8,6 +8,7 @@ import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { kirimKodeMfa } from '../api'
 import type { Langkah, LangkahTampil, MetodeMfa } from '../alurMasuk'
 import { tindakanMfaError } from '../mfaError'
+import KotakPercayaiPerangkat from './KotakPercayaiPerangkat.vue'
 
 // Langkah perlu_mfa (PRD 10.3.2): kode TOTP 6 digit, atau kode cadangan bila server menawarkannya.
 const props = defineProps<{
@@ -24,6 +25,8 @@ const kode = ref('')
 const errorKode = ref<string | null>(null)
 const error = ref<string | null>(null)
 const proses = ref(false)
+const percayai = ref(false)
+const tawaran = computed(() => (props.langkah.status === 'perlu_mfa' ? props.langkah.percayai_perangkat : { tersedia: false, hari: 0 }))
 const inputKode = useTemplateRef<HTMLInputElement>('inputKode')
 
 const cadangan = computed(() => metode.value === 'kode_cadangan')
@@ -55,7 +58,7 @@ async function kirim(): Promise<void> {
   error.value = null
   try {
     const isi = cadangan.value ? kode.value.trim() : kode.value.replace(/\s/g, '')
-    await props.lanjut(await kirimKodeMfa(props.langkah.challenge_id, metode.value, isi))
+    await props.lanjut(await kirimKodeMfa(props.langkah.challenge_id, metode.value, isi, percayai.value && tawaran.value.tersedia))
   } catch (e) {
     const tindakan = tindakanMfaError(e, profil.value.unitAdmin)
     if (tindakan.jenis === 'kembali') {
@@ -116,6 +119,8 @@ async function kirim(): Promise<void> {
           {{ cadangan ? 'Pakai kode dari aplikasi autentikator' : 'Gunakan kode cadangan' }}
         </Tombol>
       </p>
+
+      <KotakPercayaiPerangkat v-model="percayai" :tawaran="tawaran" />
 
       <Tombol type="submit" varian="utama" ukuran="besar" penuh class="tombol-kirim" :sibuk="proses" :disabled="proses">
         {{ proses ? 'Memeriksa…' : 'Verifikasi' }}

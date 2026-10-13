@@ -13,10 +13,10 @@ const RAHASIA = {
 }
 const KODE_CADANGAN = Array.from({ length: 10 }, (_, i) => `aaaa${i}-bbbb${i}`)
 
-async function pasang() {
+async function pasang(percayai_perangkat = { tersedia: false, hari: 0 }) {
   const lanjut = vi.fn().mockResolvedValue(undefined)
   const w = mount(LangkahDaftarMfa, {
-    props: { langkah: { status: 'perlu_daftar_mfa', challenge_id: 't-9', kedaluwarsa_pada: '' }, lanjut },
+    props: { langkah: { status: 'perlu_daftar_mfa', challenge_id: 't-9', kedaluwarsa_pada: '', percayai_perangkat }, lanjut },
     attachTo: document.body,
   })
   await flushPromises()
@@ -42,6 +42,17 @@ describe('LangkahDaftarMfa', () => {
     expect(document.activeElement).toBe(w.get('#kode-daftar-mfa').element)
   })
 
+  it('percayai perangkat (1.13) saat pendaftaran MFA: dicentang → dikirim bersama konfirmasi', async () => {
+    vi.mocked(konfirmasiDaftarMfa).mockResolvedValue({ langkah: { status: 'masuk' }, kodeCadangan: KODE_CADANGAN })
+    const { w } = await pasang({ tersedia: true, hari: 14 })
+    expect(w.text()).toContain('Percayai perangkat ini selama 14 hari')
+    await w.get('input[name="percayai_perangkat"]').setValue(true)
+    await w.get('#kode-daftar-mfa').setValue('123456')
+    await w.get('form').trigger('submit')
+    await flushPromises()
+    expect(konfirmasiDaftarMfa).toHaveBeenCalledWith('t-9', '123456', true)
+  })
+
   it('konfirmasi → 10 kode cadangan sekali tampil; lanjut hanya setelah dicentang', async () => {
     vi.mocked(konfirmasiDaftarMfa).mockResolvedValue({ langkah: { status: 'masuk' }, kodeCadangan: KODE_CADANGAN })
     const { w, lanjut } = await pasang()
@@ -50,7 +61,7 @@ describe('LangkahDaftarMfa', () => {
     await w.get('form').trigger('submit')
     await flushPromises()
 
-    expect(konfirmasiDaftarMfa).toHaveBeenCalledWith('t-9', '123456')
+    expect(konfirmasiDaftarMfa).toHaveBeenCalledWith('t-9', '123456', false)
     expect(w.get('h1').text()).toBe('Simpan kode cadangan')
     expect(w.findAll('[data-testid="kode-cadangan"] li')).toHaveLength(10)
     expect(w.find('img').exists()).toBe(false)
