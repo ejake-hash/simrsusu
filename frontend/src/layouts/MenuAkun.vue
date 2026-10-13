@@ -40,6 +40,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', klikLuar))
     </button>
     <nav v-show="buka" :id="id" ref="panel" class="panel" aria-label="Menu akun">
       <RouterLink :to="{ path: '/ganti-sandi', query: { kembali: route.fullPath } }" @click="tutup(false)"><Ikon nama="gembok" :ukuran="16" />Ganti sandi</RouterLink>
+      <RouterLink to="/perangkat" @click="tutup(false)"><Ikon nama="perangkat" :ukuran="16" />Perangkat tepercaya</RouterLink>
       <RouterLink to="/tanda-tangan" @click="tutup(false)"><Ikon nama="centang" :ukuran="16" />Tanda tangan elektronik</RouterLink>
       <RouterLink to="/notifikasi?tab=preferensi" @click="tutup(false)"><Ikon nama="lonceng" :ukuran="16" />Pengaturan notifikasi</RouterLink>
     </nav>

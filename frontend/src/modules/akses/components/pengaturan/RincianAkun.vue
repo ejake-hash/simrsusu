@@ -15,9 +15,10 @@ import TabLihatSebagai from './TabLihatSebagai.vue'
 import TabMfa from './TabMfa.vue'
 import TabPenugasan from './TabPenugasan.vue'
 import TabPerAkun from './TabPerAkun.vue'
+import TabPerangkat from './TabPerangkat.vue'
 
 /**
- * Rincian akun: Penugasan, Per akun, Label (izin label sensitivitas, 1.5), Lihat sebagai, MFA. Akun sendiri (diri_sendiri) tidak punya tombol ubah
+ * Rincian akun: Penugasan, Per akun, Label (izin label sensitivitas, 1.5), Lihat sebagai, MFA, Perangkat (1.13). Akun sendiri (diri_sendiri) tidak punya tombol ubah
  * sama sekali (PRD 9.2.4); server tetap menolak dengan 403 diri_sendiri.
  */
 const props = defineProps<{ akunId: string; indeks: IndeksMatriks | null }>()
@@ -32,6 +33,7 @@ const TAB = [
   { nilai: 'label', label: 'Label' },
   { nilai: 'lihat-sebagai', label: 'Lihat sebagai' },
   { nilai: 'mfa', label: 'MFA' },
+  { nilai: 'perangkat', label: 'Perangkat' },
 ]
 const tab = ref('penugasan')
 const pesan = ref<string | null>(null)
@@ -109,6 +111,7 @@ function berubah(teks: string) {
           <template #label><TabLabel :akun="akun" @berubah="berubah" /></template>
           <template #lihat-sebagai><TabLihatSebagai :akun="akun" :indeks="indeks" /></template>
           <template #mfa><TabMfa :akun="akun" @berubah="berubah" /></template>
+          <template #perangkat><TabPerangkat :akun="akun" @berubah="berubah" /></template>
         </Tabs>
       </div>
       <DialogResetSandi

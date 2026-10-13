@@ -1,5 +1,6 @@
 import type { GrupMenu, Menu, MenuSaya } from '../tipeMenu'
 import type { AkunRinci, CakupanJenis, IzinKhusus, IzinLabelAkun, IzinNode, LabelSensitivitas, NodeMenu, Penugasan, PeranRinci, PohonMenu, StatusMfaAkun } from '../tipePengaturan'
+import type { KebijakanKeamanan, PerangkatTepercaya } from '../tipePerangkat'
 import type { JenisPersetujuan, PermintaanAkses, PersetujuanAkses } from '../tipePersetujuan'
 import { buatPohon, izinMenu, uid } from './dataPengaturan'
 
@@ -37,6 +38,8 @@ interface PeranTiruan {
   izin: Set<string>
   versi: number
   diubah_pada: string
+  /** 1.13: null/undefined = ikut kebijakan instalasi. */
+  masa_percaya_hari?: number | null
 }
 
 interface PersetujuanTiruan {
@@ -156,7 +159,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   ].map(([kode, nama], i) => ({ id: uid(1500 + i), kode: kode!, nama: nama!, uraian: null, butuh_relasi_perawatan: true, penyetuju_peran: null, aktif: true }))
   const labelAkun = new Map<string, IzinLabelAkun[]>()
   // Superadmin juga memegang Profil RS (1.8a-be: MenuBawaan::SUB_MENU_SUPERADMIN).
-  tambahPeran(SA, 'superadmin', 'Superadmin', izinMenu(pohon, []).concat(['pengaturan.peran', 'pengaturan.akun'].flatMap((k) => ['lihat', 'input', 'perbaiki'].map((a) => `${k}.${a}`)), ['pengaturan.profil_rs.lihat', 'pengaturan.profil_rs.perbaiki'], ['lihat', 'input', 'perbaiki'].map((a) => `pengaturan.penyiapan.${a}`), ['lihat', 'input', 'perbaiki'].map((a) => `pengaturan.persetujuan.${a}`)), {
+  tambahPeran(SA, 'superadmin', 'Superadmin', izinMenu(pohon, []).concat(['pengaturan.peran', 'pengaturan.akun'].flatMap((k) => ['lihat', 'input', 'perbaiki'].map((a) => `${k}.${a}`)), ['pengaturan.profil_rs.lihat', 'pengaturan.profil_rs.perbaiki', 'pengaturan.keamanan.lihat', 'pengaturan.keamanan.perbaiki'], ['lihat', 'input', 'perbaiki'].map((a) => `pengaturan.penyiapan.${a}`), ['lihat', 'input', 'perbaiki'].map((a) => `pengaturan.persetujuan.${a}`)), {
     bawaan_sistem: true,
     wajib_mfa: true,
     uraian: 'Mengelola menu, peran, dan akun. Tidak membuka rekam medis atau angka rupiah (PRD 9.2.4).',
@@ -340,6 +343,36 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
     return { aktif: a.mfa_aktif_pada !== null, aktif_pada: a.mfa_aktif_pada, wajib_akun: a.wajib_mfa, sumber_wajib: sumber, dapat_direset: a.mfa_aktif_pada !== null && a.id !== penggunaId && !terkunciSuperadmin(a) }
   }
 
+  // ── 1.13: kebijakan keamanan dan perangkat tepercaya (data sintetis) ──
+  const kebijakan: KebijakanKeamanan = { versi: '1', perangkat_tepercaya_hari: 30, batas: { maks_hari: 30, maks_hari_superadmin: 7, maks_hari_peran_sensitif: 14 }, diubah_pada: null }
+  const perangkat = new Map<string, PerangkatTepercaya[]>()
+  const hariLagi = (n: number) => new Date(sekarang().getTime() + n * 86_400_000).toISOString()
+  const perangkatBaru = (nama: string, isi: Partial<PerangkatTepercaya> = {}): PerangkatTepercaya => ({
+    id: idBaru(), nama_perangkat: nama, status: 'aktif', dibuat_pada: hariLagi(-2), terakhir_dipakai_pada: hariLagi(-1), berlaku_sampai: hariLagi(5),
+    perangkat_ini: false, dicabut_pada: null, alasan_cabut: null, keterangan_cabut: null, dicabut_oleh: null, ...isi,
+  })
+  // Contoh sintetis: superadmin (perangkat sesi ini + riwayat dicabut) dan kasir.
+  perangkat.set(ID_SUPERADMIN, [
+    perangkatBaru('Chrome di Windows', { perangkat_ini: true }),
+    perangkatBaru('Firefox di Linux', { status: 'dicabut', dibuat_pada: hariLagi(-20), dicabut_pada: hariLagi(-10), alasan_cabut: 'dicabut_pemilik', dicabut_oleh: { id: ID_SUPERADMIN, nama: 'Contoh Superadmin' } }),
+  ])
+  perangkat.set(uid(8), [perangkatBaru('Edge di Windows', { berlaku_sampai: hariLagi(20) })])
+  function batasPercaya(p: PeranTiruan): number {
+    return p.kode === 'superadmin' ? kebijakan.batas.maks_hari_superadmin : memuatSensitif(p) ? kebijakan.batas.maks_hari_peran_sensitif : kebijakan.batas.maks_hari
+  }
+  function cabutPerangkat(p: PerangkatTepercaya, alasan: PerangkatTepercaya['alasan_cabut'], keterangan: string | null) {
+    p.status = 'dicabut'
+    p.dicabut_pada = iso()
+    p.alasan_cabut = alasan
+    p.keterangan_cabut = keterangan
+    p.dicabut_oleh = { id: penggunaId, nama: akun.get(penggunaId)!.nama }
+  }
+  function daftarPerangkat(akunId: string, kueri: URLSearchParams, milikSendiri: boolean): ResponsTiruan {
+    const semua = (perangkat.get(akunId) ?? []).map((p) => ({ ...p, perangkat_ini: milikSendiri && p.perangkat_ini }))
+    const daftar = kueri.get('status') === 'semua' ? semua : semua.filter((p) => p.status === 'aktif')
+    return halaman([...daftar].sort((x, y) => y.dibuat_pada.localeCompare(x.dibuat_pada)), kueri)
+  }
+
   function peranRinci(p: PeranTiruan): PeranRinci {
     const bawaan = p.kode === 'superadmin'
     const sendiri = pegangPeran(p.id)
@@ -348,6 +381,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
       jumlah_akun: jumlahAkun(p.id), memuat_izin_sensitif: memuatSensitif(p), versi: String(p.versi), izin: [...p.izin].sort(),
       wajib_mfa_terkunci: bawaan || memuatSensitif(p), dapat_disunting: !bawaan && !sendiri,
       alasan_terkunci: bawaan ? 'peran_bawaan_terkunci' : sendiri ? 'peran_sendiri' : null, diubah_pada: p.diubah_pada,
+      masa_percaya_hari: p.masa_percaya_hari ?? null, batas_masa_percaya_hari: batasPercaya(p), masa_percaya_instalasi_hari: kebijakan.perangkat_tepercaya_hari,
       izin_menunggu: persetujuan
         .filter((x) => x.objek.jenis === 'izin_peran' && x.peranId === p.id && masihMenunggu(x))
         .map((x) => ({ kode: x.izinKode!, persetujuan_id: x.id, penyetuju_peran: ringkas(x.penyetujuPeranId), kedaluwarsa_pada: x.kedaluwarsaPada }))
@@ -355,7 +389,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
     }
   }
   const ringkasPeran = (p: PeranTiruan) => {
-    const { versi: _v, izin: _i, wajib_mfa_terkunci: _w, dapat_disunting: _d, alasan_terkunci: _a, diubah_pada: _u, ...r } = peranRinci(p)
+    const { versi: _v, izin: _i, wajib_mfa_terkunci: _w, dapat_disunting: _d, alasan_terkunci: _a, diubah_pada: _u, masa_percaya_hari: _m, batas_masa_percaya_hari: _b, masa_percaya_instalasi_hari: _k, ...r } = peranRinci(p)
     return r
   }
   const denganEtag = (p: PeranTiruan, status = 200, tambahan: Isi = {}) => ok({ data: peranRinci(p), ...tambahan }, status, { ETag: `"${p.versi}"` })
@@ -539,6 +573,32 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
           masuk_sebelumnya_dari_jaringan_rs: true,
         },
       })
+    }
+    // ── 1.13: perangkat tepercaya milik sendiri, kebijakan keamanan ──
+    if (m === 'GET' && r.jalur === '/saya/perangkat') return daftarPerangkat(penggunaId, r.kueri, true)
+    if (m === 'POST' && a0 === 'saya' && a1 === 'perangkat' && a2 && a3 === 'cabut') {
+      const p = (perangkat.get(penggunaId) ?? []).find((x) => x.id === a2)
+      if (!p) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
+      if (p.status !== 'aktif') return error(409, 'perangkat_tidak_aktif', 'Perangkat ini sudah tidak aktif.')
+      cabutPerangkat(p, 'dicabut_pemilik', null)
+      return ok({ data: p })
+    }
+    if (r.jalur === '/kebijakan-keamanan' && (m === 'GET' || m === 'PUT')) {
+      const etag = { ETag: `"${kebijakan.versi}"` }
+      if (m === 'GET') return ok({ data: kebijakan }, 200, etag)
+      const ifMatch = r.header['if-match']
+      if (!ifMatch) return error(428, 'if_match_wajib', 'Header If-Match wajib.')
+      if (ifMatch.replace(/"/g, '') !== kebijakan.versi) return error(412, 'versi_berubah', 'Kebijakan diubah orang lain sejak dibuka.')
+      const dasar = teks(isi, 'dasar_perubahan', 3, 200)
+      if (salah(dasar)) return dasar
+      const n = isi.perangkat_tepercaya_hari
+      if (typeof n !== 'number' || !Number.isInteger(n) || n < 0 || n > kebijakan.batas.maks_hari) {
+        return error(422, 'masa_percaya_melebihi_batas', `Masa percaya 0 sampai ${kebijakan.batas.maks_hari} hari.`, [{ kolom: 'perangkat_tepercaya_hari', pesan: `Isi 0 sampai ${kebijakan.batas.maks_hari} hari.` }])
+      }
+      kebijakan.perangkat_tepercaya_hari = n
+      kebijakan.versi = String(Number(kebijakan.versi) + 1)
+      kebijakan.diubah_pada = iso()
+      return ok({ data: kebijakan }, 200, { ETag: `"${kebijakan.versi}"` })
     }
     if (m === 'GET' && r.jalur === '/saya/menu') return ok({ data: menuEfektif(akun.get(penggunaId)!) })
     if (m === 'POST' && r.jalur === '/saya/sandi') return gantiSandi(akun.get(penggunaId)!, isi)
@@ -800,6 +860,13 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
         if (typeof isi.nama === 'string') p.nama = isi.nama
         if ('uraian' in isi) p.uraian = (isi.uraian as string | null) ?? null
         if (typeof isi.wajib_mfa === 'boolean') p.wajib_mfa = isi.wajib_mfa
+        if ('masa_percaya_hari' in isi) {
+          const n = isi.masa_percaya_hari
+          if (n !== null && (typeof n !== 'number' || !Number.isInteger(n) || n < 0 || n > batasPercaya(p))) {
+            return error(422, 'masa_percaya_melebihi_batas', `Masa percaya peran ini 0 sampai ${batasPercaya(p)} hari.`, [{ kolom: 'masa_percaya_hari', pesan: `Isi 0 sampai ${batasPercaya(p)} hari, atau kosongkan.` }])
+          }
+          p.masa_percaya_hari = n as number | null
+        }
         if (isi.status === 'aktif' || isi.status === 'nonaktif') p.status = isi.status
         p.versi++
         p.diubah_pada = iso()
@@ -885,8 +952,20 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
       if (!a) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
       if (m === 'GET' && !a2) return ok({ data: akunRinci(a) })
       if (m === 'GET' && a2 === 'menu') return ok({ data: menuEfektif(a) })
+      if (m === 'GET' && a2 === 'perangkat' && !a3) return daftarPerangkat(a.id, r.kueri, false)
       if (a.id === penggunaId) return error(403, 'diri_sendiri', 'Perubahan akun sendiri dilakukan superadmin lain.')
       if (terkunciSuperadmin(a)) return error(403, 'akun_superadmin', 'Akses akun superadmin hanya diubah oleh superadmin lain.')
+
+      // ── 1.13: cabut perangkat tepercaya akun lain dengan alasan ──
+      if (m === 'POST' && a2 === 'perangkat' && a3 && a4 === 'cabut') {
+        const alasan = teks(isi, 'alasan', 5, 500)
+        if (salah(alasan)) return alasan
+        const p = (perangkat.get(a.id) ?? []).find((x) => x.id === a3)
+        if (!p) return error(404, 'tidak_ditemukan', 'Data tidak ditemukan.')
+        if (p.status !== 'aktif') return error(409, 'perangkat_tidak_aktif', 'Perangkat ini sudah tidak aktif.')
+        cabutPerangkat(p, 'dicabut_admin', alasan!)
+        return ok({ data: p })
+      }
 
       // ── 1.8d: nonaktifkan / aktifkan dengan alasan ──
       if (m === 'POST' && (a2 === 'nonaktifkan' || a2 === 'aktifkan') && !a3) {
