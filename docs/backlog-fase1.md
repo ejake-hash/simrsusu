@@ -44,7 +44,7 @@
 | 1.13-be / 1.13-fe | Perangkat tepercaya: MFA sekali per perangkat per periode, kebijakan diatur di layar | Siap dikerjakan | — |
 | 1.14-be / 1.14-fe | Reset sandi oleh admin + perintah konsol darurat | Siap dikerjakan | — |
 | 1.15-be / 1.15-fe | Tema bawaan dari pedoman identitas RS mitra; halaman masuk dapat diatur (teks, foto, motif) | Siap dikerjakan | — |
-| 1.16 | Perintah `php artisan lokal:siapkan-env` (tulis .env lokal otomatis) | Siap dikerjakan | — |
+| 1.16 | Perintah `php artisan lokal:siapkan-env` (tulis .env lokal otomatis) | Selesai. Catatan: `app/Core/Lokal` (`SiapkanEnv`, `KodeMfa`, penjaga `PerintahLokal`: tidak terdaftar di production, sebelum `.env` ada memakai APP_ENV proses); nilai dibaca seperti phpdotenv, tidak pernah menimpa nilai terisi (termasuk `--paket-identitas`), cadangan `~/.karsitara/cadangan-env/`; `AkunSintetisSeeder::RAHASIA_MFA` satu sumber akun → rahasia TOTP; `phpunit.xml` mengunci batas diam, MFA ulang, umur sesi, instalasi demo, paket identitas | #96 |
 | 1.10 | SSO (OIDC/SAML) ke penyedia identitas RS/universitas; tombol tampil hanya bila dikonfigurasi | **Terhambat**: perlu data IdP dari RS/USU | — |
 
 ## Jalur kerja sampai Fase 1 selesai
