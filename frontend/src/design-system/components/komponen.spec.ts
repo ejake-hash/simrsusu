@@ -67,6 +67,10 @@ describe('Dialog', () => {
     tekan(document.activeElement!, 'Escape')
     await flushPromises()
     expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    // Klik di luar (tirai) juga ditahan.
+    document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
     const tutup = document.querySelector('button[aria-label="Tutup"]') as HTMLButtonElement
     expect(tutup.disabled).toBe(false)
     tutup.click()

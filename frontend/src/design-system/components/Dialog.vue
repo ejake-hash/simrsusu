@@ -4,7 +4,7 @@ import Ikon from '@/design-system/ikon/Ikon.vue'
 
 /**
  * Dialog modal untuk konfirmasi tindakan berisiko (PRD 5.1 butir 6, 11, 17): fokus pindah ke dialog dan
- * terjebak di dalamnya, Esc dan klik di luar menutup KECUALI saat `sibuk`, fokus kembali ke pemicu.
+ * terjebak di dalamnya, Esc dan klik di luar menutup KECUALI saat `sibuk` atau `tutupLewatTombol`, fokus kembali ke pemicu.
  * `peringatan` = role alertdialog (aksi yang mengubah akses/keamanan). `tutupLewatTombol` = Esc dan klik di luar tidak menutup
  * (mis. selama sandi sekali tampil terlihat), hanya tombol tutup/aksi.
  */
@@ -14,7 +14,7 @@ const props = withDefaults(
 )
 const buka = defineModel<boolean>('open', { required: true })
 
-function tahanSaatSibuk(e: Event) {
+function tahanTutupLuar(e: Event) {
   if (props.sibuk || props.tutupLewatTombol) e.preventDefault()
 }
 </script>
@@ -29,8 +29,8 @@ function tahanSaatSibuk(e: Event) {
         :role="peringatan ? 'alertdialog' : 'dialog'"
         :aria-busy="sibuk || undefined"
         v-bind="uraian ? {} : { 'aria-describedby': undefined }"
-        @escape-key-down="tahanSaatSibuk"
-        @interact-outside="tahanSaatSibuk"
+        @escape-key-down="tahanTutupLuar"
+        @interact-outside="tahanTutupLuar"
       >
         <header class="dialog-kepala">
           <div>

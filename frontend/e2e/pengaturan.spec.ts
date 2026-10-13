@@ -722,30 +722,31 @@ test('reset sandi: sesi lama akun putus, sandi sementara sekali tampil, masuk de
   await hasil.getByRole('button', { name: 'Tampilkan sandi' }).click()
   const sementara = (await hasil.locator('code.sandi').textContent()) ?? ''
   expect(sementara.length).toBeGreaterThanOrEqual(16)
-  await hasil.getByRole('button', { name: 'Selesai' }).click()
-  await expect(page.getByText(sementara)).toHaveCount(0)
-  await expect(page.getByText('Sandi contoh.tanpa.peran direset')).toBeVisible()
-
-  // Sesi lama diputus di permintaan berikutnya.
-  expect.soft((await sayaLama()).status(), 'sesi lama diputus sesudah reset').toBe(401)
-  await lama.tutup()
   sesiAkun.delete('contoh.tanpa.peran')
-
-  // Masuk dengan sandi sementara → dipaksa ganti; dipulihkan ke sandi sintetis agar spec lain tetap bisa masuk.
-  const tamu = await browser.newContext({ baseURL: asal, storageState: TANPA_SESI })
-  const p = await tamu.newPage()
-  await p.goto('/masuk')
-  await p.getByLabel('Nama pengguna').fill('contoh.tanpa.peran')
-  await p.getByLabel('Kata sandi', { exact: true }).fill(sementara)
-  await p.getByRole('button', { name: 'Masuk', exact: true }).click()
-  await expect(p).toHaveURL(/\/ganti-sandi/)
-  await expect(p.getByRole('heading', { level: 1, name: 'Buat sandi Anda sendiri' })).toBeVisible()
-  await p.getByLabel('Sandi dari admin', { exact: true }).fill(sementara)
-  await p.getByLabel('Sandi baru', { exact: true }).fill(SANDI)
-  await p.getByLabel('Ulangi sandi baru', { exact: true }).fill(SANDI)
-  await p.getByRole('button', { name: 'Simpan sandi baru' }).click()
-  await expect(p).not.toHaveURL(/\/ganti-sandi/)
-  await tamu.close()
+  try {
+    await hasil.getByRole('button', { name: 'Selesai' }).click()
+    await expect(page.getByText(sementara)).toHaveCount(0)
+    await expect(page.getByText('Sandi contoh.tanpa.peran direset')).toBeVisible()
+    // Sesi lama diputus di permintaan berikutnya.
+    expect((await sayaLama()).status(), 'sesi lama diputus sesudah reset').toBe(401)
+  } finally {
+    await lama.tutup()
+    // Masuk dengan sandi sementara → dipaksa ganti; dipulihkan ke sandi sintetis agar spec lain tetap bisa masuk.
+    const tamu = await browser.newContext({ baseURL: asal, storageState: TANPA_SESI })
+    const p = await tamu.newPage()
+    await p.goto('/masuk')
+    await p.getByLabel('Nama pengguna').fill('contoh.tanpa.peran')
+    await p.getByLabel('Kata sandi', { exact: true }).fill(sementara)
+    await p.getByRole('button', { name: 'Masuk', exact: true }).click()
+    await expect(p).toHaveURL(/\/ganti-sandi/)
+    await expect(p.getByRole('heading', { level: 1, name: 'Buat sandi Anda sendiri' })).toBeVisible()
+    await p.getByLabel('Sandi dari admin', { exact: true }).fill(sementara)
+    await p.getByLabel('Sandi baru', { exact: true }).fill(SANDI)
+    await p.getByLabel('Ulangi sandi baru', { exact: true }).fill(SANDI)
+    await p.getByRole('button', { name: 'Simpan sandi baru' }).click()
+    await expect(p).not.toHaveURL(/\/ganti-sandi/)
+    await tamu.close()
+  }
 })
 
 // ── Tiket 1.8d: nonaktif/aktif akun dengan alasan ──
