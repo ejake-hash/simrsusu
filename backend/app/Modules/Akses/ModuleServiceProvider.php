@@ -9,6 +9,7 @@ use App\Modules\Akses\Application\PendaftaranPerangkat;
 use App\Modules\Akses\Application\SandiTidakBocor;
 use App\Modules\Akses\Console\BuatSuperadminPertama;
 use App\Modules\Akses\Console\KedaluwarsakanPersetujuan;
+use App\Modules\Akses\Console\ResetSandiKonsol;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Domain\RelasiPerawatan;
 use App\Modules\Akses\Domain\TindakanKlinis;
@@ -50,7 +51,7 @@ class ModuleServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Database/migrations');
 
         if ($this->app->runningInConsole()) {
-            $this->commands([BuatSuperadminPertama::class, KedaluwarsakanPersetujuan::class]);
+            $this->commands([BuatSuperadminPertama::class, KedaluwarsakanPersetujuan::class, ResetSandiKonsol::class]);
         }
 
         Sanctum::usePersonalAccessTokenModel(TokenAksesPribadi::class);

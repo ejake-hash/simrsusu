@@ -3,6 +3,7 @@
 namespace App\Modules\Akses\Http\Controllers;
 
 use App\Modules\Akses\Application\KelolaAksesAkun;
+use App\Modules\Akses\Application\ResetSandi;
 use App\Modules\Akses\Http\Resources\AkunPresenter;
 use App\Modules\Akses\Http\Resources\PersetujuanPresenter;
 use App\Modules\Akses\Models\Pengguna;
@@ -14,7 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
-/** Pengaturan → Akun & akses: penugasan, pengecualian per akun, dan MFA (kontrak /akun/{id}/*). */
+/** Pengaturan → Akun & akses: penugasan, pengecualian per akun, MFA, dan reset sandi (kontrak /akun/{id}/*). */
 final class AksesAkunController
 {
     private const DASAR = ['required', 'string', 'min:3', 'max:200'];
@@ -121,6 +122,17 @@ final class AksesAkunController
         $akun = $this->kelola->resetMfa($request->user(), $akun, $isi['alasan'], $isi['dasar']);
 
         return new JsonResponse(['data' => $this->presenter->statusMfa($akun, $request->user())]);
+    }
+
+    /** Sandi sementara hanya di respons ini (`Cache-Control: no-store`), tidak disimpan terbaca dan tidak dicatat. */
+    public function resetSandi(Request $request, Pengguna $akun, ResetSandi $reset): JsonResponse
+    {
+        $isi = $request->validate(['alasan' => self::ALASAN, 'dasar' => self::DASAR]);
+
+        [$akun, $sandi] = $reset->olehAdmin($request->user(), $akun, $isi['alasan'], $isi['dasar']);
+
+        return (new JsonResponse(['data' => ['akun' => $this->presenter->ringkas(collect([$akun->refresh()]))[0], 'sandi_sementara' => $sandi]]))
+            ->header('Cache-Control', 'no-store');
     }
 
     /** 202: pemberian berisiko menunggu persetujuan (data = persetujuan pertama dalam grup, tiket 1.2d). */

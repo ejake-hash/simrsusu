@@ -59,6 +59,8 @@ Route::prefix('api/v1')->middleware('api')->whereUuid(['peran', 'akun', 'penugas
         Route::post('akun/{akun}/izin-khusus/{izinKhususId}/batal', [AksesAkunController::class, 'batalkanIzinKhusus'])->middleware('can.rs:pengaturan.akun.perbaiki');
         Route::put('akun/{akun}/wajib-mfa', [AksesAkunController::class, 'aturWajibMfa'])->middleware('can.rs:pengaturan.akun.perbaiki');
         Route::post('akun/{akun}/mfa/reset', [AksesAkunController::class, 'resetMfa'])->middleware('can.rs:pengaturan.akun.perbaiki');
+        // Lupa sandi: sandi sementara sekali tampil, wajib ganti saat masuk (tiket 1.14).
+        Route::post('akun/{akun}/sandi/reset', [AksesAkunController::class, 'resetSandi'])->middleware('can.rs:pengaturan.akun.perbaiki');
         // Akun dari pegawai, nonaktif/aktifkan, ganti sandi (tiket 1.8d).
         Route::post('akun/{akun}/nonaktifkan', [AksesAkunController::class, 'nonaktifkan'])->middleware('can.rs:pengaturan.akun.perbaiki');
         Route::post('akun/{akun}/aktifkan', [AksesAkunController::class, 'aktifkan'])->middleware('can.rs:pengaturan.akun.perbaiki');
