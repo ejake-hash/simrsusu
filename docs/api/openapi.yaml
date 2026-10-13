@@ -58,7 +58,7 @@ info:
     /autentikasi/mfa dan /autentikasi/mfa/daftar/konfirmasi menerima `percayai_perangkat: boolean` (opsional, bawaan false)
     dan respons `masuk`-nya membawa `perangkat_tepercaya: {id, berlaku_sampai} | null`. Bila dipercaya, server memasang
     cookie token perangkat (HttpOnly, Secure, SameSite=Strict, path /api/v1/autentikasi, terpisah dari sesi; nilai tidak
-    pernah dikirim di badan respons). Langkah 1 dari jaringan RS dengan cookie token yang sah untuk akun itu langsung
+    pernah dikirim di badan respons; POST /autentikasi/keluar tidak menghapusnya, karena memang untuk masuk berikutnya). Langkah 1 dari jaringan RS dengan cookie token yang sah untuk akun itu langsung
     `status: masuk` tanpa kode MFA (audit `autentikasi.masuk` dengan `mfa_dilewati: perangkat_tepercaya`); dari luar
     jaringan RS token tidak berlaku. MFA ulang (K11, /saya/mfa/verifikasi-ulang) tidak pernah dilewati: sesi yang masuk lewat
     perangkat tepercaya diperlakukan seperti belum memverifikasi MFA.
@@ -2670,7 +2670,8 @@ paths:
       summary: Cabut perangkat tepercaya sendiri (masuk berikutnya dari perangkat itu diminta kode MFA lagi)
       description: |
         Tanpa izin khusus. Perangkat akun lain → 404. Sudah dicabut atau kedaluwarsa → 409 `perangkat_tidak_aktif`.
-        Sesi yang sedang berjalan tidak diputus. Audit `akses.perangkat_dicabut` (alasan `dicabut_pemilik`).
+        Sesi yang sedang berjalan tidak diputus. Bila yang dicabut perangkat sesi ini, respons juga mengirim `Set-Cookie`
+        kedaluwarsa untuk cookie token (path /api/v1/autentikasi). Audit `akses.perangkat_dicabut` (alasan `dicabut_pemilik`).
       responses:
         '200':
           description: Perangkat sesudah dicabut
@@ -2755,7 +2756,8 @@ paths:
       operationId: ubahKebijakanKeamanan
       summary: Ubah masa percaya perangkat bawaan instalasi
       description: |
-        Izin: pengaturan.keamanan.perbaiki (cakupan rs; izin sensitif: superadmin, MFA ulang). Wajib If-Match.
+        Izin: pengaturan.keamanan.perbaiki (cakupan rs; izin sensitif, bawaan hanya superadmin; MFA ulang hanya bila izin
+        bertanda `butuh_mfa`). Wajib If-Match.
         `perangkat_tepercaya_hari` 0 sampai `batas.maks_hari` (422 `validasi_gagal`). Menurunkan nilai langsung memendekkan
         token yang sudah ada; menaikkan hanya berlaku untuk perangkat yang dipercaya sesudahnya. Audit
         `akses.kebijakan_keamanan_diubah` dengan sebelum/sesudah dan dasar perubahan.
@@ -5430,7 +5432,7 @@ components:
         dibuat_pada: { type: string, format: date-time }
         terakhir_dipakai_pada: { type: [string, 'null'], format: date-time, description: "Terakhir MFA dilewati karena perangkat ini" }
         berlaku_sampai: { type: string, format: date-time, description: "Efektif: sudah memperhitungkan kebijakan yang berlaku sekarang" }
-        perangkat_ini: { type: boolean, description: "Cookie token peramban ini cocok (hanya di /saya/perangkat)" }
+        perangkat_ini: { type: boolean, description: "Perangkat yang terikat ke sesi ini: dipercaya saat langkah MFA sesi ini, atau dipakai melewati MFA saat masuk (disimpan di sesi; cookie token tidak dikirim ke /saya). Selalu false di /akun/{id}/perangkat" }
         dicabut_pada: { type: [string, 'null'], format: date-time }
         alasan_cabut:
           type: [string, 'null']
@@ -5558,6 +5560,7 @@ components:
                   kedaluwarsa_pada: { type: string, format: date-time }
             masa_percaya_hari: { type: [integer, 'null'], minimum: 0, description: "Perangkat tepercaya (1.13); null = ikut kebijakan instalasi. Masuk `required` bersama batas_masa_percaya_hari di PR 1.13-be" }
             batas_masa_percaya_hari: { type: integer, minimum: 0, description: "Batas atas dari konfigurasi: superadmin, peran memuat izin sensitif, atau umum" }
+            masa_percaya_instalasi_hari: { type: integer, minimum: 0, description: "Kebijakan instalasi saat ini (baca saja), untuk teks \"kosong = ikut instalasi (N hari)\" tanpa izin pengaturan.keamanan" }
             dapat_disunting: { type: boolean, description: "false bila peran bawaan terkunci atau dipegang penyunting" }
             alasan_terkunci: { type: [string, 'null'], enum: [peran_bawaan_terkunci, peran_sendiri, null] }
             diubah_pada: { type: string, format: date-time }
