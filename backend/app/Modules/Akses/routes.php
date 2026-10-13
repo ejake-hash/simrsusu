@@ -5,6 +5,7 @@ use App\Modules\Akses\Http\Controllers\AkunController;
 use App\Modules\Akses\Http\Controllers\AkunPegawaiController;
 use App\Modules\Akses\Http\Controllers\AutentikasiController;
 use App\Modules\Akses\Http\Controllers\IzinController;
+use App\Modules\Akses\Http\Controllers\KebijakanKeamananController;
 use App\Modules\Akses\Http\Controllers\LabelAkunController;
 use App\Modules\Akses\Http\Controllers\LabelSensitivitasController;
 use App\Modules\Akses\Http\Controllers\MenuController;
@@ -12,6 +13,7 @@ use App\Modules\Akses\Http\Controllers\MenuSayaController;
 use App\Modules\Akses\Http\Controllers\MfaController;
 use App\Modules\Akses\Http\Controllers\MfaUlangController;
 use App\Modules\Akses\Http\Controllers\PeranController;
+use App\Modules\Akses\Http\Controllers\PerangkatController;
 use App\Modules\Akses\Http\Controllers\PermintaanAksesController;
 use App\Modules\Akses\Http\Controllers\PersetujuanAksesController;
 use App\Modules\Akses\Http\Controllers\SandiController;
@@ -61,6 +63,14 @@ Route::prefix('api/v1')->middleware('api')->whereUuid(['peran', 'akun', 'penugas
         Route::post('akun/{akun}/mfa/reset', [AksesAkunController::class, 'resetMfa'])->middleware('can.rs:pengaturan.akun.perbaiki');
         // Lupa sandi: sandi sementara sekali tampil, wajib ganti saat masuk (tiket 1.14).
         Route::post('akun/{akun}/sandi/reset', [AksesAkunController::class, 'resetSandi'])->middleware('can.rs:pengaturan.akun.perbaiki');
+        // Perangkat tepercaya (tiket 1.13): milik sendiri tanpa izin khusus, milik akun lain lewat Akun & akses.
+        Route::get('saya/perangkat', [PerangkatController::class, 'saya']);
+        Route::post('saya/perangkat/{perangkatId}/cabut', [PerangkatController::class, 'cabutSaya'])->whereUuid('perangkatId');
+        Route::get('akun/{akun}/perangkat', [PerangkatController::class, 'akun'])->middleware('can.rs:pengaturan.akun.lihat');
+        Route::post('akun/{akun}/perangkat/{perangkatId}/cabut', [PerangkatController::class, 'cabutAkun'])->whereUuid('perangkatId')
+            ->middleware('can.rs:pengaturan.akun.perbaiki');
+        Route::get('kebijakan-keamanan', [KebijakanKeamananController::class, 'show'])->middleware('can.rs:pengaturan.keamanan.lihat');
+        Route::put('kebijakan-keamanan', [KebijakanKeamananController::class, 'update'])->middleware('can.rs:pengaturan.keamanan.perbaiki');
         // Akun dari pegawai, nonaktif/aktifkan, ganti sandi (tiket 1.8d).
         Route::post('akun/{akun}/nonaktifkan', [AksesAkunController::class, 'nonaktifkan'])->middleware('can.rs:pengaturan.akun.perbaiki');
         Route::post('akun/{akun}/aktifkan', [AksesAkunController::class, 'aktifkan'])->middleware('can.rs:pengaturan.akun.perbaiki');

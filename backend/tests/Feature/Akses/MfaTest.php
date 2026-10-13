@@ -212,7 +212,8 @@ class MfaTest extends TestCase
 
         $this->masuk($pengguna)->assertOk()->assertExactJsonStructure([
             'status', 'pengguna' => ['id', 'nama_pengguna', 'login_terakhir_pada', 'mfa_aktif', 'pegawai', 'peran', 'masuk_sebelumnya_pada', 'masuk_sebelumnya_dari_jaringan_rs'],
-        ])->assertJsonPath('status', 'masuk');
+            'perangkat_tepercaya',
+        ])->assertJsonPath('status', 'masuk')->assertJsonPath('perangkat_tepercaya', null);
     }
 
     public function test_dari_luar_jaringan_rs_akun_ber_mfa_tetap_bisa_masuk_walau_tidak_ditandai(): void

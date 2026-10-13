@@ -20,6 +20,7 @@ final class AkunPegawai
     public function __construct(
         private readonly CatatAktivitas $audit,
         private readonly PenjagaPenyunting $penjaga,
+        private readonly KelolaPerangkat $perangkat,
     ) {}
 
     /** Akun pegawai ini memegang superadmin (penugasan aktif, berlaku atau akan berlaku). $kunci: akun dikunci FOR UPDATE. */
@@ -75,6 +76,7 @@ final class AkunPegawai
             }
             $akun->forceFill(['status' => 'nonaktif', 'diubah_oleh' => $kejadian->olehId])->save();
             $akun->cabutSesi();
+            $this->perangkat->cabutSemua($akun->id, 'akun_nonaktif', $kejadian->olehId);
             $this->audit->catat('akses.akun_dinonaktifkan', $kejadian->olehId, 'akses.pengguna', $akun->id, ['alasan' => 'pegawai_keluar']);
         }
     }

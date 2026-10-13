@@ -90,3 +90,23 @@ Celah yang diterima: peran yang `wajib_mfa`-nya dinyalakan tidak memutus sesi pe
 punya MFA; kewajiban berlaku saat masuk berikutnya. MFA ulang untuk aksi sensitif menyusul di tiket 1.5
 (keputusan bawaan K11).
 
+
+## Perangkat tepercaya sebagai registri perangkat (tiket 1.13, 13 Okt 2026)
+
+Butir 4 di atas kini diisi `PerangkatTepercayaSesi`, menggantikan `PerangkatBelumTerdaftar`. "Perangkat terdaftar" =
+perangkat tepercaya yang dipercaya pemilik akun sesudah MFA (keputusan pemilik di tiket 1.13), bukan registri MDM:
+
+- Sesudah MFA berhasil dari jaringan RS, pengguna boleh mencentang "Percayai perangkat ini". Server menyimpan hash
+  SHA-256 token acak di `akses.perangkat_tepercaya`; tokennya di cookie HttpOnly, Secure, SameSite=Strict dengan path
+  `/api/v1/autentikasi`, terpisah dari sesi.
+- Langkah sandi dari jaringan RS dengan token sah untuk akun itu melewati MFA. Sesi itu, dan sesi yang baru mempercayai
+  perangkat, memakai batas diam 60 menit. MFA ulang (K11) tetap diminta, karena sesi yang masuk lewat perangkat tidak
+  dicatat sebagai sudah MFA.
+- Masa percaya efektif = nilai terkecil dari kebijakan instalasi (`akses.kebijakan_keamanan`), `akses.peran.masa_percaya_hari`,
+  dan batas konfigurasi (umum 30, superadmin 7, peran/izin sensitif 14 hari). Masa ini dihitung ulang saat token dipakai.
+- Ganti sandi, reset sandi, reset MFA, dan akun nonaktif mencabut semua perangkat akun itu.
+
+Konsekuensi yang diterima (sesuai tiket): perangkat bersama di ruangan juga bisa dipercaya bila pengguna mencentangnya.
+Selama token akun itu ada di peramban tersebut, orang yang tahu sandinya bisa masuk dari jaringan RS tanpa MFA, dan batas
+diamnya 60 menit. Kebijakan instalasi atau peran bisa diturunkan ke 0 untuk unit yang memakai komputer bersama.
+Ganti pengguna cepat di komputer ruangan (PRD 14.2) tetap belum ada.

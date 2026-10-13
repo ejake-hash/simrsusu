@@ -18,6 +18,8 @@ final class MfaRequest extends FormRequest
             'challenge_id' => ['required', 'string', 'max:64'],
             'metode' => [$this->routeIs('autentikasi.mfa') ? 'required' : 'prohibited', 'string', 'in:totp,kode_cadangan'],
             'kode' => [$this->routeIs('autentikasi.mfa.daftar') ? 'prohibited' : 'required', 'string', 'max:32'],
+            // Tiket 1.13: hanya langkah yang memverifikasi kode.
+            'percayai_perangkat' => [$this->routeIs('autentikasi.mfa.daftar') ? 'prohibited' : 'sometimes', 'boolean'],
         ];
     }
 

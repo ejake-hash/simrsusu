@@ -39,7 +39,7 @@ final class MenuBawaan
     ];
 
     /** Superadmin mengelola peran, akun, dan profil RS (wizard langkah 2); tidak membuka rekam medis, rupiah, atau data induk milik unit (PRD 9.2.4, FR-54-01). */
-    public const SUB_MENU_SUPERADMIN = ['pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.penyiapan'];
+    public const SUB_MENU_SUPERADMIN = ['pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.penyiapan', 'pengaturan.keamanan'];
 
     /**
      * Izin yang setara kuasa superadmin (membuat/mengubah peran, memberi akses): sensitif, jadi tidak bisa
@@ -50,7 +50,15 @@ final class MenuBawaan
         'pengaturan.peran.input', 'pengaturan.peran.perbaiki', 'pengaturan.akun.input', 'pengaturan.akun.perbaiki',
         // Tiket 1.9: menukar kredensial integrasi mengalihkan kiriman data pasien ke identitas faskes lain.
         'pengaturan.integrasi.perbaiki',
+        // Tiket 1.13: menaikkan masa percaya perangkat melonggarkan frekuensi MFA seluruh RS.
+        'pengaturan.keamanan.perbaiki',
     ];
+
+    /**
+     * Izin yang selalu meminta MFA ulang di sesi berjalan (K11, lapis 5). pasang() hanya menyalakan tanda ini; RS boleh
+     * menambah izin lain dari data, tidak mengurangi yang ada di sini.
+     */
+    public const IZIN_BUTUH_MFA = ['pengaturan.keamanan.perbaiki'];
 
     /**
      * Bagian halaman (PRD 9.1, 9.2.1) per sub-menu: kode bagian => [label, aksi]. Data bagian tanpa izin tidak dikirim
@@ -227,6 +235,8 @@ final class MenuBawaan
                 'integrasi' => ['Konfigurasi integrasi', 54],
                 'profil_rs' => ['Profil rumah sakit', 54],
                 'penyiapan' => ['Penyiapan instalasi', 54],
+                // Kebijakan keamanan instalasi, mis. masa percaya perangkat (tiket 1.13).
+                'keamanan' => ['Keamanan', 54],
             ]],
         ]],
     ];
@@ -276,6 +286,8 @@ final class MenuBawaan
 
         DB::table('akses.izin')->whereIn('kode', [...self::IZIN_SENSITIF, ...self::IZIN_DATA_PRIBADI])->where('sensitif', false)
             ->update(['sensitif' => true, 'diubah_pada' => now()]);
+        DB::table('akses.izin')->whereIn('kode', self::IZIN_BUTUH_MFA)->where('butuh_mfa', false)
+            ->update(['butuh_mfa' => true, 'diubah_pada' => now()]);
         self::pasangSuperadmin();
         self::pasangPenyetujuBawaan();
         self::pasangPenyiap();

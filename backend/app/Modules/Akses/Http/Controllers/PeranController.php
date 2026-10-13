@@ -74,10 +74,11 @@ final class PeranController
             'uraian' => ['sometimes', 'nullable', 'string', 'max:500'],
             'wajib_mfa' => ['sometimes', 'boolean'],
             'status' => ['sometimes', Rule::in(['aktif', 'nonaktif'])],
+            'masa_percaya_hari' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:32767'],
             'dasar_perubahan' => self::DASAR,
         ]);
         if (count($isi) < 2) {
-            throw ValidationException::withMessages(['nama' => 'Isi minimal satu perubahan (nama, uraian, wajib MFA, atau status).']);
+            throw ValidationException::withMessages(['nama' => 'Isi minimal satu perubahan (nama, uraian, wajib MFA, status, atau masa percaya).']);
         }
         $versi = PenjagaPenyunting::versiDiminta($request);
 

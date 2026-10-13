@@ -36,6 +36,16 @@ return [
         'batas_diam_perangkat_terdaftar_menit' => (int) env('AUTENTIKASI_BATAS_DIAM_PERANGKAT_TERDAFTAR_MENIT', 60),
     ],
 
+    // Perangkat tepercaya (tiket 1.13): MFA sekali per perangkat per masa percaya. Batas atas tidak bisa dinaikkan dari layar;
+    // nilai instalasi (akses.kebijakan_keamanan) dan per peran hanya bisa di bawahnya.
+    'perangkat_tepercaya' => [
+        'maks_hari' => (int) env('AUTENTIKASI_PERANGKAT_MAKS_HARI', 30),
+        'maks_hari_superadmin' => (int) env('AUTENTIKASI_PERANGKAT_MAKS_HARI_SUPERADMIN', 7),
+        'maks_hari_peran_sensitif' => (int) env('AUTENTIKASI_PERANGKAT_MAKS_HARI_PERAN_SENSITIF', 14),
+        // Cookie token (HttpOnly, SameSite=Strict, Secure mengikuti session.secure), hanya terkirim ke /api/v1/autentikasi.
+        'cookie' => env('AUTENTIKASI_PERANGKAT_COOKIE', 'karsitara_perangkat'),
+    ],
+
     // MFA TOTP (PRD 10.3.2, tiket 1.1b).
     'mfa' => [
         // CIDR jaringan RS, dipisah koma. Akses dari luar daftar ini wajib MFA walau wajib_mfa=false,

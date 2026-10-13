@@ -17,7 +17,7 @@ use App\Modules\Akses\Http\Middleware\IzinSeluruhRs;
 use App\Modules\Akses\Http\Middleware\SesiPengguna;
 use App\Modules\Akses\Infrastructure\DaftarSandiBocor;
 use App\Modules\Akses\Infrastructure\PenggunaSesiAkses;
-use App\Modules\Akses\Infrastructure\PerangkatBelumTerdaftar;
+use App\Modules\Akses\Infrastructure\PerangkatTepercayaSesi;
 use App\Modules\Akses\Infrastructure\TanpaRelasiPerawatan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\TokenAksesPribadi;
@@ -35,7 +35,7 @@ class ModuleServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind(PendaftaranPerangkat::class, PerangkatBelumTerdaftar::class);
+        $this->app->bind(PendaftaranPerangkat::class, PerangkatTepercayaSesi::class);
         $this->app->bind(PenggunaSesi::class, PenggunaSesiAkses::class);
         // Fase 1 tanpa modul pelayanan: tidak ada yang merawat pasien; modul pelayanan fase 2 mengganti binding ini.
         $this->app->bind(RelasiPerawatan::class, TanpaRelasiPerawatan::class);

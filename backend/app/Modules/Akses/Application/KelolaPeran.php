@@ -70,7 +70,7 @@ final class KelolaPeran
         }
     }
 
-    /** @param  array{nama?: string, uraian?: string|null, wajib_mfa?: bool, status?: string, dasar_perubahan: string}  $isi */
+    /** @param  array{nama?: string, uraian?: string|null, wajib_mfa?: bool, status?: string, masa_percaya_hari?: int|null, dasar_perubahan: string}  $isi */
     public function ubah(Pengguna $penyunting, Peran $peran, string $versi, array $isi): Peran
     {
         $this->penjaga->pastikanBukanPeranSendiri($penyunting, $peran->id);
@@ -84,6 +84,12 @@ final class KelolaPeran
             if ($peran->bawaan_sistem) {
                 throw $this->bawaanTerkunci();
             }
+            if (array_key_exists('masa_percaya_hari', $isi) && $isi['masa_percaya_hari'] !== null
+                && $isi['masa_percaya_hari'] > ($batas = KelolaPerangkat::batasPeran($peran, $peran->memuatIzinSensitif()))) {
+                throw new ApiError(422, 'masa_percaya_melebihi_batas', "Masa percaya peran ini paling lama {$batas} hari (batas konfigurasi server).", [
+                    ['kolom' => 'masa_percaya_hari', 'pesan' => "Paling lama {$batas} hari."],
+                ]);
+            }
             if (($isi['status'] ?? null) === 'nonaktif' && $peran->status === 'aktif'
                 && ($jumlah = $this->jumlahPenugasanAktif($peran)) > 0) {
                 throw new ApiError(409, 'peran_masih_dipakai', "Peran masih ditugaskan ke {$jumlah} akun. Akhiri penugasannya lebih dulu.", [
@@ -93,7 +99,7 @@ final class KelolaPeran
 
             $sebelum = $this->isiAudit($peran);
             $peran->fill(array_intersect_key($isi, array_flip(['nama', 'uraian', 'wajib_mfa', 'status'])));
-            $peran->forceFill(['diubah_oleh' => $penyunting->id])->save();
+            $peran->forceFill([...array_intersect_key($isi, ['masa_percaya_hari' => true]), 'diubah_oleh' => $penyunting->id])->save();
 
             $this->audit->catat('akses.peran_diubah', $penyunting->id, 'akses.peran', $peran->id,
                 [...$this->isiAudit($peran), 'dasar_perubahan' => $isi['dasar_perubahan']], $sebelum);
@@ -288,7 +294,7 @@ final class KelolaPeran
     /** @return array<string, mixed> */
     private function isiAudit(Peran $peran): array
     {
-        return $peran->only(['kode', 'nama', 'uraian', 'wajib_mfa', 'status']);
+        return $peran->only(['kode', 'nama', 'uraian', 'wajib_mfa', 'status', 'masa_percaya_hari']);
     }
 
     /** @param  list<string>  $kode */
