@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.14.0
+  version: 0.15.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -48,6 +48,10 @@ info:
     v0.14.0: Lapis 4–5 hak akses (tiket 1.5): /label-sensitivitas (+ penyetuju), /akun/{id}/label (persetujuan pejabat PDP,
     jenis `izin_label`), /saya/mfa/verifikasi-ulang (K11); error 403 `mfa_ulang_diperlukan`, `izin_praktik_tidak_berlaku`,
     `kewenangan_klinis_tidak_mencakup`; skema `Terbatas`. Disetujui pemilik 12 Okt 2026.
+    v0.15.0: Reset sandi oleh admin (tiket 1.14): POST /akun/{id}/sandi/reset (sandi sementara sekali tampil, wajib ganti).
+    Halaman masuk dapat diatur (tiket 1.15): ProfilRs.halaman_masuk (nilai efektif, publik), IsianProfilRs.halaman_masuk
+    (opsional; null = kembali ke bawaan); foto dipotong 16:10 dan metadata dibuang saat unggah; warna bawaan
+    paket produk #006937/#F3C300. Paket tiket 1.13–1.16 disetujui pemilik 13 Okt 2026.
 servers:
   - url: /api/v1
 security:
@@ -625,6 +629,64 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /akun/{id}/sandi/reset:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: resetSandiAkun
+      summary: Reset sandi akun yang lupa sandi (sandi sementara ditampilkan sekali; wajib ganti saat masuk)
+      description: |
+        Tiket 1.14. Izin: pengaturan.akun.perbaiki. Lapis 5 seperti izin lain: 403 `mfa_ulang_diperlukan` /
+        `mfa_belum_terdaftar` hanya bila izin itu bertanda `butuh_mfa` (bawaan tidak).
+        Server membuat sandi sementara acak yang memenuhi aturan sandi (PRD 14.2). Sandi itu dikirim sekali di respons ini,
+        tidak disimpan terbaca, dan tidak dicatat di log atau audit (`Cache-Control: no-store`). Sesudah reset:
+        - `wajib_ganti_sandi` = true: masuk berikutnya dengan sandi sementara langsung ke layar ganti sandi
+          (403 `wajib_ganti_sandi` di endpoint lain, sama dengan akun baru);
+        - semua sesi akun itu diputus (401 `belum_masuk` karena hash sandi berubah, atau `sesi_dicabut`; sama dengan
+          ganti sandi); perangkat tepercaya akun itu dicabut (sejak 1.13);
+        - penguncian karena sandi salah dibuka (`terkunci_sampai` kosong, hitungan gagal nol); MFA tidak berubah
+          (autentikator hilang = POST /akun/{id}/mfa/reset).
+        Audit `akses.sandi_direset` dengan alasan dan dasar, tanpa nilai sandi.
+        403 `diri_sendiri` (sandi sendiri diganti lewat POST /saya/sandi); 403 `akun_superadmin` bila akun pemegang
+        superadmin direset oleh bukan superadmin (aturan sama dengan /akun/{id}/*; bawaan K4/K13: langsung oleh superadmin
+        lain; jalur persetujuan bila kebijakan RS mewajibkannya belum ada, dicatat di backlog); 409 `akun_nonaktif`
+        (aktifkan dulu lewat /akun/{id}/aktifkan).
+        Tanpa superadmin lain: perintah konsol `php artisan akses:reset-sandi <nama_pengguna>` di server (audit
+        `akses.sandi_direset_konsol`), bukan endpoint.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alasan, dasar]
+              properties:
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+                dasar: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Sandi direset
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [akun, sandi_sementara]
+                    properties:
+                      akun: { $ref: '#/components/schemas/AkunRingkas' }
+                      sandi_sementara:
+                        type: string
+                        minLength: 16
+                        description: "Tampilkan sekali dengan tombol salin dan peringatan \"tidak akan ditampilkan lagi\"; jangan disimpan klien"
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   # ---------------------------------------------------------------------------
   # Profil RS, unit organisasi, KSM (tiket 1.8a; PRD 3.4, FR-54-08 langkah 2–3, 11.2 inti.profil_rs, unit_organisasi, ksm)
   # Izin: pengaturan.profil_rs.{lihat,perbaiki}; master_data.organisasi.{lihat,input,perbaiki} untuk unit dan KSM.
@@ -736,6 +798,8 @@ paths:
         `url()`/`@import` ke luar di CSS. Izin dengan cakupan `rs`. Berkas lama tetap
         tersimpan (tidak dihapus); profil menunjuk berkas baru. Mengosongkan berkas (kembali tanpa logo/motif/foto)
         tidak tersedia di fase 1; ganti dengan berkas lain.
+        Foto (sejak v0.15.0, tiket 1.15): server memotong bagian tengah menjadi 16:10 dan menyimpan hasil enkode ulang
+        dengan tipe yang sama, jadi metadata EXIF/GPS terbuang. Pratinjau klien memakai potongan tengah yang sama.
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -2458,7 +2522,7 @@ paths:
         Akun baru tanpa peran; penugasan lewat /akun/{id}/penugasan.
         - 409 `pegawai_sudah_punya_akun` (satu akun = satu pegawai, K5); 409 `nama_pengguna_dipakai`; 409 `pegawai_keluar`
           (status pegawai `keluar`; pegawai `akan_keluar` masih bekerja, jadi boleh — akunnya nonaktif otomatis pada tanggalnya). Audit `akses.akun_dibuat` (tanpa sandi).
-        Sandi awal yang hilang belum bisa dipulihkan (reset sandi oleh admin di luar tiket ini, dicatat di backlog).
+        Sandi awal yang hilang dipulihkan lewat POST /akun/{id}/sandi/reset (sejak v0.15.0).
       requestBody:
         required: true
         content:
@@ -2555,7 +2619,8 @@ paths:
       operationId: gantiSandi
       summary: Ganti sandi akun yang sedang masuk
       description: |
-        Tanpa izin khusus. Selama `Saya.wajib_ganti_sandi` = true (akun baru dari /pegawai/{id}/akun), semua endpoint bersesi
+        Tanpa izin khusus. Selama `Saya.wajib_ganti_sandi` = true (akun baru dari /pegawai/{id}/akun, atau sesudah
+        POST /akun/{id}/sandi/reset), semua endpoint bersesi
         selain GET /saya, GET /saya/menu, POST /saya/sandi, POST /autentikasi/keluar, dan GET /profil-rs(/berkas/*) (identitas
         RS di layar ganti sandi) menjawab 403 `wajib_ganti_sandi`.
         Sandi baru mengikuti PRD 14.2 (panjang minimal dari konfigurasi, bawaan 12; cek sandi bocor) dan cek kontekstual:
@@ -4090,7 +4155,7 @@ components:
             warna:
               type: object
               required: [brand, accent]
-              description: "Dasar token --brand-600 dan --accent (PRD 5.3); turunan warna dihitung frontend. Bawaan = paket produk."
+              description: "Dasar token --brand-600 dan --accent (PRD 5.3); turunan warna dihitung frontend. Bawaan = paket produk (sejak v0.15.0 #006937 dan #F3C300 = palet bawaan tokens.css sesudah tiket 1.15)."
               properties:
                 brand: { $ref: '#/components/schemas/WarnaHex' }
                 accent: { $ref: '#/components/schemas/WarnaHex' }
@@ -4107,6 +4172,9 @@ components:
         instalasi_demo:
           type: boolean
           description: "Instalasi demo/pelatihan berisi data sintetis (FR-54-10): pita \"DEMO — data fiktif\" di setiap layar, termasuk halaman masuk. Ditetapkan saat pemasangan di server, tidak bisa diubah dari layar."
+        halaman_masuk:
+          $ref: '#/components/schemas/HalamanMasuk'
+          description: "Nilai efektif panel merek halaman masuk (tiket 1.15): yang belum diatur terisi teks bawaan produk, jadi klien tidak perlu teks cadangan. Foto dan motif tetap dari paket_identitas (foto_url, motif_url). Masuk `required` di PR 1.15-be; sampai itu backend belum mengirimnya, klien memakai teks bawaan."
         rinci:
           type: object
           description: "Hanya untuk pemegang izin pengaturan.profil_rs.lihat; tidak dikirim tanpa sesi atau tanpa izin."
@@ -4141,7 +4209,61 @@ components:
           properties:
             unit: { type: string, minLength: 2, maxLength: 100 }
             kontak: { type: [string, 'null'], maxLength: 100 }
+        halaman_masuk:
+          description: |
+            Opsional (tiket 1.15). Tidak dikirim = tidak berubah; null = kembali ke teks bawaan produk; objek = ganti utuh.
+            Teks biasa saja: server membuang karakter kendali, meringkas spasi dan baris baru menjadi satu spasi, dan
+            memangkas tepi; HTML dan markdown tidak ditafsirkan (`<script>` tersimpan dan tampil sebagai teks). Panjang
+            dihitung dalam code point Unicode sesudah dibersihkan (422 `validasi_gagal`; `kolom` berindeks mulai 0, mis.
+            `halaman_masuk.fitur.0.judul`).
+          oneOf:
+            - { type: 'null' }
+            - $ref: '#/components/schemas/IsianHalamanMasuk'
         dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+    HalamanMasuk:
+      type: object
+      required: [lencana, judul, judul_sorot, uraian, fitur, foto_keterangan, tampilkan_motif, bawaan]
+      description: |
+        Isi panel merek halaman masuk (PRD 5.3.2; tiket 1.15). Teks bawaan produk:
+        lencana "Satu data untuk seluruh rumah sakit"; judul "Pelayanan, pendapatan, dan mutu dalam" dengan
+        judul_sorot "satu layar kerja."; uraian "Dari pendaftaran sampai klaim, setiap pencatatan langsung menjadi
+        rekam medis, tagihan, dan laporan, tanpa entri ulang."; fitur: "Paperless" / "Pengesahan elektronik dengan PIN,
+        catatan terkunci, perubahan jadi adendum.", "Terhubung" / "BPJS dan SATUSEHAT berjalan dari layar yang sama.",
+        "Pendidikan" / "Akun peserta didik mengikuti masa rotasi dan supervisi."; foto_keterangan null; tampilkan_motif true.
+      properties:
+        lencana: { type: string, minLength: 1, maxLength: 60 }
+        judul: { type: string, minLength: 1, maxLength: 80 }
+        judul_sorot: { type: [string, 'null'], minLength: 1, maxLength: 40, description: "Ditempel di akhir judul (dipisah satu spasi), warna --penekanan-panel" }
+        uraian: { type: string, minLength: 1, maxLength: 240 }
+        fitur:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items: { $ref: '#/components/schemas/FiturHalamanMasuk' }
+        foto_keterangan: { type: [string, 'null'], minLength: 1, maxLength: 80, description: "Keterangan di atas foto panel; null = nama RS" }
+        tampilkan_motif: { type: boolean, description: "false = motif paket identitas tidak dipasang di panel" }
+        bawaan: { type: boolean, description: "true = belum pernah diatur (semua nilai = teks bawaan produk)" }
+    IsianHalamanMasuk:
+      type: object
+      required: [lencana, judul, judul_sorot, uraian, fitur, foto_keterangan, tampilkan_motif]
+      properties:
+        lencana: { type: string, minLength: 1, maxLength: 60 }
+        judul: { type: string, minLength: 1, maxLength: 80 }
+        judul_sorot: { type: [string, 'null'], maxLength: 40, description: "Kosong sesudah dibersihkan = null" }
+        uraian: { type: string, minLength: 1, maxLength: 240 }
+        fitur:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items: { $ref: '#/components/schemas/FiturHalamanMasuk' }
+        foto_keterangan: { type: [string, 'null'], maxLength: 80, description: "Kosong sesudah dibersihkan = null" }
+        tampilkan_motif: { type: boolean }
+    FiturHalamanMasuk:
+      type: object
+      required: [judul, uraian]
+      properties:
+        judul: { type: string, minLength: 1, maxLength: 30 }
+        uraian: { type: string, minLength: 1, maxLength: 120 }
     RingkasPegawai:
       type: [object, 'null']
       required: [id, nama, status]
