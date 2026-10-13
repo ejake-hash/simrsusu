@@ -1,33 +1,38 @@
 /*
- * Design token Karsitara SIMRS · palet bawaan fiktif netral (paket contoh "RS Contoh Pendidikan", docs/brand/contoh)
+ * Design token Karsitara SIMRS · palet bawaan dari pedoman identitas USU (keputusan pemilik 13 Okt 2026, tiket 1.15)
  * Sumber: PRD 5.3.2 (warna, permukaan, triase) dan 5.3.3 (huruf, ukuran, dll).
  * Satu-satunya tempat nilai HEX. Komponen hanya boleh memakai var(--...).
  */
 :root {
-  /* ── Merek: palet bawaan fiktif (#1F5C99), skala sama dengan turunanTema() di app/tema.ts. Paket identitas RS
-     menimpa --brand-*, --ring, --accent*, dan token panel merek halaman masuk (PRD 3.4; keputusan pemilik 12 Okt 2026,
-     catatan #78). ── */
-  --brand-900: #113354;
-  --brand-800: #16406B;   /* teks di latar --brand-25/50 (9,1:1), panel gelap */
-  --brand-700: #1A4E82;   /* hover tombol utama */
-  --brand-600: #1F5C99;   /* tombol utama, menu aktif, tautan — putih di atasnya 6,9:1 */
-  --brand-500: #4779AB;   /* tepi fokus — 4,6:1, jangan untuk teks kecil */
-  --brand-100: #D2DEEB;   /* garis tipis bernuansa merek */
-  --brand-50:  #E9EFF5;   /* latar item aktif */
-  --brand-25:  #F4F7FA;   /* baris terpilih */
+  /* ── Merek (Pantone 349 C dan turunannya). Paket identitas RS menimpa --brand-*, --ring, --accent*, dan token panel
+     merek lewat turunanTema() di app/tema.ts (PRD 3.4). Paket dengan warna utama dan aksen yang sama dengan palet ini
+     memakai nilai di sini apa adanya (bukan turunan); kontrasnya dijaga tema.spec dengan syarat yang sama. ── */
+  --brand-900: #0B3A22;
+  --brand-800: #004A27;   /* teks di latar --brand-25/50 (9,3:1), panel gelap */
+  --brand-700: #005A2F;   /* hover tombol utama */
+  --brand-600: #006937;   /* tombol utama, menu aktif, tautan — putih di atasnya 6,8:1 */
+  --brand-500: #1F8A4C;   /* tepi fokus — 4,4:1, jangan untuk teks kecil */
+  --brand-100: #CDE7D6;   /* garis tipis bernuansa merek */
+  --brand-50:  #E8F4EC;   /* latar item aktif */
+  --brand-25:  #F4FAF6;   /* baris terpilih */
 
   /* ── Panel merek halaman masuk: gradien mulai → tengah → akhir + sorot. Paket RS menimpanya lewat turunanTema()
      dengan cek kontras (teks putih dan --brand-100 ≥ 4,5:1, --penekanan-panel ≥ 4,5:1 di semua titik). ── */
-  --panel-merek:        #14385A;  /* putih 12,0:1 */
-  --panel-merek-tengah: #16406B;
-  --panel-merek-akhir:  #113354;
-  --panel-merek-sorot:  #4779AB;  /* radial 45 % di pojok kanan atas */
-  --penekanan-panel:    #FFD166;  /* teks penekanan di --panel-merek, 8,4:1 */
+  --panel-merek:        #135851;  /* hijau gelap pedoman — putih 8,3:1 */
+  --panel-merek-tengah: #004A27;
+  --panel-merek-akhir:  #0B3A22;
+  --panel-merek-sorot:  #1F8A4C;  /* radial 45 % di pojok kanan atas; --brand-100 di bawahnya ≥ 4,7:1 */
+  --penekanan-panel:    #FAE345;  /* kuning pedoman (Pantone 106 C) — 6,3:1 pada --panel-merek */
 
-  /* Aksen hanya untuk isian/garis (3,2:1 sebagai teks). Jangan dipakai di layar IGD/triase. */
-  --accent:     #D97706;
-  --accent-ink: #6D3C03;  /* teks bernuansa aksen — 7,8:1 pada --accent-bg */
-  --accent-bg:  #F9EBDA;  /* latar penanda aksen */
+  /* Aksen emas (Pantone 7406 C) hanya untuk isian/garis (1,7:1 sebagai teks). Jangan dipakai di layar IGD/triase. */
+  --accent:     #F3C300;
+  --accent-ink: #7A5A00;  /* teks bernuansa aksen — 5,9:1 pada --accent-bg, 6,4:1 pada putih */
+  --accent-bg:  #FEF6D6;  /* latar penanda aksen */
+
+  /* ── Warna pedoman untuk kop dan dokumen cetak (bukan status di layar) ── */
+  --cetak-hijau: #487629;  /* Pantone 364 C */
+  --cetak-merah: #E1251B;  /* Pantone 485 C */
+  --cetak-hitam: #1D1D1B;  /* Pantone Black */
 
   /* ── Permukaan, garis, fokus (PRD 5.3.2) ── */
   --bg:            #F6F7F6;  /* latar halaman — teks --muted 6,3:1 */
@@ -35,7 +40,7 @@
   --border:        #E4E7E5;  /* pemisah dekoratif */
   --border-strong: #C9CFCB;  /* pemisah tegas — 1,6:1, BUKAN untuk tepi input */
   --border-input:  #858B91;  /* tepi input/select/tombol sekunder — 3,4:1 (WCAG 1.4.11) */
-  --ring:          0 0 0 3px rgba(31, 92, 153, .25);  /* fokus keyboard, dipadukan tepi --brand-600 */
+  --ring:          0 0 0 3px rgba(0, 105, 55, .25);  /* fokus keyboard, dipadukan tepi --brand-600 */
 
   /* ── Teks ── */
   --text:   #1D1D1B;

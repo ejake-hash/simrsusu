@@ -47,12 +47,22 @@ describe('tema dari paket identitas', () => {
     expect(gagal.slice(0, 5)).toEqual([])
   })
 
-  it('palet bawaan tokens.css = turunan warna contoh fiktif (#1F5C99, #D97706)', () => {
+  it('palet bawaan tokens.css (pedoman identitas USU, tiket 1.15) lolos syarat kontras yang sama dengan turunanTema()', () => {
+    // Palet bawaan ditata tangan dari pedoman, bukan turunan: terapkanTema() memakainya apa adanya bila warna paket sama.
     const css = readFileSync(resolve(__dirname, '../design-system/tokens.css'), 'utf8')
-    const t = turunanTema('#1F5C99', '#D97706')!
-    for (const token of ['--brand-900', '--brand-800', '--brand-700', '--brand-600', '--brand-500', '--brand-100', '--brand-50', '--brand-25', '--accent', '--accent-bg', '--accent-ink']) {
-      const nilai = new RegExp(`${token}:\\s*(#[0-9A-F]{6})`, 'i').exec(css)?.[1]
-      expect(nilai?.toUpperCase(), token).toBe(t[token])
+    const t = Object.fromEntries(
+      [...css.matchAll(/(--(?:brand|accent|panel-merek|penekanan-panel)[\w-]*):\s*(#[0-9A-F]{6})/gi)].map(([, k, v]) => [k!, v!.toUpperCase()]),
+    )
+    expect([t['--brand-600'], t['--accent']]).toEqual(['#006937', '#F3C300'])
+    const k = (a: string, b: string) => kontras(rgb(t[a] ?? a), rgb(t[b] ?? b))
+    expect(k('#FFFFFF', '--brand-600')).toBeGreaterThanOrEqual(4.5)
+    for (const latar of ['--brand-50', '--brand-25']) expect(k('--brand-800', latar), latar).toBeGreaterThanOrEqual(4.5)
+    expect(k('--brand-900', '--brand-25')).toBeGreaterThanOrEqual(7)
+    for (const latar of ['--accent-bg', '#FFFFFF']) expect(k('--accent-ink', latar), latar).toBeGreaterThanOrEqual(4.5)
+    for (const l of latarPanel(t)) {
+      for (const teks of ['#FFFFFF', t['--brand-100']!, t['--penekanan-panel']!]) {
+        expect(kontras(rgb(teks), l), `${teks} di ${rgbKeHex(l)}`).toBeGreaterThanOrEqual(4.5)
+      }
     }
   })
 

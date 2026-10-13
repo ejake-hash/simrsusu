@@ -275,7 +275,7 @@ test('1440 px: profil RS — kontras diuji sebelum simpan; nama dan logo baru ta
   await form.getByLabel('Dasar perubahan').fill('SK Direktur E2E/profil')
   await form.getByRole('button', { name: 'Simpan profil' }).click()
   await expect(form.getByText('Kontras warna belum cukup')).toBeVisible()
-  await form.getByRole('textbox', { name: 'Warna utama', exact: true }).fill('#1F5C99')
+  await form.getByRole('textbox', { name: 'Warna utama', exact: true }).fill('#006937')
   await expect(page.getByRole('img', { name: 'Pratinjau identitas' })).toBeVisible()
   await form.getByRole('button', { name: 'Simpan profil' }).click()
   await expect(page.getByText('Profil rumah sakit disimpan.')).toBeVisible()
@@ -594,7 +594,7 @@ test('1440 px: panel halaman masuk memakai turunan warna paket RS (kontras terja
     await masuk.goto('/masuk')
     const token = (nama: string) => masuk.evaluate((t) => getComputedStyle(document.documentElement).getPropertyValue(t).trim(), nama)
     await expect.poll(() => masuk.evaluate(() => document.documentElement.style.getPropertyValue('--panel-merek'))).not.toBe('')
-    expect((await token('--panel-merek')).toUpperCase()).not.toBe('#14385A')
+    expect((await token('--panel-merek')).toUpperCase()).not.toBe('#135851')
     // axe menandai kontras di atas gradien sebagai "incomplete": kontras dihitung dari token panel yang terpasang
     // (tiga titik gradien dan sorot 45 % di atas tiap titik).
     const rgb = (hex: string) => [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16))
