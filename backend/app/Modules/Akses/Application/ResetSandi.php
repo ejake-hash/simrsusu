@@ -4,7 +4,9 @@ namespace App\Modules\Akses\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
+use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Akses\Models\PenggunaPeran;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -39,13 +41,35 @@ final class ResetSandi
     }
 
     /**
-     * Konsol server (`akses:reset-sandi`): tanpa akun pelaku; yang tercatat pengguna sistem operasi yang menjalankan.
+     * Konsol server (`akses:reset-sandi`): tanpa akun pelaku; yang tercatat pengguna sistem operasi (pengguna sudo bila
+     * lewat sudo, dan pengguna efektif proses).
      *
      * @return array{0: Pengguna, 1: string}
      */
-    public function lewatKonsol(Pengguna $akun, string $alasan, string $dasar, string $penggunaOs): array
+    public function lewatKonsol(Pengguna $akun, string $alasan, string $dasar, string $penggunaOs, string $penggunaEfektif): array
     {
-        return $this->reset($akun, null, self::AUDIT_KONSOL, ['alasan' => $alasan, 'dasar' => $dasar, 'pengguna_os' => $penggunaOs]);
+        return $this->reset($akun, null, self::AUDIT_KONSOL, [
+            'alasan' => $alasan, 'dasar' => $dasar, 'pengguna_os' => $penggunaOs, 'pengguna_efektif' => $penggunaEfektif,
+        ]);
+    }
+
+    /** Acak, minimal 20 karakter dan tidak lebih pendek dari panjang minimal sandi instalasi (PRD 14.2). */
+    public static function sandiSementara(): string
+    {
+        return Str::password(max(20, (int) config('autentikasi.sandi.panjang_minimal')));
+    }
+
+    /**
+     * Superadmin aktif selain akun ini. Konsol darurat hanya untuk keadaan tanpa superadmin lain; selama masih ada,
+     * reset lewat layar (kontrol ganda K4/K13).
+     */
+    public function adaSuperadminLain(Pengguna $akun): bool
+    {
+        return Pengguna::query()->where('status', 'aktif')->whereKeyNot($akun->id)
+            ->whereIn('id', PenggunaPeran::query()->berlaku()
+                ->whereHas('peran', fn ($peran) => $peran->where('kode', MenuBawaan::PERAN_SUPERADMIN))
+                ->select('pengguna_id'))
+            ->exists();
     }
 
     /**
@@ -60,8 +84,7 @@ final class ResetSandi
                 throw new ApiError(409, 'akun_nonaktif', 'Akun ini nonaktif. Aktifkan dulu sebelum mereset sandi.');
             }
 
-            // Sama dengan sandi awal akun baru (AkunPegawai): 20 karakter acak, memenuhi aturan panjang PRD 14.2.
-            $sandi = Str::password(20);
+            $sandi = self::sandiSementara();
             $akun->forceFill([
                 'sandi_hash' => Hash::make($sandi), 'wajib_ganti_sandi' => true,
                 'percobaan_gagal' => 0, 'terkunci_sampai' => null, 'diubah_oleh' => $pelakuId,

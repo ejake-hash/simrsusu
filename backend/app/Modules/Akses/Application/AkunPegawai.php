@@ -10,7 +10,6 @@ use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 /**
  * Akun milik pegawai (tiket 1.8d; K5, PRD 9.2.6): membuat akun dari pegawai dengan sandi awal sekali tampil, dan
@@ -80,9 +79,9 @@ final class AkunPegawai
         }
     }
 
-    /** 20 karakter acak dari huruf besar/kecil, angka, dan simbol (memenuhi aturan panjang PRD 14.2). */
+    /** Sama dengan sandi sementara reset (ResetSandi): tidak lebih pendek dari panjang minimal instalasi (PRD 14.2). */
     private static function sandiAwal(): string
     {
-        return Str::password(20);
+        return ResetSandi::sandiSementara();
     }
 }

@@ -252,7 +252,8 @@ Status semua langkah: `/pengaturan/penyiapan` (izin `pengaturan.penyiapan.lihat`
 5. Lupa sandi (tiket 1.14): admin pemegang `pengaturan.akun.perbaiki` mereset di Pengaturan → Akun & akses setelah
    memverifikasi identitas tatap muka; sandi superadmin hanya oleh superadmin lain. Bila **tidak ada superadmin lain**
    yang bisa masuk, reset darurat di server (sandi sementara tampil sekali, akun wajib menggantinya saat masuk, semua
-   sesinya diputus, audit `akses.sandi_direset_konsol` dengan pengguna sistem operasi):
+   sesinya diputus, audit `akses.sandi_direset_konsol` dengan `SUDO_USER` dan pengguna efektif proses). Perintah ini
+   menolak bila masih ada superadmin aktif lain:
 
    ```bash
    sudo -u www-data php artisan akses:reset-sandi <nama.pengguna> --alasan="<alasan>" --dasar="<no. berita acara>"

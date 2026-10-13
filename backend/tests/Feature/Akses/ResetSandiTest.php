@@ -39,7 +39,11 @@ class ResetSandiTest extends TestCase
     {
         $this->assertFileExists($this->berkasLog);
         $this->assertStringNotContainsString($sandi, (string) file_get_contents($this->berkasLog));
-        $this->assertFalse(DB::table('audit.log_aktivitas')->whereRaw('coalesce(sesudah::text, \'\') || coalesce(sebelum::text, \'\') LIKE ?', ['%'.$sandi.'%'])->exists());
+        // Dicari di PHP, bukan LIKE: sandi bisa memuat \\, % atau _.
+        foreach (DB::table('audit.log_aktivitas')->get(['sebelum', 'sesudah']) as $baris) {
+            $this->assertStringNotContainsString(json_encode($sandi), (string) $baris->sesudah.$baris->sebelum);
+            $this->assertStringNotContainsString($sandi, (string) $baris->sesudah.$baris->sebelum);
+        }
     }
 
     public function test_reset_memutus_sesi_lalu_masuk_dengan_sandi_sementara_wajib_ganti(): void
@@ -58,6 +62,7 @@ class ResetSandiTest extends TestCase
         $this->assertSesuaiKontrak($reset, 'POST', '/akun/{id}/sandi/reset');
         $this->assertStringContainsString('no-store', (string) $reset->headers->get('Cache-Control'));
         $reset->assertJsonPath('data.akun.id', $akun->id)->assertJsonPath('data.akun.terkunci_sampai', null);
+        $this->assertNotNull($akun->refresh()->sesi_dicabut_pada, 'Sesi diputus lewat sesi_dicabut_pada, bukan hanya karena hash berubah.');
         $sandi = (string) $reset->json('data.sandi_sementara');
         $this->assertGreaterThanOrEqual(16, strlen($sandi));
 
@@ -118,6 +123,10 @@ class ResetSandiTest extends TestCase
     public function test_konsol_darurat_mencetak_sandi_sekali_dan_tercatat_audit(): void
     {
         [$superadmin] = $this->superadminBerMfa();
+        $sudoAsli = getenv('SUDO_USER');
+        putenv('SUDO_USER=petugas.server');
+        $this->beforeApplicationDestroyed(fn () => putenv($sudoAsli === false ? 'SUDO_USER' : 'SUDO_USER='.$sudoAsli));
+        config(['autentikasi.sandi.panjang_minimal' => 30]);
 
         $this->artisan('akses:reset-sandi', ['nama_pengguna' => strtoupper($superadmin->nama_pengguna), '--alasan' => 'Tidak ada superadmin lain', '--dasar' => self::DASAR])
             ->expectsConfirmation("Reset sandi {$superadmin->nama_pengguna}? Semua sesinya diputus dan sandi lama tidak berlaku.", 'yes')
@@ -129,13 +138,16 @@ class ResetSandiTest extends TestCase
         $audit = $this->assertAuditTerakhir(ResetSandi::AUDIT_KONSOL, $superadmin->id);
         $this->assertNull($audit->pengguna_id);
         $catatan = json_decode($audit->sesudah, true);
-        $this->assertEqualsCanonicalizing(['alasan', 'dasar', 'pengguna_os', 'sesi_diputus'], array_keys($catatan));
+        $this->assertEqualsCanonicalizing(['alasan', 'dasar', 'pengguna_os', 'pengguna_efektif', 'sesi_diputus'], array_keys($catatan));
+        $this->assertSame('petugas.server', $catatan['pengguna_os'], 'Lewat sudo: yang tercatat SUDO_USER.');
+        $this->assertNotSame('', $catatan['pengguna_efektif']);
         $this->assertStringNotContainsString('sandi_sementara', (string) $audit->sesudah);
 
         // Tanpa konfirmasi (--force): sandi yang dicetak bisa dipakai masuk; tidak ada di log maupun audit.
         Artisan::call('akses:reset-sandi', ['nama_pengguna' => $superadmin->nama_pengguna, '--alasan' => 'Tidak ada superadmin lain', '--dasar' => self::DASAR, '--force' => true]);
         $this->assertSame(1, preg_match('/hanya ditampilkan sekali[^:]*: (\S+)/', Artisan::output(), $cocok));
         $sandi = $cocok[1];
+        $this->assertGreaterThanOrEqual(30, mb_strlen($sandi), 'Tidak lebih pendek dari panjang minimal instalasi.');
         $this->mulaiSesiSpa();
         $this->minta('POST', '/api/v1/autentikasi/masuk', ['nama_pengguna' => $superadmin->nama_pengguna, 'sandi' => $sandi])
             ->assertOk()->assertJsonPath('status', 'perlu_mfa');
@@ -153,6 +165,15 @@ class ResetSandiTest extends TestCase
         $this->artisan('akses:reset-sandi', ['nama_pengguna' => $akun->nama_pengguna, '--alasan' => 'Lupa sandi', '--dasar' => self::DASAR])
             ->expectsConfirmation("Reset sandi {$akun->nama_pengguna}? Semua sesinya diputus dan sandi lama tidak berlaku.", 'no')
             ->assertFailed();
+
+        // Masih ada superadmin aktif lain: konsol ditolak, reset lewat layar.
+        [$superadminA] = $this->superadminBerMfa();
+        [$superadminB] = $this->superadminBerMfa();
+        $this->artisan('akses:reset-sandi', ['nama_pengguna' => $superadminA->nama_pengguna, '--alasan' => 'Lupa sandi', '--dasar' => self::DASAR, '--force' => true])
+            ->expectsOutputToContain('Masih ada superadmin aktif lain')->assertFailed();
+        $this->artisan('akses:reset-sandi', ['nama_pengguna' => $akun->nama_pengguna, '--alasan' => 'Lupa sandi', '--dasar' => self::DASAR, '--force' => true])
+            ->assertFailed();
+        $this->assertFalse($superadminB->refresh()->wajib_ganti_sandi);
 
         $this->assertSame($hash, $akun->refresh()->sandi_hash);
         $this->assertFalse(DB::table('audit.log_aktivitas')->where('aksi', ResetSandi::AUDIT_KONSOL)->where('subjek_id', $akun->id)->exists());
