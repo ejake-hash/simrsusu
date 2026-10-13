@@ -47,7 +47,7 @@ describe('tema dari paket identitas', () => {
     expect(gagal.slice(0, 5)).toEqual([])
   })
 
-  it('palet bawaan tokens.css (pedoman identitas USU, tiket 1.15) lolos syarat kontras yang sama dengan turunanTema()', () => {
+  it('palet bawaan tokens.css (pedoman identitas RS mitra, tiket 1.15) lolos syarat kontras yang sama dengan turunanTema()', () => {
     // Palet bawaan ditata tangan dari pedoman, bukan turunan: terapkanTema() memakainya apa adanya bila warna paket sama.
     const css = readFileSync(resolve(__dirname, '../design-system/tokens.css'), 'utf8')
     const t = Object.fromEntries(
