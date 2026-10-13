@@ -4140,7 +4140,7 @@ components:
       description: "Kode singkat huruf besar/angka, mis. IRNA, IGD-01"
     ProfilRs:
       type: object
-      required: [versi, nama, paket_identitas, kontak_admin, instalasi_demo, halaman_masuk]
+      required: [versi, nama, paket_identitas, kontak_admin, instalasi_demo]
       properties:
         versi: { type: string, description: "Sama dengan ETag; berubah setiap profil atau berkas diganti" }
         nama: { type: [string, 'null'], description: "Nama resmi RS; null = belum disiapkan (kartu RS tidak tampil)" }
@@ -4170,7 +4170,7 @@ components:
           description: "Instalasi demo/pelatihan berisi data sintetis (FR-54-10): pita \"DEMO — data fiktif\" di setiap layar, termasuk halaman masuk. Ditetapkan saat pemasangan di server, tidak bisa diubah dari layar."
         halaman_masuk:
           $ref: '#/components/schemas/HalamanMasuk'
-          description: "Nilai efektif panel merek halaman masuk (tiket 1.15): yang belum diatur terisi teks bawaan produk, jadi klien tidak perlu teks cadangan. Foto dan motif tetap dari paket_identitas (foto_url, motif_url)."
+          description: "Nilai efektif panel merek halaman masuk (tiket 1.15): yang belum diatur terisi teks bawaan produk, jadi klien tidak perlu teks cadangan. Foto dan motif tetap dari paket_identitas (foto_url, motif_url). Masuk `required` di PR 1.15-be; sampai itu backend belum mengirimnya, klien memakai teks bawaan."
         rinci:
           type: object
           description: "Hanya untuk pemegang izin pengaturan.profil_rs.lihat; tidak dikirim tanpa sesi atau tanpa izin."
