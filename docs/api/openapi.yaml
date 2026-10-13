@@ -4210,7 +4210,8 @@ components:
             Opsional (tiket 1.15). Tidak dikirim = tidak berubah; null = kembali ke teks bawaan produk; objek = ganti utuh.
             Teks biasa saja: server membuang karakter kendali, meringkas spasi dan baris baru menjadi satu spasi, dan
             memangkas tepi; HTML dan markdown tidak ditafsirkan (`<script>` tersimpan dan tampil sebagai teks). Panjang
-            dihitung sesudah dibersihkan (422 `validasi_gagal`, `kolom` mis. `halaman_masuk.fitur.1.judul`).
+            dihitung dalam code point Unicode sesudah dibersihkan (422 `validasi_gagal`; `kolom` berindeks mulai 0, mis.
+            `halaman_masuk.fitur.0.judul`).
           oneOf:
             - { type: 'null' }
             - $ref: '#/components/schemas/IsianHalamanMasuk'
