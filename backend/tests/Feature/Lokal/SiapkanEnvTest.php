@@ -128,6 +128,34 @@ class SiapkanEnvTest extends TestCase
         $this->assertStringStartsNotWith(dirname(base_path()), $cadangan[0]);
     }
 
+    public function test_nilai_dibaca_seperti_phpdotenv(): void
+    {
+        // Komentar sebaris = kosong; kunci ganda = yang terakhir berlaku; baris contoh berinterpolasi disalin apa adanya.
+        file_put_contents($this->env(), "APP_ENV=local\nAPP_KEY=base64:bGFtYS1rdW5jaS1hcGxpa2FzaS1zaW50ZXRpcy0zMg==\nAPP_KEY=\nTTD_KUNCI= # isi nanti\nAPP_NAME=\"Karsitara SIMRS\"\n");
+
+        $this->artisan('lokal:siapkan-env')->assertSuccessful();
+
+        $env = $this->nilai();
+        $this->assertStringStartsWith('base64:', (string) $env['APP_KEY']);
+        $this->assertNotSame('base64:bGFtYS1rdW5jaS1hcGxpa2FzaS1zaW50ZXRpcy0zMg==', $env['APP_KEY']);
+        $this->assertStringStartsWith('base64:', (string) $env['TTD_KUNCI']);
+        $this->assertSame('Karsitara SIMRS', $env['MAIL_FROM_NAME']);
+        $this->assertStringContainsString("\nMAIL_FROM_NAME=\"\${APP_NAME}\"\n", (string) file_get_contents($this->env()));
+    }
+
+    public function test_paket_identitas_tidak_menimpa_nilai_terisi(): void
+    {
+        mkdir($this->folder.'/p1');
+        mkdir($this->folder.'/p2');
+        $this->artisan('lokal:siapkan-env', ['--paket-identitas' => $this->folder.'/p1'])->assertSuccessful();
+
+        $this->artisan('lokal:siapkan-env', ['--paket-identitas' => $this->folder.'/p2'])
+            ->expectsOutputToContain('Sudah terisi, tidak ditimpa: PAKET_IDENTITAS_CONTOH_DIR.')
+            ->assertSuccessful();
+
+        $this->assertSame(realpath($this->folder.'/p1'), $this->nilai()['PAKET_IDENTITAS_CONTOH_DIR']);
+    }
+
     public function test_paket_identitas_harus_di_luar_repo_dan_jalur_berspasi_dikutip(): void
     {
         $this->artisan('lokal:siapkan-env', ['--paket-identitas' => base_path('..')])

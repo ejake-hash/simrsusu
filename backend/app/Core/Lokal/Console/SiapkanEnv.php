@@ -10,11 +10,12 @@ use App\Modules\Ttd\Domain\AturanPin;
 use Dotenv\Dotenv;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * `php artisan lokal:siapkan-env` (tiket 1.16): menulis backend/.env lokal tanpa menyalin atau membuat kunci dengan tangan.
  * Berkas baru dibuat dari .env.example; berkas lama hanya ditambah kunci yang belum ada atau masih kosong, nilai yang
- * sudah terisi tidak pernah ditimpa. Rahasia hanya ditulis ke .env dan terminal, tidak ke log.
+ * sudah terisi (menurut phpdotenv) tidak pernah ditimpa, termasuk oleh --paket-identitas. Rahasia hanya ditulis ke .env dan terminal, tidak ke log.
  */
 final class SiapkanEnv extends Command
 {
@@ -66,7 +67,7 @@ final class SiapkanEnv extends Command
             $isian[$kunci] = [$nilai, $baru, null, ! in_array($kunci, self::ACAK, true) && ! str_starts_with($kunci, 'AKUN_SINTETIS_')];
         }
         if ($paket !== null) {
-            $isian['PAKET_IDENTITAS_CONTOH_DIR'] = [$paket, true, null, true];
+            $isian['PAKET_IDENTITAS_CONTOH_DIR'] = [$paket, $baru, null, true];
         }
         if ($this->option('kemudahan-uji')) {
             foreach (['AUTENTIKASI_BATAS_DIAM_MENIT' => '480', 'AUTENTIKASI_MFA_ULANG_MENIT' => '480', 'SESSION_LIFETIME' => '600'] as $kunci => $nilai) {
@@ -75,10 +76,11 @@ final class SiapkanEnv extends Command
         }
 
         if (! $baru) {
-            // Kunci baru di .env.example yang belum ada di .env lama, dengan nilai contohnya (kecuali yang diisi di bawah).
-            foreach ($this->kunciAktif($contoh) as $kunci => $nilai) {
+            // Kunci baru di .env.example yang belum ada di .env lama: barisnya disalin apa adanya (termasuk `${...}`),
+            // kecuali kunci yang diisi di bawah.
+            foreach ($this->barisContoh($contoh) as $kunci => $baris) {
                 if (! isset($isian[$kunci]) && $this->cari($kunci) === null) {
-                    $this->tambah($kunci, $nilai, null);
+                    $this->tambah($kunci, $baris, null);
                 }
             }
         }
@@ -124,7 +126,7 @@ final class SiapkanEnv extends Command
             $nilai[strtoupper($kunciConfig)] = Totp::rahasiaBaru();
         }
         // Rahasia TOTP akun sintetis yang ditambahkan ke .env.example kemudian ikut terisi.
-        foreach (array_keys($this->kunciAktif($contoh)) as $kunci) {
+        foreach (array_keys($this->barisContoh($contoh)) as $kunci) {
             if (preg_match('/^AKUN_SINTETIS_\w*MFA_RAHASIA$/', $kunci) === 1) {
                 $nilai[$kunci] ??= Totp::rahasiaBaru();
             }
@@ -138,15 +140,15 @@ final class SiapkanEnv extends Command
     {
         $i = $this->cari($kunci);
         if ($i === null) {
-            $this->tambah($kunci, $nilai, $komentar);
+            $this->tambah($kunci, $kunci.'='.self::kutip($nilai), $komentar);
 
             return;
         }
-        $sekarang = $this->kunciAktif($this->baris[$i])[$kunci] ?? '';
+        $sekarang = $this->nilaiSekarang($i, $kunci);
         if ($sekarang === $nilai) {
             return;
         }
-        if ($sekarang !== '' && ! $timpa) {
+        if (($sekarang === null || $sekarang !== '') && ! $timpa) {
             if ($laporkan) {
                 $this->dibiarkan[] = $kunci;
             }
@@ -161,9 +163,9 @@ final class SiapkanEnv extends Command
     }
 
     /** Baris baru tepat di bawah contoh yang dikomentari (`# KUNCI=`) bila ada, selain itu di akhir berkas. */
-    private function tambah(string $kunci, string $nilai, ?string $komentar): void
+    private function tambah(string $kunci, string $baris, ?string $komentar): void
     {
-        $sisip = [...($komentar !== null ? [$komentar] : []), $kunci.'='.self::kutip($nilai)];
+        $sisip = [...($komentar !== null ? [$komentar] : []), $baris];
         $posisi = null;
         foreach ($this->baris as $i => $b) {
             if (preg_match('/^#\s*'.preg_quote($kunci, '/').'=/', $b) === 1) {
@@ -180,33 +182,44 @@ final class SiapkanEnv extends Command
         $this->ditambah[] = $kunci;
     }
 
+    /** Baris aktif terakhir untuk kunci ini (phpdotenv memakai kemunculan terakhir), atau null. */
     private function cari(string $kunci): ?int
     {
+        $ketemu = null;
         foreach ($this->baris as $i => $b) {
-            if (array_key_exists($kunci, $this->kunciAktif($b))) {
-                return $i;
+            if (preg_match(self::polaKunci($kunci), $b) === 1) {
+                $ketemu = $i;
             }
         }
 
-        return null;
+        return $ketemu;
     }
 
-    /** @return array<string, string> kunci aktif (bukan komentar) => nilai tanpa kutip */
-    private function kunciAktif(string $isi): array
+    /** Nilai baris itu menurut phpdotenv (komentar sebaris, kutip); null = tidak bisa dibaca, jadi tidak disentuh. */
+    private function nilaiSekarang(int $i, string $kunci): ?string
     {
-        preg_match_all('/^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=(.*)$/m', $isi, $cocok, PREG_SET_ORDER);
+        try {
+            return (string) (Dotenv::parse($this->baris[$i])[$kunci] ?? '');
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    /** @return array<string, string> kunci aktif di .env.example => barisnya apa adanya */
+    private function barisContoh(string $contoh): array
+    {
+        preg_match_all('/^[ \t]*(?:export[ \t]+)?([A-Z][A-Z0-9_]*)[ \t]*=.*$/m', $contoh, $cocok, PREG_SET_ORDER);
         $hasil = [];
-        foreach ($cocok as [, $kunci, $nilai]) {
-            $nilai = trim($nilai);
-            if (preg_match('/^(["\'])(.*)\1/', $nilai, $k) === 1) {
-                $nilai = $k[2];
-            } else {
-                $nilai = trim((string) preg_replace('/\s#.*$/', '', $nilai));
-            }
-            $hasil[$kunci] = $nilai;
+        foreach ($cocok as [$baris, $kunci]) {
+            $hasil[$kunci] = rtrim($baris, "\r");
         }
 
         return $hasil;
+    }
+
+    private static function polaKunci(string $kunci): string
+    {
+        return '/^[ \t]*(?:export[ \t]+)?'.preg_quote($kunci, '/').'[ \t]*=/';
     }
 
     private function periksaPaket(string $folder): ?string
