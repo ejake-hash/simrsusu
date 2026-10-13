@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { profilRsTiruan } from '@/modules/organisasi/tiruan/profilRs'
-import { dariRespons, PROFIL_BAWAAN, terapkanProfilRs, useProfilRs } from './profilRs'
+import { dariRespons, HALAMAN_MASUK_BAWAAN, PROFIL_BAWAAN, terapkanProfilRs, useProfilRs } from './profilRs'
 
 afterEach(() => terapkanProfilRs(profilRsTiruan()))
 
@@ -25,6 +25,7 @@ describe('profil RS dari GET /profil-rs', () => {
       unitAdmin: 'Instalasi SIMRS',
       kontakAdmin: 'ext. 1234',
       demo: true,
+      halamanMasuk: HALAMAN_MASUK_BAWAAN,
     })
   })
 

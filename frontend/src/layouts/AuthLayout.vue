@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useProfilRs } from '@/app/profilRs'
+import PanelMerek from './PanelMerek.vue'
 import PitaDemo from './PitaDemo.vue'
 
 const profilRs = useProfilRs()
@@ -38,24 +39,7 @@ const profilRs = useProfilRs()
     </main>
 
     <!-- Panel merek: dekoratif, disembunyikan dari pembaca layar dan di layar sempit. -->
-    <aside class="panel-merek" aria-hidden="true" :style="profilRs.motif ? { '--motif': `url(${profilRs.motif})` } : undefined">
-      <div>
-        <span class="tag"><span class="titik"></span>Satu data untuk seluruh rumah sakit</span>
-        <p class="judul-merek">Pelayanan, pendapatan, dan mutu dalam <em>satu layar kerja.</em></p>
-        <p class="lead-merek">
-          Dari pendaftaran sampai klaim, setiap pencatatan langsung menjadi rekam medis, tagihan, dan laporan, tanpa entri ulang.
-        </p>
-      </div>
-      <figure v-if="profilRs.foto" class="foto">
-        <img :src="profilRs.foto" alt="" width="1600" height="1000" decoding="async" />
-        <figcaption v-if="profilRs.nama"><span class="titik"></span>{{ profilRs.nama }}</figcaption>
-      </figure>
-      <ul class="poin">
-        <li><b>Paperless</b>Pengesahan elektronik dengan PIN, catatan terkunci, perubahan jadi adendum.</li>
-        <li><b>Terhubung</b>BPJS dan SATUSEHAT berjalan dari layar yang sama.</li>
-        <li><b>Pendidikan</b>Akun peserta didik mengikuti masa rotasi dan supervisi.</li>
-      </ul>
-    </aside>
+    <PanelMerek class="panel" :isi="profilRs.halamanMasuk" :nama-rs="profilRs.nama" :foto="profilRs.foto" :motif="profilRs.motif" />
   </div>
 </template>
 
@@ -145,146 +129,16 @@ const profilRs = useProfilRs()
   height: 18px;
 }
 
-/* ── Panel merek ── */
-.panel-merek {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: var(--space-8);
+/* ── Panel merek (isi dan gaya di PanelMerek.vue) ── */
+.panel {
   margin: 12px 12px 12px 0;
-  padding: 48px;
-  border-radius: 20px;
-  background: linear-gradient(160deg, var(--panel-merek) 0%, var(--panel-merek-tengah) 55%, var(--panel-merek-akhir) 100%);
-  color: var(--surface);
-}
-/* Motif identitas RS (PRD 5.3.2 aturan 4: hanya halaman masuk, antrean, cetak). */
-.panel-merek::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: var(--motif, none);
-  background-size: 52px 52px;
-  opacity: 0.07;
-  mask-image: radial-gradient(ellipse at 75% 25%, var(--surface) 25%, transparent 75%);
-}
-.panel-merek::after {
-  content: '';
-  position: absolute;
-  top: -160px;
-  right: -160px;
-  width: 520px;
-  height: 520px;
-  border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--panel-merek-sorot) 45%, transparent), transparent 65%);
-}
-.panel-merek > * {
-  position: relative;
-  z-index: 1;
-}
-.tag {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 5px 12px;
-  border: 1px solid color-mix(in srgb, var(--surface) 16%, transparent);
-  border-radius: 999px;
-  color: var(--brand-100);
-  font-size: 12px;
-  font-weight: var(--font-weight-medium);
-}
-.titik {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-.judul-merek {
-  max-width: 460px;
-  margin: 20px 0 14px;
-  font-size: 34px;
-  font-weight: var(--font-weight-bold);
-  line-height: 1.15;
-  letter-spacing: -0.02em;
-  text-wrap: balance;
-}
-.judul-merek em {
-  font-style: normal;
-  color: var(--penekanan-panel);
-}
-.lead-merek {
-  max-width: 440px;
-  margin: 0;
-  color: var(--brand-100);
-}
-.foto {
-  flex: 1 1 auto;
-  min-height: 200px;
-  max-height: 480px;
-  margin: 0;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--surface) 14%, transparent);
-  border-radius: 16px;
-  background: var(--panel-merek-akhir);
-  box-shadow: 0 24px 48px -24px var(--panel-merek-akhir);
-}
-.foto img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: 50% 40%;
-}
-/* Gelap di bawah agar keterangan terbaca dan foto menyatu dengan panel merek. */
-.foto::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, color-mix(in srgb, var(--panel-merek-akhir) 85%, transparent), transparent 45%);
-}
-.foto figcaption {
-  position: absolute;
-  z-index: 1;
-  left: 18px;
-  right: 18px;
-  bottom: 14px;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--surface);
-  font-size: 12px;
-  font-weight: var(--font-weight-medium);
-}
-.foto .titik {
-  flex: none;
-}
-
-.poin {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  margin: 0;
-  padding: var(--space-6) 0 0;
-  border-top: 1px solid color-mix(in srgb, var(--surface) 12%, transparent);
-  list-style: none;
-  color: var(--brand-100);
-  font-size: 12px;
-  line-height: 1.45;
-}
-.poin b {
-  display: block;
-  margin-bottom: var(--space-1);
-  color: var(--surface);
-  font-size: 13px;
 }
 
 @media (max-width: 960px) {
   .halaman {
     grid-template-columns: minmax(0, 1fr);
   }
-  .panel-merek {
+  .panel {
     display: none;
   }
   .panel-form {
