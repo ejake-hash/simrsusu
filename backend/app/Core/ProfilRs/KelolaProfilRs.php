@@ -54,10 +54,6 @@ final class KelolaProfilRs
     public function gantiBerkas(Authenticatable $penyunting, string $versi, string $jenis, UploadedFile $berkas): ProfilRs
     {
         ['tipe' => $tipe, 'ekstensi' => $ekstensi, 'isi' => $isi] = $this->pemeriksa->periksa($jenis, (string) file_get_contents($berkas->getRealPath()));
-        if ($jenis === 'foto') {
-            // Panel halaman masuk 16:10; metadata (EXIF/GPS) terbuang karena dienkode ulang (tiket 1.15).
-            $isi = PotongFoto::potong($isi, $tipe);
-        }
 
         return $this->simpan($penyunting, $versi, function (ProfilRs $profil) use ($jenis, $tipe, $ekstensi, $isi) {
             // Ditulis sesudah versi lolos (412 tidak meninggalkan berkas yatim). Berkas lama tetap ada.
