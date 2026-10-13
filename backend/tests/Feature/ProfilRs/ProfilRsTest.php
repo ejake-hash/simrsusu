@@ -37,7 +37,7 @@ class ProfilRsTest extends TestCase
         $this->mulaiSesiSpa();
         $kosong = $this->assertSesuaiKontrak($this->minta('GET', '/api/v1/profil-rs')->assertOk(), 'GET', '/profil-rs');
         $kosong->assertJsonPath('data.nama', null)->assertJsonPath('data.versi', '0')
-            ->assertJsonPath('data.paket_identitas.warna', ['brand' => '#1F5C99', 'accent' => '#D97706'])
+            ->assertJsonPath('data.paket_identitas.warna', ['brand' => '#006937', 'accent' => '#F3C300'])
             ->assertJsonPath('data.kontak_admin.unit', 'admin SIMRS')->assertJsonPath('data.instalasi_demo', false)
             ->assertJsonMissingPath('data.rinci');
         $this->assertStringContainsString('Cookie', (string) $kosong->headers->get('Vary'));
@@ -75,6 +75,7 @@ class ProfilRsTest extends TestCase
     public function test_kontras_kurang_ditolak_dengan_rasio(): void
     {
         $this->assertSame([], KontrasWarna::periksa(['brand' => '#1F5C99', 'accent' => '#D97706']), 'Paket contoh RS Contoh Pendidikan sah.');
+        $this->assertSame([], KontrasWarna::periksa(ProfilRs::WARNA_BAWAAN), 'Warna bawaan produk (tiket 1.15) sah.');
         [$superadmin, $rahasia] = $this->superadminBerMfa();
         $this->masukSebagai($superadmin, $rahasia);
 
