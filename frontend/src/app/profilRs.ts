@@ -1,6 +1,7 @@
 import { readonly, ref } from 'vue'
 import { ambilProfilRs } from '@/modules/organisasi/api'
-import type { ProfilRsApi } from '@/modules/organisasi/tipe'
+import { HALAMAN_MASUK_BAWAAN, halamanMasukEfektif } from '@/modules/organisasi/halamanMasuk'
+import type { HalamanMasukApi, ProfilRsApi } from '@/modules/organisasi/tipe'
 import { terapkanTema } from './tema'
 
 /**
@@ -21,36 +22,8 @@ export interface ProfilRs {
   kontakAdmin: string | null
   /** FR-54-10: pita "DEMO — data fiktif" di setiap layar. */
   demo: boolean
-  /** Teks panel merek halaman masuk (tiket 1.15); bawaan = HALAMAN_MASUK_BAWAAN. */
-  halamanMasuk: HalamanMasuk
-}
-
-/**
- * Isi panel merek halaman masuk yang dapat diatur admin (tiket 1.15, Pengaturan → Profil rumah sakit → Halaman masuk).
- * Teks biasa saja; `judulSorot` ditempel di akhir judul dengan warna --penekanan-panel. Keterangan foto kosong = nama RS.
- */
-export interface HalamanMasuk {
-  lencana: string
-  judul: string
-  judulSorot: string | null
-  uraian: string
-  fitur: readonly { judul: string; uraian: string }[]
-  fotoKeterangan: string | null
-  tampilkanMotif: boolean
-}
-
-export const HALAMAN_MASUK_BAWAAN: HalamanMasuk = {
-  lencana: 'Satu data untuk seluruh rumah sakit',
-  judul: 'Pelayanan, pendapatan, dan mutu dalam',
-  judulSorot: 'satu layar kerja.',
-  uraian: 'Dari pendaftaran sampai klaim, setiap pencatatan langsung menjadi rekam medis, tagihan, dan laporan, tanpa entri ulang.',
-  fitur: [
-    { judul: 'Paperless', uraian: 'Pengesahan elektronik dengan PIN, catatan terkunci, perubahan jadi adendum.' },
-    { judul: 'Terhubung', uraian: 'BPJS dan SATUSEHAT berjalan dari layar yang sama.' },
-    { judul: 'Pendidikan', uraian: 'Akun peserta didik mengikuti masa rotasi dan supervisi.' },
-  ],
-  fotoKeterangan: null,
-  tampilkanMotif: true,
+  /** Isi panel merek halaman masuk (tiket 1.15): nilai efektif dari server; gagal memuat = teks bawaan. */
+  halamanMasuk: HalamanMasukApi
 }
 
 const UNIT_ADMIN_BAWAAN = 'admin SIMRS'
@@ -63,7 +36,7 @@ export const PROFIL_BAWAAN: ProfilRs = {
   unitAdmin: UNIT_ADMIN_BAWAAN,
   kontakAdmin: null,
   demo: false,
-  halamanMasuk: HALAMAN_MASUK_BAWAAN,
+  halamanMasuk: { ...HALAMAN_MASUK_BAWAAN, bawaan: true },
 }
 
 const profil = ref<ProfilRs>({ ...PROFIL_BAWAAN })
@@ -83,8 +56,7 @@ export function dariRespons(d: ProfilRsApi): ProfilRs {
     unitAdmin: isi(d.kontak_admin.unit) ?? UNIT_ADMIN_BAWAAN,
     kontakAdmin: isi(d.kontak_admin.kontak),
     demo: d.instalasi_demo,
-    // Diisi dari `halaman_masuk` GET /profil-rs setelah kontrak 1.15 merge.
-    halamanMasuk: HALAMAN_MASUK_BAWAAN,
+    halamanMasuk: halamanMasukEfektif(d),
   }
 }
 

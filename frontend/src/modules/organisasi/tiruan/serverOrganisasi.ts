@@ -1,5 +1,6 @@
 import type { PermintaanTiruan, ResponsTiruan } from '../../akses/tiruan/serverTiruan'
-import type { JenisUnit, Ksm, ProfilRsApi, RingkasPegawai, UnitOrganisasi } from '../tipe'
+import { BATAS_HALAMAN_MASUK, bersihkanTeks, HALAMAN_MASUK_BAWAAN, panjangTeks } from '../halamanMasuk'
+import type { HalamanMasuk, JenisUnit, Ksm, ProfilRsApi, RingkasPegawai, UnitOrganisasi } from '../tipe'
 import { profilRsTiruan } from './profilRs'
 
 /**
@@ -28,6 +29,36 @@ function lum(c: [number, number, number]): number {
 function rasio(a: [number, number, number], b: [number, number, number]): number {
   const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p) as [number, number]
   return Math.round(((x + 0.05) / (y + 0.05)) * 100) / 100
+}
+/**
+ * IsianHalamanMasuk (v0.15.0): teks dibersihkan seperti server, panjang dalam code point sesudah dibersihkan; `kolom`
+ * memakai indeks mulai 0 (halaman_masuk.fitur.0.judul). Hasil: isi bersih atau daftar rincian error.
+ */
+function periksaHalamanMasuk(isi: unknown): HalamanMasuk | Record<string, unknown>[] {
+  const h = (isi ?? {}) as Record<string, unknown>
+  const salah: Record<string, unknown>[] = []
+  const teks = (kolom: string, nilai: unknown, maks: number, bolehKosong = false): string | null => {
+    const t = typeof nilai === 'string' ? bersihkanTeks(nilai) : ''
+    if (!t && !bolehKosong) salah.push({ kolom, pesan: 'Wajib diisi.' })
+    else if (panjangTeks(t) > maks) salah.push({ kolom, pesan: `Maksimal ${maks} karakter.` })
+    return t || null
+  }
+  const b = BATAS_HALAMAN_MASUK
+  const fitur = Array.isArray(h.fitur) ? (h.fitur as Record<string, unknown>[]) : []
+  if (fitur.length !== 3) salah.push({ kolom: 'halaman_masuk.fitur', pesan: 'Tepat tiga butir fitur.' })
+  const hasil: HalamanMasuk = {
+    lencana: teks('halaman_masuk.lencana', h.lencana, b.lencana) ?? '',
+    judul: teks('halaman_masuk.judul', h.judul, b.judul) ?? '',
+    judul_sorot: teks('halaman_masuk.judul_sorot', h.judul_sorot, b.judul_sorot, true),
+    uraian: teks('halaman_masuk.uraian', h.uraian, b.uraian) ?? '',
+    fitur: fitur.slice(0, 3).map((f, i) => ({
+      judul: teks(`halaman_masuk.fitur.${i}.judul`, f?.judul, b.fitur_judul) ?? '',
+      uraian: teks(`halaman_masuk.fitur.${i}.uraian`, f?.uraian, b.fitur_uraian) ?? '',
+    })),
+    foto_keterangan: teks('halaman_masuk.foto_keterangan', h.foto_keterangan, b.foto_keterangan, true),
+    tampilkan_motif: h.tampilkan_motif !== false,
+  }
+  return salah.length ? salah : hasil
 }
 const PUTIH: [number, number, number] = [255, 255, 255]
 const TINTA: [number, number, number] = [29, 29, 27]
@@ -157,6 +188,13 @@ export function buatServerOrganisasi(opsi: OpsiServerOrganisasi = {}) {
         const ra = rasio(accent, TINTA)
         if (ra < 4.5) kurang.push({ kolom: 'warna.accent', rasio: ra, minimal: 4.5, pesan: `Kontras warna aksen dengan teks gelap ${ra.toFixed(2).replace('.', ',')}:1, minimal 4,5:1.` })
         if (kurang.length) return error(422, 'kontras_kurang', 'Kontras warna kurang.', kurang)
+        let halamanMasuk = profil.halaman_masuk
+        if (isi.halaman_masuk === null) halamanMasuk = { ...HALAMAN_MASUK_BAWAAN, bawaan: true }
+        else if (isi.halaman_masuk !== undefined) {
+          const h = periksaHalamanMasuk(isi.halaman_masuk)
+          if (Array.isArray(h)) return error(422, 'validasi_gagal', 'Isian belum benar.', h)
+          halamanMasuk = { ...h, bawaan: false }
+        }
         const kontak = (isi.kontak_admin ?? {}) as { unit?: string; kontak?: string | null }
         profil = {
           ...profil,
@@ -164,6 +202,7 @@ export function buatServerOrganisasi(opsi: OpsiServerOrganisasi = {}) {
           nama: isi.nama.trim(),
           paket_identitas: { ...profil.paket_identitas, warna: { brand: warna.brand!.toUpperCase(), accent: warna.accent!.toUpperCase() } },
           kontak_admin: { unit: kontak.unit?.trim() || 'admin SIMRS', kontak: kontak.kontak?.trim() || null },
+          halaman_masuk: halamanMasuk,
         }
         rinci = {
           kode_kemenkes: (isi.kode_kemenkes as string | null) || null,

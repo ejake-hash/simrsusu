@@ -4,13 +4,14 @@ import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui'
 /**
  * Tab di dalam halaman (mis. rincian akun: Penugasan, Per akun, Lihat sebagai, MFA). Keyboard: panah kiri/kanan
  * pindah tab, Home/End ke ujung (pola WAI-ARIA tabs). Isi tiap tab lewat slot bernama sesuai `nilai`.
+ * `pertahankanIsi`: isi tab yang tidak aktif tetap terpasang (disembunyikan), mis. formulir yang belum disimpan.
  */
-defineProps<{ label: string; daftar: { nilai: string; label: string }[] }>()
+withDefaults(defineProps<{ label: string; daftar: { nilai: string; label: string }[]; pertahankanIsi?: boolean }>(), { pertahankanIsi: false })
 const aktif = defineModel<string>({ required: true })
 </script>
 
 <template>
-  <TabsRoot v-model="aktif" class="tabs">
+  <TabsRoot v-model="aktif" class="tabs" :unmount-on-hide="!pertahankanIsi">
     <TabsList class="tabs-daftar" :aria-label="label">
       <TabsTrigger v-for="t in daftar" :key="t.nilai" :value="t.nilai" class="tabs-pemicu">
         {{ t.label }}

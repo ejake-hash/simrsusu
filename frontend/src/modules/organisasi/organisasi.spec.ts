@@ -21,6 +21,7 @@ import TabUnit from './components/TabUnit.vue'
 import { profilRsTiruan } from './tiruan/profilRs'
 import { KUNCI_ORG } from './organisasi'
 import ProfilRsPage from './pages/ProfilRsPage.vue'
+import type { ProfilRsApi } from './tipe'
 
 const adapterAsli = klien.defaults.adapter
 let server: ReturnType<typeof buatServerGabungan>
@@ -317,5 +318,116 @@ describe('Profil rumah sakit', () => {
     await klik(tombol('Simpan profil'))
     expect(document.body.textContent).toContain('Profil diubah orang lain')
     expect(useProfilRs().value.kontakAdmin).toBeNull()
+  })
+})
+
+describe('Profil rumah sakit · tab Halaman masuk (tiket 1.15)', () => {
+  const panel = () => document.querySelector('[role="tabpanel"][aria-labelledby$="halaman-masuk"]') as HTMLElement
+  function isianDi(label: string): HTMLInputElement {
+    const lbl = [...panel().querySelectorAll('label[for]')].find((l) => l.textContent?.trim().replace(/\s*\*$/, '') === label)
+    expect(lbl, `label ${label}`).toBeTruthy()
+    return document.getElementById(lbl!.getAttribute('for')!) as HTMLInputElement
+  }
+  async function isiDi(label: string, nilai: string, urutan = 0) {
+    const el = urutan ? ([...panel().querySelectorAll('label[for]')].filter((l) => l.textContent?.trim().replace(/\s*\*$/, '') === label).map((l) => document.getElementById(l.getAttribute('for')!))[urutan] as HTMLInputElement) : isianDi(label)
+    el.value = nilai
+    el.dispatchEvent(new Event('input'))
+    await tenang()
+  }
+  const tombolDi = (teks: string) => [...panel().querySelectorAll('button')].find((b) => b.textContent?.trim() === teks) as HTMLButtonElement | undefined
+  const identitas = { nama: 'RS Contoh Pendidikan', kode_kemenkes: null, kelas: 'B', status_blu: null, kode_ppk_bpjs: null, alamat: null, warna: { brand: '#006937', accent: '#F3C300' }, kontak_admin: { unit: 'Instalasi SIMRS', kontak: null } }
+  async function bukaTab(siapkanIdentitas = true) {
+    if (siapkanIdentitas) {
+      server.tangani({ metode: 'PUT', jalur: '/profil-rs', kueri: new URLSearchParams(), header: { 'if-match': '"1"' }, isi: { ...identitas, dasar_perubahan: 'uji' } })
+    }
+    await pasang(ProfilRsPage, {}, '/pengaturan/profil-rs')
+    const pemicu = [...document.querySelectorAll('[role="tab"]')].find((t) => t.textContent?.trim() === 'Halaman masuk') as HTMLElement
+    pemicu.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }))
+    await tenang()
+    expect(panel().hidden).toBe(false)
+  }
+
+  it('backend sebelum 1.15-be (tanpa halaman_masuk): tab tidak tampil, halaman masuk memakai teks bawaan', async () => {
+    const asli = server.tangani
+    server.tangani = (r) => {
+      const h = asli(r)
+      if (!h || h instanceof Promise || !r.jalur.endsWith('/profil-rs')) return h
+      const { halaman_masuk: _, ...data } = (h.isi as { data: ProfilRsApi }).data
+      return { ...h, isi: { data } }
+    }
+    await pasang(ProfilRsPage, {}, '/pengaturan/profil-rs')
+    expect([...document.querySelectorAll('[role="tab"]')].map((t) => t.textContent?.trim())).toEqual(['Identitas'])
+    expect(useProfilRs().value.halamanMasuk).toMatchObject({ lencana: 'Satu data untuk seluruh rumah sakit', bawaan: true })
+    server.tangani = asli
+  })
+
+  it('instalasi tanpa identitas: simpan nonaktif dengan petunjuk; teks bawaan terisi', async () => {
+    await bukaTab(false)
+    expect(panel().textContent).toContain('Simpan identitas rumah sakit (tab Identitas) lebih dulu')
+    expect(tombolDi('Simpan halaman masuk')?.disabled).toBe(true)
+    expect(isianDi('Lencana').value).toBe('Satu data untuk seluruh rumah sakit')
+  })
+
+  it('pratinjau langsung dan penghitung karakter; simpan teks bersih (HTML tetap teks) tanpa mengubah identitas', async () => {
+    await bukaTab()
+    await isiDi('Judul', '  <script>alert(1)</script>   Layanan   cepat ')
+    await isiDi('Bagian sorot judul (opsional)', '   ')
+    await isiDi('Keterangan foto (opsional)', 'Gedung utama (ilustrasi)')
+    const pratinjau = panel().querySelector('.pratinjau .judul-merek')!
+    expect(pratinjau.textContent?.trim()).toBe('<script>alert(1)</script> Layanan cepat')
+    expect(pratinjau.querySelector('script, em')).toBeNull()
+    expect(panel().textContent).toContain('39/80 karakter')
+    await isiDi('Dasar perubahan', 'Memo Humas 7/2026')
+    await klik(tombolDi('Simpan halaman masuk'))
+    const h = useProfilRs().value.halamanMasuk
+    expect(h).toMatchObject({ judul: '<script>alert(1)</script> Layanan cepat', judul_sorot: null, foto_keterangan: 'Gedung utama (ilustrasi)', bawaan: false })
+    expect(useProfilRs().value.nama).toBe('RS Contoh Pendidikan')
+  })
+
+  it('batas panjang dan kolom wajib diperiksa sebelum dikirim; error server per butir (indeks dari 0) tampil di kolomnya', async () => {
+    await bukaTab()
+    await isiDi('Judul', 'x'.repeat(81))
+    await isiDi('Judul butir', '', 1)
+    await isiDi('Dasar perubahan', 'Memo 8/2026')
+    await klik(tombolDi('Simpan halaman masuk'))
+    expect(panel().textContent).toContain('Maksimal 80 karakter.')
+    expect(panel().textContent).toContain('Wajib diisi.')
+    expect(useProfilRs().value.halamanMasuk.bawaan).toBe(true)
+
+    await isiDi('Judul', 'Judul baru')
+    await isiDi('Judul butir', 'Terhubung', 1)
+    const asli = server.tangani
+    server.tangani = (r) =>
+      r.metode === 'put' && r.jalur.endsWith('/profil-rs')
+        ? { status: 422, isi: { error: { kode: 'validasi_gagal', pesan: 'Isian belum benar.', rincian: [{ kolom: 'halaman_masuk.fitur.1.judul', pesan: 'Maksimal 30 karakter (server).' }] } } }
+        : asli(r)
+    await klik(tombolDi('Simpan halaman masuk'))
+    const kolom = [...panel().querySelectorAll('label[for]')].filter((l) => l.textContent?.includes('Judul butir'))[1]!
+    expect(document.getElementById(kolom.getAttribute('for')!)!.getAttribute('aria-invalid')).toBe('true')
+    expect(panel().textContent).toContain('Maksimal 30 karakter (server).')
+    server.tangani = asli
+  })
+
+  it('kembali ke teks bawaan mengirim null; simpan tab Identitas sesudahnya tidak kena 412 (versi dasar ikut naik)', async () => {
+    await bukaTab()
+    await isiDi('Lencana', 'Lencana khusus')
+    await isiDi('Dasar perubahan', 'Memo 9/2026')
+    await klik(tombolDi('Simpan halaman masuk'))
+    expect(useProfilRs().value.halamanMasuk.lencana).toBe('Lencana khusus')
+
+    const konfirmasi = window.confirm
+    window.confirm = () => true
+    await isiDi('Dasar perubahan', 'Memo 10/2026')
+    await klik(tombolDi('Kembali ke teks bawaan'))
+    window.confirm = konfirmasi
+    expect(useProfilRs().value.halamanMasuk).toMatchObject({ lencana: 'Satu data untuk seluruh rumah sakit', bawaan: true })
+    expect(isianDi('Lencana').value).toBe('Satu data untuk seluruh rumah sakit')
+
+    await isi('Nama rumah sakit', 'RS Contoh Pendidikan Utama')
+    await isi('Dasar perubahan', 'SK Direktur 4/2026')
+    await klik(tombol('Simpan profil'))
+    expect(document.body.textContent).not.toContain('Profil diubah orang lain')
+    expect(useProfilRs().value.nama).toBe('RS Contoh Pendidikan Utama')
+    expect(useProfilRs().value.halamanMasuk.bawaan).toBe(true)
   })
 })

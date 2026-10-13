@@ -619,6 +619,68 @@ test('1440 px: panel halaman masuk memakai turunan warna paket RS (kontras terja
   }
 })
 
+// ── Tiket 1.15: halaman masuk dapat diatur (teks, foto, motif) ──
+test('halaman masuk dapat diatur: teks dan foto baru tampil di /masuk tanpa build ulang, tag HTML tetap teks; tab di 4 lebar + axe', async ({ page, browser }, info) => {
+  const asal = new URL(info.project.use.baseURL ?? '').origin
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/pengaturan/profil-rs')
+  const xsrf = decodeURIComponent((await page.context().cookies()).find((c) => c.name === 'XSRF-TOKEN')?.value ?? '')
+  const header = { Accept: 'application/json', Origin: asal, Referer: `${asal}/`, 'X-XSRF-TOKEN': xsrf }
+  type Teks = Record<string, unknown> & { bawaan: boolean }
+  type Profil = { versi: string; nama: string | null; paket_identitas: { warna: unknown }; kontak_admin: unknown; rinci: Record<string, unknown>; halaman_masuk?: Teks }
+  const ambil = async () => ((await (await page.request.get('/api/v1/profil-rs', { headers: header })).json()) as { data: Profil }).data
+  const semula = await ambil()
+  test.skip(!semula.halaman_masuk, 'Backend belum mengirim halaman_masuk (sebelum 1.15-be).')
+  test.skip(!semula.nama, 'Identitas RS belum diisi (uji profil RS di atas mengisinya).')
+
+  // Foto panel sintetis (gradien, bukan foto nyata) dibuat di peramban.
+  const kanvas = await browser.newPage({ viewport: { width: 800, height: 500 } })
+  await kanvas.setContent('<body style="margin:0;height:500px;background:linear-gradient(135deg,#9cc3d5,#b7c4a8)"></body>')
+  const foto = await kanvas.screenshot({ type: 'png' })
+  await kanvas.close()
+
+  try {
+    await page.getByRole('tab', { name: 'Halaman masuk' }).click()
+    const form = page.getByRole('form', { name: 'Panel halaman masuk' })
+    await form.getByLabel(/^Judul\s*\*?$/).fill('<script>alert(1)</script> Judul uji e2e')
+    await form.getByLabel('Bagian sorot judul (opsional)').fill('sorot e2e.')
+    await form.getByLabel('Keterangan foto (opsional)').fill('Ilustrasi fiktif e2e')
+    await expect(page.getByRole('img', { name: 'Pratinjau panel halaman masuk' })).toContainText('Judul uji e2e sorot e2e.')
+    await form.getByLabel('Dasar perubahan').fill('Memo E2E/halaman-masuk')
+    await form.getByRole('button', { name: 'Simpan halaman masuk' }).click()
+    await expect(page.getByText('Halaman masuk disimpan')).toBeVisible()
+    await page.locator('input[data-berkas="foto"]').setInputFiles({ name: 'foto.png', mimeType: 'image/png', buffer: foto })
+    await expect(page.getByRole('img', { name: 'Foto panel saat ini' })).toHaveAttribute('src', /\/api\/v1\/profil-rs\/berkas\/foto\?v=/)
+
+    for (const lebar of [1440, 1024, 768, 390]) {
+      await page.setViewportSize({ width: lebar, height: 900 })
+      await tanpaGulirSamping(page)
+      const axe = await new AxeBuilder({ page }).analyze()
+      expect(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id), `${lebar} px`).toEqual([])
+    }
+
+    const tamu = await browser.newContext({ baseURL: asal, storageState: TANPA_SESI, viewport: { width: 1440, height: 900 } })
+    const masuk = await tamu.newPage()
+    await masuk.goto('/masuk')
+    const judul = masuk.locator('.judul-merek')
+    await expect(judul).toHaveText('<script>alert(1)</script> Judul uji e2e sorot e2e.')
+    await expect(judul.locator('script')).toHaveCount(0)
+    await expect(masuk.locator('.foto figcaption')).toHaveText('Ilustrasi fiktif e2e')
+    await expect.poll(() => masuk.locator('.foto img').evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth / el.naturalHeight)).toBeCloseTo(1.6, 1)
+    await tamu.close()
+  } finally {
+    // Teks kembali seperti semula (foto tidak bisa dikosongkan di fase 1; foto sintetis tetap terpasang).
+    const p = await ambil()
+    const { bawaan, ...teks } = semula.halaman_masuk!
+    const r = await page.request.put('/api/v1/profil-rs', {
+      headers: { ...header, 'If-Match': `"${p.versi}"` },
+      data: { nama: p.nama, kode_kemenkes: p.rinci.kode_kemenkes, kelas: p.rinci.kelas, status_blu: p.rinci.status_blu, kode_ppk_bpjs: p.rinci.kode_ppk_bpjs,
+        alamat: p.rinci.alamat, warna: p.paket_identitas.warna, kontak_admin: p.kontak_admin, halaman_masuk: bawaan ? null : teks, dasar_perubahan: 'Pulihkan halaman masuk e2e' },
+    })
+    expect(r.ok(), `${r.status()} ${await r.text()}`).toBeTruthy()
+  }
+})
+
 // ── Tiket 1.8d: nonaktif/aktif akun dengan alasan ──
 test('1440 px: nonaktifkan akun dengan alasan lalu aktifkan kembali (contoh.terkunci); akun sendiri tanpa tombol', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { HalamanMasuk } from '@/app/profilRs'
+import type { HalamanMasuk } from '@/modules/organisasi/tipe'
 
 /**
  * Panel merek halaman masuk (PRD 5.3.2; tiket 1.15): dipakai AuthLayout dan pratinjau di Pengaturan → Profil rumah
@@ -15,17 +15,17 @@ defineProps<{
 </script>
 
 <template>
-  <aside class="panel-merek" aria-hidden="true" :style="isi.tampilkanMotif && motif ? { '--motif': `url(${motif})` } : undefined">
+  <aside class="panel-merek" aria-hidden="true" :style="isi.tampilkan_motif && motif ? { '--motif': `url(${motif})` } : undefined">
     <div>
       <span class="tag"><span class="titik"></span>{{ isi.lencana }}</span>
       <p class="judul-merek">
-        {{ isi.judul }}<template v-if="isi.judulSorot">{{ ' ' }}<em>{{ isi.judulSorot }}</em></template>
+        {{ isi.judul }}<template v-if="isi.judul_sorot">{{ ' ' }}<em>{{ isi.judul_sorot }}</em></template>
       </p>
       <p class="lead-merek">{{ isi.uraian }}</p>
     </div>
     <figure v-if="foto" class="foto">
       <img :src="foto" alt="" width="1600" height="1000" decoding="async" />
-      <figcaption v-if="isi.fotoKeterangan || namaRs"><span class="titik"></span>{{ isi.fotoKeterangan || namaRs }}</figcaption>
+      <figcaption v-if="isi.foto_keterangan || namaRs"><span class="titik"></span>{{ isi.foto_keterangan || namaRs }}</figcaption>
     </figure>
     <ul class="poin">
       <li v-for="(f, i) in isi.fitur" :key="i"><b>{{ f.judul }}</b>{{ f.uraian }}</li>

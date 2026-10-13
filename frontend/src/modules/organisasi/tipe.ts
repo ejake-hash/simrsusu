@@ -1,5 +1,5 @@
 /**
- * Bentuk respons Profil RS, unit organisasi, KSM (docs/api/openapi.yaml v0.3.0, tiket 1.8a). Tanpa impor nilai agar
+ * Bentuk respons Profil RS, unit organisasi, KSM (docs/api/openapi.yaml v0.3.0, tiket 1.8a; halaman masuk v0.15.0, tiket 1.15). Tanpa impor nilai agar
  * data tiruan bisa dipakai e2e (tsconfig.node).
  */
 export interface WarnaIdentitas {
@@ -13,6 +13,12 @@ export interface ProfilRsApi {
   paket_identitas: { warna: WarnaIdentitas; logo_url: string | null; motif_url: string | null; foto_url: string | null }
   kontak_admin: { unit: string; kontak: string | null }
   instalasi_demo: boolean
+  /**
+   * Nilai efektif panel merek halaman masuk (kontrak v0.15.0, tiket 1.15); belum diatur = teks bawaan, `bawaan` true.
+   * Sementara opsional: backend mengirimnya sejak 1.15-be (lalu wajib lagi); tidak ada = teks bawaan, tab Halaman masuk
+   * tidak tampil.
+   */
+  halaman_masuk?: HalamanMasukApi
   /** Hanya untuk pemegang pengaturan.profil_rs.lihat. */
   rinci?: {
     kode_kemenkes: string | null
@@ -35,7 +41,27 @@ export interface IsianProfilRs {
   alamat: string | null
   warna: WarnaIdentitas
   kontak_admin: { unit: string; kontak: string | null }
+  /** Tidak dikirim = tetap; null = kembali ke teks bawaan; objek = ganti utuh (v0.15.0). */
+  halaman_masuk?: HalamanMasuk | null
   dasar_perubahan: string
+}
+
+/** Isi panel merek halaman masuk (kontrak v0.15.0 IsianHalamanMasuk, tiket 1.15). Teks biasa, bukan HTML. */
+export interface HalamanMasuk {
+  lencana: string
+  judul: string
+  /** Ditempel di akhir judul (dipisah satu spasi), warna --penekanan-panel. */
+  judul_sorot: string | null
+  uraian: string
+  /** Tepat tiga butir. */
+  fitur: readonly { judul: string; uraian: string }[]
+  /** null = nama RS. */
+  foto_keterangan: string | null
+  tampilkan_motif: boolean
+}
+export interface HalamanMasukApi extends HalamanMasuk {
+  /** true = belum pernah diatur. */
+  bawaan: boolean
 }
 
 /** RingkasPegawai (kontrak v0.6.0): kepala unit dan ketua KSM. */

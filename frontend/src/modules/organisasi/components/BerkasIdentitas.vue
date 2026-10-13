@@ -12,13 +12,14 @@ import type { JenisBerkas, ProfilRsApi } from '../tipe'
  * diperiksa server dari isi berkas; batas di sini hanya petunjuk. Sesudah unggah, profil baru dipasang ke seluruh
  * layar (logo halaman masuk berganti tanpa build ulang).
  */
-const props = defineProps<{ profil: Berversi<ProfilRsApi>; bolehUbah: boolean }>()
+/** `jenis`: berkas yang ditampilkan (bawaan semua); foto ada di tab Halaman masuk (tiket 1.15). */
+const props = withDefaults(defineProps<{ profil: Berversi<ProfilRsApi>; bolehUbah: boolean; jenis?: JenisBerkas[] }>(), { jenis: () => ['logo', 'motif', 'foto'] })
 const emit = defineEmits<{ diunggah: [hasil: Berversi<ProfilRsApi>]; versiBerubah: [] }>()
 
 const DAFTAR: { jenis: JenisBerkas; label: string; uraian: string; terima: string; kunci: 'logo_url' | 'motif_url' | 'foto_url' }[] = [
   { jenis: 'logo', label: 'Logo', uraian: 'SVG atau PNG, maks. 200 KB. Tampil di halaman masuk dan kop.', terima: 'image/svg+xml,image/png', kunci: 'logo_url' },
   { jenis: 'motif', label: 'Motif grafis', uraian: 'SVG atau PNG, maks. 500 KB. Hiasan panel merek halaman masuk.', terima: 'image/svg+xml,image/png', kunci: 'motif_url' },
-  { jenis: 'foto', label: 'Foto gedung', uraian: 'WebP, JPEG, atau PNG, maks. 2 MB. Latar panel merek halaman masuk.', terima: 'image/webp,image/jpeg,image/png', kunci: 'foto_url' },
+  { jenis: 'foto', label: 'Foto panel', uraian: 'WebP, JPEG, atau PNG, maks. 2 MB. Server memotong bagian tengah 16:10 dan membuang metadata (EXIF/GPS).', terima: 'image/webp,image/jpeg,image/png', kunci: 'foto_url' },
 ]
 
 const isian = ref<Partial<Record<JenisBerkas, HTMLInputElement | null>>>({})
@@ -46,7 +47,7 @@ async function unggah(jenis: JenisBerkas, e: Event) {
 
 <template>
   <ul class="berkas">
-    <li v-for="b in DAFTAR" :key="b.jenis" class="baris">
+    <li v-for="b in DAFTAR.filter((x) => jenis.includes(x.jenis))" :key="b.jenis" class="baris">
       <div class="gambar" :class="b.jenis">
         <img v-if="profil.data.paket_identitas[b.kunci]" :src="profil.data.paket_identitas[b.kunci]!" :alt="`${b.label} saat ini`" />
         <span v-else class="kosong">Belum ada</span>
