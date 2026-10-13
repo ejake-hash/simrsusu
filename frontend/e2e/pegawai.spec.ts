@@ -152,7 +152,7 @@ test('buat akun dari pegawai: sandi awal sekali tampil; masuk pertama dipaksa ga
   await expect(dialog(page).getByRole('heading', { name: 'Akun dibuat' })).toBeVisible()
   await expect(dialog(page).locator('code.sandi')).toHaveCount(0)
   await expect(dialog(page).locator('.sandi')).toContainText('Disembunyikan')
-  await dialog(page).getByRole('button', { name: 'Tampilkan' }).click()
+  await dialog(page).getByRole('button', { name: 'Tampilkan sandi' }).click()
   sandiAwal = (await dialog(page).locator('code.sandi').textContent()) ?? ''
   expect(sandiAwal.length).toBeGreaterThanOrEqual(16)
   await dialog(page).getByRole('button', { name: 'Selesai' }).click()

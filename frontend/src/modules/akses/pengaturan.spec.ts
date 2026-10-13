@@ -340,7 +340,11 @@ describe('Reset sandi oleh admin (tiket 1.14)', () => {
     expect(dialog().querySelector('code.sandi')).toBeNull()
     expect(dialog().querySelector('.sandi')!.textContent).toMatch(/^•{16,}Disembunyikan$/)
     expect(dialog().textContent).toContain('Sandi ini tidak akan ditampilkan lagi')
-    await klik([...dialog().querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Tampilkan'))
+    // Esc tidak menutup selama sandi tampil (sandi hilang tanpa sengaja = reset ulang).
+    document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    await tenang()
+    expect(dialog()).toBeTruthy()
+    await klik([...dialog().querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Tampilkan sandi'))
     const sandi = dialog().querySelector('code.sandi')!.textContent!
     expect(sandi).toMatch(/^\S{16,}$/)
     await klik([...dialog().querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Salin sandi'))

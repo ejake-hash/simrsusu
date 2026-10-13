@@ -61,7 +61,8 @@ function berubah(teks: string) {
 <template>
   <section class="kartu rincian" aria-labelledby="judul-rincian-akun">
     <div v-if="kueri.isPending.value" class="kartu-isi keadaan" role="status">Memuat akun…</div>
-    <div v-else-if="kueri.isError.value" class="kartu-isi" role="alert">
+    <!-- Muat ulang latar yang gagal tidak melepas rincian (dan dialog yang sedang terbuka) bila data sudah ada. -->
+    <div v-else-if="kueri.isError.value && !akun" class="kartu-isi" role="alert">
       <p class="catatan catatan-bahaya">{{ pesanError(kueri.error.value) }}</p>
       <button type="button" class="tombol" @click="kueri.refetch()">Coba lagi</button>
     </div>

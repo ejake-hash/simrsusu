@@ -35,7 +35,7 @@ async function salin() {
     <code v-if="tampil" class="sandi" translate="no">{{ sandi }}</code>
     <span v-else class="sandi"><span aria-hidden="true">{{ '•'.repeat(sandi.length) }}</span><span class="sr-only">Disembunyikan</span></span>
     <div class="aksi-sandi">
-      <button type="button" class="tombol" :aria-pressed="tampil" @click="tampil = !tampil">{{ tampil ? 'Sembunyikan' : 'Tampilkan' }}</button>
+      <button type="button" class="tombol" :aria-pressed="tampil" @click="tampil = !tampil">Tampilkan sandi</button>
       <button type="button" class="tombol" @click="salin"><Ikon nama="salin" :ukuran="16" />{{ tersalin ? 'Tersalin' : 'Salin sandi' }}</button>
     </div>
     <p class="ket" role="status">{{ tersalin ? `${label} tersalin ke papan klip.` : '' }}</p>
@@ -58,6 +58,11 @@ async function salin() {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+.aksi-sandi .tombol[aria-pressed='true'] {
+  border-color: var(--brand-500);
+  background: var(--brand-50);
+  color: var(--brand-800);
 }
 .ket {
   margin: 0;

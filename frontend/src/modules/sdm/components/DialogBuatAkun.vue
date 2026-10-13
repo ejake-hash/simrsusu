@@ -79,11 +79,11 @@ async function kirim() {
 </script>
 
 <template>
-  <Dialog v-model:open="buka" :judul="hasil ? 'Akun dibuat' : `Buat akun untuk ${pegawai?.nama ?? ''}`" :sibuk="sibuk">
+  <Dialog v-model:open="buka" :judul="hasil ? 'Akun dibuat' : `Buat akun untuk ${pegawai?.nama ?? ''}`" :sibuk="sibuk" :tutup-lewat-tombol="!!hasil">
     <div v-if="hasil" class="hasil">
       <p class="catatan catatan-peringatan">
         <Ikon nama="peringatan" :ukuran="16" />
-        <span>Sandi awal hanya ditampilkan sekali dan tidak bisa dipulihkan. Serahkan langsung kepada pemilik akun; ia wajib menggantinya saat masuk pertama.</span>
+        <span>Sandi awal hanya ditampilkan sekali. Serahkan langsung kepada pemilik akun; ia wajib menggantinya saat masuk pertama. Bila hilang, sandi bisa direset di Pengaturan → Akun & akses.</span>
       </p>
       <dl class="info">
         <div>

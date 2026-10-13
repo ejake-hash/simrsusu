@@ -68,7 +68,7 @@ const kirim = handleSubmit(async (v) => {
 </script>
 
 <template>
-  <Dialog v-model:open="buka" :judul="judul" :sibuk="sibuk" peringatan>
+  <Dialog v-model:open="buka" :judul="judul" :sibuk="sibuk" peringatan :tutup-lewat-tombol="!!sandi">
     <form v-if="!sandi" id="form-reset-sandi" novalidate @submit.prevent="kirim">
       <p class="catatan catatan-peringatan akibat">
         <Ikon nama="peringatan" :ukuran="16" />

@@ -69,7 +69,7 @@ function tampilkanError(err: unknown) {
     return
   }
   if (err.kode === 'sandi_lama_salah') {
-    kesalahan.value = { lama: dipaksa.value ? 'Sandi awal salah.' : 'Sandi lama salah.' }
+    kesalahan.value = { lama: dipaksa.value ? 'Sandi dari admin salah.' : 'Sandi lama salah.' }
     isian.lama = ''
     inputLama.value?.fokus()
     return
@@ -143,7 +143,7 @@ async function keluar() {
     <p class="bantuan">
       <button v-if="dipaksa" type="button" class="tombol tombol-tautan" @click="keluar">Keluar</button>
       <RouterLink v-else :to="tujuanSetelahMasuk(route.query.kembali)">Batal</RouterLink>
-      <span v-if="dipaksa"> · Sandi awal hilang? Hubungi {{ profil.unitAdmin }}.</span>
+      <span v-if="dipaksa"> · Sandi dari admin hilang? Hubungi {{ profil.unitAdmin }}.</span>
     </p>
   </section>
 </template>

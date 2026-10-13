@@ -695,10 +695,10 @@ test('reset sandi: sesi lama akun putus, sandi sementara sekali tampil, masuk de
   await pilihAkun(page, 'contoh.superadmin', 'Contoh Superadmin')
   await expect(page.getByRole('button', { name: 'Reset sandi' })).toHaveCount(0)
 
-  // Sesi lama pemilik akun yang akan direset.
+  // Sesi lama pemilik akun yang akan direset; permintaan SPA bersesi butuh Origin/Referer (Sanctum stateful).
   const lama = await halamanAkun(browser, asal, 'contoh.tanpa.peran')
-  await lama.page.goto('/')
-  await expect(lama.page.getByRole('navigation', { name: 'Menu utama' })).toBeVisible()
+  const sayaLama = () => lama.page.request.get('/api/v1/saya', { headers: { Accept: 'application/json', Origin: asal, Referer: `${asal}/` } })
+  expect((await sayaLama()).status(), 'sesi lama hidup sebelum reset').toBe(200)
 
   await pilihAkun(page, 'contoh.tanpa.peran', 'Contoh Akun Tanpa Peran')
   await page.getByRole('button', { name: 'Reset sandi' }).click()
@@ -709,9 +709,17 @@ test('reset sandi: sesi lama akun putus, sandi sementara sekali tampil, masuk de
   const hasil = page.getByRole('alertdialog', { name: 'Sandi sementara Contoh Akun Tanpa Peran' })
   await expect(hasil.getByText('Sandi ini tidak akan ditampilkan lagi')).toBeVisible()
   await expect(hasil.locator('code.sandi')).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).analyze()
-  expect(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)).toEqual([])
-  await hasil.getByRole('button', { name: 'Tampilkan' }).click()
+  // Soft: kegagalan di sini tidak boleh menghentikan uji sebelum sandi contoh.tanpa.peran dipulihkan di bawah.
+  for (const lebar of [1440, 1024, 768]) {
+    await page.setViewportSize({ width: lebar, height: 900 })
+    const axe = await new AxeBuilder({ page }).analyze()
+    expect.soft(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id), `${lebar} px`).toEqual([])
+  }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  // Esc tidak menutup selama sandi sekali tampil (hanya Selesai/Tutup).
+  await page.keyboard.press('Escape')
+  await expect(hasil).toBeVisible()
+  await hasil.getByRole('button', { name: 'Tampilkan sandi' }).click()
   const sementara = (await hasil.locator('code.sandi').textContent()) ?? ''
   expect(sementara.length).toBeGreaterThanOrEqual(16)
   await hasil.getByRole('button', { name: 'Selesai' }).click()
@@ -719,7 +727,7 @@ test('reset sandi: sesi lama akun putus, sandi sementara sekali tampil, masuk de
   await expect(page.getByText('Sandi contoh.tanpa.peran direset')).toBeVisible()
 
   // Sesi lama diputus di permintaan berikutnya.
-  expect((await lama.page.request.get('/api/v1/saya', { headers: { Accept: 'application/json' } })).status()).toBe(401)
+  expect.soft((await sayaLama()).status(), 'sesi lama diputus sesudah reset').toBe(401)
   await lama.tutup()
   sesiAkun.delete('contoh.tanpa.peran')
 
