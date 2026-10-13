@@ -98,6 +98,8 @@ class HalamanMasukTest extends TestCase
         $this->simpan(['halaman_masuk' => [...self::TEKS, 'judul' => "\u{200B} \n"]])->assertStatus(422);
         $this->simpan(['halaman_masuk' => [...self::TEKS, 'html' => '<b>x</b>']])->assertStatus(422);
         $this->simpan(['halaman_masuk' => 'teks'])->assertStatus(422);
+        // `fitur` harus daftar berurutan, bukan objek berkunci.
+        $this->simpan(['halaman_masuk' => [...self::TEKS, 'fitur' => array_combine(['x', 'y', 'z'], self::TEKS['fitur'])]])->assertStatus(422);
     }
 
     public function test_pembersih_teks(): void
@@ -105,5 +107,7 @@ class HalamanMasukTest extends TestCase
         $this->assertSame(['judul' => 'a b', 'judul_sorot' => null, 'fitur' => [['judul' => 'c d']]],
             TeksHalamanMasuk::bersihkan(['judul' => "a\r\n\u{2028}b\u{0007}", 'judul_sorot' => "\u{200E} ", 'fitur' => [['judul' => " c\u{00A0}d "]]]));
         $this->assertSame('bukan array', TeksHalamanMasuk::bersihkan('bukan array'));
+        // Karakter format di antara dua spasi tidak meninggalkan spasi ganda.
+        $this->assertSame(['judul' => 'a b'], TeksHalamanMasuk::bersihkan(['judul' => "a \u{200B} b\u{FEFF} "]));
     }
 }

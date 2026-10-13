@@ -116,7 +116,7 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
 - Daftar sandi bocor diperbarui dari SecLists terbaru (ADR 0001, `SUMBER.md`).
 
 **Repo dan teknis**
-- Penyelarasan PRD dengan paket 1.13–1.16 (aturan sudah disetujui pemilik di tiket; PR penyelarasan dari sesi 1): 10.3.2 (reset sandi oleh admin, perangkat tepercaya di langkah masuk), 14.2 (sesi di perangkat tepercaya), 11.2 (`akses.perangkat_tepercaya`, `kebijakan_keamanan`, `peran.masa_percaya_hari`), 5.3.1 dan 17.2 #19–20 (palet bawaan #006937/#F3C300; bersama 1.15-be yang juga memperbarui `ProfilRs::WARNA_BAWAAN` dan `ProfilRsTest`).
+- Penyelarasan PRD dengan paket 1.13–1.16 (aturan sudah disetujui pemilik di tiket; PR penyelarasan dari sesi 1): 10.3.2 (reset sandi oleh admin, perangkat tepercaya di langkah masuk), 14.2 (sesi di perangkat tepercaya), 11.2 (`akses.perangkat_tepercaya`, `kebijakan_keamanan`, `peran.masa_percaya_hari`, `inti.profil_rs.halaman_masuk`), 5.3.2 (panel merek halaman masuk dapat diatur), 5.3.1 dan 17.2 #19–20 (palet bawaan #006937/#F3C300; bersama 1.15-be yang juga memperbarui `ProfilRs::WARNA_BAWAAN` dan `ProfilRsTest`).
 - **Repo publik sejak 12 Okt 2026** (keputusan pemilik; aturan di CLAUDE.md "Repo publik"). Proteksi cabang dan rulesets
   kini bisa diaktifkan di GitHub Free untuk repo publik: **perlu pemilik** menyalakan aturan `main` (merge hanya lewat PR,
   check `backend`/`frontend`/`e2e` wajib hijau). Sampai itu dijaga lewat kebiasaan kerja.

@@ -40,10 +40,11 @@ final class TeksHalamanMasuk
         if (! is_string($nilai)) {
             return $nilai;
         }
-        // Spasi Unicode (termasuk baris baru, tab, pemisah baris/paragraf) → satu spasi; sisa karakter kendali dan format
-        // tak terlihat (mis. zero-width, arah teks) dibuang.
-        $nilai = (string) preg_replace('/[\s\p{Z}]+/u', ' ', $nilai);
+        // Karakter kendali dan format tak terlihat (mis. zero-width, arah teks) dibuang lebih dulu, kecuali yang termasuk
+        // spasi (tab, baris baru); lalu semua spasi Unicode diringkas menjadi satu spasi. ZWJ ikut terbuang, jadi emoji
+        // gabungan tampil sebagai emoji terpisah.
+        $nilai = (string) preg_replace('/(?!\s)[\p{Cc}\p{Cf}]/u', '', $nilai);
 
-        return trim((string) preg_replace('/[\p{Cc}\p{Cf}]/u', '', $nilai));
+        return trim((string) preg_replace('/[\s\p{Z}]+/u', ' ', $nilai));
     }
 }

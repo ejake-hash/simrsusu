@@ -59,7 +59,7 @@ final class ProfilRsController
                 'halaman_masuk.judul' => ['required', 'string', 'max:80'],
                 'halaman_masuk.judul_sorot' => ['present', 'nullable', 'string', 'max:40'],
                 'halaman_masuk.uraian' => ['required', 'string', 'max:240'],
-                'halaman_masuk.fitur' => ['required', 'array', 'size:3'],
+                'halaman_masuk.fitur' => ['required', 'list', 'size:3'],
                 'halaman_masuk.fitur.*' => ['array:judul,uraian'],
                 'halaman_masuk.fitur.*.judul' => ['required', 'string', 'max:30'],
                 'halaman_masuk.fitur.*.uraian' => ['required', 'string', 'max:120'],
@@ -69,7 +69,6 @@ final class ProfilRsController
         ]);
         if (isset($isi['halaman_masuk'])) {
             $isi['halaman_masuk']['tampilkan_motif'] = (bool) $isi['halaman_masuk']['tampilkan_motif'];
-            $isi['halaman_masuk']['fitur'] = array_values($isi['halaman_masuk']['fitur']);
         }
         $versi = self::versiDiminta($request);
 
