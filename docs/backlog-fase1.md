@@ -43,7 +43,7 @@
 | 1.12 | Gerbang keluar Fase 1: uji beban, cek keamanan, runbook instalasi (PRD 16 sudah di v0.10.12) | be: Selesai (runbook #85, temuan ASVS T-1 #86, uji beban + ASVS #87). Catatan: `docs/operasional/` (runbook + hasil uji pemulihan dan beban), `docs/keamanan/asvs-fase1.md`, `tests/beban/fase1.js` + `audit/*.sql`; verifikasi rantai per jendela, `DB_CONNECT_TIMEOUT`; keputusan pemilik di `docs/operasional/README.md` (compose produksi, S3, PITR, dll.). fe: Selesai (#88; jalan FINAL sesudah semua tiket fase 1 merge, main 163b558: 104 uji Playwright lulus). Catatan fe: `frontend/e2e/fase1.spec.ts` (20 layar + halaman masuk × 1440/1024/768/390, axe tanpa serius/kritis, tanpa gulir samping, daftar layar dicocokkan dengan `/saya/menu`); tangkapan layar identitas fiktif di branch `lampiran/fase1` (`docs/lampiran/fase1/`, diperiksa per gambar; PNG diabaikan di main); 1.5-fe Selesai (#89) | #85, #86, #87, #88, #89 |
 | 1.13-be / 1.13-fe | Perangkat tepercaya: MFA sekali per perangkat per periode, kebijakan diatur di layar | Siap dikerjakan | — |
 | 1.14-be / 1.14-fe | Reset sandi oleh admin + perintah konsol darurat | Siap dikerjakan | — |
-| 1.15-be / 1.15-fe | Tema bawaan dari pedoman identitas USU; halaman masuk dapat diatur (teks, foto, motif) | Siap dikerjakan | — |
+| 1.15-be / 1.15-fe | Tema bawaan dari pedoman identitas RS mitra; halaman masuk dapat diatur (teks, foto, motif) | Siap dikerjakan | — |
 | 1.16 | Perintah `php artisan lokal:siapkan-env` (tulis .env lokal otomatis) | Siap dikerjakan | — |
 | 1.10 | SSO (OIDC/SAML) ke penyedia identitas RS/universitas; tombol tampil hanya bila dikonfigurasi | **Terhambat**: perlu data IdP dari RS/USU | — |
 
@@ -1327,7 +1327,8 @@ Pekerjaan  :
 Uji penerimaan: semua butir di atas terdokumentasi; tidak ada temuan keamanan tingkat tinggi terbuka; CI hijau.
 ```
 
-<!-- Paket tiket 1.13–1.16 disetujui pemilik produk 13 Okt 2026 (berkas tiket-1.13-1.16.md di luar repo, md5 6827ec7d9f73580aecf0ca7d7b29c82b). -->
+<!-- Paket tiket 1.13–1.16 disetujui pemilik produk 13 Okt 2026 (berkas tiket-1.13-1.16.md di luar repo, md5 6827ec7d9f73580aecf0ca7d7b29c82b).
+     Nama RS mitra di berkas sumber diganti "RS mitra" (repo publik). -->
 
 ## [SIMRS] Akses · 1.13 Perangkat tepercaya (MFA tidak diminta setiap kali masuk)
 
@@ -1379,17 +1380,17 @@ Uji penerimaan: reset → sesi lama akun itu putus → masuk dengan sandi sement
              dirinya → 403; perintah konsol berjalan dan tercatat audit; sandi tidak muncul di log mana pun.
 ```
 
-## [SIMRS] Platform · 1.15 Tema bawaan pedoman identitas USU dan halaman masuk yang dapat diatur
+## [SIMRS] Platform · 1.15 Tema bawaan pedoman identitas RS mitra dan halaman masuk yang dapat diatur
 
 ```
-Tujuan     : Tampilan bawaan produk memakai palet dari pedoman identitas USU (keputusan pemilik), halaman masuk kembali
+Tujuan     : Tampilan bawaan produk memakai palet dari pedoman identitas RS mitra (keputusan pemilik), halaman masuk kembali
              ke rancangan awal (panel hijau, motif, foto gedung, keterangan foto), dan semua teks serta gambar panel
              halaman masuk dapat diubah admin dari layar tanpa ubah kode.
 Keputusan  : - Palet bawaan di design-system kembali ke token sebelum #78: brand #006937 (hover #005A2F, fokus #1F8A4C),
                panel gelap #135851, emas #F3C300 (isian/garis saja), kuning #FAE345 (teks penekanan di panel gelap),
                merah/hitam pedoman untuk dokumen cetak. Kontras mengikuti catatan di token (PRD 5.3.2).
              - Logo, nama RS, motif, dan foto TETAP dari paket identitas (profil RS / PaketIdentitasContohSeeder),
-               bukan berkas di repo, sampai pemilik menyatakan izin Humas USU mencakup publikasi di repo publik.
+               bukan berkas di repo, sampai pemilik menyatakan izin Humas RS mitra mencakup publikasi di repo publik.
              - Instalasi yang mengisi warna merek sendiri tetap memakai warnanya (turunan + cek kontras dari #92).
 Halaman masuk dapat diatur (Pengaturan → Profil rumah sakit → tab "Halaman masuk"):
   - lencana (≤ 60 karakter), judul (≤ 80) dengan bagian sorot (≤ 40), uraian (≤ 240), tiga butir fitur
