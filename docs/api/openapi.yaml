@@ -2649,7 +2649,8 @@ paths:
   # tidak bisa dinaikkan dari layar). 0 = fitur mati. Token berlaku sampai `berlaku_sampai` = waktu dipercaya + masa
   # percaya efektif; bila kebijakan diturunkan, token yang sudah ada ikut memendek (dihitung saat dipakai).
   # Semua perangkat tepercaya akun dicabut saat: ganti sandi, reset sandi, reset MFA, akun dinonaktifkan.
-  # Sesi yang masuk dari perangkat tepercaya (di jaringan RS) memakai batas diam 60 menit, selain itu 15 menit (PRD 14.2).
+  # Sesi yang masuk lewat perangkat tepercaya, atau yang baru mempercayai perangkat, dari jaringan RS memakai batas diam
+  # 60 menit, selain itu 15 menit (PRD 14.2).
   # Audit: akses.perangkat_dipercaya, akses.perangkat_dicabut (tanpa token).
   # ---------------------------------------------------------------------------
   /saya/perangkat:
