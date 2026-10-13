@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.15.0
+  version: 0.16.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -52,6 +52,26 @@ info:
     Halaman masuk dapat diatur (tiket 1.15): ProfilRs.halaman_masuk (nilai efektif, publik), IsianProfilRs.halaman_masuk
     (opsional; null = kembali ke bawaan); foto dipotong 16:10 dan metadata dibuang saat unggah; warna bawaan
     paket produk #006937/#F3C300. Paket tiket 1.13–1.16 disetujui pemilik 13 Okt 2026.
+    v0.16.0: Perangkat tepercaya (tiket 1.13): /saya/perangkat, /akun/{id}/perangkat (+ cabut), /kebijakan-keamanan,
+    Peran.masa_percaya_hari; sub-menu pengaturan.keamanan. Tambahan kontrak autentikasi PRD 10.3.2 (dicatat di sini sampai
+    PRD diselaraskan; utang di backlog):
+    - Respons `perlu_mfa` dan `perlu_daftar_mfa` membawa `percayai_perangkat: {tersedia: boolean, hari: integer}`.
+      `tersedia` = false bila masa percaya efektif akun 0 atau permintaan dari luar jaringan RS (perangkat hanya
+      dipercaya dari jaringan RS, tempat token berlaku); `hari` = masa percaya efektif (0 bila tidak tersedia).
+    - POST /autentikasi/mfa dan /autentikasi/mfa/daftar/konfirmasi menerima `percayai_perangkat: boolean` (opsional,
+      bawaan false; diabaikan bila tidak tersedia).
+    - Setiap respons `status: masuk` (langkah 1, 2a, 2c) membawa `perangkat_tepercaya: {id, berlaku_sampai} | null`:
+      perangkat yang baru dipercaya, atau yang dipakai melewati MFA di langkah 1; null bila tidak ada.
+    - Cookie token perangkat: HttpOnly, Secure, SameSite=Strict, path /api/v1/autentikasi, terpisah dari sesi; nilainya
+      tidak pernah dikirim di badan respons. Satu cookie per peramban: mempercayai perangkat untuk akun lain di peramban
+      yang sama menimpa cookie akun sebelumnya (barisnya tetap ada sampai kedaluwarsa atau dicabut). POST
+      /autentikasi/keluar tidak menghapusnya, karena memang untuk masuk berikutnya.
+    - Langkah 1 dari jaringan RS dengan cookie token yang sah untuk akun itu langsung `status: masuk` tanpa kode MFA
+      (audit `autentikasi.masuk` dengan `mfa_dilewati: perangkat_tepercaya`); dari luar jaringan RS token tidak berlaku.
+    - Sesi yang masuk lewat perangkat tepercaya, atau yang baru mempercayai perangkat, dari jaringan RS memakai batas diam
+      60 menit sejak awal sesi; selain itu 15 menit.
+    - MFA ulang (K11, /saya/mfa/verifikasi-ulang) tidak pernah dilewati: sesi yang masuk lewat perangkat tepercaya
+      diperlakukan seperti belum memverifikasi MFA.
 servers:
   - url: /api/v1
 security:
@@ -255,6 +275,8 @@ paths:
         - Peran bawaan sistem tidak bisa dinonaktifkan (409 `peran_bawaan_terkunci`).
         - Penyunting tidak bisa mengubah peran yang sedang ia pegang (403 `peran_sendiri`).
         - Menonaktifkan peran yang masih punya penugasan aktif ditolak (409 `peran_masih_dipakai`) dan menyebut jumlahnya.
+        - `masa_percaya_hari` (1.13): 0 sampai `batas_masa_percaya_hari` peran itu; tidak bisa membuat masa percaya akun lebih
+          panjang dari kebijakan instalasi (yang berlaku nilai terkecil).
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -270,6 +292,10 @@ paths:
                 uraian: { type: [string, 'null'], maxLength: 500 }
                 wajib_mfa: { type: boolean }
                 status: { type: string, enum: [aktif, nonaktif] }
+                masa_percaya_hari:
+                  type: [integer, 'null']
+                  minimum: 0
+                  description: "Sejak v0.16.0 (1.13). null = ikut kebijakan instalasi; di atas `batas_masa_percaya_hari` → 422 `masa_percaya_melebihi_batas`"
                 dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
       responses:
         '200':
@@ -605,7 +631,8 @@ paths:
       summary: Reset MFA akun (autentikator hilang/ganti ponsel)
       description: |
         Izin: pengaturan.akun.perbaiki. Mengosongkan rahasia TOTP dan mfa_aktif_pada, membatalkan semua kode
-        cadangan, dan memutus semua sesi akun itu. Akun mendaftar ulang saat masuk berikutnya, hanya dari jaringan
+        cadangan, memutus semua sesi akun itu, dan mencabut semua perangkat tepercayanya (sejak 1.13, alasan `mfa_direset`).
+        Akun mendaftar ulang saat masuk berikutnya, hanya dari jaringan
         RS (PRD 10.3.2). Audit `akses.mfa_direset` dengan alasan dan dasar, tanpa rahasia.
         403 `diri_sendiri`; 409 `mfa_belum_aktif`.
       requestBody:
@@ -2562,6 +2589,7 @@ paths:
       summary: Nonaktifkan akun (alasan wajib); sesi berjalannya diputus
       description: |
         Izin: pengaturan.akun.perbaiki. 403 `diri_sendiri`, `akun_superadmin` (aturan sama dengan /akun/{id}/*).
+        Semua perangkat tepercaya akun dicabut (sejak 1.13, alasan `akun_nonaktif`), termasuk saat nonaktif karena pegawai keluar.
         409 `sudah_nonaktif`; 409 `superadmin_aktif`: akun masih memegang peran superadmin — akhiri penugasannya lebih dulu
         (lewat persetujuan superadmin lain, K4). Audit `akses.akun_dinonaktifkan`.
       requestBody:
@@ -2614,6 +2642,163 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # Perangkat tepercaya (tiket 1.13; PRD 10.3.2 "keringanan lewat perangkat terdaftar", 14.2 batas diam, ADR 0002).
+  # Masa percaya efektif akun = nilai terkecil dari: kebijakan instalasi (/kebijakan-keamanan), `masa_percaya_hari` tiap
+  # peran yang berlaku (null = ikut instalasi), batas superadmin dan batas peran/izin khusus sensitif (konfigurasi server,
+  # tidak bisa dinaikkan dari layar). 0 = fitur mati. Token berlaku sampai `berlaku_sampai` = waktu dipercaya + masa
+  # percaya efektif; bila kebijakan diturunkan, token yang sudah ada ikut memendek (dihitung saat dipakai).
+  # Semua perangkat tepercaya akun dicabut saat: ganti sandi, reset sandi, reset MFA, akun dinonaktifkan.
+  # Sesi yang masuk lewat perangkat tepercaya, atau yang baru mempercayai perangkat, dari jaringan RS memakai batas diam
+  # 60 menit, selain itu 15 menit (PRD 14.2).
+  # Audit: akses.perangkat_dipercaya, akses.perangkat_dicabut (tanpa token).
+  # ---------------------------------------------------------------------------
+  /saya/perangkat:
+    get:
+      operationId: perangkatSaya
+      summary: Perangkat tepercaya milik akun yang sedang masuk (menu akun)
+      description: "Tanpa izin khusus; hanya perangkat akun sendiri. Urut dibuat_pada terbaru. Bawaan hanya yang `aktif`."
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: status, schema: { type: string, enum: [aktif, semua], default: aktif } }
+      responses:
+        '200':
+          description: Satu halaman perangkat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/PerangkatTepercaya' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /saya/perangkat/{id}/cabut:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: cabutPerangkatSaya
+      summary: Cabut perangkat tepercaya sendiri (masuk berikutnya dari perangkat itu diminta kode MFA lagi)
+      description: |
+        Tanpa izin khusus. Perangkat akun lain → 404. Sudah dicabut atau kedaluwarsa → 409 `perangkat_tidak_aktif`.
+        Sesi yang sedang berjalan tidak diputus. Bila yang dicabut perangkat sesi ini, respons juga mengirim `Set-Cookie`
+        kedaluwarsa untuk cookie token (path /api/v1/autentikasi). Audit `akses.perangkat_dicabut` (alasan `dicabut_pemilik`).
+      responses:
+        '200':
+          description: Perangkat sesudah dicabut
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PerangkatTepercaya' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /akun/{id}/perangkat:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: perangkatAkun
+      summary: Perangkat tepercaya akun lain (Pengaturan → Akun & akses)
+      description: "Izin: pengaturan.akun.lihat. `perangkat_ini` selalu false. Urut dibuat_pada terbaru."
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: status, schema: { type: string, enum: [aktif, semua], default: aktif } }
+      responses:
+        '200':
+          description: Satu halaman perangkat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/PerangkatTepercaya' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /akun/{id}/perangkat/{perangkatId}/cabut:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - { in: path, name: perangkatId, required: true, schema: { type: string, format: uuid } }
+    post:
+      operationId: cabutPerangkatAkun
+      summary: Cabut perangkat tepercaya akun lain
+      description: |
+        Izin: pengaturan.akun.perbaiki. Aturan /akun/{id}/*: 403 `diri_sendiri` (pakai /saya/perangkat), 403 `akun_superadmin`.
+        Perangkat bukan milik akun itu → 404; sudah tidak aktif → 409 `perangkat_tidak_aktif`. Sesi akun itu yang sedang
+        berjalan tidak diputus (untuk memutus: nonaktifkan akun atau reset sandi). Audit `akses.perangkat_dicabut` dengan
+        keterangan.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alasan]
+              properties:
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200':
+          description: Perangkat sesudah dicabut
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PerangkatTepercaya' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /kebijakan-keamanan:
+    get:
+      operationId: kebijakanKeamanan
+      summary: Kebijakan keamanan instalasi (Pengaturan → Keamanan)
+      description: "Izin: pengaturan.keamanan.lihat (cakupan rs). ETag = `versi`."
+      responses:
+        '200':
+          description: Kebijakan berlaku
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/KebijakanKeamanan' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+    put:
+      operationId: ubahKebijakanKeamanan
+      summary: Ubah masa percaya perangkat bawaan instalasi
+      description: |
+        Izin: pengaturan.keamanan.perbaiki (cakupan rs; izin sensitif, bawaan hanya superadmin; MFA ulang hanya bila izin
+        bertanda `butuh_mfa`). Wajib If-Match.
+        `perangkat_tepercaya_hari` 0 sampai `batas.maks_hari` (422 `masa_percaya_melebihi_batas`, sama dengan PATCH /peran). Menurunkan nilai langsung memendekkan
+        token yang sudah ada; menaikkan hanya berlaku untuk perangkat yang dipercaya sesudahnya. Audit
+        `akses.kebijakan_keamanan_diubah` dengan sebelum/sesudah dan dasar perubahan.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [perangkat_tepercaya_hari, dasar_perubahan]
+              properties:
+                perangkat_tepercaya_hari: { type: integer, minimum: 0 }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Kebijakan sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/KebijakanKeamanan' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
   /saya/sandi:
     post:
       operationId: gantiSandi
@@ -2628,7 +2813,8 @@ paths:
         - 422 `sandi_lama_salah`: dibatasi laju per akun (429 sesudah 5 kali per 15 menit); tidak menambah hitungan
           penguncian masuk. 422 `validasi_gagal` (`rincian` kolom `sandi_baru`; layar menampilkan `rincian[].pesan`, yang
           menyebut panjang minimal yang berlaku).
-        - Sesudah berhasil: ID sesi diganti, sesi lain akun ini diputus, sesi ini tetap. Audit `akses.sandi_diganti` (tanpa sandi).
+        - Sesudah berhasil: ID sesi diganti, sesi lain akun ini diputus, sesi ini tetap, dan semua perangkat tepercaya akun
+          ini dicabut (sejak 1.13, alasan `sandi_diganti`). Audit `akses.sandi_diganti` (tanpa sandi).
       requestBody:
         required: true
         content:
@@ -5251,6 +5437,38 @@ components:
               type: array
               description: "kode izin aksi yang dimiliki (format <menu>.<sub_menu>.<aksi>); dipakai v-can/PermissionGate. Server tetap memeriksa ulang setiap permintaan."
               items: { type: string }
+    PerangkatTepercaya:
+      type: object
+      required: [id, nama_perangkat, status, dibuat_pada, terakhir_dipakai_pada, berlaku_sampai, perangkat_ini, dicabut_pada, alasan_cabut, keterangan_cabut, dicabut_oleh]
+      properties:
+        id: { type: string, format: uuid }
+        nama_perangkat: { type: string, maxLength: 100, description: "Dari user-agent saat dipercaya, mis. \"Chrome di Windows\"; user-agent mentah tidak disimpan" }
+        status: { type: string, enum: [aktif, kedaluwarsa, dicabut] }
+        dibuat_pada: { type: string, format: date-time }
+        terakhir_dipakai_pada: { type: [string, 'null'], format: date-time, description: "Terakhir MFA dilewati karena perangkat ini" }
+        berlaku_sampai: { type: string, format: date-time, description: "Efektif: sudah memperhitungkan kebijakan yang berlaku sekarang" }
+        perangkat_ini: { type: boolean, description: "Perangkat yang terikat ke sesi ini: dipercaya saat langkah MFA sesi ini, atau dipakai melewati MFA saat masuk (disimpan di sesi; cookie token tidak dikirim ke /saya). Selalu false di /akun/{id}/perangkat" }
+        dicabut_pada: { type: [string, 'null'], format: date-time }
+        alasan_cabut:
+          type: [string, 'null']
+          enum: [dicabut_pemilik, dicabut_admin, sandi_diganti, sandi_direset, mfa_direset, akun_nonaktif, null]
+        keterangan_cabut: { type: [string, 'null'], description: "Teks alasan admin (dicabut_admin); null untuk alasan lain" }
+        dicabut_oleh: { $ref: '#/components/schemas/Pelaku', description: "Yang mencabut (pemilik, admin, atau pelaku ganti/reset sandi, reset MFA, nonaktif); null bila belum dicabut atau kedaluwarsa" }
+    KebijakanKeamanan:
+      type: object
+      required: [versi, perangkat_tepercaya_hari, batas, diubah_pada]
+      properties:
+        versi: { type: string }
+        perangkat_tepercaya_hari: { type: integer, minimum: 0, description: "Bawaan instalasi 30; 0 = perangkat tepercaya mati" }
+        batas:
+          type: object
+          required: [maks_hari, maks_hari_superadmin, maks_hari_peran_sensitif]
+          description: "Dari konfigurasi server, tidak bisa diubah dari layar"
+          properties:
+            maks_hari: { type: integer, minimum: 0, examples: [30] }
+            maks_hari_superadmin: { type: integer, minimum: 0, examples: [7] }
+            maks_hari_peran_sensitif: { type: integer, minimum: 0, examples: [14] }
+        diubah_pada: { type: [string, 'null'], format: date-time }
     MetaKursor:
       type: object
       required: [kursor_berikutnya]
@@ -5357,6 +5575,9 @@ components:
                   persetujuan_id: { type: string, format: uuid }
                   penyetuju_peran: { $ref: '#/components/schemas/RingkasPeran' }
                   kedaluwarsa_pada: { type: string, format: date-time }
+            masa_percaya_hari: { type: [integer, 'null'], minimum: 0, description: "Perangkat tepercaya (1.13); null = ikut kebijakan instalasi. Masuk `required` bersama batas_masa_percaya_hari di PR 1.13-be" }
+            batas_masa_percaya_hari: { type: integer, minimum: 0, description: "Batas atas dari konfigurasi: superadmin, peran memuat izin sensitif, atau umum" }
+            masa_percaya_instalasi_hari: { type: integer, minimum: 0, description: "Kebijakan instalasi saat ini (baca saja), untuk teks \"kosong = ikut instalasi (N hari)\" tanpa izin pengaturan.keamanan" }
             dapat_disunting: { type: boolean, description: "false bila peran bawaan terkunci atau dipegang penyunting" }
             alasan_terkunci: { type: [string, 'null'], enum: [peran_bawaan_terkunci, peran_sendiri, null] }
             diubah_pada: { type: string, format: date-time }
