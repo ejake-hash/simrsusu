@@ -65,14 +65,16 @@ const LAYAR: Layar[] = [
 ]
 
 // Bukan serial: satu layar gagal tidak membatalkan pemeriksaan layar lain (sesi per akun tetap dipakai ulang di worker).
-test.beforeAll(async () => {
+test.beforeAll(async ({}, info) => {
   if (!SANDI) throw new Error('Set E2E_SANDI sama dengan AKUN_SINTETIS_SANDI saat seeding.')
   const tanpaRahasia = Object.values(AKUN as Record<string, Akun>).filter((a) => 'rahasia' in a && !a.rahasia).map((a) => a.nama)
   if (tanpaRahasia.length) throw new Error(`Set rahasia TOTP e2e untuk: ${tanpaRahasia.join(', ')}.`)
   if (TANGKAPAN) mkdirSync(DIR_TANGKAPAN, { recursive: true })
   // Spec sebelumnya (pengaturan, penyiapan, pegawai, integrasi) memakai akun ber-MFA yang sama; kode TOTP satu periode
   // tidak boleh dipakai ulang, jadi mulai di periode TOTP berikutnya.
+  // Penantian bisa sampai 30,5 detik, melebihi batas hook bawaan 30 detik: batas diperpanjang sebesar penantian.
   const sisa = 30_000 - (Date.now() % 30_000)
+  info.setTimeout(info.timeout + sisa + 500)
   await new Promise((r) => setTimeout(r, sisa + 500))
 })
 // Tangkapan layar masuk repo publik: identitas RS harus fiktif ("RS Contoh Pendidikan", docs/brand/contoh), bukan sisa
