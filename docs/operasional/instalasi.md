@@ -19,7 +19,7 @@ Sesuaikan dengan server RS; jangan tulis nilai nyata ke repo.
 | Komponen | Versi | Sumber |
 |---|---|---|
 | PHP | 8.3+ (CI memakai 8.4) | `backend/composer.json`, `.github/workflows/ci.yml` |
-| Ekstensi PHP | `pdo_pgsql`, `redis` (phpredis), `sodium`, `openssl`, `mbstring`, `dom`/`libxml`, `fileinfo`, `zlib`, `curl`, `ctype`, `iconv`, `tokenizer`, `pcntl` dan `posix` (Horizon) | `composer.lock` (ext-*), kode `app/` (sodium untuk TTE, gzdecode untuk daftar sandi bocor), PRD 10.1 (phpredis di produksi) |
+| Ekstensi PHP | `pdo_pgsql`, `redis` (phpredis), `sodium`, `openssl`, `mbstring`, `dom`/`libxml`, `fileinfo`, `zlib`, `curl`, `ctype`, `iconv`, `tokenizer`, `pcntl` dan `posix` (Horizon), `gd` (foto halaman masuk dipotong 16:10, tiket 1.15), `exif` (opsional: orientasi foto ponsel) | `composer.lock` (ext-*), kode `app/` (sodium untuk TTE, gzdecode untuk daftar sandi bocor), PRD 10.1 (phpredis di produksi) |
 | Argon2id | PHP harus dibangun dengan dukungan Argon2 (`password_hash` dengan `PASSWORD_ARGON2ID`) | `config/hashing.php` (driver dikunci `argon2id`) |
 | Composer | 2.x | — |
 | PostgreSQL | 16, dengan ekstensi `pg_trgm` dan `unaccent` | `docker-compose.yml`, `docker/postgres/init/sql/02-database.sql` |
@@ -43,7 +43,7 @@ Cek sandi bocor ke HIBP mati bawaan (`AUTENTIKASI_SANDI_CEK_HIBP=false`), jadi s
 Nama paket berbeda per distribusi; yang penting daftar ekstensi di §1 terpasang untuk **FPM dan CLI**.
 
 ```bash
-sudo apt install nginx php8.4-fpm php8.4-cli php8.4-pgsql php8.4-redis php8.4-mbstring php8.4-xml \
+sudo apt install nginx php8.4-fpm php8.4-cli php8.4-pgsql php8.4-redis php8.4-mbstring php8.4-xml php8.4-gd \
   php8.4-curl php8.4-opcache postgresql-client-16 chrony git unzip
 php -m | grep -Ei 'pdo_pgsql|redis|sodium|openssl|mbstring|dom|fileinfo|zlib|curl|pcntl|posix'
 php -r 'var_dump(defined("PASSWORD_ARGON2ID"));'   # harus bool(true)
