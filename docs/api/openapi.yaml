@@ -54,14 +54,24 @@ info:
     paket produk #006937/#F3C300. Paket tiket 1.13–1.16 disetujui pemilik 13 Okt 2026.
     v0.16.0: Perangkat tepercaya (tiket 1.13): /saya/perangkat, /akun/{id}/perangkat (+ cabut), /kebijakan-keamanan,
     Peran.masa_percaya_hari; sub-menu pengaturan.keamanan. Tambahan kontrak autentikasi PRD 10.3.2 (dicatat di sini sampai
-    PRD diselaraskan): respons `perlu_mfa` membawa `percayai_perangkat: {tersedia: boolean, hari: integer}`; POST
-    /autentikasi/mfa dan /autentikasi/mfa/daftar/konfirmasi menerima `percayai_perangkat: boolean` (opsional, bawaan false)
-    dan respons `masuk`-nya membawa `perangkat_tepercaya: {id, berlaku_sampai} | null`. Bila dipercaya, server memasang
-    cookie token perangkat (HttpOnly, Secure, SameSite=Strict, path /api/v1/autentikasi, terpisah dari sesi; nilai tidak
-    pernah dikirim di badan respons; POST /autentikasi/keluar tidak menghapusnya, karena memang untuk masuk berikutnya). Langkah 1 dari jaringan RS dengan cookie token yang sah untuk akun itu langsung
-    `status: masuk` tanpa kode MFA (audit `autentikasi.masuk` dengan `mfa_dilewati: perangkat_tepercaya`); dari luar
-    jaringan RS token tidak berlaku. MFA ulang (K11, /saya/mfa/verifikasi-ulang) tidak pernah dilewati: sesi yang masuk lewat
-    perangkat tepercaya diperlakukan seperti belum memverifikasi MFA.
+    PRD diselaraskan; utang di backlog):
+    - Respons `perlu_mfa` dan `perlu_daftar_mfa` membawa `percayai_perangkat: {tersedia: boolean, hari: integer}`.
+      `tersedia` = false bila masa percaya efektif akun 0 atau permintaan dari luar jaringan RS (perangkat hanya
+      dipercaya dari jaringan RS, tempat token berlaku); `hari` = masa percaya efektif (0 bila tidak tersedia).
+    - POST /autentikasi/mfa dan /autentikasi/mfa/daftar/konfirmasi menerima `percayai_perangkat: boolean` (opsional,
+      bawaan false; diabaikan bila tidak tersedia).
+    - Setiap respons `status: masuk` (langkah 1, 2a, 2c) membawa `perangkat_tepercaya: {id, berlaku_sampai} | null`:
+      perangkat yang baru dipercaya, atau yang dipakai melewati MFA di langkah 1; null bila tidak ada.
+    - Cookie token perangkat: HttpOnly, Secure, SameSite=Strict, path /api/v1/autentikasi, terpisah dari sesi; nilainya
+      tidak pernah dikirim di badan respons. Satu cookie per peramban: mempercayai perangkat untuk akun lain di peramban
+      yang sama menimpa cookie akun sebelumnya (barisnya tetap ada sampai kedaluwarsa atau dicabut). POST
+      /autentikasi/keluar tidak menghapusnya, karena memang untuk masuk berikutnya.
+    - Langkah 1 dari jaringan RS dengan cookie token yang sah untuk akun itu langsung `status: masuk` tanpa kode MFA
+      (audit `autentikasi.masuk` dengan `mfa_dilewati: perangkat_tepercaya`); dari luar jaringan RS token tidak berlaku.
+    - Sesi yang masuk lewat perangkat tepercaya, atau yang baru mempercayai perangkat, dari jaringan RS memakai batas diam
+      60 menit sejak awal sesi; selain itu 15 menit.
+    - MFA ulang (K11, /saya/mfa/verifikasi-ulang) tidak pernah dilewati: sesi yang masuk lewat perangkat tepercaya
+      diperlakukan seperti belum memverifikasi MFA.
 servers:
   - url: /api/v1
 security:
@@ -621,7 +631,8 @@ paths:
       summary: Reset MFA akun (autentikator hilang/ganti ponsel)
       description: |
         Izin: pengaturan.akun.perbaiki. Mengosongkan rahasia TOTP dan mfa_aktif_pada, membatalkan semua kode
-        cadangan, dan memutus semua sesi akun itu. Akun mendaftar ulang saat masuk berikutnya, hanya dari jaringan
+        cadangan, memutus semua sesi akun itu, dan mencabut semua perangkat tepercayanya (sejak 1.13, alasan `mfa_direset`).
+        Akun mendaftar ulang saat masuk berikutnya, hanya dari jaringan
         RS (PRD 10.3.2). Audit `akses.mfa_direset` dengan alasan dan dasar, tanpa rahasia.
         403 `diri_sendiri`; 409 `mfa_belum_aktif`.
       requestBody:
@@ -2578,6 +2589,7 @@ paths:
       summary: Nonaktifkan akun (alasan wajib); sesi berjalannya diputus
       description: |
         Izin: pengaturan.akun.perbaiki. 403 `diri_sendiri`, `akun_superadmin` (aturan sama dengan /akun/{id}/*).
+        Semua perangkat tepercaya akun dicabut (sejak 1.13, alasan `akun_nonaktif`), termasuk saat nonaktif karena pegawai keluar.
         409 `sudah_nonaktif`; 409 `superadmin_aktif`: akun masih memegang peran superadmin — akhiri penugasannya lebih dulu
         (lewat persetujuan superadmin lain, K4). Audit `akses.akun_dinonaktifkan`.
       requestBody:
@@ -2716,8 +2728,9 @@ paths:
       summary: Cabut perangkat tepercaya akun lain
       description: |
         Izin: pengaturan.akun.perbaiki. Aturan /akun/{id}/*: 403 `diri_sendiri` (pakai /saya/perangkat), 403 `akun_superadmin`.
-        Perangkat bukan milik akun itu → 404; sudah tidak aktif → 409 `perangkat_tidak_aktif`. Audit `akses.perangkat_dicabut`
-        dengan alasan.
+        Perangkat bukan milik akun itu → 404; sudah tidak aktif → 409 `perangkat_tidak_aktif`. Sesi akun itu yang sedang
+        berjalan tidak diputus (untuk memutus: nonaktifkan akun atau reset sandi). Audit `akses.perangkat_dicabut` dengan
+        keterangan.
       requestBody:
         required: true
         content:
@@ -2758,7 +2771,7 @@ paths:
       description: |
         Izin: pengaturan.keamanan.perbaiki (cakupan rs; izin sensitif, bawaan hanya superadmin; MFA ulang hanya bila izin
         bertanda `butuh_mfa`). Wajib If-Match.
-        `perangkat_tepercaya_hari` 0 sampai `batas.maks_hari` (422 `validasi_gagal`). Menurunkan nilai langsung memendekkan
+        `perangkat_tepercaya_hari` 0 sampai `batas.maks_hari` (422 `masa_percaya_melebihi_batas`, sama dengan PATCH /peran). Menurunkan nilai langsung memendekkan
         token yang sudah ada; menaikkan hanya berlaku untuk perangkat yang dipercaya sesudahnya. Audit
         `akses.kebijakan_keamanan_diubah` dengan sebelum/sesudah dan dasar perubahan.
       parameters:
@@ -2799,7 +2812,8 @@ paths:
         - 422 `sandi_lama_salah`: dibatasi laju per akun (429 sesudah 5 kali per 15 menit); tidak menambah hitungan
           penguncian masuk. 422 `validasi_gagal` (`rincian` kolom `sandi_baru`; layar menampilkan `rincian[].pesan`, yang
           menyebut panjang minimal yang berlaku).
-        - Sesudah berhasil: ID sesi diganti, sesi lain akun ini diputus, sesi ini tetap. Audit `akses.sandi_diganti` (tanpa sandi).
+        - Sesudah berhasil: ID sesi diganti, sesi lain akun ini diputus, sesi ini tetap, dan semua perangkat tepercaya akun
+          ini dicabut (sejak 1.13, alasan `sandi_diganti`). Audit `akses.sandi_diganti` (tanpa sandi).
       requestBody:
         required: true
         content:
@@ -5424,7 +5438,7 @@ components:
               items: { type: string }
     PerangkatTepercaya:
       type: object
-      required: [id, nama_perangkat, status, dibuat_pada, terakhir_dipakai_pada, berlaku_sampai, perangkat_ini, dicabut_pada, alasan_cabut]
+      required: [id, nama_perangkat, status, dibuat_pada, terakhir_dipakai_pada, berlaku_sampai, perangkat_ini, dicabut_pada, alasan_cabut, keterangan_cabut, dicabut_oleh]
       properties:
         id: { type: string, format: uuid }
         nama_perangkat: { type: string, maxLength: 100, description: "Dari user-agent saat dipercaya, mis. \"Chrome di Windows\"; user-agent mentah tidak disimpan" }
@@ -5436,7 +5450,9 @@ components:
         dicabut_pada: { type: [string, 'null'], format: date-time }
         alasan_cabut:
           type: [string, 'null']
-          description: "dicabut_pemilik, dicabut_admin, sandi_diganti, sandi_direset, mfa_direset, akun_nonaktif, atau alasan admin"
+          enum: [dicabut_pemilik, dicabut_admin, sandi_diganti, sandi_direset, mfa_direset, akun_nonaktif, null]
+        keterangan_cabut: { type: [string, 'null'], description: "Teks alasan admin (dicabut_admin); null untuk alasan lain" }
+        dicabut_oleh: { $ref: '#/components/schemas/Pelaku', description: "Yang mencabut (pemilik, admin, atau pelaku ganti/reset sandi, reset MFA, nonaktif); null bila belum dicabut atau kedaluwarsa" }
     KebijakanKeamanan:
       type: object
       required: [versi, perangkat_tepercaya_hari, batas, diubah_pada]
