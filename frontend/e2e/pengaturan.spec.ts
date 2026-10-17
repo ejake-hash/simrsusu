@@ -750,6 +750,49 @@ test('reset sandi: sesi lama akun putus, sandi sementara sekali tampil, masuk de
   }
 })
 
+// ── Tiket 1.13: Pengaturan → Keamanan dan Perangkat tepercaya ──
+test('keamanan: masa percaya diubah lalu dipulihkan; Keamanan dan Perangkat tepercaya di 4 lebar + axe', async ({ page }, info) => {
+  const asal = new URL(info.project.use.baseURL ?? '').origin
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/pengaturan/keamanan')
+  const header = { Accept: 'application/json', Origin: asal, Referer: `${asal}/` }
+  const awal = await page.request.get('/api/v1/kebijakan-keamanan', { headers: header })
+  test.skip(awal.status() === 404, 'Backend belum punya /kebijakan-keamanan (sebelum 1.13-be).')
+  const semula = ((await awal.json()) as { data: { perangkat_tepercaya_hari: number } }).data.perangkat_tepercaya_hari
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Keamanan' })).toBeVisible()
+  const form = page.getByRole('form', { name: 'Perangkat tepercaya' })
+  const hari = form.getByLabel(/Masa percaya bawaan/)
+  const baru = semula === 14 ? 7 : 14
+  try {
+    await hari.fill(String(baru))
+    await form.getByLabel('Dasar perubahan').fill('Memo E2E/keamanan')
+    await form.getByRole('button', { name: 'Simpan kebijakan' }).click()
+    await expect(form.getByText(`Aktif · ${baru} hari`)).toBeVisible()
+    for (const lebar of [1440, 1024, 768, 390]) {
+      await page.setViewportSize({ width: lebar, height: 900 })
+      await tanpaGulirSamping(page)
+      const axe = await new AxeBuilder({ page }).analyze()
+      expect(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id), `keamanan ${lebar} px`).toEqual([])
+    }
+  } finally {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await hari.fill(String(semula))
+    await form.getByLabel('Dasar perubahan').fill('Pulihkan kebijakan E2E')
+    await form.getByRole('button', { name: 'Simpan kebijakan' }).click()
+    await expect(form.getByText(semula > 0 ? `Aktif · ${semula} hari` : 'Mati', { exact: true })).toBeVisible()
+  }
+
+  await page.goto('/perangkat')
+  await expect(page.getByRole('heading', { level: 1, name: 'Perangkat tepercaya' })).toBeVisible()
+  for (const lebar of [1440, 1024, 768, 390]) {
+    await page.setViewportSize({ width: lebar, height: 900 })
+    await tanpaGulirSamping(page)
+    const axe = await new AxeBuilder({ page }).analyze()
+    expect(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id), `perangkat ${lebar} px`).toEqual([])
+  }
+})
+
 // ── Tiket 1.8d: nonaktif/aktif akun dengan alasan ──
 test('1440 px: nonaktifkan akun dengan alasan lalu aktifkan kembali (contoh.terkunci); akun sendiri tanpa tombol', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })

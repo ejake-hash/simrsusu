@@ -69,6 +69,12 @@ export interface PeranRinci extends PeranRingkas {
   versi: string
   izin: string[]
   wajib_mfa_terkunci: boolean
+  /** Perangkat tepercaya (v0.16.0, tiket 1.13): null = ikut kebijakan instalasi. Opsional sampai 1.13-be. */
+  masa_percaya_hari?: number | null
+  /** Batas atas dari konfigurasi (superadmin, peran sensitif, atau umum). */
+  batas_masa_percaya_hari?: number
+  /** Kebijakan instalasi saat ini (baca saja), untuk teks "kosong = ikut instalasi". */
+  masa_percaya_instalasi_hari?: number
   dapat_disunting: boolean
   alasan_terkunci: AlasanTerkunci | null
   diubah_pada: string
@@ -204,6 +210,8 @@ export interface IsianUbahPeran {
   uraian?: string | null
   wajib_mfa?: boolean
   status?: 'aktif' | 'nonaktif'
+  /** v0.16.0: null = ikut kebijakan instalasi; di atas batas → 422 masa_percaya_melebihi_batas. */
+  masa_percaya_hari?: number | null
   dasar_perubahan: string
 }
 

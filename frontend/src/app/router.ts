@@ -57,6 +57,7 @@ export const router = createRouter({
         { path: 'integrasi/bpjs', name: 'integrasi-bpjs', component: () => import('@/modules/integrasi/pages/PemantauanIntegrasiPage.vue'), props: { tujuan: 'bpjs' }, meta: { judul: 'Bridging BPJS' } },
         { path: 'integrasi/log', name: 'integrasi-log', component: () => import('@/modules/integrasi/pages/LogIntegrasiPage.vue'), meta: { judul: 'Log integrasi' } },
         { path: 'pengaturan/penyiapan', name: 'pengaturan-penyiapan', component: () => import('@/modules/penyiapan/pages/PenyiapanPage.vue'), meta: { judul: 'Penyiapan instalasi' } },
+        { path: 'pengaturan/keamanan', name: 'pengaturan-keamanan', component: () => import('@/modules/akses/pages/KeamananPage.vue'), meta: { judul: 'Keamanan' } },
         { path: 'pengaturan/profil-rs', name: 'pengaturan-profil-rs', component: () => import('@/modules/organisasi/pages/ProfilRsPage.vue'), meta: { judul: 'Profil rumah sakit' } },
         { path: 'master-data/organisasi', name: 'master-data-organisasi', component: () => import('@/modules/organisasi/pages/OrganisasiPage.vue'), meta: { judul: 'Organisasi, Unit, Ruang & Tempat Tidur' } },
         { path: 'sdm/pegawai', name: 'sdm-pegawai', component: () => import('@/modules/sdm/pages/PegawaiPage.vue'), meta: { judul: 'Data pegawai' } },
@@ -64,6 +65,7 @@ export const router = createRouter({
         { path: 'master-data/jenis-tugas', name: 'master-data-jenis-tugas', component: () => import('@/modules/notifikasi/pages/JenisTugasPage.vue'), meta: { judul: 'Jenis Tugas, Tenggat & Eskalasi' } },
         // Halaman akun sendiri: tanpa izin khusus (/saya/*), bukan halaman menu.
         { path: 'tanda-tangan', name: 'tanda-tangan', component: () => import('@/modules/ttd/pages/TandaTanganPage.vue'), meta: { judul: 'Tanda tangan elektronik' } },
+        { path: 'perangkat', name: 'perangkat', component: () => import('@/modules/akses/pages/PerangkatPage.vue'), meta: { judul: 'Perangkat tepercaya' } },
         { path: 'notifikasi', name: 'notifikasi', component: () => import('@/modules/notifikasi/pages/NotifikasiPage.vue'), meta: { judul: 'Notifikasi' } },
         // Halaman modul didaftarkan di atas baris ini. Jalur lain: Segera hadir bila ada di menu, selain itu tidak ditemukan.
         { path: ':jalur(.*)*', name: 'menu', component: () => import('@/layouts/HalamanMenu.vue') },
