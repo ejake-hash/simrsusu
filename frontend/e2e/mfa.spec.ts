@@ -83,3 +83,48 @@ test('langkah kode di layar sempit: tanpa scroll samping, kembali ke langkah san
   await page.getByRole('button', { name: 'Kembali' }).click()
   await expect(page.getByRole('heading', { name: 'Masuk ke akun Anda' })).toBeVisible()
 })
+
+// Tiket 1.13: perangkat tepercaya. Dilewati bila server tidak menawarkan (sebelum 1.13-be, atau CI di luar jaringan RS).
+test('perangkat tepercaya: centang saat MFA → keluar → masuk lagi tanpa kode; cookie token tidak terbaca JavaScript', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'Kode TOTP sekali pakai; cukup sekali per run.')
+  // Uji sebelumnya memakai kode contoh.mfa: mulai di periode TOTP berikutnya.
+  const sisa = 30_000 - (Date.now() % 30_000)
+  test.info().setTimeout(test.info().timeout + sisa + 500)
+  await page.waitForTimeout(sisa + 500)
+
+  await masukSandi(page, 'contoh.mfa')
+  await expect(page.getByRole('heading', { name: 'Masukkan kode 6 digit' })).toBeVisible()
+  const kotak = page.getByRole('checkbox', { name: /Percayai perangkat ini selama \d+ hari/ })
+  test.skip(!(await kotak.isVisible()), 'Server tidak menawarkan percayai perangkat (sebelum 1.13-be atau di luar jaringan RS).')
+  await expect(kotak).not.toBeChecked()
+  await kotak.check()
+  await page.getByLabel('Kode verifikasi').fill(kodeTotp(RAHASIA_MFA))
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/\/$/)
+
+  const asal = new URL(page.url()).origin
+  const header = { Accept: 'application/json', Origin: asal, Referer: `${asal}/` }
+  try {
+    // Cookie token perangkat: HttpOnly, path sempit; JavaScript halaman tidak melihat nilainya.
+    const cookie = (await page.context().cookies()).find((c) => c.path === '/api/v1/autentikasi')
+    expect(cookie?.httpOnly).toBe(true)
+    expect(cookie?.sameSite).toBe('Strict')
+    expect(await page.evaluate(() => document.cookie)).not.toContain(cookie!.name)
+    await tanpaJejakDiStorage(page)
+
+    await page.getByRole('button', { name: 'Keluar' }).click()
+    await expect(page).toHaveURL(/\/masuk/)
+    await masukSandi(page, 'contoh.mfa')
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByText('Contoh Akun MFA', { exact: true })).toBeVisible()
+  } finally {
+    // Cabut lagi agar spec lain tetap diminta kode MFA untuk contoh.mfa.
+    const daftar = await page.request.get('/api/v1/saya/perangkat', { headers: header })
+    if (daftar.ok()) {
+      const xsrf = decodeURIComponent((await page.context().cookies()).find((c) => c.name === 'XSRF-TOKEN')?.value ?? '')
+      for (const p of ((await daftar.json()) as { data: { id: string }[] }).data) {
+        await page.request.post(`/api/v1/saya/perangkat/${p.id}/cabut`, { headers: { ...header, 'X-XSRF-TOKEN': xsrf } })
+      }
+    }
+  }
+})

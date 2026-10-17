@@ -23,13 +23,24 @@ describe('langkahDariRespons (PRD 10.3.2)', () => {
       challenge_id: 't-1',
       metode: ['totp', 'kode_cadangan'],
       kedaluwarsa_pada: '2026-10-10T10:00:00+07:00',
+      percayai_perangkat: { tersedia: false, hari: 0 },
     })
+  })
+
+  it('percayai_perangkat (1.13): tersedia hanya bila server menawarkan dengan hari > 0; backend lama = tidak tersedia', () => {
+    const dasar = { status: 'perlu_mfa', challenge_id: 't-1', metode: ['totp'], kedaluwarsa_pada: '' }
+    const tawaran = (p: unknown) => (langkahDariRespons({ ...dasar, percayai_perangkat: p }) as { percayai_perangkat: unknown }).percayai_perangkat
+    expect(tawaran({ tersedia: true, hari: 7 })).toEqual({ tersedia: true, hari: 7 })
+    expect(tawaran({ tersedia: false, hari: 0 })).toEqual({ tersedia: false, hari: 0 })
+    expect(tawaran({ tersedia: true, hari: 0 })).toEqual({ tersedia: false, hari: 0 })
+    expect(tawaran(undefined)).toEqual({ tersedia: false, hari: 0 })
+    expect(tawaran('ya')).toEqual({ tersedia: false, hari: 0 })
   })
 
   it('perlu_daftar_mfa', () => {
     expect(
       langkahDariRespons({ status: 'perlu_daftar_mfa', challenge_id: 't-2', kedaluwarsa_pada: '2026-10-10T10:00:00+07:00' }),
-    ).toEqual({ status: 'perlu_daftar_mfa', challenge_id: 't-2', kedaluwarsa_pada: '2026-10-10T10:00:00+07:00' })
+    ).toEqual({ status: 'perlu_daftar_mfa', challenge_id: 't-2', kedaluwarsa_pada: '2026-10-10T10:00:00+07:00', percayai_perangkat: { tersedia: false, hari: 0 } })
   })
 
   it('status tidak dikenal atau challenge hilang ditolak, tidak dianggap masuk', () => {

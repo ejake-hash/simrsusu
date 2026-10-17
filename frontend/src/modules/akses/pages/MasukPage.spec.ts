@@ -61,6 +61,7 @@ describe('MasukPage (mesin status PRD 10.3.2)', () => {
       challenge_id: 't-1',
       metode: ['totp'],
       kedaluwarsa_pada: '2026-10-10T10:05:00+07:00',
+      percayai_perangkat: { tersedia: false, hari: 0 },
     })
     const { w, router } = await pasang()
 

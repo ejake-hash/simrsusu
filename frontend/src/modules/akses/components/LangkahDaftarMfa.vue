@@ -6,6 +6,7 @@ import Pesan from '@/design-system/components/Pesan.vue'
 import Tombol from '@/design-system/components/Tombol.vue'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { konfirmasiDaftarMfa, mintaRahasiaMfa, type RahasiaMfa } from '../api'
+import KotakPercayaiPerangkat from './KotakPercayaiPerangkat.vue'
 import type { Langkah, LangkahTampil } from '../alurMasuk'
 import { tindakanMfaError } from '../mfaError'
 
@@ -36,6 +37,8 @@ const inputKode = useTemplateRef<HTMLInputElement>('inputKode')
 const judulCadangan = useTemplateRef<HTMLHeadingElement>('judulCadangan')
 
 const challengeId = computed(() => (props.langkah.status === 'perlu_daftar_mfa' ? props.langkah.challenge_id : ''))
+const tawaran = computed(() => (props.langkah.status === 'perlu_daftar_mfa' ? props.langkah.percayai_perangkat : { tersedia: false, hari: 0 }))
+const percayai = ref(false)
 // <img> data URI, bukan v-html: skrip di dalam SVG tidak dijalankan di <img>.
 const gambarQr = computed(() => (rahasia.value ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(rahasia.value.qr_svg)}` : ''))
 /** Kunci untuk diketik manual bila QR tidak bisa dipindai, dikelompokkan per 4 karakter. */
@@ -69,7 +72,7 @@ async function konfirmasi(): Promise<void> {
   proses.value = true
   error.value = null
   try {
-    const hasil = await konfirmasiDaftarMfa(challengeId.value, isi)
+    const hasil = await konfirmasiDaftarMfa(challengeId.value, isi, percayai.value && tawaran.value.tersedia)
     masuk.value = hasil.langkah
     kodeCadangan.value = hasil.kodeCadangan
     rahasia.value = null
@@ -164,6 +167,8 @@ async function selesai(): Promise<void> {
             spellcheck="false"
           />
         </KolomIsian>
+
+        <KotakPercayaiPerangkat v-model="percayai" :tawaran="tawaran" />
 
         <Tombol type="submit" varian="utama" ukuran="besar" penuh class="tombol-kirim" :sibuk="proses" :disabled="proses">
           {{ proses ? 'Memeriksa…' : 'Aktifkan' }}

@@ -9,10 +9,10 @@ import LangkahKodeMfa from './LangkahKodeMfa.vue'
 
 vi.mock('../api', () => ({ kirimKodeMfa: vi.fn(), ambilSaya: vi.fn(), keluar: vi.fn() }))
 
-function pasang(metode: MetodeMfa[] = ['totp', 'kode_cadangan']) {
+function pasang(metode: MetodeMfa[] = ['totp', 'kode_cadangan'], percayai_perangkat = { tersedia: false, hari: 0 }) {
   const lanjut = vi.fn().mockResolvedValue(undefined)
   const w = mount(LangkahKodeMfa, {
-    props: { langkah: { status: 'perlu_mfa', challenge_id: 't-1', metode, kedaluwarsa_pada: '' }, lanjut },
+    props: { langkah: { status: 'perlu_mfa', challenge_id: 't-1', metode, kedaluwarsa_pada: '', percayai_perangkat }, lanjut },
     attachTo: document.body,
   })
   return { w, lanjut }
@@ -36,8 +36,25 @@ describe('LangkahKodeMfa', () => {
     await w.get('form').trigger('submit')
     await flushPromises()
 
-    expect(kirimKodeMfa).toHaveBeenCalledWith('t-1', 'totp', '123456')
+    expect(kirimKodeMfa).toHaveBeenCalledWith('t-1', 'totp', '123456', false)
     expect(lanjut).toHaveBeenCalledWith({ status: 'masuk' })
+  })
+
+  it('percayai perangkat (1.13): tidak tampil bila tidak ditawarkan; ditawarkan → bawaan tidak dicentang, centang dikirim', async () => {
+    expect(pasang().w.find('input[name="percayai_perangkat"]').exists()).toBe(false)
+    document.body.innerHTML = ''
+
+    vi.mocked(kirimKodeMfa).mockResolvedValue({ status: 'masuk' })
+    const { w } = pasang(['totp'], { tersedia: true, hari: 7 })
+    const kotak = w.get('input[name="percayai_perangkat"]')
+    expect(w.text()).toContain('Percayai perangkat ini selama 7 hari')
+    expect((kotak.element as HTMLInputElement).checked).toBe(false)
+    expect(document.getElementById(kotak.attributes('aria-describedby')!)?.textContent).toContain('Jangan dicentang di komputer bersama')
+    await kotak.setValue(true)
+    await w.get('#kode-mfa').setValue('123456')
+    await w.get('form').trigger('submit')
+    await flushPromises()
+    expect(kirimKodeMfa).toHaveBeenCalledWith('t-1', 'totp', '123456', true)
   })
 
   it('kode belum 6 digit: tidak dikirim, pesan di kolom', async () => {
@@ -59,7 +76,7 @@ describe('LangkahKodeMfa', () => {
     await w.get('#kode-mfa').setValue(' abcde-fghjk ')
     await w.get('form').trigger('submit')
     await flushPromises()
-    expect(kirimKodeMfa).toHaveBeenCalledWith('t-1', 'kode_cadangan', 'abcde-fghjk')
+    expect(kirimKodeMfa).toHaveBeenCalledWith('t-1', 'kode_cadangan', 'abcde-fghjk', false)
   })
 
   it('tanpa kode cadangan dari server: pilihan itu tidak ditampilkan', () => {
