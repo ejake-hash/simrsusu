@@ -1,0 +1,95 @@
+# E2E penuh fase 1 di empat lebar (1440/1024/768/390) + axe. DoD bertingkat (ketentuan pemilik 17 Okt 2026): per-PR CI
+# (ci.yml) hanya 1440 px; suite empat lebar jalan tiap malam dan bisa dipicu manual (mis. sebelum menutup fase).
+name: E2E malam
+on:
+  schedule:
+    - cron: '0 18 * * *' # 01.00 WIB
+  workflow_dispatch: {}
+
+jobs:
+  e2e-penuh:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5433
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      # Empat lebar (tanpa E2E_LEBAR; bawaan spec = 1440/1024/768/390).
+      # Semua nilai di bawah sintetis dan publik (sama dengan ci.yml); DILARANG dipakai di server.
+      AKUN_SINTETIS_SANDI: e2e-ci-sintetis-kuda-biru
+      E2E_SANDI: e2e-ci-sintetis-kuda-biru
+      AKUN_SINTETIS_MFA_RAHASIA: KRSXG5CTMVRXEZLUKRSXG5CTMVRXEZLU
+      E2E_MFA_RAHASIA: KRSXG5CTMVRXEZLUKRSXG5CTMVRXEZLU
+      AKUN_SINTETIS_SUPERADMIN_MFA_RAHASIA: MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U
+      E2E_SUPERADMIN_MFA_RAHASIA: MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U
+      AKUN_SINTETIS_SUPERADMIN_DUA_MFA_RAHASIA: GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ
+      E2E_SUPERADMIN_DUA_MFA_RAHASIA: GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ
+      AKUN_SINTETIS_SDM_MFA_RAHASIA: ONSG2YLEMJUW4U3ENVQWI3LJNZJWI3LB
+      E2E_SDM_MFA_RAHASIA: ONSG2YLEMJUW4U3ENVQWI3LJNZJWI3LB
+      TTD_KUNCI: base64:ZTJlLWNpLXR0ZC1rdW5jaS1zZXJ2ZXItc2ludGV0aXM=
+      AKUN_SINTETIS_TTD_PIN: "482916"
+      E2E_TTD_PIN: "482916"
+      TTD_KUNCI_MENIT: 1
+      KREDENSIAL_KUNCI: base64:ZTJlLWNpLWtyZWRlbnNpYWwta3VuY2ktc2ludGV0aXM=
+      INTEGRASI_SIMULATOR: "true"
+      AKUN_SINTETIS_INTEGRASI_MFA_RAHASIA: NFXHIZLHOJQXG2LTNFXHIZLHOJQXG2LT
+      E2E_INTEGRASI_MFA_RAHASIA: NFXHIZLHOJQXG2LTNFXHIZLHOJQXG2LT
+      TRUSTED_PROXIES: 127.0.0.1
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Jalankan Valkey
+        working-directory: .
+        run: docker compose up -d --wait valkey valkey-cache
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, pgsql
+          coverage: none
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Siapkan role, database, dan skema
+        run: docker/postgres/init/00-init.sh
+
+      - name: Backend (APP_ENV=local dari .env.example, cookie tanpa Secure di http)
+        working-directory: backend
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          cp .env.example .env && php artisan key:generate
+          php artisan migrate --database=pgsql_migrator --force
+          php artisan db:seed --force
+          php artisan serve --host=127.0.0.1 --port=8000 > ../serve.log 2>&1 &
+          curl --retry 20 --retry-connrefused --retry-delay 1 -fsS http://127.0.0.1:8000/up > /dev/null
+
+      - name: Playwright (empat lebar)
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report/
+            serve.log
+          retention-days: 7

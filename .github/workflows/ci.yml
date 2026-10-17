@@ -116,6 +116,8 @@ jobs:
       PGPORT: 5433
       PGUSER: postgres
       PGPASSWORD: postgres
+      # DoD bertingkat (17 Okt 2026): per-PR hanya 1440 px. E2E penuh 4 lebar jalan di e2e-nightly.yml dan gerbang fase.
+      E2E_LEBAR: "1440"
       # Sandi akun sintetis di database CI sekali pakai; bukan rahasia.
       AKUN_SINTETIS_SANDI: e2e-ci-sintetis-kuda-biru
       E2E_SANDI: e2e-ci-sintetis-kuda-biru
