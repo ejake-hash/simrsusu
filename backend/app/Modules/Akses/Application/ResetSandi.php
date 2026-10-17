@@ -26,6 +26,7 @@ final class ResetSandi
     public function __construct(
         private readonly CatatAktivitas $audit,
         private readonly PenjagaPenyunting $penjaga,
+        private readonly KelolaPerangkat $perangkat,
     ) {}
 
     /**
@@ -94,6 +95,8 @@ final class ResetSandi
                 'percobaan_gagal' => 0, 'terkunci_sampai' => null, 'diubah_oleh' => $pelakuId,
             ])->save();
             $akun->cabutSesi();
+            // Perangkat tepercaya dicabut: sandi lama tak berlaku lagi, jangan ada perangkat yang melewati MFA (tiket 1.13).
+            $this->perangkat->cabutSemua($akun->id, 'sandi_direset', $pelakuId);
             // Tanpa nilai sandi (PRD 14.2). catat() di akhir transaksi (ADR 0003).
             $this->audit->catat($aksi, $pelakuId, 'akses.pengguna', $akun->id, [...$catatan, 'sesi_diputus' => true]);
 

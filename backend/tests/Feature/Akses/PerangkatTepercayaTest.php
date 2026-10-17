@@ -171,6 +171,14 @@ class PerangkatTepercayaTest extends TestCase
         $this->minta('POST', "/api/v1/akun/{$lain->id}/mfa/reset", ['alasan' => 'Ponsel hilang', 'dasar' => self::DASAR])->assertOk();
         $this->assertSame('mfa_direset', PerangkatTepercaya::query()->where('pengguna_id', $lain->id)->sole()->alasan_cabut);
 
+        // Reset sandi oleh admin (tiket 1.14) juga mencabut perangkat akun itu.
+        [$empat, $rahasiaEmpat] = $this->akunBerMfa();
+        $this->mulaiSesiSpa();
+        $this->masukDenganMfa($empat, $rahasiaEmpat, percayai: true);
+        $this->masukSebagai($this->pengelola());
+        $this->minta('POST', "/api/v1/akun/{$empat->id}/sandi/reset", ['alasan' => 'Lupa sandi', 'dasar' => self::DASAR])->assertOk();
+        $this->assertSame('sandi_direset', PerangkatTepercaya::query()->where('pengguna_id', $empat->id)->sole()->alasan_cabut);
+
         // Nonaktif juga.
         [$ketiga, $rahasiaKetiga] = $this->akunBerMfa();
         $this->mulaiSesiSpa();
