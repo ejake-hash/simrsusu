@@ -42,7 +42,7 @@ const skema = z
     path: ['kode'],
     message: 'Huruf kecil, angka, atau garis bawah; diawali huruf; 2–50 karakter.',
   })
-  .refine((v) => !batasPercaya.value || !v.masa_percaya || (/^\d+$/.test(v.masa_percaya) && Number(v.masa_percaya) <= batasPercaya.value), {
+  .refine((v) => batasPercaya.value === undefined || !v.masa_percaya || (/^\d+$/.test(v.masa_percaya) && Number(v.masa_percaya) <= batasPercaya.value), {
     path: ['masa_percaya'],
     message: 'Kosongkan, atau isi 0 sampai batas hari.',
   })

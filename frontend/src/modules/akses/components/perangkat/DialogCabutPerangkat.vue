@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 import Dialog from '@/design-system/components/Dialog.vue'
 import Tombol from '@/design-system/components/Tombol.vue'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
+import { ApiError } from '@/shared/api/klien'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import { cabutPerangkatAkun, cabutPerangkatSaya } from '../../apiPerangkat'
 import { errorKolom, pesanError } from '../../pengaturan'
@@ -16,6 +18,7 @@ const props = defineProps<{ perangkat: PerangkatTepercaya | null; akunId?: strin
 const buka = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ selesai: [perangkat: PerangkatTepercaya] }>()
 
+const qc = useQueryClient()
 const alasan = ref('')
 const errorAlasan = ref<string | undefined>()
 const error = ref<string | null>(null)
@@ -46,6 +49,8 @@ async function kirim() {
     const kolom = errorKolom(e, ['alasan'])
     if (kolom.alasan) errorAlasan.value = kolom.alasan
     else error.value = pesanError(e)
+    // Sudah dicabut/kedaluwarsa di tempat lain: segarkan daftar agar tombol Cabut hilang.
+    if (e instanceof ApiError && e.status === 409) void qc.invalidateQueries({ queryKey: ['perangkat'] })
   } finally {
     sibuk.value = false
   }

@@ -22,10 +22,12 @@ import { errorKolom, pesanError } from '../pengaturan'
  */
 const qc = useQueryClient()
 const bolehUbah = computed(() => boleh('pengaturan.keamanan.perbaiki'))
-const kueri = useQuery({ queryKey: KUNCI_PERANGKAT.kebijakan, queryFn: ambilKebijakanKeamanan, staleTime: 0 })
+// Tanpa izin lihat, data halaman tidak diminta sama sekali (HalamanModul menampilkan Akses ditolak).
+const kueri = useQuery({ queryKey: KUNCI_PERANGKAT.kebijakan, queryFn: ambilKebijakanKeamanan, staleTime: 0, enabled: computed(() => boleh('pengaturan.keamanan.lihat')) })
 const data = computed(() => kueri.data.value ?? null)
 
 const hari = ref('')
+const hariAwal = ref('')
 const dasar = ref('')
 const etagDasar = ref<string | null>(null)
 const kesalahan = ref<{ hari?: string; dasar?: string }>({})
@@ -36,21 +38,20 @@ const sibuk = ref(false)
 function isi({ kebijakan, etag }: KebijakanBerversi) {
   etagDasar.value = etag
   hari.value = String(kebijakan.perangkat_tepercaya_hari)
+  hariAwal.value = hari.value
   dasar.value = ''
   kesalahan.value = {}
 }
-let terisi = false
+/** Ada suntingan yang belum disimpan (dibanding nilai saat formulir diisi). */
+const berubah = computed(() => hari.value !== hariAwal.value || dasar.value.trim() !== '')
+// Isi saat data pertama datang; muat ulang di latar mengisi ulang hanya bila belum ada suntingan (suntingan tidak ditimpa).
 watch(
   data,
   (d) => {
-    if (d && !terisi) {
-      terisi = true
-      isi(d)
-    }
+    if (d && (!etagDasar.value || !berubah.value)) isi(d)
   },
   { immediate: true },
 )
-const berubah = computed(() => !!data.value && hari.value !== String(data.value.kebijakan.perangkat_tepercaya_hari))
 
 async function simpan() {
   if (!data.value || !etagDasar.value) return

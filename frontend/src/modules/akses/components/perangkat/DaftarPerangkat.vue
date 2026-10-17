@@ -38,6 +38,10 @@ const emit = defineEmits<{ muatLagi: []; cabut: [perangkat: PerangkatTepercaya] 
           <dt>Berlaku sampai</dt>
           <dd>{{ formatTanggalWaktu(p.berlaku_sampai) }}</dd>
         </div>
+        <div v-else-if="p.status === 'kedaluwarsa'">
+          <dt>Berakhir</dt>
+          <dd>{{ formatTanggalWaktu(p.berlaku_sampai) }}</dd>
+        </div>
         <div v-else-if="p.dicabut_pada">
           <dt>Dicabut</dt>
           <dd>
@@ -47,7 +51,7 @@ const emit = defineEmits<{ muatLagi: []; cabut: [perangkat: PerangkatTepercaya] 
         </div>
       </dl>
       <div v-if="bolehCabut && p.status === 'aktif'" class="aksi">
-        <button type="button" class="tombol" @click="emit('cabut', p)">Cabut</button>
+        <button type="button" class="tombol" :aria-label="`Cabut ${p.nama_perangkat}`" @click="emit('cabut', p)">Cabut</button>
       </div>
     </li>
   </ul>
