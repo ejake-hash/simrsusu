@@ -69,9 +69,12 @@ final class PerangkatController
             ->when($request->query('status', 'aktif') === 'aktif', fn (Builder $q) => $q->whereNull('dicabut_pada')
                 ->where('berlaku_sampai', '>', now()->format('Y-m-d H:i:s.uP')));
 
+        // Masa percaya efektif sama untuk semua perangkat pemilik: dihitung sekali (hindari N+1 di filter dan presenter).
+        $hariEfektif = $this->kelola->hariEfektif($pemilik);
+
         return Paginasi::respons($query, $request, 'dibuat_pada', bentuk: fn ($baris) => $this->presenter->daftar(
             $request->query('status', 'aktif') === 'aktif'
-                ? $baris->filter(fn (PerangkatTepercaya $p) => $this->kelola->status($p, $pemilik) === 'aktif')->values()
+                ? $baris->filter(fn (PerangkatTepercaya $p) => $this->kelola->status($p, $pemilik, $hariEfektif) === 'aktif')->values()
                 : $baris,
             $pemilik, $perangkatSesi !== '' ? $perangkatSesi : null,
         ));

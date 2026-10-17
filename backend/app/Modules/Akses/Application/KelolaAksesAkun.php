@@ -256,10 +256,11 @@ final class KelolaAksesAkun
                 'diubah_oleh' => $penyunting->id,
             ])->save();
             $akun->cabutSesi();
-            $this->perangkat->cabutSemua($akun->id, 'mfa_direset', $penyunting->id);
             DB::table('akses.kode_cadangan_mfa')->where('pengguna_id', $akun->id)
                 ->whereNull('dipakai_pada')->whereNull('dibatalkan_pada')->update(['dibatalkan_pada' => $sekarang]);
-
+            // Pencabutan perangkat (catat() di dalamnya) dan catat() penutup di akhir: tak ada DML bisnis di antaranya,
+            // jadi kunci rantai audit tidak dipegang selama UPDATE (ADR 0003, CLAUDE.md).
+            $this->perangkat->cabutSemua($akun->id, 'mfa_direset', $penyunting->id);
             // Tanpa rahasia TOTP atau kode cadangan di log (PRD 14.2).
             $this->audit->catat('akses.mfa_direset', $penyunting->id, 'akses.pengguna', $akun->id, [
                 'alasan' => $alasan, 'dasar' => $dasar, 'sesi_diputus' => true,

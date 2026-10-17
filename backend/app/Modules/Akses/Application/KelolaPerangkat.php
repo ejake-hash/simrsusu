@@ -159,20 +159,23 @@ final class KelolaPerangkat
         $request->attributes->set(self::ATRIBUT, $perangkat);
     }
 
-    /** Masa berlaku efektif: tersimpan, atau lebih pendek bila kebijakan yang berlaku sekarang lebih ketat. */
-    public function berlakuSampai(PerangkatTepercaya $perangkat, Pengguna $pengguna): CarbonInterface
+    /**
+     * Masa berlaku efektif: tersimpan, atau lebih pendek bila kebijakan yang berlaku sekarang lebih ketat. $hariEfektif
+     * boleh dihitung sekali per pemilik (daftar perangkat) untuk menghindari N+1.
+     */
+    public function berlakuSampai(PerangkatTepercaya $perangkat, Pengguna $pengguna, ?int $hariEfektif = null): CarbonInterface
     {
-        $menurutKebijakan = $perangkat->dibuat_pada->copy()->addDays($this->hariEfektif($pengguna));
+        $menurutKebijakan = $perangkat->dibuat_pada->copy()->addDays($hariEfektif ?? $this->hariEfektif($pengguna));
 
         return $perangkat->berlaku_sampai->lessThan($menurutKebijakan) ? $perangkat->berlaku_sampai : $menurutKebijakan;
     }
 
     /** @return 'aktif'|'kedaluwarsa'|'dicabut' */
-    public function status(PerangkatTepercaya $perangkat, Pengguna $pengguna): string
+    public function status(PerangkatTepercaya $perangkat, Pengguna $pengguna, ?int $hariEfektif = null): string
     {
         return match (true) {
             $perangkat->dicabut_pada !== null => 'dicabut',
-            $this->berlakuSampai($perangkat, $pengguna)->isFuture() => 'aktif',
+            $this->berlakuSampai($perangkat, $pengguna, $hariEfektif)->isFuture() => 'aktif',
             default => 'kedaluwarsa',
         };
     }

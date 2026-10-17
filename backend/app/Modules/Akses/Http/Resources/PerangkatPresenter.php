@@ -26,14 +26,16 @@ final class PerangkatPresenter
         $akun = Pengguna::query()->whereIn('id', $baris->pluck('dicabut_oleh')->filter()->unique()->values())->get(['id', 'pegawai_id', 'nama_pengguna']);
         $nama = $this->pegawai->nama($akun->pluck('pegawai_id'));
         $pelaku = $akun->mapWithKeys(fn (Pengguna $a) => [$a->id => ['id' => $a->id, 'nama' => $nama[$a->pegawai_id] ?? $a->nama_pengguna]])->all();
+        // Masa percaya efektif sama untuk semua perangkat pemilik ini: dihitung sekali (hindari N+1).
+        $hariEfektif = $this->kelola->hariEfektif($pemilik);
 
         return $baris->map(fn (PerangkatTepercaya $p) => [
             'id' => $p->id,
             'nama_perangkat' => $p->nama_perangkat,
-            'status' => $this->kelola->status($p, $pemilik),
+            'status' => $this->kelola->status($p, $pemilik, $hariEfektif),
             'dibuat_pada' => $p->dibuat_pada->toIso8601String(),
             'terakhir_dipakai_pada' => $p->terakhir_dipakai_pada?->toIso8601String(),
-            'berlaku_sampai' => $this->kelola->berlakuSampai($p, $pemilik)->toIso8601String(),
+            'berlaku_sampai' => $this->kelola->berlakuSampai($p, $pemilik, $hariEfektif)->toIso8601String(),
             'perangkat_ini' => $perangkatSesi !== null && $perangkatSesi === $p->id,
             'dicabut_pada' => $p->dicabut_pada?->toIso8601String(),
             'alasan_cabut' => $p->alasan_cabut,
