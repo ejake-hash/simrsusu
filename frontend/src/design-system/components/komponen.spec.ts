@@ -14,14 +14,14 @@ afterEach(() => {
 const tekan = (el: Element, key: string) => el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
 
 describe('Dialog', () => {
-  function pasang(sibuk = false, peringatan = false) {
+  function pasang(sibuk = false, peringatan = false, tutupLewatTombol = false) {
     return mount(
       defineComponent({
         components: { Dialog },
-        setup: () => ({ buka: ref(false), sibuk, peringatan }),
+        setup: () => ({ buka: ref(false), sibuk, peringatan, tutupLewatTombol }),
         template: `
           <button id="pemicu" @click="buka = true">Akhiri</button>
-          <Dialog v-model:open="buka" judul="Akhiri pencabutan?" uraian="Akses kembali sesuai peran." :sibuk="sibuk" :peringatan="peringatan">
+          <Dialog v-model:open="buka" judul="Akhiri pencabutan?" uraian="Akses kembali sesuai peran." :sibuk="sibuk" :peringatan="peringatan" :tutup-lewat-tombol="tutupLewatTombol">
             <label>Alasan <input id="alasan" /></label>
             <template #aksi><button id="ya">Akhiri</button></template>
           </Dialog>`,
@@ -58,6 +58,24 @@ describe('Dialog', () => {
     await flushPromises()
     expect(document.querySelector('[role="dialog"]')).not.toBeNull()
     expect((document.querySelector('button[aria-label="Tutup"]') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('tutupLewatTombol: Esc tidak menutup, tombol tutup tetap bisa dipakai', async () => {
+    const w = pasang(false, false, true)
+    await w.get('#pemicu').trigger('click')
+    await flushPromises()
+    tekan(document.activeElement!, 'Escape')
+    await flushPromises()
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    // Klik di luar (tirai) juga ditahan.
+    document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    const tutup = document.querySelector('button[aria-label="Tutup"]') as HTMLButtonElement
+    expect(tutup.disabled).toBe(false)
+    tutup.click()
+    await flushPromises()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
   it('peringatan = role alertdialog', async () => {

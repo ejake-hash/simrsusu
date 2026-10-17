@@ -130,6 +130,15 @@ export async function resetMfaAkun(akunId: string, alasan: string, dasar: string
   return data.data
 }
 
+/**
+ * POST /akun/{id}/sandi/reset (kontrak v0.15.0, tiket 1.14): sandi sementara dikirim sekali (no-store). Pemanggil hanya
+ * menampilkannya; tidak disimpan di cache kueri, penyimpanan peramban, atau log.
+ */
+export async function resetSandiAkun(akunId: string, alasan: string, dasar: string): Promise<{ akun: AkunRingkas; sandi_sementara: string }> {
+  const { data } = await klien.post<{ data: { akun: AkunRingkas; sandi_sementara: string } }>(`/akun/${akunId}/sandi/reset`, { alasan, dasar })
+  return data.data
+}
+
 // ── Lapis 4: label sensitivitas (kontrak v0.14.0, tiket 1.5) ──
 
 /** Daftar label beserta penyetujunya. Jumlah label sedikit (data induk PRD 11.2): satu halaman berbatas 200. */

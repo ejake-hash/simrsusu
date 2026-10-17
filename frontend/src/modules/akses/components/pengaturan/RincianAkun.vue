@@ -8,6 +8,7 @@ import { formatTanggalWaktu } from '@/shared/utils/waktu'
 import { ambilAkun } from '../../apiPengaturan'
 import type { IndeksMatriks } from '../../matriks'
 import { KUNCI, pesanError } from '../../pengaturan'
+import DialogResetSandi from './DialogResetSandi.vue'
 import DialogStatusAkun from './DialogStatusAkun.vue'
 import TabLabel from './TabLabel.vue'
 import TabLihatSebagai from './TabLihatSebagai.vue'
@@ -42,6 +43,7 @@ watch(
 )
 
 const dialogStatus = ref(false)
+const dialogSandi = ref(false)
 /** Nonaktif/aktif hanya untuk akun yang boleh diubah akun ini (bukan diri sendiri, bukan superadmin oleh non-superadmin). */
 const bolehUbahStatus = computed(() => !!akun.value && akun.value.dapat_diubah && boleh('pengaturan.akun.perbaiki'))
 
@@ -59,7 +61,8 @@ function berubah(teks: string) {
 <template>
   <section class="kartu rincian" aria-labelledby="judul-rincian-akun">
     <div v-if="kueri.isPending.value" class="kartu-isi keadaan" role="status">Memuat akun…</div>
-    <div v-else-if="kueri.isError.value" class="kartu-isi" role="alert">
+    <!-- Muat ulang latar yang gagal tidak melepas rincian (dan dialog yang sedang terbuka) bila data sudah ada. -->
+    <div v-else-if="kueri.isError.value && !akun" class="kartu-isi" role="alert">
       <p class="catatan catatan-bahaya">{{ pesanError(kueri.error.value) }}</p>
       <button type="button" class="tombol" @click="kueri.refetch()">Coba lagi</button>
     </div>
@@ -79,6 +82,8 @@ function berubah(teks: string) {
         <button type="button" class="tombol" :class="{ 'tombol-bahaya': akun.status === 'aktif' }" @click="dialogStatus = true">
           {{ akun.status === 'aktif' ? 'Nonaktifkan akun' : 'Aktifkan akun' }}
         </button>
+        <!-- Tiket 1.14: akun nonaktif diaktifkan dulu (server 409 akun_nonaktif). -->
+        <button v-if="akun.status === 'aktif'" type="button" class="tombol" @click="dialogSandi = true">Reset sandi</button>
       </div>
       <div class="kartu-isi">
         <p v-if="akun.diri_sendiri" class="catatan catatan-netral catatan-atas">
@@ -106,6 +111,13 @@ function berubah(teks: string) {
           <template #mfa><TabMfa :akun="akun" @berubah="berubah" /></template>
         </Tabs>
       </div>
+      <DialogResetSandi
+        v-model:open="dialogSandi"
+        :akun-id="akun.id"
+        :nama-akun="akun.nama"
+        :nama-pengguna="akun.nama_pengguna"
+        @selesai="(h) => berubah(`Sandi ${h.nama_pengguna} direset; sesinya diputus dan pemiliknya wajib mengganti sandi saat masuk.`)"
+      />
       <DialogStatusAkun
         v-model:open="dialogStatus"
         :akun="akun"
@@ -128,6 +140,9 @@ function berubah(teks: string) {
   gap: var(--space-1);
 }
 .aksi-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   padding-bottom: 0;
 }
 .catatan-atas {

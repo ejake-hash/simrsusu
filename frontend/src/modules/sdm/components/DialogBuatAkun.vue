@@ -5,6 +5,7 @@ import Tombol from '@/design-system/components/Tombol.vue'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import { errorKolom, pesanError } from '@/modules/akses/pengaturan'
+import SandiSekali from '@/shared/components/SandiSekali.vue'
 import { buatAkunPegawai } from '../api'
 import type { PegawaiRinci } from '../tipe'
 
@@ -26,8 +27,6 @@ const error = ref<string | null>(null)
 const sibuk = ref(false)
 /** Langkah kedua: akun dibuat. `sandi` hanya hidup selama dialog terbuka. */
 const hasil = ref<{ akunId: string; namaPengguna: string; sandi: string } | null>(null)
-const tersalin = ref(false)
-const sandiTampil = ref(false)
 
 /** Saran dari nama pegawai: huruf kecil, kata dipisah titik (mis. "Contoh Bidan Baru" → contoh.bidan.baru). */
 const saran = computed(() =>
@@ -46,8 +45,6 @@ const saran = computed(() =>
 watch(buka, (b) => {
   // Buka atau tutup = lupakan sandi awal.
   hasil.value = null
-  tersalin.value = false
-  sandiTampil.value = false
   if (!b) return
   namaPengguna.value = POLA.test(saran.value) ? saran.value : ''
   email.value = ''
@@ -79,24 +76,14 @@ async function kirim() {
   }
 }
 
-async function salin() {
-  if (!hasil.value) return
-  try {
-    await navigator.clipboard.writeText(hasil.value.sandi)
-    tersalin.value = true
-  } catch {
-    // Clipboard ditolak peramban: pengguna menyalin manual dari teks yang ditampilkan.
-    sandiTampil.value = true
-  }
-}
 </script>
 
 <template>
-  <Dialog v-model:open="buka" :judul="hasil ? 'Akun dibuat' : `Buat akun untuk ${pegawai?.nama ?? ''}`" :sibuk="sibuk">
+  <Dialog v-model:open="buka" :judul="hasil ? 'Akun dibuat' : `Buat akun untuk ${pegawai?.nama ?? ''}`" :sibuk="sibuk" :tutup-lewat-tombol="!!hasil">
     <div v-if="hasil" class="hasil">
       <p class="catatan catatan-peringatan">
         <Ikon nama="peringatan" :ukuran="16" />
-        <span>Sandi awal hanya ditampilkan sekali dan tidak bisa dipulihkan. Serahkan langsung kepada pemilik akun; ia wajib menggantinya saat masuk pertama.</span>
+        <span>Sandi awal hanya ditampilkan sekali. Serahkan langsung kepada pemilik akun; ia wajib menggantinya saat masuk pertama. Bila hilang, sandi bisa direset di Pengaturan → Akun & akses.</span>
       </p>
       <dl class="info">
         <div>
@@ -105,17 +92,9 @@ async function salin() {
         </div>
         <div>
           <dt>Sandi awal</dt>
-          <dd>
-            <code v-if="sandiTampil" class="sandi">{{ hasil.sandi }}</code>
-            <span v-else class="sandi"><span aria-hidden="true">{{ '•'.repeat(hasil.sandi.length) }}</span><span class="sr-only">Disembunyikan</span></span>
-          </dd>
+          <dd><SandiSekali :sandi="hasil.sandi" label="Sandi awal" /></dd>
         </div>
       </dl>
-      <div class="aksi-sandi">
-        <button type="button" class="tombol" :aria-pressed="sandiTampil" @click="sandiTampil = !sandiTampil">{{ sandiTampil ? 'Sembunyikan' : 'Tampilkan' }}</button>
-        <button type="button" class="tombol" @click="salin"><Ikon nama="salin" :ukuran="16" />{{ tersalin ? 'Tersalin' : 'Salin sandi' }}</button>
-      </div>
-      <p class="ket" role="status">{{ tersalin ? 'Sandi awal tersalin ke papan klip.' : '' }}</p>
       <p class="ket">Akun belum punya peran. Tugaskan peran lewat Pengaturan → Akun & akses.</p>
     </div>
     <form v-else id="form-buat-akun" novalidate @submit.prevent="kirim">
@@ -168,15 +147,6 @@ code {
 .info dd {
   margin: 0;
   overflow-wrap: anywhere;
-}
-.sandi {
-  font-size: 15px;
-  letter-spacing: 0.04em;
-}
-.aksi-sandi {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
 }
 .ket {
   margin: var(--space-2) 0 0;

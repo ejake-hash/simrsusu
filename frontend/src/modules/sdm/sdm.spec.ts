@@ -217,7 +217,7 @@ describe('Rincian pegawai', () => {
     expect(dialog()?.querySelector('h2')?.textContent).toBe('Akun dibuat')
     expect(dialog()!.querySelector('code.sandi')).toBeNull()
     expect(dialog()!.querySelector('.sandi')?.textContent).toMatch(/^•+Disembunyikan$/)
-    await klik(tombol('Tampilkan', dialog()!))
+    await klik(tombol('Tampilkan sandi', dialog()!))
     const sandi = dialog()!.querySelector('code.sandi')!.textContent!
     expect(sandi).toMatch(/^[A-Za-z0-9-]{16,}$/)
     await klik(tombol('Selesai', dialog()!))
@@ -243,7 +243,7 @@ describe('Buat akun saat muat ulang gagal', () => {
     await kirim('form-buat-akun')
     await tenang(50)
     expect(dialog()?.querySelector('h2')?.textContent).toBe('Akun dibuat')
-    await klik(tombol('Tampilkan', dialog()!))
+    await klik(tombol('Tampilkan sandi', dialog()!))
     expect(dialog()!.querySelector('code.sandi')?.textContent).toMatch(/^[A-Za-z0-9-]{16,}$/)
     expect(rincian().querySelector('h2')?.textContent).toBe('Contoh Bidan Baru')
     expect(rincian().textContent).toContain('Gagal memuat ulang')
@@ -261,13 +261,13 @@ describe('Ganti sandi', () => {
 
     await pasang(GantiSandiPage, {}, '/ganti-sandi?kembali=/sdm/pegawai')
     expect(document.querySelector('h1')?.textContent).toBe('Buat sandi Anda sendiri')
-    await isi('Sandi awal', 'salah-sekali')
+    await isi('Sandi dari admin', 'salah-sekali')
     await isi('Sandi baru', 'contoh.superadmin-panjang')
     await isi('Ulangi sandi baru', 'contoh.superadmin-panjang')
     await klik(document.querySelector<HTMLButtonElement>('button[type="submit"]'))
-    expect(document.body.textContent).toContain('Sandi awal salah.')
+    expect(document.body.textContent).toContain('Sandi dari admin salah.')
 
-    await isi('Sandi awal', SANDI_TIRUAN)
+    await isi('Sandi dari admin', SANDI_TIRUAN)
     await klik(document.querySelector<HTMLButtonElement>('button[type="submit"]'))
     expect(document.body.textContent).toContain('tidak boleh memuat nama pengguna')
 

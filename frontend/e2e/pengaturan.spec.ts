@@ -681,6 +681,75 @@ test('halaman masuk dapat diatur: teks dan foto baru tampil di /masuk tanpa buil
   }
 })
 
+// ── Tiket 1.14: reset sandi oleh admin ──
+test('reset sandi: sesi lama akun putus, sandi sementara sekali tampil, masuk dengan sandi itu dipaksa ganti; akun sendiri tanpa tombol', async ({ page, browser }, info) => {
+  const asal = new URL(info.project.use.baseURL ?? '').origin
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/pengaturan/akun')
+  // Sebelum 1.14-be rute belum ada (404); sesudahnya akun sendiri → 403/422, tidak pernah 404.
+  const xsrf = decodeURIComponent((await page.context().cookies()).find((c) => c.name === 'XSRF-TOKEN')?.value ?? '')
+  const header = { Accept: 'application/json', Origin: asal, Referer: `${asal}/`, 'X-XSRF-TOKEN': xsrf }
+  const saya = ((await (await page.request.get('/api/v1/saya', { headers: header })).json()) as { data: { id: string } }).data
+  const uji = await page.request.post(`/api/v1/akun/${saya.id}/sandi/reset`, { headers: header, data: {} })
+  test.skip(uji.status() === 404, 'Backend belum punya POST /akun/{id}/sandi/reset (sebelum 1.14-be).')
+
+  await pilihAkun(page, 'contoh.superadmin', 'Contoh Superadmin')
+  await expect(page.getByRole('button', { name: 'Reset sandi' })).toHaveCount(0)
+
+  // Sesi lama pemilik akun yang akan direset; permintaan SPA bersesi butuh Origin/Referer (Sanctum stateful).
+  const lama = await halamanAkun(browser, asal, 'contoh.tanpa.peran')
+  const sayaLama = () => lama.page.request.get('/api/v1/saya', { headers: { Accept: 'application/json', Origin: asal, Referer: `${asal}/` } })
+  expect((await sayaLama()).status(), 'sesi lama hidup sebelum reset').toBe(200)
+
+  await pilihAkun(page, 'contoh.tanpa.peran', 'Contoh Akun Tanpa Peran')
+  await page.getByRole('button', { name: 'Reset sandi' }).click()
+  const dialog = page.getByRole('alertdialog', { name: 'Reset sandi Contoh Akun Tanpa Peran?' })
+  await dialog.getByLabel('Alasan').fill('Pemilik lupa sandi, diverifikasi tatap muka (e2e)')
+  await dialog.getByLabel('Dasar').fill('Tiket layanan E2E/reset')
+  await dialog.getByRole('button', { name: 'Reset sandi' }).click()
+  const hasil = page.getByRole('alertdialog', { name: 'Sandi sementara Contoh Akun Tanpa Peran' })
+  await expect(hasil.getByText('Sandi ini tidak akan ditampilkan lagi')).toBeVisible()
+  await expect(hasil.locator('code.sandi')).toHaveCount(0)
+  // Soft: kegagalan di sini tidak boleh menghentikan uji sebelum sandi contoh.tanpa.peran dipulihkan di bawah.
+  for (const lebar of [1440, 1024, 768]) {
+    await page.setViewportSize({ width: lebar, height: 900 })
+    const axe = await new AxeBuilder({ page }).analyze()
+    expect.soft(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id), `${lebar} px`).toEqual([])
+  }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  // Esc tidak menutup selama sandi sekali tampil (hanya Selesai/Tutup).
+  await page.keyboard.press('Escape')
+  await expect(hasil).toBeVisible()
+  await hasil.getByRole('button', { name: 'Tampilkan sandi' }).click()
+  const sementara = (await hasil.locator('code.sandi').textContent()) ?? ''
+  expect(sementara.length).toBeGreaterThanOrEqual(16)
+  sesiAkun.delete('contoh.tanpa.peran')
+  try {
+    await hasil.getByRole('button', { name: 'Selesai' }).click()
+    await expect(page.getByText(sementara)).toHaveCount(0)
+    await expect(page.getByText('Sandi contoh.tanpa.peran direset')).toBeVisible()
+    // Sesi lama diputus di permintaan berikutnya.
+    expect((await sayaLama()).status(), 'sesi lama diputus sesudah reset').toBe(401)
+  } finally {
+    await lama.tutup()
+    // Masuk dengan sandi sementara → dipaksa ganti; dipulihkan ke sandi sintetis agar spec lain tetap bisa masuk.
+    const tamu = await browser.newContext({ baseURL: asal, storageState: TANPA_SESI })
+    const p = await tamu.newPage()
+    await p.goto('/masuk')
+    await p.getByLabel('Nama pengguna').fill('contoh.tanpa.peran')
+    await p.getByLabel('Kata sandi', { exact: true }).fill(sementara)
+    await p.getByRole('button', { name: 'Masuk', exact: true }).click()
+    await expect(p).toHaveURL(/\/ganti-sandi/)
+    await expect(p.getByRole('heading', { level: 1, name: 'Buat sandi Anda sendiri' })).toBeVisible()
+    await p.getByLabel('Sandi dari admin', { exact: true }).fill(sementara)
+    await p.getByLabel('Sandi baru', { exact: true }).fill(SANDI)
+    await p.getByLabel('Ulangi sandi baru', { exact: true }).fill(SANDI)
+    await p.getByRole('button', { name: 'Simpan sandi baru' }).click()
+    await expect(p).not.toHaveURL(/\/ganti-sandi/)
+    await tamu.close()
+  }
+})
+
 // ── Tiket 1.8d: nonaktif/aktif akun dengan alasan ──
 test('1440 px: nonaktifkan akun dengan alasan lalu aktifkan kembali (contoh.terkunci); akun sendiri tanpa tombol', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
