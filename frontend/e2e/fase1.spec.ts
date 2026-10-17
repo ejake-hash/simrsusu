@@ -14,7 +14,9 @@ import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
  * Tangkapan layar hanya bila E2E_TANGKAPAN=1 → docs/lampiran/fase1/<layar>-<lebar>.png. Repo publik: database e2e
  * harus berisi identitas fiktif saja (paket "RS Contoh Pendidikan", akun contoh.*), tanpa data RS nyata.
  */
-const LEBAR = [1440, 1024, 768, 390] as const
+// Lebar diuji. Per-PR (DoD bertingkat) hanya 1440 lewat E2E_LEBAR=1440; e2e malam/gerbang fase memakai empat lebar
+// (bawaan). Daftar dipisah koma.
+const LEBAR = (process.env.E2E_LEBAR?.split(',').map((n) => Number(n.trim())).filter((n) => n > 0) ?? [1440, 1024, 768, 390]) as readonly number[]
 const TANGKAPAN = process.env.E2E_TANGKAPAN === '1'
 const DIR_TANGKAPAN = fileURLToPath(new URL('../../docs/lampiran/fase1/', import.meta.url))
 const TANPA_SESI = { cookies: [], origins: [] }
