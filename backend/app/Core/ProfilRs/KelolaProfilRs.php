@@ -42,6 +42,10 @@ final class KelolaProfilRs
                 'kontak_admin' => $isi['kontak_admin']['kontak'],
             ]);
             $profil->paket_identitas = [...$profil->paket_identitas, 'warna' => $isi['warna']];
+            // Tidak dikirim = tetap; null = kembali ke teks bawaan (tiket 1.15).
+            if (array_key_exists('halaman_masuk', $isi)) {
+                $profil->halaman_masuk = $isi['halaman_masuk'];
+            }
 
             return ['aksi' => 'inti.profil_rs_diubah', 'dasar_perubahan' => $isi['dasar_perubahan']];
         });
@@ -100,6 +104,7 @@ final class KelolaProfilRs
         return [
             ...$profil->only(['nama', 'kode_kemenkes', 'kelas', 'status_blu', 'kode_ppk_bpjs', 'alamat', 'kontak_admin_unit', 'kontak_admin']),
             'warna' => $profil->paket_identitas['warna'] ?? null,
+            'halaman_masuk' => $profil->halaman_masuk,
         ];
     }
 

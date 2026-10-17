@@ -30,6 +30,8 @@ final class ProfilRsResource
             ],
             'kontak_admin' => ['unit' => $profil === null ? 'admin SIMRS' : $profil->kontak_admin_unit, 'kontak' => $profil?->kontak_admin],
             'instalasi_demo' => (bool) config('instalasi.demo'),
+            // Nilai efektif (tiket 1.15): klien tidak perlu teks cadangan.
+            'halaman_masuk' => [...($profil->halaman_masuk ?? ProfilRs::HALAMAN_MASUK_BAWAAN), 'bawaan' => $profil?->halaman_masuk === null],
         ];
 
         if ($denganRinci) {

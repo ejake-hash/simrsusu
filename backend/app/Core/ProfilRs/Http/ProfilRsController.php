@@ -7,6 +7,7 @@ use App\Core\Http\IfMatch;
 use App\Core\Http\PenggunaSesi;
 use App\Core\ProfilRs\KelolaProfilRs;
 use App\Core\ProfilRs\ProfilRs;
+use App\Core\ProfilRs\TeksHalamanMasuk;
 use App\Modules\Akses\Domain\Cakupan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,6 +35,9 @@ final class ProfilRsController
     public function update(Request $request): JsonResponse
     {
         abort_unless(Gate::allows('pengaturan.profil_rs.perbaiki', Cakupan::rs()), 403);
+        if ($request->has('halaman_masuk')) {
+            $request->merge(['halaman_masuk' => TeksHalamanMasuk::bersihkan($request->input('halaman_masuk'))]);
+        }
         $isi = $request->validate([
             'nama' => ['required', 'string', 'min:3', 'max:200'],
             'kode_kemenkes' => ['present', 'nullable', 'string', 'max:20'],
@@ -48,7 +52,24 @@ final class ProfilRsController
             'kontak_admin.unit' => ['required', 'string', 'min:2', 'max:100'],
             'kontak_admin.kontak' => ['present', 'nullable', 'string', 'max:100'],
             'dasar_perubahan' => ['required', 'string', 'min:3', 'max:200'],
+            // Tiket 1.15: opsional; null = kembali ke bawaan. Panjang dihitung (code point) sesudah dibersihkan.
+            'halaman_masuk' => ['sometimes', 'nullable', 'array:lencana,judul,judul_sorot,uraian,fitur,foto_keterangan,tampilkan_motif'],
+            ...(is_array($request->input('halaman_masuk')) ? [
+                'halaman_masuk.lencana' => ['required', 'string', 'max:60'],
+                'halaman_masuk.judul' => ['required', 'string', 'max:80'],
+                'halaman_masuk.judul_sorot' => ['present', 'nullable', 'string', 'max:40'],
+                'halaman_masuk.uraian' => ['required', 'string', 'max:240'],
+                'halaman_masuk.fitur' => ['required', 'list', 'size:3'],
+                'halaman_masuk.fitur.*' => ['array:judul,uraian'],
+                'halaman_masuk.fitur.*.judul' => ['required', 'string', 'max:30'],
+                'halaman_masuk.fitur.*.uraian' => ['required', 'string', 'max:120'],
+                'halaman_masuk.foto_keterangan' => ['present', 'nullable', 'string', 'max:80'],
+                'halaman_masuk.tampilkan_motif' => ['required', 'boolean'],
+            ] : []),
         ]);
+        if (isset($isi['halaman_masuk'])) {
+            $isi['halaman_masuk']['tampilkan_motif'] = (bool) $isi['halaman_masuk']['tampilkan_motif'];
+        }
         $versi = self::versiDiminta($request);
 
         return $this->respons($request, $this->kelola->ubah($request->user(), $versi, $isi), true);
