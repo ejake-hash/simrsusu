@@ -747,6 +747,9 @@ test('reset sandi: sesi lama akun putus, sandi sementara sekali tampil, masuk de
     await p.getByRole('button', { name: 'Simpan sandi baru' }).click()
     await expect(p).not.toHaveURL(/\/ganti-sandi/)
     await tamu.close()
+  }
+})
+
 // ── Tiket 1.13: Pengaturan → Keamanan dan Perangkat tepercaya ──
 test('keamanan: masa percaya diubah lalu dipulihkan; Keamanan dan Perangkat tepercaya di 4 lebar + axe', async ({ page }, info) => {
   const asal = new URL(info.project.use.baseURL ?? '').origin
