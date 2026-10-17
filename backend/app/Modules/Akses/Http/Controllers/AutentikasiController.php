@@ -7,6 +7,7 @@ use App\Core\Http\ApiError;
 use App\Modules\Akses\Application\AlasanGagalMasuk;
 use App\Modules\Akses\Application\GagalMasuk;
 use App\Modules\Akses\Application\KebijakanMfa;
+use App\Modules\Akses\Application\KelolaPerangkat;
 use App\Modules\Akses\Application\MasukPengguna;
 use App\Modules\Akses\Application\MfaChallenge;
 use App\Modules\Akses\Application\VerifikasiMfa;
@@ -29,6 +30,7 @@ final class AutentikasiController
         VerifikasiMfa $mfa,
         PenyelesaiMasuk $penyelesai,
         CatatAktivitas $audit,
+        KelolaPerangkat $perangkat,
     ): JsonResponse {
         PenyelesaiMasuk::pastikanDariSpa($request);
         $challenge->hapus($request->session());
@@ -55,6 +57,14 @@ final class AutentikasiController
 
         // Sesi belum masuk sampai langkah MFA lolos; penghitung gagal juga belum direset.
         if ($pengguna->mfaAktif()) {
+            // Perangkat tepercaya dari jaringan RS: MFA dilewati (tiket 1.13). Dari luar jaringan RS cocokkan() selalu null.
+            $tepercaya = $perangkat->cocokkan($request, $pengguna);
+            if ($tepercaya !== null) {
+                $perangkat->pakai($request, $tepercaya);
+
+                return response()->json($penyelesai->selesaikan($request, $pengguna));
+            }
+
             $t = $challenge->buat($request->session(), $pengguna, 'mfa');
 
             return response()->json([
@@ -62,6 +72,7 @@ final class AutentikasiController
                 'challenge_id' => $t['id'],
                 'metode' => $mfa->punyaKodeCadangan($pengguna) ? ['totp', 'kode_cadangan'] : ['totp'],
                 'kedaluwarsa_pada' => $t['kedaluwarsa_pada']->toIso8601String(),
+                'percayai_perangkat' => $perangkat->tawaran($request, $pengguna),
             ]);
         }
 
@@ -79,6 +90,7 @@ final class AutentikasiController
             'status' => 'perlu_daftar_mfa',
             'challenge_id' => $t['id'],
             'kedaluwarsa_pada' => $t['kedaluwarsa_pada']->toIso8601String(),
+            'percayai_perangkat' => $perangkat->tawaran($request, $pengguna),
         ]);
     }
 

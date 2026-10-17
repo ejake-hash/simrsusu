@@ -2,6 +2,7 @@
 
 namespace App\Modules\Akses\Http\Resources;
 
+use App\Modules\Akses\Application\KelolaPerangkat;
 use App\Modules\Akses\Application\PenjagaPenyunting;
 use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Izin;
@@ -33,6 +34,10 @@ final class PeranRinciResource extends JsonResource
             'versi' => self::versi($peran),
             'izin' => $izin->pluck('kode')->sort()->values()->all(),
             'wajib_mfa_terkunci' => $peran->kode === MenuBawaan::PERAN_SUPERADMIN || $izin->contains(fn (Izin $i) => $i->sensitif),
+            // Perangkat tepercaya (tiket 1.13).
+            'masa_percaya_hari' => $peran->masa_percaya_hari,
+            'batas_masa_percaya_hari' => KelolaPerangkat::batasPeran($peran, $izin->contains(fn (Izin $i) => $i->sensitif)),
+            'masa_percaya_instalasi_hari' => app(KelolaPerangkat::class)->hariInstalasi(),
             'izin_menunggu' => self::izinMenunggu($peran),
             'dapat_disunting' => $alasanTerkunci === null,
             'alasan_terkunci' => $alasanTerkunci,

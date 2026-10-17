@@ -5559,7 +5559,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/PeranRingkas'
         - type: object
-          required: [versi, izin, wajib_mfa_terkunci, dapat_disunting, alasan_terkunci, diubah_pada]
+          required: [versi, izin, wajib_mfa_terkunci, masa_percaya_hari, batas_masa_percaya_hari, masa_percaya_instalasi_hari, dapat_disunting, alasan_terkunci, diubah_pada]
           properties:
             versi: { type: string, description: "Sama dengan ETag; naik setiap perubahan peran dari layar (PATCH atau PUT izin)" }
             izin: { type: array, items: { type: string }, description: "Kode izin aksi yang diberikan" }
@@ -5575,7 +5575,7 @@ components:
                   persetujuan_id: { type: string, format: uuid }
                   penyetuju_peran: { $ref: '#/components/schemas/RingkasPeran' }
                   kedaluwarsa_pada: { type: string, format: date-time }
-            masa_percaya_hari: { type: [integer, 'null'], minimum: 0, description: "Perangkat tepercaya (1.13); null = ikut kebijakan instalasi. Masuk `required` bersama batas_masa_percaya_hari di PR 1.13-be" }
+            masa_percaya_hari: { type: [integer, 'null'], minimum: 0, description: "Perangkat tepercaya (1.13); null = ikut kebijakan instalasi." }
             batas_masa_percaya_hari: { type: integer, minimum: 0, description: "Batas atas dari konfigurasi: superadmin, peran memuat izin sensitif, atau umum" }
             masa_percaya_instalasi_hari: { type: integer, minimum: 0, description: "Kebijakan instalasi saat ini (baca saja), untuk teks \"kosong = ikut instalasi (N hari)\" tanpa izin pengaturan.keamanan" }
             dapat_disunting: { type: boolean, description: "false bila peran bawaan terkunci atau dipegang penyunting" }

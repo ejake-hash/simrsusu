@@ -37,6 +37,7 @@ final class KelolaAksesAkun
         private readonly DataUnit $dataUnit,
         private readonly AlurPersetujuan $alur,
         private readonly KelolaPermintaanAkses $permintaan,
+        private readonly KelolaPerangkat $perangkat,
     ) {}
 
     /**
@@ -257,7 +258,9 @@ final class KelolaAksesAkun
             $akun->cabutSesi();
             DB::table('akses.kode_cadangan_mfa')->where('pengguna_id', $akun->id)
                 ->whereNull('dipakai_pada')->whereNull('dibatalkan_pada')->update(['dibatalkan_pada' => $sekarang]);
-
+            // Pencabutan perangkat (catat() di dalamnya) dan catat() penutup di akhir: tak ada DML bisnis di antaranya,
+            // jadi kunci rantai audit tidak dipegang selama UPDATE (ADR 0003, CLAUDE.md).
+            $this->perangkat->cabutSemua($akun->id, 'mfa_direset', $penyunting->id);
             // Tanpa rahasia TOTP atau kode cadangan di log (PRD 14.2).
             $this->audit->catat('akses.mfa_direset', $penyunting->id, 'akses.pengguna', $akun->id, [
                 'alasan' => $alasan, 'dasar' => $dasar, 'sesi_diputus' => true,
@@ -302,6 +305,7 @@ final class KelolaAksesAkun
             $akun->forceFill(['status' => $status, 'diubah_oleh' => $penyunting->id])->save();
             if ($status === 'nonaktif') {
                 $akun->cabutSesi();
+                $this->perangkat->cabutSemua($akun->id, 'akun_nonaktif', $penyunting->id);
             }
             $this->audit->catat($status === 'aktif' ? 'akses.akun_diaktifkan' : 'akses.akun_dinonaktifkan', $penyunting->id, 'akses.pengguna', $akun->id,
                 ['alasan' => $alasan, 'sesi_diputus' => $status === 'nonaktif']);

@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
  * @property bool $bawaan_sistem
  * @property bool $wajib_mfa
  * @property string $status aktif | nonaktif
+ * @property int|null $masa_percaya_hari perangkat tepercaya (1.13); null = ikut kebijakan instalasi
  * @property int $revisi naik setiap perubahan dari layar; dipakai sebagai versi/ETag
  * @property Carbon $diubah_pada
  */
@@ -34,7 +35,7 @@ final class Peran extends Model
 
     protected function casts(): array
     {
-        return ['bawaan_sistem' => 'boolean', 'wajib_mfa' => 'boolean', 'revisi' => 'integer'];
+        return ['bawaan_sistem' => 'boolean', 'wajib_mfa' => 'boolean', 'revisi' => 'integer', 'masa_percaya_hari' => 'integer'];
     }
 
     protected static function booted(): void

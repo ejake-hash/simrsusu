@@ -287,8 +287,8 @@ class PengaturanPeranTest extends TestCase
         $salinan = $this->minta('POST', '/api/v1/peran', [
             'kode' => 'salin_superadmin', 'nama' => 'Salinan superadmin', 'wajib_mfa' => false, 'salin_dari_id' => $this->superadmin()->id, 'dasar_perubahan' => self::DASAR,
         ])->assertCreated();
-        // Persetujuan akses (1.2d), profil RS (1.8a), dan penyiapan (1.8f) tidak sensitif, jadi ikut tersalin.
-        $this->assertSame(['pengaturan.akun.lihat', 'pengaturan.penyiapan.input', 'pengaturan.penyiapan.lihat', 'pengaturan.penyiapan.perbaiki', 'pengaturan.peran.lihat',
+        // Persetujuan akses (1.2d), profil RS (1.8a), penyiapan (1.8f), dan lihat/input keamanan (1.13) tidak sensitif, jadi ikut tersalin.
+        $this->assertSame(['pengaturan.akun.lihat', 'pengaturan.keamanan.input', 'pengaturan.keamanan.lihat', 'pengaturan.penyiapan.input', 'pengaturan.penyiapan.lihat', 'pengaturan.penyiapan.perbaiki', 'pengaturan.peran.lihat',
             'pengaturan.persetujuan.input', 'pengaturan.persetujuan.lihat', 'pengaturan.persetujuan.perbaiki',
             'pengaturan.profil_rs.input', 'pengaturan.profil_rs.lihat', 'pengaturan.profil_rs.perbaiki'],
             $salinan->json('data.izin'));

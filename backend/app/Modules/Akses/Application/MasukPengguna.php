@@ -80,7 +80,8 @@ final class MasukPengguna
      * Semua langkah (sandi, lalu MFA bila wajib) sudah lolos. Masuk terakhir yang lama disalin ke
      * masuk_sebelumnya_* sebelum ditimpa (Beranda: "apakah ini Anda?", tiket 1.2e).
      */
-    public function selesaikan(Pengguna $pengguna, bool $dariJaringanRs): void
+    /** @param  array<string, mixed>|null  $catatan  mis. MFA dilewati karena perangkat tepercaya (tiket 1.13) */
+    public function selesaikan(Pengguna $pengguna, bool $dariJaringanRs, ?array $catatan = null): void
     {
         $pengguna->forceFill([
             'percobaan_gagal' => 0,
@@ -91,7 +92,7 @@ final class MasukPengguna
             'login_terakhir_dari_jaringan_rs' => $dariJaringanRs,
         ])->save();
 
-        $this->audit->catat('autentikasi.masuk', $pengguna->id, 'akses.pengguna', $pengguna->id);
+        $this->audit->catat('autentikasi.masuk', $pengguna->id, 'akses.pengguna', $pengguna->id, $catatan);
     }
 
     /** @return never */

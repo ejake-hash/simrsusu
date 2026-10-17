@@ -6,6 +6,7 @@ use App\Core\Http\ApiError;
 use App\Modules\Akses\Application\AlasanGagalMfa;
 use App\Modules\Akses\Application\GagalMfa;
 use App\Modules\Akses\Application\KebijakanMfa;
+use App\Modules\Akses\Application\KelolaPerangkat;
 use App\Modules\Akses\Application\MfaChallenge;
 use App\Modules\Akses\Application\VerifikasiMfa;
 use App\Modules\Akses\Domain\Totp;
@@ -16,6 +17,7 @@ use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
 use Illuminate\Http\JsonResponse;
+use Symfony\Component\HttpFoundation\Cookie;
 
 /**
  * Langkah 2a–2c kontrak PRD 10.3.2. Selama challenge berjalan sesi belum masuk; semua endpoint di
@@ -28,6 +30,7 @@ final class MfaController
         private readonly VerifikasiMfa $mfa,
         private readonly PenyelesaiMasuk $penyelesai,
         private readonly KebijakanMfa $kebijakan,
+        private readonly KelolaPerangkat $perangkat,
     ) {}
 
     /** 2a: kode TOTP atau kode cadangan. */
@@ -41,8 +44,9 @@ final class MfaController
         $this->jalankan($request, fn () => $this->mfa->verifikasi($pengguna, $request->validated('metode'), $request->validated('kode')));
 
         $this->challenge->hapus($request->session());
+        $cookie = $this->percayaiBila($request, $pengguna);
 
-        return response()->json($this->penyelesai->selesaikan($request, $pengguna, denganMfa: true));
+        return $this->denganCookie(response()->json($this->penyelesai->selesaikan($request, $pengguna, denganMfa: true)), $cookie);
     }
 
     /** 2b: rahasia baru untuk dipindai. Boleh diulang; rahasia terakhir yang dikonfirmasi. */
@@ -70,10 +74,22 @@ final class MfaController
         $kodeCadangan = $this->jalankan($request, fn () => $this->mfa->daftarkan($pengguna, $rahasia, $request->validated('kode')));
 
         $this->challenge->hapus($request->session());
+        $cookie = $this->percayaiBila($request, $pengguna);
 
-        return $this->tanpaCache(response()->json(
+        return $this->denganCookie($this->tanpaCache(response()->json(
             $this->penyelesai->selesaikan($request, $pengguna, denganMfa: true) + ['kode_cadangan' => $kodeCadangan],
-        ));
+        )), $cookie);
+    }
+
+    /** Centang "Percayai perangkat ini" (tiket 1.13); diabaikan bila tidak tersedia (luar jaringan RS, masa percaya 0). */
+    private function percayaiBila(MfaRequest $request, Pengguna $pengguna): ?Cookie
+    {
+        return $request->boolean('percayai_perangkat') ? ($this->perangkat->percayai($request, $pengguna)[1] ?? null) : null;
+    }
+
+    private function denganCookie(JsonResponse $respons, ?Cookie $cookie): JsonResponse
+    {
+        return $cookie === null ? $respons : $respons->withCookie($cookie);
     }
 
     /**

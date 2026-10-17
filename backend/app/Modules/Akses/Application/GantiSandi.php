@@ -24,7 +24,10 @@ final class GantiSandi
 
     public const JENDELA_DETIK = 900;
 
-    public function __construct(private readonly CatatAktivitas $audit) {}
+    public function __construct(
+        private readonly CatatAktivitas $audit,
+        private readonly KelolaPerangkat $perangkat,
+    ) {}
 
     public function ganti(Request $request, Pengguna $pengguna, string $sandiLama, string $sandiBaru): Pengguna
     {
@@ -59,6 +62,7 @@ final class GantiSandi
                 'sandi_hash' => Hash::make($sandiBaru), 'wajib_ganti_sandi' => false, 'sandi_diubah_pada' => now(), 'diubah_oleh' => $akun->id,
             ])->save();
             $akun->cabutSesi();
+            $this->perangkat->cabutSemua($akun->id, 'sandi_diganti', $akun->id);
             $this->audit->catat('akses.sandi_diganti', $akun->id, 'akses.pengguna', $akun->id, ['sesi_lain_diputus' => true]);
 
             return $akun;

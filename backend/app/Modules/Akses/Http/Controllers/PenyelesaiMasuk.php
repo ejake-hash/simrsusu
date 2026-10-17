@@ -4,12 +4,14 @@ namespace App\Modules\Akses\Http\Controllers;
 
 use App\Core\Http\ApiError;
 use App\Modules\Akses\Application\KebijakanMfa;
+use App\Modules\Akses\Application\KelolaPerangkat;
 use App\Modules\Akses\Application\MasukPengguna;
 use App\Modules\Akses\Application\MfaUlang;
 use App\Modules\Akses\Application\PendaftaranPerangkat;
 use App\Modules\Akses\Http\Middleware\SesiPengguna;
 use App\Modules\Akses\Http\Resources\PenggunaResource;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Akses\Models\PerangkatTepercaya;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -21,16 +23,22 @@ final class PenyelesaiMasuk
         private readonly MasukPengguna $masuk,
         private readonly PendaftaranPerangkat $perangkat,
         private readonly KebijakanMfa $kebijakanMfa,
+        private readonly KelolaPerangkat $kelolaPerangkat,
     ) {}
 
     /**
-     * $denganMfa: langkah ini memverifikasi MFA, jadi izin butuh_mfa langsung boleh (K11, MfaUlang).
+     * $denganMfa: langkah ini memverifikasi MFA, jadi izin butuh_mfa langsung boleh (K11, MfaUlang). Masuk lewat
+     * perangkat tepercaya bukan verifikasi MFA (tiket 1.13): MFA ulang tetap diminta.
      *
-     * @return array{status: 'masuk', pengguna: array<string, mixed>}
+     * @return array{status: 'masuk', pengguna: array<string, mixed>, perangkat_tepercaya: array{id: string, berlaku_sampai: string}|null}
      */
     public function selesaikan(Request $request, Pengguna $pengguna, bool $denganMfa = false): array
     {
-        $this->masuk->selesaikan($pengguna, $this->kebijakanMfa->dariJaringanRs($request->ip()));
+        /** @var PerangkatTepercaya|null $perangkat dipercaya di langkah MFA ini, atau dipakai melewati MFA di langkah 1 */
+        $perangkat = $request->attributes->get(KelolaPerangkat::ATRIBUT);
+        $mfaDilewati = $perangkat !== null && ! $denganMfa;
+        $this->masuk->selesaikan($pengguna, $this->kebijakanMfa->dariJaringanRs($request->ip()),
+            $mfaDilewati ? ['mfa_dilewati' => 'perangkat_tepercaya', 'perangkat_id' => $perangkat->id] : null);
 
         Auth::guard('web')->login($pengguna);
         $request->session()->regenerate();
@@ -39,8 +47,15 @@ final class PenyelesaiMasuk
         $denganMfa ? MfaUlang::catat($request->session(), $pengguna) : MfaUlang::lupakan($request->session());
         // Dibaca ulang dari DB: nilai pembanding sama persis dengan yang nanti dibaca /saya.
         $request->session()->put(PenggunaResource::LOGIN_SESI_INI, $pengguna->refresh()->login_terakhir_pada?->getTimestamp());
+        // `perangkat_ini` di /saya/perangkat: cookie token hanya terkirim ke /api/v1/autentikasi, jadi id disimpan di sesi.
+        $perangkat !== null ? $request->session()->put(KelolaPerangkat::SESI, $perangkat->id) : $request->session()->forget(KelolaPerangkat::SESI);
 
-        return ['status' => 'masuk', 'pengguna' => (new PenggunaResource($pengguna))->resolve($request)];
+        return [
+            'status' => 'masuk',
+            'pengguna' => (new PenggunaResource($pengguna))->resolve($request),
+            'perangkat_tepercaya' => $perangkat === null ? null
+                : ['id' => $perangkat->id, 'berlaku_sampai' => $this->kelolaPerangkat->berlakuSampai($perangkat, $pengguna)->toIso8601String()],
+        ];
     }
 
     /**
