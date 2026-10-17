@@ -51,6 +51,7 @@ const LAYAR: Layar[] = [
   { kode: 'pengaturan-persetujuan', jalur: '/pengaturan/persetujuan', akun: 'superadmin', judul: 'Persetujuan akses' },
   { kode: 'pengaturan-profil-rs', jalur: '/pengaturan/profil-rs', akun: 'superadmin', judul: 'Profil rumah sakit' },
   { kode: 'pengaturan-penyiapan', jalur: '/pengaturan/penyiapan', akun: 'superadmin', judul: 'Penyiapan instalasi' },
+  { kode: 'pengaturan-keamanan', jalur: '/pengaturan/keamanan', akun: 'superadmin', judul: 'Keamanan' },
   { kode: 'pengaturan-integrasi', jalur: '/pengaturan/integrasi', akun: 'integrasi', judul: 'Konfigurasi integrasi' },
   { kode: 'integrasi-satusehat', jalur: '/integrasi/satusehat', akun: 'integrasi', judul: 'SATUSEHAT' },
   { kode: 'integrasi-bpjs', jalur: '/integrasi/bpjs', akun: 'integrasi', judul: 'Bridging BPJS' },
