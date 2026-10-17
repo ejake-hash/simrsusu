@@ -87,6 +87,9 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   kini bisa diaktifkan di GitHub Free untuk repo publik: **perlu pemilik** menyalakan aturan `main` (merge hanya lewat PR,
   check `backend`/`frontend`/`e2e` wajib hijau). Sampai itu dijaga lewat kebiasaan kerja.
 - Private vulnerability reporting diaktifkan (SECURITY.md). LICENSE: hak cipta, bukan open source.
+- **e2e `pengaturan.spec.ts` rawan flake**: uji "izin label" (1.5, ~baris 842) sesekali timeout 30 dtk di `pilihAkun`
+  (satu worker menjalankan 17 uji berbagi akun; diduga kontensi rate limit). Lolos saat rerun. Mitigasi lanjutan:
+  pecah spec per akun/area, naikkan timeout uji berat itu, atau reset rate limit antar-uji.
 - **[Perlu pemilik] Riwayat git** masih memuat berkas yang dihapus di PR kebersihan repo publik (logo/foto/motif RS USU,
   `docs/html/`, catatan lapangan bridging) dan tangkapan layar di branch `lampiran/*` yang sudah dihapus (commit lama
   tetap bisa diakses lewat SHA atau deskripsi PR lama). Membersihkannya butuh penulisan ulang riwayat + force-push
