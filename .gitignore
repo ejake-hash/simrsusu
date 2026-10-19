@@ -4,3 +4,6 @@
 
 # Tangkapan layar e2e 1.12-fe (E2E_TANGKAPAN=1): disimpan di branch lampiran/fase1, bukan di main (repo publik, ukuran).
 /docs/lampiran/fase1/*.png
+
+# graphify: graf navigasi lokal, dibangun ulang dari kode (graphify update .), tidak perlu di-commit.
+graphify-out/
