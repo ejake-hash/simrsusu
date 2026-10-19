@@ -3629,7 +3629,7 @@ paths:
       operationId: riwayatVersiDataInduk
       summary: Riwayat versi satu objek data induk (paginasi kursor, terbaru dulu)
       description: |
-        Izin: lihat data induk itu (ruang/kamar/tempat_tidur: master_data.organisasi.lihat). Setiap perubahan (lewat usulan
+        Izin: lihat data induk itu (ruang/kamar/tempat_tidur: master_data.organisasi.lihat; tarif: master_data.tarif.lihat, sama dengan GET /data-induk/tarif/{id}/versi). Setiap perubahan (lewat usulan
         atau langsung) = satu versi dengan isi sebelum dan sesudah; versi tidak pernah diubah. Objek tanpa riwayat
         (dibuat sebelum 1.8c dan belum pernah diubah) → daftar kosong.
       parameters:
@@ -4365,7 +4365,7 @@ paths:
       operationId: daftarTarif
       summary: Daftar buku tarif (paginasi kursor)
       description: |
-        Izin: master_data.tarif.lihat, cakupan `rs`. Urut: kode. `harga` = harga yang berlaku pada `tanggal` (bawaan hari ini
+        Izin: master_data.tarif.lihat, cakupan `rs`. Urut: kode (unik); kursor keyset `(kode, id)`. `harga` = harga yang berlaku pada `tanggal` (bawaan hari ini
         zona RS), per kelas rawat. Tidak ada endpoint tulis tarif: menambah atau mengubah tarif = usulan 1.8c
         (POST /usulan-data-induk, `jenis_data` `tarif`; izin master_data.usulan.*). Perubahan terjadwal yang sudah disahkan
         tampil di `akan_berlaku`. Pengisian awal saat penyiapan (sebelum siap melayani) bukan bagian kontrak ini.
