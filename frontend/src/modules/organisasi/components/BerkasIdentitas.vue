@@ -19,7 +19,7 @@ const emit = defineEmits<{ diunggah: [hasil: Berversi<ProfilRsApi>]; versiBeruba
 const DAFTAR: { jenis: JenisBerkas; label: string; uraian: string; terima: string; kunci: 'logo_url' | 'motif_url' | 'foto_url' }[] = [
   { jenis: 'logo', label: 'Logo', uraian: 'SVG atau PNG, maks. 200 KB. Tampil di halaman masuk dan kop.', terima: 'image/svg+xml,image/png', kunci: 'logo_url' },
   { jenis: 'motif', label: 'Motif grafis', uraian: 'SVG atau PNG, maks. 500 KB. Hiasan panel merek halaman masuk.', terima: 'image/svg+xml,image/png', kunci: 'motif_url' },
-  { jenis: 'foto', label: 'Foto panel', uraian: 'WebP, JPEG, atau PNG, maks. 2 MB. Tampil terpotong mengikuti panel; hapus lokasi (GPS) dan metadata lain dari foto sebelum diunggah.', terima: 'image/webp,image/jpeg,image/png', kunci: 'foto_url' },
+  { jenis: 'foto', label: 'Foto panel', uraian: 'WebP, JPEG, atau PNG, maks. 2 MB. Server memotong bagian tengah 16:10 dan membuang metadata (EXIF/GPS).', terima: 'image/webp,image/jpeg,image/png', kunci: 'foto_url' },
 ]
 
 const isian = ref<Partial<Record<JenisBerkas, HTMLInputElement | null>>>({})
