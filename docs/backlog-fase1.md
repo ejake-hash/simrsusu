@@ -10,7 +10,7 @@
 |---|---|---|---|
 | 1.13-be / 1.13-fe | Perangkat tepercaya: MFA sekali per perangkat per periode, kebijakan diatur di layar | be: Selesai (kontrak #99, backend #107). Catatan: `akses.perangkat_tepercaya` (hash token), `akses.kebijakan_keamanan`, `akses.peran.masa_percaya_hari`; `KelolaPerangkat` (masa percaya efektif = terkecil instalasi/peran/batas superadmin 7/sensitif 14); cookie HttpOnly/SameSite=Strict path `/api/v1/autentikasi`; langkah 1 dari jaringan RS melewati MFA (audit `mfa_dilewati`); MFA ulang K11 tak dilewati; pencabutan saat ganti/reset sandi, reset MFA, nonaktif; sub-menu `pengaturan.keamanan` (perbaiki sensitif + `butuh_mfa`); ADR 0002 diperbarui. fe: Selesai (#103 kotak "Percayai perangkat" di MFA/pendaftaran; #108 menu akun `/perangkat`, tab Perangkat, Pengaturan → Keamanan, masa percaya di info peran; sub-menu TERSEDIA migrasi `2026_10_17_100000`) | #99, #103, #107, #108 |
 | 1.14-be / 1.14-fe | Reset sandi oleh admin + perintah konsol darurat | be: Selesai (kontrak #97, backend #98). Catatan: `Akses\Application\ResetSandi` (sandi sementara `max(20, panjang_minimal)`, juga untuk sandi awal akun baru; wajib ganti, sesi diputus, kunci karena sandi salah dibuka, MFA tetap); `akses:reset-sandi` ditolak bila masih ada superadmin aktif lain kecuali `--walau-ada-superadmin-lain` (konfirmasi kedua, audit `superadmin_lain_aktif`), audit mencatat `SUDO_USER` dan pengguna efektif; sesi lama mendapat 401 `belum_masuk` (hash sandi berubah) atau `sesi_dicabut`; fe: Selesai (#101). Catatan fe: tombol "Reset sandi" di Pengaturan → Akun & akses (dialog alasan + dasar, `SandiSekali` bersama Buat akun, sandi sementara sekali tampil + salin), label "Sandi dari admin" di layar ganti sandi wajib, "Lupa sandi?" di halaman masuk | #97, #98, #101 |
-| 1.15-be / 1.15-fe | Tema bawaan dari pedoman identitas RS mitra; halaman masuk dapat diatur (teks, foto, motif) | be: Selesai (kontrak #97, backend #104). Catatan: `inti.profil_rs.halaman_masuk` (jsonb, null = bawaan), `TeksHalamanMasuk` (teks biasa, panjang code point sesudah dibersihkan), `ProfilRs::WARNA_BAWAAN` #006937/#F3C300; potong foto 16:10 + buang EXIF menunggu pemilik (#105, `ext-gd`). fe: Selesai (#95 palet pedoman + `PanelMerek`, #100 tab Halaman masuk) | #95, #97, #100, #104 |
+| 1.15-be / 1.15-fe | Tema bawaan dari pedoman identitas RS mitra; halaman masuk dapat diatur (teks, foto, motif) | be: Selesai (kontrak #97, backend #104, potong foto 16:10 + buang EXIF #105 `ext-gd`). Catatan: `inti.profil_rs.halaman_masuk` (jsonb, null = bawaan), `TeksHalamanMasuk` (teks biasa, panjang code point sesudah dibersihkan), `ProfilRs::WARNA_BAWAAN` #006937/#F3C300. fe: Selesai (#95 palet pedoman + `PanelMerek`, #100 tab Halaman masuk) | #95, #97, #100, #104, #105 |
 | 1.10 | SSO (OIDC/SAML) ke penyedia identitas RS/universitas; tombol tampil hanya bila dikonfigurasi | **Terhambat**: perlu data IdP dari RS/USU | — |
 
 ## Jalur kerja sampai Fase 1 selesai
@@ -67,7 +67,6 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
 
 **Fitur yang belum dibangun**
 - Reset sandi superadmin lewat persetujuan (kontrol ganda K4/K13) bila kebijakan RS mewajibkannya; bawaan sekarang langsung oleh superadmin lain (tiket 1.14, kontrak #97).
-- Foto panel halaman masuk dipotong 16:10 dan EXIF/GPS dibuang (tiket 1.15): **[Perlu pemilik]** #105 karena butuh `ext-gd`; sampai itu foto disimpan apa adanya dan dipotong tampilan (CSS).
 - Pemberitahuan akun terkunci ke pemilik (PRD 14.2) → tiket 1.7, issue #11.
 - Superadmin dari `akses:superadmin-pertama` ditandai lewat audit `akses.superadmin_dibuat` (tanpa kolom baru) → tiket 1.2 memetakannya ke peran superadmin dan mengganti hitungan batas 2 di `SuperadminPertama`.
 - Registri perangkat terdaftar: sampai ada, semua sesi memakai batas diam 15 menit (`PerangkatBelumTerdaftar`). Belum ada tiket (ADR 0002).
@@ -90,6 +89,9 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
 - **e2e `pengaturan.spec.ts` rawan flake**: uji "izin label" (1.5, ~baris 842) sesekali timeout 30 dtk di `pilihAkun`
   (satu worker menjalankan 17 uji berbagi akun; diduga kontensi rate limit). Lolos saat rerun. Mitigasi lanjutan:
   pecah spec per akun/area, naikkan timeout uji berat itu, atau reset rate limit antar-uji.
+- Utang 1.15-be (dari tinjauan #105, tidak memblokir): `PotongFoto::potong()` tidak punya test untuk tipe `image/webp`
+  (satu dari tiga tipe didukung; `imagewebp()` return value tidak dicek). Tambahkan kasus unggah WebP ke
+  `HalamanMasukTest` saat menyentuh berkas itu lagi.
 - **[Perlu pemilik] Riwayat git** masih memuat berkas yang dihapus di PR kebersihan repo publik (logo/foto/motif RS USU,
   `docs/html/`, catatan lapangan bridging) dan tangkapan layar di branch `lampiran/*` yang sudah dihapus (commit lama
   tetap bisa diakses lewat SHA atau deskripsi PR lama). Membersihkannya butuh penulisan ulang riwayat + force-push
