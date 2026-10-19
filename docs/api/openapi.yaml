@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.16.0
+  version: 0.17.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -72,10 +72,14 @@ info:
       60 menit sejak awal sesi; selain itu 15 menit.
     - MFA ulang (K11, /saya/mfa/verifikasi-ulang) tidak pernah dilewati: sesi yang masuk lewat perangkat tepercaya
       diperlakukan seperti belum memverifikasi MFA.
+    v0.17.0: Penjamin dan jadwal praktik (tiket 2.1 dan 2.4): /data-induk/penjamin (sub-menu master_data.penjamin; kelas rawat
+    tetap /kelas-rawat 1.8b), /jadwal-praktik (kuota JKN/non-JKN, terisi, sub-menu master_data.jadwal_praktik),
+    /jadwal-pengecualian (cuti dokter, libur RS). Hanya kontrak; kode menyusul di tiket BE/FE.
 servers:
   - url: /api/v1
 security:
   - sesiCookie: []
+
 paths:
   /saya:
     get:
@@ -4237,6 +4241,308 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/Error' }
+  /data-induk/penjamin:
+    get:
+      operationId: daftarPenjamin
+      summary: Daftar penjamin (paginasi kursor)
+      description: |
+        Izin: master_data.penjamin.lihat, cakupan `rs`. Urut: kode. Pilihan penjamin di pendaftaran memakai `status=aktif`;
+        penjamin nonaktif tetap terbaca (riwayat, rincian) tetapi tidak muncul di pilihan itu. Kelas rawat tidak punya
+        endpoint baru di sini: pakai GET /kelas-rawat (1.8b).
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: cari, schema: { type: string, maxLength: 100 }, description: "Cocok sebagian pada kode atau nama" }
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
+        - { in: query, name: jenis, schema: { $ref: '#/components/schemas/JenisPenjamin' } }
+      responses:
+        '200':
+          description: Satu halaman penjamin
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Penjamin' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatPenjamin
+      summary: Tambah penjamin
+      description: |
+        Izin: master_data.penjamin.input. 422 `validasi_gagal` bila `kode` sudah dipakai penjamin lain (rincian menunjuk
+        field `kode`). Atribut penagihan (`masa_berlaku_gl_hari`, `plafon`, `jatuh_tempo_hari`) opsional; kosong = tidak
+        dibatasi.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kode, nama, jenis, dasar_perubahan]
+              properties:
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 2, maxLength: 150 }
+                jenis: { $ref: '#/components/schemas/JenisPenjamin' }
+                masa_berlaku_gl_hari: { type: [integer, 'null'], minimum: 1, maximum: 3650 }
+                plafon: { $ref: '#/components/schemas/PlafonPenjamin' }
+                jatuh_tempo_hari: { type: [integer, 'null'], minimum: 0, maximum: 365 }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '201':
+          description: Penjamin dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Penjamin' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /data-induk/penjamin/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciPenjamin
+      summary: Rincian penjamin
+      description: "Izin: master_data.penjamin.lihat. ETag = `versi`."
+      responses:
+        '200':
+          description: Rincian penjamin
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Penjamin' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: ubahPenjamin
+      summary: Ubah atau nonaktifkan penjamin
+      description: |
+        Izin: master_data.penjamin.perbaiki. Wajib If-Match (412 `versi_berubah`, 428 `if_match_wajib`).
+        422 `validasi_gagal` bila `kode` bentrok. `jenis` tidak dapat diubah bila penjamin sudah dipakai kunjungan
+        (422 `validasi_gagal`, field `jenis`). Penjamin tidak dihapus: nonaktifkan lewat `status`.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              properties:
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 2, maxLength: 150 }
+                jenis: { $ref: '#/components/schemas/JenisPenjamin' }
+                masa_berlaku_gl_hari: { type: [integer, 'null'], minimum: 1, maximum: 3650 }
+                plafon: { $ref: '#/components/schemas/PlafonPenjamin' }
+                jatuh_tempo_hari: { type: [integer, 'null'], minimum: 0, maximum: 365 }
+                status: { type: string, enum: [aktif, nonaktif] }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Penjamin sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Penjamin' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /jadwal-praktik:
+    get:
+      operationId: daftarJadwalPraktik
+      summary: Jadwal praktik dokter dengan kuota dan keterisian (paginasi kursor)
+      description: |
+        Izin: master_data.jadwal_praktik.lihat, cakupan `rs`. Urut: poli, hari, jam_mulai.
+        Dengan `tanggal`: hanya jadwal yang jatuh pada tanggal itu (hari ISO sama, dalam `berlaku_dari`–`berlaku_sampai`),
+        masing-masing dengan `pada_tanggal` (terisi, sisa, tersedia). Jadwal yang tertutup pengecualian (cuti dokter atau
+        libur) tetap dikirim dengan `tersedia = false` dan `alasan_tidak_tersedia`, agar layar dapat menjelaskannya;
+        kuota tidak bisa dipakai. Tanpa `tanggal`: definisi jadwal untuk pengelolaan, `pada_tanggal` null.
+        `tanggal` di masa lalu → 422 `validasi_gagal` hanya bila lebih dari 366 hari dari hari ini (zona RS).
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: tanggal, schema: { type: string, format: date } }
+        - { in: query, name: poli_id, schema: { type: string, format: uuid } }
+        - { in: query, name: pegawai_id, schema: { type: string, format: uuid } }
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] }, description: "Bawaan: aktif" }
+      responses:
+        '200':
+          description: Satu halaman jadwal praktik
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/JadwalPraktik' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatJadwalPraktik
+      summary: Tambah jadwal praktik
+      description: |
+        Izin: master_data.jadwal_praktik.input. 422 `sip_tidak_aktif`: dokter tanpa SIP aktif (1.8d) pada `berlaku_dari`;
+        422 `jadwal_bertumpuk`: jam bertumpuk dengan jadwal aktif dokter yang sama di hari yang sama (rincian memuat id jadwal);
+        422 `bukan_ruang` (`ruang_id` bukan ruang aktif); 422 `validasi_gagal` untuk `jam_selesai` ≤ `jam_mulai` atau
+        pegawai bukan dokter. `ruang_id` kosong = ruang poliklinik.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pegawai_id, poli_id, hari, jam_mulai, jam_selesai, kuota_jkn, kuota_non_jkn, berlaku_dari, dasar_perubahan]
+              properties:
+                pegawai_id: { type: string, format: uuid }
+                poli_id: { type: string, format: uuid }
+                ruang_id: { type: [string, 'null'], format: uuid }
+                hari: { $ref: '#/components/schemas/HariPraktik' }
+                jam_mulai: { $ref: '#/components/schemas/JamPraktik' }
+                jam_selesai: { $ref: '#/components/schemas/JamPraktik' }
+                kuota_jkn: { type: integer, minimum: 0, maximum: 1000 }
+                kuota_non_jkn: { type: integer, minimum: 0, maximum: 1000 }
+                berlaku_dari: { type: string, format: date }
+                berlaku_sampai: { type: [string, 'null'], format: date }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '201':
+          description: Jadwal dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/JadwalPraktik' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /jadwal-praktik/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      operationId: ubahJadwalPraktik
+      summary: Ubah atau nonaktifkan jadwal praktik
+      description: |
+        Izin: master_data.jadwal_praktik.perbaiki. Wajib If-Match (412 `versi_berubah`, 428 `if_match_wajib`).
+        Aturan 422 sama dengan POST (`sip_tidak_aktif`, `jadwal_bertumpuk`, `bukan_ruang`, `validasi_gagal`);
+        `pegawai_id` dan `poli_id` tidak diubah (nonaktifkan lalu buat jadwal baru). Kuota di bawah jumlah yang
+        sudah terisi pada tanggal mendatang → 422 `kuota_di_bawah_terisi`. Jadwal tidak dihapus: `status = nonaktif`.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              properties:
+                ruang_id: { type: [string, 'null'], format: uuid }
+                hari: { $ref: '#/components/schemas/HariPraktik' }
+                jam_mulai: { $ref: '#/components/schemas/JamPraktik' }
+                jam_selesai: { $ref: '#/components/schemas/JamPraktik' }
+                kuota_jkn: { type: integer, minimum: 0, maximum: 1000 }
+                kuota_non_jkn: { type: integer, minimum: 0, maximum: 1000 }
+                berlaku_dari: { type: string, format: date }
+                berlaku_sampai: { type: [string, 'null'], format: date }
+                status: { type: string, enum: [aktif, nonaktif] }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Jadwal sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/JadwalPraktik' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /jadwal-pengecualian:
+    post:
+      operationId: buatJadwalPengecualian
+      summary: Catat cuti dokter atau libur
+      description: |
+        Izin: master_data.jadwal_praktik.input. `jenis = cuti` wajib `pegawai_id` (semua jadwal dokter itu tertutup pada
+        rentang); `jenis = libur` dengan `pegawai_id` kosong menutup semua jadwal RS pada rentang. Daftar pengecualian
+        dibaca lewat `JadwalPraktik.pengecualian` (GET /jadwal-praktik); tidak ada daftar tersendiri. 422 `validasi_gagal`
+        bila `sampai_tanggal` < `dari_tanggal`, `cuti` tanpa `pegawai_id`, atau `libur` dengan `pegawai_id`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [jenis, dari_tanggal, sampai_tanggal, alasan]
+              properties:
+                jenis: { $ref: '#/components/schemas/JenisPengecualian' }
+                pegawai_id: { type: [string, 'null'], format: uuid }
+                dari_tanggal: { type: string, format: date }
+                sampai_tanggal: { type: string, format: date }
+                alasan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '201':
+          description: Pengecualian dicatat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/JadwalPengecualian' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /jadwal-pengecualian/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      operationId: ubahJadwalPengecualian
+      summary: Ubah rentang atau batalkan pengecualian
+      description: |
+        Izin: master_data.jadwal_praktik.perbaiki. Wajib If-Match (412, 428). Pembatalan = `status = batal` dengan
+        `alasan_batal` (tidak dihapus); pengecualian batal tidak lagi menutup jadwal. Pengecualian yang sudah lewat
+        seluruhnya tidak dapat diubah (422 `validasi_gagal`).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                dari_tanggal: { type: string, format: date }
+                sampai_tanggal: { type: string, format: date }
+                alasan: { $ref: '#/components/schemas/Dasar' }
+                status: { type: string, enum: [batal] }
+                alasan_batal: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Pengecualian sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/JadwalPengecualian' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -5469,6 +5775,101 @@ components:
             maks_hari_superadmin: { type: integer, minimum: 0, examples: [7] }
             maks_hari_peran_sensitif: { type: integer, minimum: 0, examples: [14] }
         diubah_pada: { type: [string, 'null'], format: date-time }
+    JenisPenjamin:
+      type: string
+      enum: [bpjs, umum, asuransi, perusahaan, jasa_raharja, jamkesda, sponsor_riset]
+    PlafonPenjamin:
+      type: [string, 'null']
+      pattern: '^[0-9]{1,15}(\.[0-9]{1,2})?$'
+      description: "Rupiah sebagai string desimal (tanpa pembulatan float); null = tanpa plafon tetap. Nilai klinis/tarif tidak ada di sini"
+    Penjamin:
+      type: object
+      required: [id, kode, nama, jenis, status, masa_berlaku_gl_hari, plafon, jatuh_tempo_hari, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+        jenis: { $ref: '#/components/schemas/JenisPenjamin' }
+        status: { type: string, enum: [aktif, nonaktif] }
+        masa_berlaku_gl_hari: { type: [integer, 'null'], description: "Masa berlaku surat jaminan (GL) sejak terbit, hari; null = tidak dibatasi" }
+        plafon: { $ref: '#/components/schemas/PlafonPenjamin' }
+        jatuh_tempo_hari: { type: [integer, 'null'], description: "Jatuh tempo penagihan sejak tagihan terbit, hari" }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    HariPraktik:
+      type: integer
+      minimum: 1
+      maximum: 7
+      description: "Hari ISO: 1 = Senin … 7 = Minggu (zona RS)"
+    JamPraktik:
+      type: string
+      pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+      description: "Jam lokal RS, HH:MM"
+    JenisPengecualian:
+      type: string
+      enum: [cuti, libur]
+    JadwalPengecualian:
+      type: object
+      required: [id, jenis, pegawai, dari_tanggal, sampai_tanggal, alasan, status, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        jenis: { $ref: '#/components/schemas/JenisPengecualian' }
+        pegawai:
+          description: "null = berlaku untuk semua dokter (libur)"
+          oneOf: [{ $ref: '#/components/schemas/RingkasPegawai' }, { type: 'null' }]
+        dari_tanggal: { type: string, format: date }
+        sampai_tanggal: { type: string, format: date }
+        alasan: { type: string }
+        status: { type: string, enum: [aktif, batal] }
+        alasan_batal: { type: [string, 'null'] }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    KeterisianJadwal:
+      type: object
+      required: [tanggal, kuota_jkn, terisi_jkn, kuota_non_jkn, terisi_non_jkn, sisa_jkn, sisa_non_jkn, tersedia, alasan_tidak_tersedia]
+      properties:
+        tanggal: { type: string, format: date }
+        kuota_jkn: { type: integer, minimum: 0 }
+        terisi_jkn: { type: integer, minimum: 0 }
+        kuota_non_jkn: { type: integer, minimum: 0 }
+        terisi_non_jkn: { type: integer, minimum: 0 }
+        sisa_jkn: { type: integer, minimum: 0 }
+        sisa_non_jkn: { type: integer, minimum: 0 }
+        tersedia: { type: boolean, description: "false bila tertutup pengecualian atau jadwal tidak aktif pada tanggal itu" }
+        alasan_tidak_tersedia: { type: [string, 'null'], enum: [cuti, libur, nonaktif, null] }
+    JadwalPraktik:
+      type: object
+      required: [id, pegawai, poliklinik, ruang, hari, jam_mulai, jam_selesai, kuota_jkn, kuota_non_jkn, berlaku_dari, berlaku_sampai, status, pada_tanggal, pengecualian, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        pegawai: { $ref: '#/components/schemas/RingkasPegawai' }
+        poliklinik:
+          type: object
+          required: [id, kode, nama]
+          properties:
+            id: { type: string, format: uuid }
+            kode: { type: string }
+            nama: { type: string }
+        ruang:
+          description: "Ruang praktik (penunjuk arah dan lantai); null = poli belum dipetakan"
+          oneOf: [{ $ref: '#/components/schemas/RingkasLokasi' }, { type: 'null' }]
+        hari: { $ref: '#/components/schemas/HariPraktik' }
+        jam_mulai: { $ref: '#/components/schemas/JamPraktik' }
+        jam_selesai: { $ref: '#/components/schemas/JamPraktik' }
+        kuota_jkn: { type: integer, minimum: 0 }
+        kuota_non_jkn: { type: integer, minimum: 0 }
+        berlaku_dari: { type: string, format: date }
+        berlaku_sampai: { type: [string, 'null'], format: date }
+        status: { type: string, enum: [aktif, nonaktif] }
+        pada_tanggal:
+          description: "Terisi dan sisa pada `tanggal` query; null bila `tanggal` tidak dikirim"
+          oneOf: [{ $ref: '#/components/schemas/KeterisianJadwal' }, { type: 'null' }]
+        pengecualian:
+          type: array
+          description: "Pengecualian aktif yang menutup jadwal ini (cuti dokter + libur RS) dengan sampai_tanggal ≥ hari ini; hanya jika pemanggil berizin lihat"
+          items: { $ref: '#/components/schemas/JadwalPengecualian' }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
     MetaKursor:
       type: object
       required: [kursor_berikutnya]
