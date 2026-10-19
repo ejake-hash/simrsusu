@@ -734,7 +734,16 @@ export function buatServerLokasi(opsi: OpsiServerLokasi = {}) {
     }
   }
 
-  return { tangani, potretObjek, labelNilai, contoh: { gedungA, lantai1, r101, r102, melati, km101, km102, k3, k1 } }
+  const ringkasPoli = (poliId: string) => {
+    const p = poli.get(poliId)
+    const l = p?.lokasi_id ? lokasi.get(p.lokasi_id) : undefined
+    return p && p.status === 'aktif' ? { id: p.id, kode: p.kode, nama: p.nama, ruang: l ? ringkasLokasi(l) : null } : null
+  }
+  const ringkasRuang = (ruangId: string) => {
+    const l = lokasi.get(ruangId)
+    return l && l.jenis === 'ruang' && l.status === 'aktif' ? ringkasLokasi(l) : null
+  }
+  return { tangani, potretObjek, labelNilai, ringkasPoli, ringkasRuang, contoh: { poliAnak, gedungA, lantai1, r101, r102, melati, km101, km102, k3, k1 } }
 }
 
 export type ServerLokasi = ReturnType<typeof buatServerLokasi>

@@ -1,6 +1,7 @@
 import { buatServerNotifikasi } from '../../notifikasi/tiruan/serverNotifikasi'
 import { buatServerPenjamin } from '../../penjamin/tiruan/serverPenjamin'
 import { buatServerLokasi } from '../../organisasi/tiruan/serverLokasi'
+import { buatServerJadwal } from '../../jadwal-praktik/tiruan/serverJadwal'
 import { buatServerIntegrasi } from '../../integrasi/tiruan/serverIntegrasi'
 import { buatServerOrganisasi } from '../../organisasi/tiruan/serverOrganisasi'
 import { buatServerPenyiapan } from '../../penyiapan/tiruan/serverPenyiapan'
@@ -51,6 +52,15 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     pelaku: () => ({ id: opsi.penggunaId ?? ID_SUPERADMIN, nama: 'Contoh Superadmin' }),
     sekarang: opsi.sekarang,
   })
+  const jadwal = buatServerJadwal({
+    boleh: akses.bolehSaya,
+    pegawai: sdm.ringkasPegawai,
+    sipAktif: sdm.sipAktif,
+    poli: lokasi.ringkasPoli,
+    ruang: (id) => lokasi.ringkasRuang(id),
+    contoh: { dokter: sdm.contoh.dokter, poli: lokasi.contoh.poliAnak.id },
+    sekarang: opsi.sekarang,
+  })
   const notifikasi = buatServerNotifikasi({ boleh: akses.bolehSaya, unit: organisasi.ringkasUnit, sekarang: opsi.sekarang })
   const ttd = buatServerTtd({
     penggunaSaatIni: akses.penggunaSaatIni,
@@ -96,6 +106,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     lokasi,
     akses,
     sdm,
+    jadwal,
     notifikasi,
     ttd,
     usulan,
@@ -106,7 +117,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
       if (akses.wajibGantiSandi() && !bebasGantiSandi(r)) {
         return { status: 403, isi: { error: { kode: 'wajib_ganti_sandi', pesan: 'Ganti sandi awal Anda lebih dulu.', rincian: [] } } }
       }
-      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r)
+      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r)
     },
   }
 }
