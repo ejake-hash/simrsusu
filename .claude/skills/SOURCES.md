@@ -5,6 +5,7 @@
 | laravel-patterns laravel-security laravel-tdd laravel-verification postgres-patterns database-migrations api-design architecture-decision-records healthcare-phi-compliance healthcare-emr-patterns healthcare-eval-harness e2e-testing | github.com/affaan-m/ECC (MIT) | 4eb71d92a39cab44ad40ac9d8a6a5ccb4029d6c2 |
 | web-design-guidelines | github.com/vercel-labs/agent-skills + web-interface-guidelines (disimpan lokal) | 063bee94c3f4df8453406c830b0a7df0f2860278 / 434b7f91364665f2f733b310ec54809bf8f37937 |
 | playwright-cli | npm @playwright/cli | 0.1.22 |
+| antislop antislop-ui antislop-copywriting antislop-human antislop-layoutmobile antislop-code | github.com/miqdadbadjuber/anti-slop (MIT, `antislop/LICENSE`); dipasang 19 Okt 2026 atas permintaan pemilik | 439a2ef5b9dd0ebe74e8113ff43f5928d0fe2a6a (v3.2.21) |
 | satusehat-fhir, bpjs-bridging, regulasi-rme-pdp, koding-icd, rs-pendidikan-akses | dibuat tim (kerangka) | — |
 
 Skill yang sudah diedit tim tidak akan ditimpa kecuali installer dijalankan dengan --force.
@@ -35,3 +36,9 @@ Skill ECC lainnya dipakai apa adanya, **kecuali** enam skill berikut yang diberi
 | Skill | Alasan |
 |---|---|
 | frontend-design | Salinan persis plugin resmi `claude-plugins-official` (commit b8e53f1c05df) yang sudah terpasang global, tidak pernah diedit tim. Dihapus 10 Okt 2026 agar tidak ganda; pakai versi plugin yang ikut diperbarui.
+
+## Antislop (19 Okt 2026)
+
+Isi skill tidak diubah. Hanya baris `description` keenam skill diganti agar tidak termuat di tiket backend/kontrak/migrasi
+(aslinya "Load always"). Cara pakai dan mode di skill `kerja-tiket` § 7. Memperbarui: salin ulang folder `skills/` dari
+commit baru, lalu pasang lagi deskripsi di atas.

@@ -1,95 +1,123 @@
 ---
 name: kerja-tiket
-description: Alur kerja tiket SIMRS — kerja paralel antar-worktree, kerja berkelanjutan (ambil tiket, tinjau, merge sendiri), DoD bertingkat, dan kebiasaan hemat token. Gunakan saat mengerjakan tiket backlog, membuka/meninjau/merge PR, atau menyiapkan worktree.
+description: Alur kerja tiket SIMRS — worktree (skrip siapkan/bersihkan, Korlap), kerja berkelanjutan (ambil tiket, tinjau, merge sendiri), format tiket dan laporan, DoD bertingkat, antislop, graphify, dan kebiasaan hemat token. Gunakan saat mengerjakan tiket backlog, membuka/meninjau/merge PR, atau menyiapkan worktree.
 ---
 
 # Alur kerja tiket SIMRS
 
-Ringkasan di CLAUDE.md menang bila bentrok dengan contoh skill mana pun. Sumber kebenaran: `docs/prd.md`.
+Ringkasan di CLAUDE.md menang bila bentrok dengan skill mana pun. Sumber kebenaran: `docs/prd.md`.
+Tiket aktif: `docs/backlog-fase2.md`. Arsip: `docs/backlog-fase1.md`, `docs/arsip/`.
 
-## Hemat token (wajib)
+## 1. Hemat token (wajib)
 
-1. **Dokumen besar dibaca per bagian, tidak pernah utuh.** `docs/prd.md`, `docs/api/openapi.yaml`, dan
-   `docs/backlog-fase1.md` dibaca dengan `grep -n` dulu lalu `Read`/`sed -n` pada rentang baris yang perlu saja.
-   Aturan ini juga berlaku untuk subagen peninjau (beri nomor baris/ruang lingkup, bukan "baca seluruh PRD").
-2. **Commit + push WIP tiap ±30 menit dan sebelum menunggu CI.** Branch WIP boleh berisi pekerjaan setengah jadi
-   (tandai di pesan commit); yang penting tidak ada perubahan tak ter-push yang bisa hilang bila sesi berakhir.
-3. **PRD penyelarasan dikumpulkan sekali per fase**, bukan per tiket. Selama fase berjalan, aturan baru yang sudah
-   disetujui ditulis dulu ke backlog/tiket; penyelarasan PRD menyusul dalam satu PR di akhir fase (atau gerbang fase).
-
-## Kerja paralel
-
-Beberapa sesi bisa bekerja bersamaan di mesin yang sama.
-
-1. **Folder utama `SIMRS-USU` dipakai satu sesi saja.** Sesi lain memakai worktree sendiri:
-   `git worktree add ../SIMRS-USU-<tiket> <branch>` (butuh `composer install`, `npm ci`, dan `.env` sendiri; jangan
-   salin `.env` worktree lain). Di `.env` pakai nomor DB Valkey sendiri (`REDIS_DB`, `REDIS_CACHE_DB`) dan port
-   `php artisan serve` sendiri.
-2. **Database tes per worktree `simrs_test_<tiket>`**, dibuat dengan skrip CI:
-   ```bash
-   export PGHOST=127.0.0.1 PGPORT=5433 PGUSER=postgres PGPASSWORD=postgres
-   psql -c "CREATE DATABASE simrs_test_<tiket> OWNER simrs_migrator"
-   psql -d simrs_test_<tiket> -f docker/postgres/init/sql/02-database.sql
-   DB_DATABASE_TES=simrs_test_<tiket> composer test
+1. **Navigasi graphify dulu.** `graphify query "<pertanyaan>"`, `graphify explain <simbol>`, `graphify path A B
+   --undirected`. Bila tak menjawab: `grep -n` lalu rentang baris. Dokumen besar (`docs/prd.md`,
+   `docs/api/openapi.yaml`, backlog) **tidak pernah dibaca utuh** — juga oleh subagen.
+2. **Tanpa rencana panjang.** Tiket S langsung dikerjakan. Tiket M boleh rencana ≤ 8 butir, tanpa paragraf.
+   Tidak menulis ulang isi tiket/PRD di PR atau chat; cukup rujuk nomornya.
+3. **Commit + push WIP tiap ±30 menit dan sebelum menunggu CI** (pesan berawalan `WIP:`).
+4. **PRD diselaraskan sekali per fase.** Aturan baru yang sudah disetujui ditulis dulu ke backlog.
+5. **Laporan akhir tepat 5 baris** (di chat dan sebagai komentar penutup PR):
    ```
-   Jangan memakai `simrs_test` (bawaan CI dan folder utama) atau DB tes worktree lain. Jangan `docker compose down -v`.
-3. **Sebelum stash/checkout/reset: `git status` dan `git worktree list`**, lalu sentuh hanya berkas tiket sendiri.
-   Jangan menyentuh worktree atau branch milik sesi lain.
-4. **Node lokal mengikuti `.nvmrc` (24)**, sama dengan CI.
-5. **Tiket selesai = bersih.** Setelah PR merge dan CI `main` hijau:
-   - `git worktree remove <jalur>`, `git branch -D <branch>`, `git push origin --delete <branch>`;
-   - `DROP DATABASE` tes/e2e tiket (`simrs_test_<tiket>`, `simrs_e2e_<tiket>`);
-   - `flushdb` DB Valkey tiket di dua instans: `docker compose -p simrs-usu exec valkey valkey-cli -n <REDIS_DB> flushdb`,
-     lalu `valkey-cache` dengan `-n <REDIS_CACHE_DB>`;
-   - `docker compose -p <proyek> down` (tanpa `-v`) untuk stack tambahan;
-   - laporan akhir memuat `git worktree list` dan daftar database tersisa.
+   PR: #<no> <judul>
+   CI: hijau | merah (<job>) | menunggu
+   Berubah: <≤ 1 kalimat>
+   Asumsi/menyimpang: <- atau daftar singkat>
+   Berikutnya: <tiket/aksi>
+   ```
+6. CLAUDE.md dijaga ≤ 85 baris; rincian masuk ke skill ini.
 
-## Kerja berkelanjutan
+## 2. Format tiket
+
+Format PRD Lampiran D.6 ditambah tiga kolom: **Ukuran** (S ≤ ~300 baris diff, M ≤ ~800; lebih besar dipecah
+sebelum mulai), **Jalur** (`BE`, `FE`, `BE+FE`), **Prasyarat**. Uji penerimaan ≤ 5 butir Given/When/Then. Latar
+belakang = nomor bagian PRD, bukan salinan. Tiket dibuat perencana (pemilik + penyusun PRD), bukan oleh sesi.
+
+## 3. Worktree
+
+1. **Folder utama `SIMRS-USU`**: satu sesi saja; agen tidak pernah pull/checkout/reset di sana.
+2. **Worktree baru** (sesi VS Code atau kartu Korlap): dari dalam worktree jalankan **`scripts/worktree-siapkan.sh`**
+   sebelum langkah lain. Skrip menyalin `.env` dari folder utama dan membuat unik per worktree: port API `8000+n`,
+   Vite `5173+n`, DB dev `simrs_<slug>`, DB tes `simrs_test_<slug>`, `REDIS_DB`/`REDIS_CACHE_DB`, `SESSION_COOKIE`,
+   `SANCTUM_STATEFUL_DOMAINS`; lalu `composer install`, `npm ci`, migrasi, seed. Variabel ada di `.worktree.env`:
+   ```bash
+   source .worktree.env && (cd backend && composer test)
+   source .worktree.env && (cd frontend && npx playwright test e2e/<spec> --project=desktop)
+   ```
+   Jangan memakai `simrs`/`simrs_test` (milik folder utama dan CI). Jangan `docker compose down -v`.
+3. **Graf per worktree:** setelah siapkan, `graphify update .` (±5 detik, tanpa model) bila `graphify` terpasang.
+   Hook git (`post-commit` dkk.) dipakai bersama semua worktree; jalankan dengan `GRAPHIFY_BACKEND=none`. Bila
+   `graphify hook install` diulang, tambahkan lagi `export GRAPHIFY_BACKEND=none` sesudah `PYTHONHASHSEED=0` di keempat
+   skrip hook. Setelah PRD berubah (sekali per fase): `/graphify docs/prd.md --update`.
+4. **Sebelum stash/checkout/reset: `git status` dan `git worktree list`.** Jangan menyentuh worktree/branch lain.
+5. **Tiket selesai = bersih.** Setelah PR merge dan CI `main` hijau, dari folder utama:
+   `scripts/worktree-bersihkan.sh <jalur-worktree>` (hapus DB dev/tes/e2e, flush Valkey, worktree, branch lokal;
+   menolak bila PR belum merge). Laporan akhir memuat `git worktree list`.
+6. **Browser manual dua worktree sekaligus:** cookie `XSRF-TOKEN` tidak dibedakan per port; pakai profil browser
+   terpisah. Playwright tidak terpengaruh (konteks terisolasi).
+
+## 4. Paralel BE/FE dan Korlap
+
+- **Paralel hanya setelah PR kontrak merge.** Jalur `BE+FE`: agen BE membuka PR kontrak (`docs/api/openapi.yaml`,
+  hanya endpoint tiket) → tinjau → merge → kartu BE dan kartu FE jalan bersamaan. FE memakai data tiruan dari kontrak
+  sampai BE merge, lalu satu commit integrasi.
+- **Paling banyak 2 agen bersamaan** (satu BE, satu FE). Lebih dari itu kuota habis lebih cepat daripada hasilnya.
+- **Korlap** (aplikasi kanban macOS, alpha) hanya pengatur kartu dan worktree. Aturan:
+  1. Isi kartu = blok tiket dari backlog apa adanya + baris `Jalur: BE` atau `Jalur: FE`. Backlog tetap sumber status.
+  2. Langkah pertama setiap agen: `scripts/worktree-siapkan.sh` (Korlap tidak punya hook penyiapan).
+  3. Kolom Review Korlap **tidak** menggantikan tinjauan di sini: merge tetap lewat `gh pr merge` setelah CI hijau +
+     `peninjau`. Jangan pakai tinjauan Opus bawaan Korlap (biaya ganda).
+  4. Kartu Done → bersihkan dengan `scripts/worktree-bersihkan.sh`; periksa juga `git worktree list` karena perilaku
+     pembersihan Korlap belum terdokumentasi.
+  5. Bila Korlap gagal (worktree/DB yatim, agen macet), kembali ke dua sesi VS Code dengan worktree biasa.
+
+## 5. Kerja berkelanjutan
 
 Sesi tidak berhenti menunggu manusia selama ada tiket yang bisa dikerjakan. Pemilik meninjau setelah merge (bisa
 revert); proteksi cabang tidak aktif (GitHub Free), jadi aturan ini dijaga sesi sendiri.
 
-1. **Ambil tiket sendiri.** Setelah tiket bersih, ambil tiket `docs/backlog-fase1.md` berstatus "Siap dikerjakan"
-   dengan semua prasyarat Selesai. Klaim lewat PR (judul memuat nomor tiket). **Status backlog diubah sekali per
-   tiket, di commit penutup PR** (ketentuan pemilik, 12 Okt 2026). Jalur: sesi 1 backend/dokumen, sesi 2 frontend;
-   bila jalur sendiri kosong, ambil jalur lain atau tinjau PR.
-2. **Merge sendiri** bila semua terpenuhi:
-   - `gh pr checks <no> --watch` selesai, semua hijau;
-   - tinjauan sesuai jenis PR, tertulis komentar PR berawalan "Tinjauan:" dengan hasil "Disetujui"; temuan diperbaiki
-     lalu ditinjau ulang:
-     - PR backend atau menyentuh keamanan (autentikasi, hak akses, audit, kriptografi): **subagen `peninjau`**
-       (konteks bersih, tidak ikut menulis kode) atau sesi lain, terhadap uji penerimaan tiket dan DoD PRD D.7;
-     - PR frontend: **sesi 1** (kecocokan kontrak + tes otomatis); subagen hanya bila menyentuh autentikasi/hak akses;
-     - PR kontrak: sesi pemakai (frontend) dan subagen;
-     - PR hanya dokumen atau backlog: **tanpa tinjauan**;
-   - lalu `gh pr merge <no> --squash --delete-branch`, tunggu CI main hijau, bersih-bersih tiket.
-3. **Pengecualian: tunggu pemilik** bila PR:
-   - mengubah `docs/prd.md` dengan **aturan baru karangan sesi** (boleh merge sendiri: salinan md5-cocok dari luar repo,
-     atau PRD yang **hanya mendokumentasikan kode yang sudah merge** setelah tinjauan subagen);
-   - mengubah `docs/api/openapi.yaml` di luar endpoint tiket yang disetujui (endpoint dalam tiket boleh merge sendiri
-     setelah ditinjau sesi pemakai + subagen);
-   - melonggarkan aturan keamanan (MFA, hak akses, audit, masking log, rate limit), atau migrasi yang menghapus
-     data/kolom berisi data;
-   - menambah dependensi baru di luar yang disebut tiket, atau menaikkan versi mayor.
-   Judul PR berawalan "[Perlu pemilik]"; **pisahkan** jadi PR kecil tersendiri, kode yang tak bergantung di-merge sendiri.
-4. **Berhenti dan laporkan** bila: butuh keputusan produk di luar PRD/tiket; butuh data/kredensial pihak luar; CI gagal
-   3 kali untuk sebab yang sama; atau tidak ada tiket Siap.
-5. **Serah terima.** Tiap PR memuat: yang selesai, utang baru (juga ditulis ke backlog), langkah berikutnya.
-6. **Sesi menganggur** meninjau PR sesi lain sebelum mengambil tiket baru.
+1. **Ambil tiket sendiri** berstatus "Siap dikerjakan" dengan prasyarat Selesai, sesuai jalurnya; jalur sendiri
+   kosong → tinjau PR atau ambil jalur lain. Klaim lewat PR (judul memuat nomor tiket). Status backlog diubah sekali,
+   di commit penutup PR.
+2. **Ambigu bukan aturan PRD** → pilih bawaan yang paling dekat dengan PRD, tulis `Asumsi:` di PR, lanjut.
+3. **Merge sendiri** bila: `gh pr checks <no> --watch` hijau; komentar "Tinjauan: Disetujui" sesuai jenis PR:
+   - backend, keamanan (autentikasi, hak akses, audit, kriptografi), kontrak → subagen `peninjau`;
+   - frontend → `peninjau` fokus kecocokan kontrak, layar, dan antislop; keamanan bila menyentuh autentikasi/akses;
+   - dokumen atau backlog → tanpa tinjauan.
+   Lalu `gh pr merge <no> --squash --delete-branch`, tunggu CI main hijau, bersihkan worktree.
+4. **Tunggu pemilik** (judul "[Perlu pemilik]", PR kecil tersendiri; kode yang tak bergantung tetap merge) bila PR:
+   - mengubah `docs/prd.md` dengan aturan baru karangan sesi (boleh merge sendiri: salinan md5-cocok dari luar repo,
+     atau PRD yang hanya mendokumentasikan kode yang sudah merge, setelah tinjauan subagen);
+   - mengubah `docs/api/openapi.yaml` di luar endpoint tiket;
+   - melonggarkan keamanan (MFA, hak akses, audit, masking log, rate limit) atau migrasi yang menghapus data;
+   - menambah dependensi di luar yang disebut tiket, atau versi mayor.
+5. **CI gagal 3× untuk sebab yang sama** → catat utang di backlog (sebab + job), tandai tiket "Terhambat", ambil
+   tiket lain.
+6. **Berhenti dan laporkan** hanya bila tidak ada tiket Siap, atau butuh data/kredensial pihak luar.
 
-## DoD bertingkat (ketentuan pemilik, 17 Okt 2026)
+## 6. DoD bertingkat (ketentuan pemilik, 17 Okt 2026)
 
-- **Tiket kecil** (≤ 1 hari, tanpa migrasi berisiko: tanpa hapus data/kolom berisi data, tanpa backfill besar) =
-  **satu PR** berisi kontrak + backend + frontend. E2E di PR itu **hanya spec yang terkait** di **1440 px + axe**.
-- **Tiket besar atau berisiko** tetap dipecah (kontrak → be/fe) seperti biasa.
-- **E2E penuh 4 lebar** (1440/1024/768/390) + axe **tidak** dijalankan per PR. Dipindah ke **workflow terjadwal tiap
-  malam** (`.github/workflows/e2e-nightly.yml`) dan **gerbang fase** (sebelum menutup fase). PR biasa cukup menjalankan
-  spec terkaitnya.
+- **Tiket kecil** (S, tanpa migrasi berisiko) = **satu PR** berisi kontrak + backend + frontend. E2E di PR hanya spec
+  terkait di **1440 px + axe**.
+- **Tiket M atau berisiko**: PR kontrak, lalu PR be dan PR fe.
+- **E2E penuh 4 lebar** (1440/1024/768/390) + axe di workflow malam (`.github/workflows/e2e-nightly.yml`) dan gerbang
+  fase, bukan per PR.
 - DoD lain PRD D.7 tetap: `composer test` hijau, `composer analyse` bersih, kontrak cocok, tanpa data pasien asli,
   tanpa HEX di komponen.
 
-## Tinjauan subagen
+## 7. Antislop
 
-Pakai agen `peninjau` (model sonnet, `.claude/agents/peninjau.md`) untuk tinjauan subagen. Beri: nomor PR/branch,
-worktree, perintah diff (ruang lingkup, bukan "baca semua"), badan tiket + uji penerimaan, dan fokus (keamanan untuk PR
-keamanan). Minta putusan "Disetujui"/"Perlu perbaikan". Perbaiki temuan, minta tinjau ulang, baru merge.
+Skill `antislop*` di `.claude/skills/` (pihak ketiga, MIT; deskripsinya disesuaikan agar tidak termuat di tiket BE).
+- **Mode `during`**: pemilik menyetel sekali per komputer `npx antislop-ai --mode during`. Bila belum disetel dan
+  skill menanyakan mode, pilih `during` sendiri (keputusan pemilik 19 Okt 2026), jangan menunggu jawaban.
+- **Dipakai:** agen FE saat membuat/mengubah layar (`antislop`, `antislop-ui`, `antislop-human`;
+  `antislop-layoutmobile` bila layar diuji di 768/390 px) dan Delivery Gate sebelum membuka PR; `antislop-code`
+  sebelum membuka PR apa pun; `antislop-copywriting` untuk teks layar, deskripsi PR, dan dokumen.
+- **Tidak dipakai:** tiket BE, kontrak, migrasi.
+- Arah desain sudah ada (`DESIGN.md`, PRD 5.3, token) dan aset dari paket identitas, jadi R-23/R-37 tidak memicu
+  pertanyaan. Mode `after` (audit bernomor menunggu persetujuan) tidak dipakai agen otomatis. Bentrok → PRD/CLAUDE.md.
+
+## 8. Tinjauan subagen
+
+Pakai `peninjau` (sonnet). Beri: nomor PR/branch, jalur worktree, perintah diff (ruang lingkup), badan tiket + uji
+penerimaan, dan fokus. Putusan "Disetujui"/"Perlu perbaikan"; perbaiki temuan wajib, minta tinjau ulang, baru merge.

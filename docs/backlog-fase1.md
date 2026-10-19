@@ -1,5 +1,7 @@
 # Backlog Fase 1 (Fondasi)
 
+> **Fase 1 selesai di kode** kecuali 1.10 (terhambat data IdP). Tiket aktif: [`docs/backlog-fase2.md`](backlog-fase2.md). Tabel "Jalur kerja" di bawah adalah catatan sejarah; aturan kerja yang berlaku ada di skill `kerja-tiket`.
+
 > Sumber tiket untuk semua sesi. Kebutuhan tetap di `docs/prd.md`; file ini hanya urutan, status, dan isi tiket yang belum jalan.
 > Alur kerja per halaman (paket halaman → backend & frontend paralel → integrasi → selesai): PRD D.5. Menu ke modul yang belum dibangun: *Segera hadir* (PRD 10.4).
 > Format tiket: PRD Lampiran D.6. Definition of Done: PRD D.7. Ubah status lewat PR yang menyelesaikan tiketnya.
