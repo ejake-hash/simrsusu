@@ -46,7 +46,7 @@ const POHON: [kode: string, label: string | null, menu: DefMenu[]][] = [
       ['logistik', 'Logistik', 4, [['gudang', 'Gudang & persediaan'], ['pengadaan', 'Pengadaan'], ['aset', 'Aset tetap'], ['pemeliharaan', 'Pemeliharaan & kalibrasi']]],
       ['integrasi', 'Integrasi dan Laporan', 2, [['satusehat', 'SATUSEHAT'], ['bpjs', 'Bridging BPJS'], ['log', 'Log integrasi'], ['laporan_wajib', 'Laporan wajib', 4]]],
       ['dasbor', 'Dasbor', 4, [['ringkasan_direksi', 'Ringkasan direksi'], ['keuangan', 'Keuangan'], ['pelayanan', 'Pelayanan']]],
-      ['master_data', 'Master Data', 1, [['organisasi', 'Organisasi, Unit, Ruang & Tempat Tidur'], ['jenis_tugas', 'Jenis Tugas, Tenggat & Eskalasi'], ['katalog', 'Data induk'], ['penjamin', 'Penjamin'], ['usulan', 'Usulan perubahan']]],
+      ['master_data', 'Master Data', 1, [['organisasi', 'Organisasi, Unit, Ruang & Tempat Tidur'], ['jenis_tugas', 'Jenis Tugas, Tenggat & Eskalasi'], ['katalog', 'Data induk'], ['penjamin', 'Penjamin'], ['usulan', 'Usulan perubahan'], ['jadwal_praktik', 'Jadwal praktik & kuota poli']]],
       ['pengaturan', 'Pengaturan Sistem', 1, [['peran', 'Peran & izin'], ['akun', 'Akun & akses'], ['persetujuan', 'Persetujuan akses'], ['audit', 'Jejak audit'], ['menu', 'Pengaturan menu'], ['integrasi', 'Konfigurasi integrasi'], ['profil_rs', 'Profil rumah sakit'], ['keamanan', 'Keamanan'], ['penyiapan', 'Penyiapan instalasi']]],
     ],
   ],
@@ -68,7 +68,7 @@ const BAGIAN: Record<string, [kode: string, label: string, ikutInduk: boolean][]
 }
 const AKSI_BAGIAN: Record<string, JenisAksi[]> = { 'sdm.pegawai.identitas': ['lihat'] }
 
-export const TERSEDIA = new Set(['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.penjamin', 'master_data.usulan', 'sdm.pegawai'])
+export const TERSEDIA = new Set(['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.penjamin', 'master_data.usulan', 'master_data.jadwal_praktik', 'sdm.pegawai'])
 /** Modul yang dimatikan di instalasi contoh, agar penanda "modul nonaktif" ikut teruji. */
 const MODUL_NONAKTIF = new Set(['kamar_operasi'])
 

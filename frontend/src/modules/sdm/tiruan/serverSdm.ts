@@ -424,7 +424,10 @@ export function buatServerSdm(opsi: OpsiServerSdm) {
     const p = pegawai.get(pegawaiId)
     return p ? { id: p.id, nama: p.nama, status: statusPegawai(p) } : null
   }
-  return { tangani, pegawaiKeluar, ringkasPegawai, contoh: { superadmin: sa.id, dokter: dokter.id, perawat: perawat.id, apoteker: apoteker.id, bidan: bidan.id, keluar: keluar.id } }
+  /** SIP yang tidak dibatalkan dan berlaku pada tanggal itu (dipakai jadwal praktik, kontrak v0.17.0). */
+  const sipAktif = (pegawaiId: string, tanggal: string) =>
+    [...izin.values()].some((x) => x.pegawai_id === pegawaiId && x.jenis === 'sip' && !x.dibatalkan_pada && x.terbit <= tanggal && (x.berlaku_sampai === null || x.berlaku_sampai >= tanggal))
+  return { tangani, pegawaiKeluar, ringkasPegawai, sipAktif, contoh: { superadmin: sa.id, dokter: dokter.id, perawat: perawat.id, apoteker: apoteker.id, bidan: bidan.id, keluar: keluar.id } }
 }
 
 export type ServerSdm = ReturnType<typeof buatServerSdm>
