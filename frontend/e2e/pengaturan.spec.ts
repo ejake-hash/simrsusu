@@ -47,9 +47,11 @@ const menuUtama = (page: Page) => page.getByRole('navigation', { name: 'Menu uta
 
 /** Ke Akun & akses lewat navigasi sub-menu bila sudah di Pengaturan (tanpa muat ulang: hemat rate limit API). */
 async function pilihAkun(page: Page, namaPengguna: string, nama: string) {
-  const subMenu = page.getByRole('navigation', { name: 'Sub-menu Pengaturan Sistem' }).getByRole('link', { name: 'Akun & akses' })
-  if (await subMenu.isVisible()) await subMenu.click()
-  else await page.goto('/pengaturan/akun')
+  // Kondisi dari URL (sinkron), bukan isVisible() yang tidak menunggu render sub-menu sesudah reload.
+  if (new URL(page.url()).pathname.startsWith('/pengaturan')) {
+    await page.getByRole('navigation', { name: 'Sub-menu Pengaturan Sistem' }).getByRole('link', { name: 'Akun & akses' }).click()
+  } else await page.goto('/pengaturan/akun')
+  await expect(page).toHaveURL(/\/pengaturan\/akun/)
   await page.getByRole('searchbox', { name: 'Cari akun' }).fill(namaPengguna)
   await page.getByRole('button', { name: `${nama} ${namaPengguna}`, exact: true }).click()
   await expect(page.getByRole('heading', { level: 2, name: nama })).toBeVisible()
@@ -842,6 +844,8 @@ async function pengajuanTerakhir(page: Page, asal: string): Promise<{ id: string
 
 test('1440 px: izin label — penyetuju label disetujui superadmin lain, izin label menunggu pejabat PDP lalu berlaku dan dicabut; tab Label lolos axe', async ({ page, browser }, info) => {
   test.skip(!RAHASIA_SUPERADMIN_DUA || !RAHASIA_SDM, 'Set E2E_SUPERADMIN_DUA_MFA_RAHASIA dan E2E_SDM_MFA_RAHASIA sesuai AkunSintetisSeeder.')
+  // Uji terpanjang berkas ini (dua persetujuan lewat API, dua masuk akun lain, axe): 30 dtk bawaan terlalu sempit di CI.
+  test.setTimeout(120_000)
   const asal = new URL(info.project.use.baseURL ?? '').origin
   await page.setViewportSize({ width: 1440, height: 900 })
 

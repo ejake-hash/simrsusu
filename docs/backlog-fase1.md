@@ -88,9 +88,9 @@ Rincian alasan ada di ADR yang dirujuk; di sini hanya daftarnya agar tidak ada d
   kini bisa diaktifkan di GitHub Free untuk repo publik: **perlu pemilik** menyalakan aturan `main` (merge hanya lewat PR,
   check `backend`/`frontend`/`e2e` wajib hijau). Sampai itu dijaga lewat kebiasaan kerja.
 - Private vulnerability reporting diaktifkan (SECURITY.md). LICENSE: hak cipta, bukan open source.
-- **e2e `pengaturan.spec.ts` rawan flake**: uji "izin label" (1.5, ~baris 842) sesekali timeout 30 dtk di `pilihAkun`
-  (satu worker menjalankan 17 uji berbagi akun; diduga kontensi rate limit). Lolos saat rerun. Mitigasi lanjutan:
-  pecah spec per akun/area, naikkan timeout uji berat itu, atau reset rate limit antar-uji.
+- **e2e `pengaturan.spec.ts` flake "izin label"** (#110): ditambal — `pilihAkun` memakai kondisi URL (bukan `isVisible()` tanpa tunggu)
+  dan uji itu diberi batas 120 dtk (uji terpanjang berkas, 30 dtk bawaan sempit). Bila muncul lagi: pecah per akun atau
+  pindahkan ke e2e-nightly.
 - Utang 1.15-be (dari tinjauan #105, tidak memblokir): `PotongFoto::potong()` tidak punya test untuk tipe `image/webp`
   (satu dari tiga tipe didukung; `imagewebp()` return value tidak dicek). Tambahkan kasus unggah WebP ke
   `HalamanMasukTest` saat menyentuh berkas itu lagi.
