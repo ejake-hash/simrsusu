@@ -4,6 +4,7 @@ namespace Tests\Feature\ProfilRs;
 
 use App\Core\ProfilRs\ProfilRs;
 use App\Core\ProfilRs\TeksHalamanMasuk;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Tests\Support\AksesUji;
@@ -11,7 +12,7 @@ use Tests\Support\KlienSpa;
 use Tests\Support\KontrakApi;
 use Tests\TestCase;
 
-/** Tiket 1.15-be: halaman masuk dapat diatur (kontrak v0.15.0). */
+/** Tiket 1.15-be: halaman masuk dapat diatur (kontrak v0.15.0) dan foto panel 16:10 tanpa metadata. */
 class HalamanMasukTest extends TestCase
 {
     use AksesUji, KlienSpa, KontrakApi;
@@ -109,5 +110,54 @@ class HalamanMasukTest extends TestCase
         $this->assertSame('bukan array', TeksHalamanMasuk::bersihkan('bukan array'));
         // Karakter format di antara dua spasi tidak meninggalkan spasi ganda.
         $this->assertSame(['judul' => 'a b'], TeksHalamanMasuk::bersihkan(['judul' => "a \u{200B} b\u{FEFF} "]));
+    }
+
+    public function test_foto_dipotong_16_10_dan_metadata_dibuang(): void
+    {
+        // JPEG 400×400 dengan segmen APP1 Exif berisi penanda GPS sintetis.
+        $gambar = imagecreatetruecolor(400, 400);
+        imagefilledrectangle($gambar, 0, 0, 399, 399, (int) imagecolorallocate($gambar, 0, 105, 55));
+        ob_start();
+        imagejpeg($gambar);
+        $jpeg = (string) ob_get_clean();
+        $exif = "Exif\0\0".'GPS-SINTETIS-3.5952,98.6722';
+        $jpeg = substr($jpeg, 0, 2)."\xFF\xE1".pack('n', strlen($exif) + 2).$exif.substr($jpeg, 2);
+        $this->assertStringContainsString('GPS-SINTETIS', $jpeg);
+
+        $respons = $this->unggahFoto($jpeg)->assertOk();
+        $paket = ProfilRs::satu()?->paket_identitas;
+        $tersimpan = Storage::disk('local')->get($paket['foto']['path']);
+        $ukuran = getimagesizefromstring((string) $tersimpan);
+        $this->assertSame([400, 250], [$ukuran[0], $ukuran[1]]);
+        $this->assertSame('image/jpeg', $ukuran['mime']);
+        $this->assertStringNotContainsString('GPS-SINTETIS', (string) $tersimpan);
+        $this->assertStringNotContainsString('Exif', (string) $tersimpan);
+        $this->assertSame(hash('sha256', (string) $tersimpan), $paket['foto']['sha256']);
+        $this->assertNotNull($respons->json('data.paket_identitas.foto_url'));
+
+        // Lebar (gambar 800×200) dipotong kiri-kanan; PNG tetap PNG.
+        $lebar = imagecreatetruecolor(800, 200);
+        ob_start();
+        imagepng($lebar);
+        $this->unggahFoto((string) ob_get_clean(), 'foto.png')->assertOk();
+        $ukuran = getimagesizefromstring((string) Storage::disk('local')->get(ProfilRs::satu()?->paket_identitas['foto']['path']));
+        $this->assertSame([320, 200, 'image/png'], [$ukuran[0], $ukuran[1], $ukuran['mime']]);
+    }
+
+    /** PUT multipart dengan cookie dan CSRF peramban (KlienSpa hanya mengirim JSON). */
+    private function unggahFoto(string $isi, string $nama = 'foto.jpg'): TestResponse
+    {
+        $versi = $this->versi();
+        $this->app['auth']->forgetGuards();
+        $this->unencryptedCookies = $this->kue;
+        $respons = $this->withCredentials()->withHeaders(array_filter([
+            'Origin' => self::ORIGIN, 'Referer' => self::ORIGIN.'/', 'Accept' => 'application/json',
+            'X-XSRF-TOKEN' => $this->kue['XSRF-TOKEN'] ?? null, 'If-Match' => '"'.$versi.'"',
+        ]))->put('/api/v1/profil-rs/berkas/foto', ['berkas' => UploadedFile::fake()->createWithContent($nama, $isi)]);
+        foreach ($respons->headers->getCookies() as $kue) {
+            $kue->isCleared() ? $this->kue = array_diff_key($this->kue, [$kue->getName() => 1]) : $this->kue[$kue->getName()] = $kue->getValue();
+        }
+
+        return $respons;
     }
 }

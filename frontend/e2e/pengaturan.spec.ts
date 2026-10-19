@@ -633,9 +633,10 @@ test('halaman masuk dapat diatur: teks dan foto baru tampil di /masuk tanpa buil
   test.skip(!semula.halaman_masuk, 'Backend belum mengirim halaman_masuk (sebelum 1.15-be).')
   test.skip(!semula.nama, 'Identitas RS belum diisi (uji profil RS di atas mengisinya).')
 
-  // Foto panel sintetis (gradien, bukan foto nyata) dibuat di peramban.
-  const kanvas = await browser.newPage({ viewport: { width: 800, height: 500 } })
-  await kanvas.setContent('<body style="margin:0;height:500px;background:linear-gradient(135deg,#9cc3d5,#b7c4a8)"></body>')
+  // Foto panel sintetis (gradien, bukan foto nyata) dibuat di peramban. Bujur sangkar (bukan 16:10): asersi
+  // rasio di bawah membuktikan server yang memotong (tiket 1.15 ext-gd), bukan kebetulan sudah pas.
+  const kanvas = await browser.newPage({ viewport: { width: 600, height: 600 } })
+  await kanvas.setContent('<body style="margin:0;height:600px;background:linear-gradient(135deg,#9cc3d5,#b7c4a8)"></body>')
   const foto = await kanvas.screenshot({ type: 'png' })
   await kanvas.close()
 
