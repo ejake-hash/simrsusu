@@ -62,13 +62,22 @@ belakang = nomor bagian PRD, bukan salinan. Tiket dibuat perencana (pemilik + pe
   hanya endpoint tiket) → tinjau → merge → kartu BE dan kartu FE jalan bersamaan. FE memakai data tiruan dari kontrak
   sampai BE merge, lalu satu commit integrasi.
 - **Paling banyak 2 agen bersamaan** (satu BE, satu FE). Lebih dari itu kuota habis lebih cepat daripada hasilnya.
-- **Korlap** (aplikasi kanban macOS, alpha) hanya pengatur kartu dan worktree. Aturan:
+- **Korlap** (aplikasi kanban macOS, alpha; dibangun lokal dari `ariaghora/korlap`) hanya pengatur kartu dan
+  worktree. Yang perlu diketahui dari kodenya (commit 2bebd19):
+  - Worktree dibuat di `~/Library/Application Support/net.ghora.korlap/workspaces/<nama>`, bukan di `~/Developer`.
+  - **Repo Settings → Setup script** dijalankan sekali saat workspace dibuat (zsh, di dalam worktree, dengan
+    `KORLAP_ROOT_PATH`). Isi: `scripts/worktree-siapkan.sh > .worktree-siapkan.log 2>&1`. Kegagalan skrip hanya dicatat
+    Korlap, tidak menghentikan kartu, jadi langkah pertama agen: `tail -5 .worktree-siapkan.log`; bila gagal, jalankan
+    ulang skripnya.
+  - Agen berjalan dengan `--permission-mode bypassPermissions` (tanpa dialog izin). Batasnya hanya aturan `deny` di
+    `.claude/settings.json` dan aturan di skill ini.
+  - Merge dari Korlap memakai `gh pr merge --squash --delete-branch=false`: branch remote tidak terhapus. Lebih baik
+    merge lewat `gh pr merge <no> --squash --delete-branch` sesuai § 5.
+  Aturan:
   1. Isi kartu = blok tiket dari backlog apa adanya + baris `Jalur: BE` atau `Jalur: FE`. Backlog tetap sumber status.
-  2. Langkah pertama setiap agen: `scripts/worktree-siapkan.sh` (Korlap tidak punya hook penyiapan).
-  3. Kolom Review Korlap **tidak** menggantikan tinjauan di sini: merge tetap lewat `gh pr merge` setelah CI hijau +
-     `peninjau`. Jangan pakai tinjauan Opus bawaan Korlap (biaya ganda).
-  4. Kartu Done → bersihkan dengan `scripts/worktree-bersihkan.sh`; periksa juga `git worktree list` karena perilaku
-     pembersihan Korlap belum terdokumentasi.
+  2. Model kartu: Sonnet untuk tiket S dan FE; Opus hanya untuk tiket M yang menyentuh keamanan/hak akses.
+  3. Kolom Review Korlap **tidak** menggantikan tinjauan di sini: merge setelah CI hijau + `peninjau`.
+  4. Kartu Done → `scripts/worktree-bersihkan.sh <jalur>` dari folder utama; periksa `git worktree list`.
   5. Bila Korlap gagal (worktree/DB yatim, agen macet), kembali ke dua sesi VS Code dengan worktree biasa.
 
 ## 5. Kerja berkelanjutan

@@ -10,3 +10,4 @@ graphify-out/
 
 # Variabel per worktree dari scripts/worktree-siapkan.sh
 .worktree.env
+.worktree-siapkan.log

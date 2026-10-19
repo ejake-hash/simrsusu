@@ -22,5 +22,18 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "deny": [
+      "Bash(docker compose down -v:*)",
+      "Bash(docker-compose down -v:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push origin --force:*)",
+      "Bash(php artisan migrate:fresh:*)",
+      "Bash(php artisan db:wipe:*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)"
+    ]
   }
 }
