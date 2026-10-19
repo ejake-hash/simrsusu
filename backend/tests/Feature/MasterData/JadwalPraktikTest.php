@@ -131,6 +131,17 @@ class JadwalPraktikTest extends TestCase
         $this->minta('POST', '/api/v1/jadwal-praktik', $this->isi($dokter, ['berlaku_dari' => '2026-01-01', 'berlaku_sampai' => '2026-10-31']))->assertCreated();
     }
 
+    public function test_jadwal_dokter_yang_keluar_tetap_bisa_dinonaktifkan(): void
+    {
+        $this->admin();
+        $dokter = $this->dokter();
+        $id = $this->minta('POST', '/api/v1/jadwal-praktik', $this->isi($dokter))->assertCreated()->json('data.id');
+        Pegawai::query()->whereKey($dokter->id)->update(['status' => 'nonaktif']);
+
+        $this->mintaDenganVersi('PATCH', "/api/v1/jadwal-praktik/$id", '0', ['kuota_jkn' => 1, 'dasar_perubahan' => self::DASAR])->assertStatus(422);
+        $this->mintaDenganVersi('PATCH', "/api/v1/jadwal-praktik/$id", '0', ['status' => 'nonaktif', 'dasar_perubahan' => self::DASAR])->assertOk()->assertJsonPath('data.status', 'nonaktif');
+    }
+
     public function test_cuti_dan_libur_menutup_slot_dan_pembatalan_membukanya(): void
     {
         $this->admin();

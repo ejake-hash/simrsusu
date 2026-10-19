@@ -45,10 +45,12 @@ final class KelolaJadwalPraktik
     {
         return DB::transaction(function () use ($penyunting, $jadwal, $versi, $isi) {
             SuntinganBerversi::naikkan(JadwalPraktik::class, $jadwal->id, $versi, $penyunting->id, 'Jadwal praktik');
-            $this->periksaPegawai($jadwal->pegawai_id);
             $jadwal->refresh();
             $sebelum = $this->isiAudit($jadwal);
             $jadwal->fill(array_intersect_key($isi, array_flip(self::KOLOM_UBAH)));
+            if ($jadwal->status === 'aktif') {
+                $this->periksaPegawai($jadwal->pegawai_id);
+            }
             $this->periksa($jadwal, isset($isi['berlaku_dari']) || (($isi['status'] ?? null) === 'aktif'));
             $jadwal->forceFill(['diubah_oleh' => $penyunting->id])->save();
             $this->audit->catat('master_data.jadwal_praktik_diubah', $penyunting->id, $jadwal->getTable(), $jadwal->id,

@@ -96,6 +96,6 @@ final class JadwalPraktikResource
     {
         return JadwalPengecualian::query()->where('status', 'aktif')->where('sampai_tanggal', '>=', SuntinganBerversi::hariIni())
             ->where(fn ($q) => $q->whereNull('pegawai_id')->orWhereIn('pegawai_id', $pegawaiIds))
-            ->orderBy('dari_tanggal')->orderBy('id')->limit(500)->get();
+            ->orderBy('dari_tanggal')->orderBy('id')->get();
     }
 }
