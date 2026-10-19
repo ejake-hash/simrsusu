@@ -118,11 +118,11 @@ const kuota = (sisa: number, jumlah: number) => `${sisa} / ${jumlah}`
           <span class="ket">{{ j.ruang ? `${j.ruang.kode_lengkap} · ${j.ruang.nama}` : 'Ruang belum dipetakan' }}</span>
         </template>
         <template #sel-jkn="{ baris: j }">
-          <span v-if="j.pada_tanggal" class="pil" :class="`pil-${nadaSisa(j.pada_tanggal.sisa_jkn, j.kuota_jkn)}`">{{ kuota(j.pada_tanggal.sisa_jkn, j.kuota_jkn) }}</span>
+          <span v-if="j.pada_tanggal" class="pil" :class="j.pada_tanggal.tersedia ? `pil-${nadaSisa(j.pada_tanggal.sisa_jkn, j.kuota_jkn)}` : 'pil-netral'">{{ kuota(j.pada_tanggal.sisa_jkn, j.kuota_jkn) }}</span>
           <template v-else>{{ j.kuota_jkn }}</template>
         </template>
         <template #sel-non="{ baris: j }">
-          <span v-if="j.pada_tanggal" class="pil" :class="`pil-${nadaSisa(j.pada_tanggal.sisa_non_jkn, j.kuota_non_jkn)}`">{{ kuota(j.pada_tanggal.sisa_non_jkn, j.kuota_non_jkn) }}</span>
+          <span v-if="j.pada_tanggal" class="pil" :class="j.pada_tanggal.tersedia ? `pil-${nadaSisa(j.pada_tanggal.sisa_non_jkn, j.kuota_non_jkn)}` : 'pil-netral'">{{ kuota(j.pada_tanggal.sisa_non_jkn, j.kuota_non_jkn) }}</span>
           <template v-else>{{ j.kuota_non_jkn }}</template>
         </template>
         <template #sel-keadaan="{ baris: j }">
