@@ -4275,8 +4275,7 @@ paths:
       description: |
         Izin: master_data.penjamin.input. 422 `validasi_gagal` bila `kode` sudah dipakai penjamin lain (rincian menunjuk
         field `kode`). Atribut penagihan (`masa_berlaku_gl_hari`, `plafon`, `jatuh_tempo_hari`) opsional; kosong = tidak
-        dibatasi. Sesudah instalasi siap melayani, perubahan data induk mengikuti aturan usulan 1.8c bila penjamin
-        didaftarkan di alur usulan; selama belum, jalur langsung ini.
+        dibatasi.
       requestBody:
         required: true
         content:
@@ -4404,10 +4403,10 @@ paths:
           application/json:
             schema:
               type: object
-              required: [pegawai_id, poliklinik_id, hari, jam_mulai, jam_selesai, kuota_jkn, kuota_non_jkn, berlaku_dari, dasar_perubahan]
+              required: [pegawai_id, poli_id, hari, jam_mulai, jam_selesai, kuota_jkn, kuota_non_jkn, berlaku_dari, dasar_perubahan]
               properties:
                 pegawai_id: { type: string, format: uuid }
-                poliklinik_id: { type: string, format: uuid }
+                poli_id: { type: string, format: uuid }
                 ruang_id: { type: [string, 'null'], format: uuid }
                 hari: { $ref: '#/components/schemas/HariPraktik' }
                 jam_mulai: { $ref: '#/components/schemas/JamPraktik' }
@@ -4437,7 +4436,7 @@ paths:
       description: |
         Izin: master_data.jadwal_praktik.perbaiki. Wajib If-Match (412 `versi_berubah`, 428 `if_match_wajib`).
         Aturan 422 sama dengan POST (`sip_tidak_aktif`, `jadwal_bertumpuk`, `bukan_ruang`, `validasi_gagal`);
-        `pegawai_id` dan `poliklinik_id` tidak diubah (nonaktifkan lalu buat jadwal baru). Kuota di bawah jumlah yang
+        `pegawai_id` dan `poli_id` tidak diubah (nonaktifkan lalu buat jadwal baru). Kuota di bawah jumlah yang
         sudah terisi pada tanggal mendatang → 422 `kuota_di_bawah_terisi`. Jadwal tidak dihapus: `status = nonaktif`.
       parameters:
         - $ref: '#/components/parameters/IfMatch'
