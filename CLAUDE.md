@@ -14,12 +14,15 @@
 - **Nama modul bahasa Indonesia** (10.3, 10.4): backend PascalCase (`app/Modules/RawatJalan`), frontend kebab-case (`src/modules/rawat-jalan`). Nama lapisan teknis tetap: `Core`, `Shared`, `Domain`, `Application`, `Infrastructure`, `Http`, `Models`, `Database`.
 
 ## Alur kerja (ringkas; rinci di skill `kerja-tiket`)
-- **Kerja paralel:** folder utama `SIMRS-USU` satu sesi saja; sesi lain pakai worktree + DB tes + `.env` (REDIS_DB) sendiri. Jangan sentuh worktree/branch sesi lain; jangan `docker compose down -v`. Tiket selesai = bersih (worktree, branch, DB, Valkey).
-- **Kerja berkelanjutan:** ambil tiket "Siap dikerjakan", klaim lewat PR, merge sendiri bila CI hijau + tinjauan "Disetujui". Status backlog diubah sekali, di commit penutup PR. Berhenti & laporkan bila butuh keputusan produk di luar PRD, data pihak luar, CI gagal 3× sebab sama, atau tak ada tiket Siap.
-- **Tinjauan:** PR backend/keamanan/kontrak → subagen `peninjau` atau sesi lain; PR frontend → sesi 1; PR dokumen/backlog → tanpa tinjauan. Komentar PR berawalan "Tinjauan:".
+- **Tiket aktif** di `docs/backlog-fase2.md` (Fase 1 tinggal 1.10, terhambat). Satu tiket = satu PR; jalur `BE`, `FE`, atau `BE+FE` (kontrak dulu, lalu paralel).
+- **Worktree:** folder utama satu sesi saja dan tidak pernah pull/checkout oleh agen. Worktree baru (sesi atau kartu Korlap) → jalankan `scripts/worktree-siapkan.sh` sebelum apa pun; selesai → `scripts/worktree-bersihkan.sh <jalur>` dari folder utama.
+- **Kerja berkelanjutan:** merge sendiri bila CI hijau + tinjauan "Disetujui". Ambigu bukan aturan PRD → pilih bawaan, tulis "Asumsi:" di PR, lanjut. CI gagal 3× sebab sama → catat utang di backlog, ambil tiket lain. Berhenti hanya bila tak ada tiket Siap atau butuh data/kredensial pihak luar.
+- **Tinjauan:** PR backend/keamanan/kontrak → subagen `peninjau`; PR frontend → `peninjau` fokus kontrak + layar; PR dokumen/backlog → tanpa tinjauan. Komentar PR berawalan "Tinjauan:".
 - **[Perlu pemilik]** (PR terpisah, judul berawalan itu): PRD beraturan baru karangan sesi, openapi di luar endpoint tiket, pelonggaran keamanan, migrasi hapus data, atau dependensi baru/versi mayor.
-- **Hemat token:** commit + push WIP tiap ±30 menit dan sebelum menunggu CI; PRD penyelarasan sekali per fase.
-- **DoD bertingkat:** tiket kecil tanpa migrasi berisiko = satu PR (kontrak+be+fe), e2e hanya spec terkait @1440 px + axe. E2E penuh 4 lebar → workflow terjadwal malam + gerbang fase.
+- **Navigasi:** `graphify query|explain|path` dulu; tak menjawab → `grep -n` + rentang baris. Graf = indeks, baca berkas asli sebelum mengubah (rincian hook di `kerja-tiket`).
+- **Antislop** <!-- antislop --> (`.claude/skills/antislop*`, mode `during`): hanya tiket FE yang mengubah layar dan tinjauan teks/dokumen, bukan BE/kontrak/migrasi. Arah desain = `DESIGN.md` + PRD 5.3, aset dari paket identitas → jangan bertanya ulang (R-23/R-37 terpenuhi); wizard pemasangannya dilewati; bentrok → ikuti PRD/CLAUDE.md.
+- **Hemat token:** dokumen besar per bagian; WIP commit + push ±30 menit; laporan akhir 5 baris (format di `kerja-tiket`); PRD diselaraskan sekali per fase.
+- **DoD bertingkat:** tiket kecil = satu PR, e2e hanya spec terkait @1440 px + axe. E2E penuh 4 lebar → workflow malam + gerbang fase.
 
 ## Repo publik (keputusan pemilik, 12 Okt 2026)
 Repo **publik**. Dilarang menambah: **data RS nyata** (pasien/pegawai/NIK/RM/kode faskes/alamat/kontak); **dokumen pihak ketiga** (dokumen RS, pedoman identitas, katalog BPJS/Kemenkes tak boleh disebar — rujuk jalur luar repo); **rahasia** (kredensial/kunci/token/sandi; nilai uji sintetis di `phpunit.xml`/CI ditandai, dilarang di server); **aset identitas RS** (logo/foto/motif/nama RS). Demo/e2e/tangkapan layar pakai fiktif "RS Contoh Pendidikan" (`docs/brand/contoh/`). Berkas yang terlanjur di riwayat: laporkan ke pemilik, jangan force-push sendiri. Lisensi: `LICENSE` (hak cipta). Celah: `SECURITY.md`.
@@ -78,14 +81,3 @@ Repo **publik**. Dilarang menambah: **data RS nyata** (pasien/pegawai/NIK/RM/kod
 **Klinis dan integrasi**
 - Regulasi Indonesia (Permenkes 24/2022, UU 27/2022 PDP, PRD 15). Abaikan HIPAA/GDPR/DISHA di skill pihak ketiga kecuali diminta.
 - Nilai klinis (ambang kritis, interaksi obat, dosis, ICD, EWS) hanya dari data master disetujui RS; jangan dikarang/hardcode. Jangan mengarang endpoint SATUSEHAT/BPJS atau kode ICD — skill `satusehat-fhir`/`bpjs-bridging`/`koding-icd` dari dokumen resmi; bila belum ada, tanyakan. Contoh kode non-PHP di skill = ilustrasi pola; implementasikan PHP/Laravel atau TypeScript/Vue.
-
-## Navigasi
-
-- Untuk mencari letak/hubungan kode atau aturan PRD: `graphify query`/`explain`/`path` dulu (graf lokal `graphify-out/`, dibuat `graphify update .`).
-- Bila graf tidak menjawab atau belum ada: `grep -n` lalu baca rentang baris (aturan baca-per-bagian di atas tetap berlaku).
-- Graf hanya indeks, bukan sumber kebenaran: sebelum mengubah berkas, baca berkas aslinya.
-- Setelah `git pull`: `graphify update .` (hook commit/checkout sudah menjalankannya otomatis). Setelah PRD berubah (sekali per fase): `/graphify docs/prd.md --update`.
-- Rebuild hook (`.git/hooks/post-commit` dkk., dipasang `graphify hook install`) dijalankan dengan `GRAPHIFY_BACKEND=none`
-  (AST saja, tanpa panggilan model). File hook sendiri **tidak ikut git** (per clone/worktree) — bila `graphify hook
-  install` dijalankan ulang, tambahkan lagi `export GRAPHIFY_BACKEND=none` sesudah baris `PYTHONHASHSEED=0` di keempat
-  skrip hook, atau set `GRAPHIFY_BACKEND=none` di shell profile sebelum menjalankannya.
