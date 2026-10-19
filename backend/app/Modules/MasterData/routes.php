@@ -2,6 +2,8 @@
 
 use App\Modules\MasterData\Http\Controllers\BangsalController;
 use App\Modules\MasterData\Http\Controllers\ImporLokasiController;
+use App\Modules\MasterData\Http\Controllers\JadwalPengecualianController;
+use App\Modules\MasterData\Http\Controllers\JadwalPraktikController;
 use App\Modules\MasterData\Http\Controllers\KamarController;
 use App\Modules\MasterData\Http\Controllers\KapasitasTempatTidurController;
 use App\Modules\MasterData\Http\Controllers\KelasRawatController;
@@ -18,7 +20,7 @@ use Illuminate\Support\Facades\Route;
 
 // Organisasi, unit & KSM (tiket 1.8a). Izin dan lapis 3 diperiksa di controller lewat Gate → AccessEvaluator:
 // daftar unit boleh untuk dua izin (data induk ATAU pengelola akun), dan cakupan `unit` = subpohon.
-Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->whereUuid(['unit', 'ksm', 'lokasi', 'bangsal', 'kamar', 'tempatTidur', 'kelasRawat', 'penjamin', 'poliklinik', 'usulan', 'objekId'])->group(function () {
+Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->whereUuid(['unit', 'ksm', 'lokasi', 'bangsal', 'kamar', 'tempatTidur', 'kelasRawat', 'penjamin', 'jadwal', 'pengecualian', 'poliklinik', 'usulan', 'objekId'])->group(function () {
     Route::get('unit-organisasi', [UnitOrganisasiController::class, 'index']);
     Route::post('unit-organisasi', [UnitOrganisasiController::class, 'store'])->middleware('can:master_data.organisasi.input');
     Route::get('unit-organisasi/{unit}', [UnitOrganisasiController::class, 'show']);
@@ -73,6 +75,13 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::post('data-induk/penjamin', [PenjaminController::class, 'store']);
     Route::get('data-induk/penjamin/{penjamin}', [PenjaminController::class, 'show']);
     Route::patch('data-induk/penjamin/{penjamin}', [PenjaminController::class, 'update']);
+
+    // Jadwal praktik dan pengecualian (tiket 2.4): izin master_data.jadwal_praktik.* cakupan rs, diperiksa di controller.
+    Route::get('jadwal-praktik', [JadwalPraktikController::class, 'index']);
+    Route::post('jadwal-praktik', [JadwalPraktikController::class, 'store']);
+    Route::patch('jadwal-praktik/{jadwal}', [JadwalPraktikController::class, 'update']);
+    Route::post('jadwal-pengecualian', [JadwalPengecualianController::class, 'store']);
+    Route::patch('jadwal-pengecualian/{pengecualian}', [JadwalPengecualianController::class, 'update']);
 
     // Paket referensi (tiket 1.8e): izin master_data.katalog.input cakupan rs, diperiksa di controller.
     Route::post('paket-referensi/{sistem}/muat', [PaketReferensiController::class, 'muat'])
