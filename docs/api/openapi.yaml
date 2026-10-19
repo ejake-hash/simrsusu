@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.17.0
+  version: 0.18.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -75,6 +75,9 @@ info:
     v0.17.0: Penjamin dan jadwal praktik (tiket 2.1 dan 2.4): /data-induk/penjamin (sub-menu master_data.penjamin; kelas rawat
     tetap /kelas-rawat 1.8b), /jadwal-praktik (kuota JKN/non-JKN, terisi, sub-menu master_data.jadwal_praktik),
     /jadwal-pengecualian (cuti dokter, libur RS). Hanya kontrak; kode menyusul di tiket BE/FE.
+    v0.18.0: Buku tarif (tiket 2.2): GET /data-induk/tarif dan /data-induk/tarif/{id}/versi (sub-menu master_data.tarif, hanya baca).
+    Perubahan tarif lewat usulan 1.8c: `jenis_data` dan `objek_jenis` baru `tarif` (tanpa endpoint tulis tarif). Hanya kontrak;
+    kode menyusul di tiket BE/FE.
 servers:
   - url: /api/v1
 security:
@@ -3376,8 +3379,8 @@ paths:
         '429': { $ref: '#/components/responses/Error' }
   # ---------------------------------------------------------------------------
   # Usulan perubahan data induk berjenjang (tiket 1.8c; PRD FR-54-01, FR-54-02, FR-08-16; prototipe masterdata.html "Usulan").
-  # - Mesin generik per `jenis_data`; fase 1 hanya `ruang_tt` (ruang, kamar, tempat tidur dari 1.8b). Tarif/formularium
-  #   memakai mesin yang sama di fase 2–3.
+  # - Mesin generik per `jenis_data`: `ruang_tt` (ruang, kamar, tempat tidur dari 1.8b) dan `tarif` (tiket 2.2). Formularium
+  #   memakai mesin yang sama di fase 3. Daftar jenis data bukan literal: dari `inti.alur_usulan`.
   # - Tahap: diusulkan → diverifikasi → disetujui (terjadwal) → berlaku. Pemverifikasi/penyetuju bisa mengembalikan
   #   (catatan wajib) → `dikembalikan` → pengusul memperbaiki dan kirim ulang (kembali ke `diusulkan`, putaran +1).
   #   Gagal saat diterapkan (objek berubah sejak diusulkan, atau aturan 1.8b tidak terpenuhi lagi) → `gagal_diterapkan`
@@ -4357,6 +4360,67 @@ paths:
         '412': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '428': { $ref: '#/components/responses/Error' }
+  /data-induk/tarif:
+    get:
+      operationId: daftarTarif
+      summary: Daftar buku tarif (paginasi kursor)
+      description: |
+        Izin: master_data.tarif.lihat, cakupan `rs`. Urut: kode. `harga` = harga yang berlaku pada `tanggal` (bawaan hari ini
+        zona RS), per kelas rawat. Tidak ada endpoint tulis tarif: menambah atau mengubah tarif = usulan 1.8c
+        (POST /usulan-data-induk, `jenis_data` `tarif`; izin master_data.usulan.*). Perubahan terjadwal yang sudah disahkan
+        tampil di `akan_berlaku`. Pengisian awal saat penyiapan (sebelum siap melayani) bukan bagian kontrak ini.
+        Kasir dan modul tagihan hanya membaca; tidak ada jalur mengubah harga di sana.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: cari, schema: { type: string, maxLength: 100 }, description: "Cocok sebagian pada kode atau nama" }
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
+        - { in: query, name: kelompok, schema: { type: string, maxLength: 50 } }
+        - { in: query, name: kelas_rawat_id, schema: { type: string, format: uuid }, description: "Hanya butir yang punya harga untuk kelas ini; `harga` hanya memuat kelas itu" }
+        - { in: query, name: tanggal, schema: { type: string, format: date }, description: "Tanggal harga berlaku; bawaan hari ini zona RS" }
+      responses:
+        '200':
+          description: Satu halaman tarif
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Tarif' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /data-induk/tarif/{id}/versi:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: versiTarif
+      summary: Riwayat versi satu tarif (paginasi kursor, terbaru dulu)
+      description: |
+        Izin: master_data.tarif.lihat. Setiap perubahan = satu versi dengan `berlaku_dari`, harga sebelum dan sesudah
+        (`sebelum`/`sesudah` memuat `harga` per kelas); versi tidak pernah diubah atau dihapus. Bentuk sama dengan
+        GET /data-induk/tarif/{id}/riwayat-versi generik (VersiDataInduk, `objek_jenis` `tarif`), dengan `usulan` terisi
+        untuk perubahan lewat usulan.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman versi
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/VersiDataInduk' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /jadwal-praktik:
     get:
       operationId: daftarJadwalPraktik
@@ -5424,12 +5488,12 @@ components:
             diperiksa_pada: { type: string, format: date-time }
     JenisDataInduk:
       type: string
-      enum: [ruang_tt]
-      description: "Kelompok data induk dengan satu alur usulan (pemilik/pemverifikasi/penyetuju). Fase 1: ruang & TT (FR-08-16)"
+      enum: [ruang_tt, tarif]
+      description: "Kelompok data induk dengan satu alur usulan (pemilik/pemverifikasi/penyetuju): ruang_tt = ruang & TT (FR-08-16); tarif = buku tarif (FR-28-12, 2.2)"
     ObjekDataInduk:
       type: string
-      enum: [ruang, kamar, tempat_tidur]
-      description: "ruang = lokasi jenis ruang (1.8b)"
+      enum: [ruang, kamar, tempat_tidur, tarif]
+      description: "ruang = lokasi jenis ruang (1.8b); tarif = satu butir buku tarif (2.2, jenis_data `tarif`)"
     TahapUsulan:
       type: string
       enum: [diusulkan, diverifikasi, disetujui, berlaku, dikembalikan, gagal_diterapkan]
@@ -5458,7 +5522,11 @@ components:
         - ruang `tambah` (objek_id null): induk_id (lantai/sayap), kode, nama, fungsi, unit_organisasi_id (IsianLokasi
           jenis ruang);
         - ruang `ubah`: induk_id, kode, nama, fungsi, unit_organisasi_id, status (status berlaku pada tanggal efektif;
-          minimal satu).
+          minimal satu);
+        - tarif `tambah` (objek_id null): kode, nama, kelompok, harga (IsianHargaTarif[]);
+        - tarif `ubah`: nama, kelompok, status, harga (minimal satu; `harga` mengganti seluruh daftar harga per kelas);
+        - tarif `tutup`: alasan (butir tidak berlaku mulai `berlaku_dari`, permanen; riwayat harga tetap terbaca).
+        Satu usulan hanya memuat objek dari satu `jenis_data` (422 `perubahan_tidak_valid`, kode `jenis_campur`).
       items:
         type: object
         required: [objek_jenis, aksi, objek_id, nilai_baru]
@@ -5794,6 +5862,56 @@ components:
         masa_berlaku_gl_hari: { type: [integer, 'null'], description: "Masa berlaku surat jaminan (GL) sejak terbit, hari; null = tidak dibatasi" }
         plafon: { $ref: '#/components/schemas/PlafonPenjamin' }
         jatuh_tempo_hari: { type: [integer, 'null'], description: "Jatuh tempo penagihan sejak tagihan terbit, hari" }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    HargaRupiah:
+      type: string
+      pattern: '^[0-9]{1,13}(\.[0-9]{1,2})?$'
+      description: "Rupiah sebagai string desimal (tanpa float), ≥ 0"
+    IsianHargaTarif:
+      type: object
+      required: [kelas_rawat_id, jasa_sarana, jasa_pelayanan, bhp]
+      description: "Satu baris harga per kelas rawat; `kelas_rawat_id` unik dalam satu daftar (422 `kelas_ganda`); harga negatif ditolak"
+      properties:
+        kelas_rawat_id: { type: string, format: uuid }
+        jasa_sarana: { $ref: '#/components/schemas/HargaRupiah' }
+        jasa_pelayanan: { $ref: '#/components/schemas/HargaRupiah' }
+        bhp: { $ref: '#/components/schemas/HargaRupiah', description: "Bahan habis pakai" }
+    HargaTarif:
+      type: object
+      required: [kelas_rawat_id, kelas_rawat_label, jasa_sarana, jasa_pelayanan, bhp, total]
+      properties:
+        kelas_rawat_id: { type: string, format: uuid }
+        kelas_rawat_label: { type: string, examples: ['Kelas 1'] }
+        jasa_sarana: { $ref: '#/components/schemas/HargaRupiah' }
+        jasa_pelayanan: { $ref: '#/components/schemas/HargaRupiah' }
+        bhp: { $ref: '#/components/schemas/HargaRupiah' }
+        total: { $ref: '#/components/schemas/HargaRupiah', description: "Jumlah tiga komponen, dihitung server" }
+    Tarif:
+      type: object
+      required: [id, kode, nama, kelompok, status, berlaku_dari, harga, akan_berlaku, usulan_terbuka, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+        kelompok: { type: string, description: "Pengelompokan buku tarif (mis. jenis layanan), teks bebas dari data RS" }
+        status: { type: string, enum: [aktif, nonaktif] }
+        berlaku_dari: { type: string, format: date, description: "Mulai berlaku versi yang tampil pada `tanggal`" }
+        harga: { type: array, items: { $ref: '#/components/schemas/HargaTarif' } }
+        akan_berlaku:
+          type: [object, 'null']
+          required: [berlaku_dari, harga]
+          description: "Versi terjadwal terdekat sesudah `tanggal` (usulan disahkan, belum berlaku); null bila tidak ada"
+          properties:
+            berlaku_dari: { type: string, format: date }
+            harga: { type: array, items: { $ref: '#/components/schemas/HargaTarif' } }
+        usulan_terbuka:
+          type: [object, 'null']
+          required: [id, nomor]
+          description: "Usulan yang sedang berjalan untuk butir ini; null bila tidak ada. Hanya terisi bila akun punya master_data.usulan.lihat"
+          properties:
+            id: { type: string, format: uuid }
+            nomor: { type: string }
         versi: { type: string }
         diubah_pada: { type: string, format: date-time }
     HariPraktik:
