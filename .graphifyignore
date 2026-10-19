@@ -1,0 +1,21 @@
+# graphify: navigasi kode/dokumen hemat (CLAUDE.md § Navigasi). Dikecualikan dari graf, bukan dari repo:
+# - aset biner (logo/foto/ikon): tidak berarti sebagai node kode, dan sebagian berisi identitas RS (lihat
+#   "Repo publik" di CLAUDE.md) walau filenya sendiri sudah fiktif/contoh.
+# - docs/arsip/: tiket selesai, diarsipkan; tidak perlu ikut navigasi aktif.
+# - docs/api/openapi.yaml: kontrak API dibaca utuh (urutan path/schema penting), bukan dipotong per node graf.
+# - vendor/, node_modules/: sudah di .gitignore masing-masing; disebut lagi di sini agar eksplisit meski
+#   --no-gitignore dipakai.
+# - graphify-out/: keluaran graf sendiri, jangan ikut diindeks.
+# PRD (docs/prd.md) dan backlog aktif (docs/backlog-fase1.md) SENGAJA tidak di sini: keduanya tetap masuk graf.
+
+docs/brand/
+frontend/public/
+**/*.png
+**/*.jpg
+**/*.webp
+**/*.svg
+docs/arsip/
+docs/api/openapi.yaml
+vendor/
+node_modules/
+graphify-out/

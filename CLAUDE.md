@@ -78,3 +78,14 @@ Repo **publik**. Dilarang menambah: **data RS nyata** (pasien/pegawai/NIK/RM/kod
 **Klinis dan integrasi**
 - Regulasi Indonesia (Permenkes 24/2022, UU 27/2022 PDP, PRD 15). Abaikan HIPAA/GDPR/DISHA di skill pihak ketiga kecuali diminta.
 - Nilai klinis (ambang kritis, interaksi obat, dosis, ICD, EWS) hanya dari data master disetujui RS; jangan dikarang/hardcode. Jangan mengarang endpoint SATUSEHAT/BPJS atau kode ICD — skill `satusehat-fhir`/`bpjs-bridging`/`koding-icd` dari dokumen resmi; bila belum ada, tanyakan. Contoh kode non-PHP di skill = ilustrasi pola; implementasikan PHP/Laravel atau TypeScript/Vue.
+
+## Navigasi
+
+- Untuk mencari letak/hubungan kode atau aturan PRD: `graphify query`/`explain`/`path` dulu (graf lokal `graphify-out/`, dibuat `graphify update .`).
+- Bila graf tidak menjawab atau belum ada: `grep -n` lalu baca rentang baris (aturan baca-per-bagian di atas tetap berlaku).
+- Graf hanya indeks, bukan sumber kebenaran: sebelum mengubah berkas, baca berkas aslinya.
+- Setelah `git pull`: `graphify update .` (hook commit/checkout sudah menjalankannya otomatis). Setelah PRD berubah (sekali per fase): `/graphify docs/prd.md --update`.
+- Rebuild hook (`.git/hooks/post-commit` dkk., dipasang `graphify hook install`) dijalankan dengan `GRAPHIFY_BACKEND=none`
+  (AST saja, tanpa panggilan model). File hook sendiri **tidak ikut git** (per clone/worktree) — bila `graphify hook
+  install` dijalankan ulang, tambahkan lagi `export GRAPHIFY_BACKEND=none` sesudah baris `PYTHONHASHSEED=0` di keempat
+  skrip hook, atau set `GRAPHIFY_BACKEND=none` di shell profile sebelum menjalankannya.
