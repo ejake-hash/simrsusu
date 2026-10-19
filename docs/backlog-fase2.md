@@ -20,7 +20,7 @@ Format dan aturan agen ada di skill `kerja-tiket` § 1–2 dan § 5. Ringkas: sa
 
 | No | Tiket | Jalur | Ukuran | Prasyarat |
 |---|---|---|---|---|
-| 2.0 | Persiapan kerja Fase 2 | BE (chore) | S | — · **Sebagian selesai** (PR aturan Fase 2): sisa uji skrip worktree di Mac |
+| 2.0 | Persiapan kerja Fase 2 | BE (chore) | S | — · **Sebagian selesai** (PR aturan Fase 2): uji satu worktree lulus (slot 1, port 8001/5174, DB `simrs_test_keen_pearl`, 367 tes hijau, `down -v` ditolak deny); sisa uji dua worktree bersamaan, e2e, bersihkan, Korlap pada 2.1 |
 | 2.1 | Penjamin dan kelas tarif | BE+FE | M | 2.0 |
 | 2.2 | Buku tarif + usulan tarif berjenjang | BE+FE | M | 2.1 |
 | 2.3 | Wizard langkah 6 aktif → instalasi siap melayani | BE+FE | S | 2.2 |
