@@ -46,7 +46,7 @@ class MigrasiPengaturanTest extends TestCase
             $this->assertSame(["pengaturan.$kode", $pengaturan, "/pengaturan/$kode", $label], [$menu->kode, $menu->induk_id, $menu->rute, $menu->label]);
         }
         $this->assertSame(0, Izin::query()->where('kode', 'like', 'master\_data.peran%')->count());
-        $this->assertEqualsCanonicalizing(['master_data.organisasi', 'master_data.jenis_tugas', 'master_data.katalog', 'master_data.usulan'],
+        $this->assertEqualsCanonicalizing(['master_data.organisasi', 'master_data.jenis_tugas', 'master_data.katalog', 'master_data.penjamin', 'master_data.usulan'],
             Menu::query()->where('induk_id', Menu::query()->where('kode', 'master_data')->value('id'))->pluck('kode')->all());
 
         // Peran, pengecualian, dan superadmin ikut menunjuk kode baru.

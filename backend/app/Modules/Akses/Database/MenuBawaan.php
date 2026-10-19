@@ -225,6 +225,7 @@ final class MenuBawaan
                 'jenis_tugas' => ['Jenis Tugas, Tenggat & Eskalasi', 53, 1],
                 'katalog' => ['Data induk', 54],
                 'usulan' => ['Usulan perubahan', 54],
+                'penjamin' => ['Penjamin', 54],
             ]],
             'pengaturan' => ['Pengaturan Sistem', 1, 54, [
                 'akun' => ['Akun & akses', 54],
