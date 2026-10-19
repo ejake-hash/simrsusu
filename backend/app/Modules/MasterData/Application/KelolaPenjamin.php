@@ -11,8 +11,8 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Data induk penjamin (tiket 2.1, kontrak v0.17.0). Tanpa DELETE (status nonaktif). Versi = revisi (412 bila berubah).
- * Kode ganda → 422 validasi_gagal pada field `kode`. Larangan mengubah `jenis` setelah dipakai kunjungan menunggu
- * tabel kunjungan (tiket 2.x pendaftaran); lihat Penjamin::dipakaiKunjungan.
+ * Kode ganda → 422 validasi_gagal pada field `kode`. Utang: larangan mengubah `jenis` setelah dipakai kunjungan
+ * (kontrak PATCH) wajib ditambahkan di sini oleh tiket pendaftaran, saat tabel kunjungan ada.
  */
 final class KelolaPenjamin
 {

@@ -54,6 +54,11 @@ class PenjaminTest extends TestCase
         $this->assertSame(['ASR-1'], $this->minta('GET', '/api/v1/data-induk/penjamin?cari=contoh')->json('data.*.kode'));
         $this->minta('GET', '/api/v1/data-induk/penjamin?jenis=lain')->assertStatus(422);
 
+        $halaman1 = $this->minta('GET', '/api/v1/data-induk/penjamin?batas=1')->assertOk();
+        $this->assertSame(['ASR-1'], $halaman1->json('data.*.kode'));
+        $halaman2 = $this->minta('GET', '/api/v1/data-induk/penjamin?batas=1&kursor='.urlencode($halaman1->json('meta.kursor_berikutnya')))->assertOk();
+        $this->assertSame(['BPJS'], $halaman2->json('data.*.kode'));
+
         $id = $asuransi->json('data.id');
         $ubah = $this->mintaDenganVersi('PATCH', "/api/v1/data-induk/penjamin/$id", '0', ['plafon' => null, 'status' => 'nonaktif', 'dasar_perubahan' => self::DASAR])->assertOk();
         $this->assertSesuaiKontrak($ubah, 'PATCH', '/data-induk/penjamin/{id}');
