@@ -56,6 +56,7 @@ export function buatServerPenyiapan(opsi: OpsiServerPenyiapan) {
         return PAKET.filter(([, w]) => w).map(([sis]) => s(sis, LABEL_PAKET[sis]!, terakhir(sis) !== null, terakhir(sis) ? `Versi ${terakhir(sis)!.versi}` : 'Belum dimuat'))
       case 'pegawai':
         return [s('pegawai', 'Pegawai aktif', keadaan.pegawai > 0, keadaan.pegawai ? `${keadaan.pegawai} pegawai` : 'Belum ada'), s('izin_praktik', 'Izin praktik yang berlaku', keadaan.pegawai > 0, keadaan.pegawai ? '2 izin' : 'Belum ada')]
+      // Asumsi tiket 2.3: kode syarat `penjamin`/`tarif_per_kelas` menunggu kontrak BE.
       case 'penjamin_tarif':
         return [
           s('penjamin', 'Penjamin aktif', keadaan.penjaminAktif > 0, keadaan.penjaminAktif ? `${keadaan.penjaminAktif} penjamin` : 'Belum ada'),

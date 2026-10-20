@@ -49,7 +49,8 @@ test('Beranda menandai instalasi belum siap; penyiapan menampilkan 9 langkah dan
 
   const daftar = page.getByRole('list', { name: 'Langkah penyiapan' })
   await expect(daftar.locator(':scope > li')).toHaveCount(9)
-  await expect(langkah(page, 'penjamin_tarif')).toBeVisible()
+  await expect(langkah(page, 'penjamin_tarif').getByRole('link', { name: 'Buka Penjamin' })).toHaveAttribute('href', '/master-data/penjamin')
+  await expect(langkah(page, 'penjamin_tarif').getByRole('link', { name: 'Buka Buku tarif' })).toHaveAttribute('href', '/master-data/tarif')
   await expect(langkah(page, 'formularium')).toContainText('Menunggu fase 2')
   await expect(langkah(page, 'superadmin')).toContainText('Dua superadmin dengan MFA')
   await expect(langkah(page, 'profil_rs').getByRole('link', { name: 'Buka Profil rumah sakit' })).toHaveAttribute('href', '/pengaturan/profil-rs')

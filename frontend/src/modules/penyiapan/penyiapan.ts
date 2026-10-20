@@ -38,8 +38,8 @@ export const TAUTAN_LANGKAH: Record<KodeLangkah, { rute: string; label: string }
 /** Penjelasan langkah yang belum punya layar pengisi. */
 export const KET_LANGKAH: Partial<Record<KodeLangkah, string>> = {
   superadmin: 'Superadmin kedua dibuat dari konsol server (akses:superadmin-pertama) atau dari akun pegawai; keduanya wajib MFA.',
-  penjamin_tarif: 'Isi penjamin dan tarif lewat dua layar di bawah. Sebelum instalasi siap melayani, tarif boleh diisi langsung; sesudahnya hanya lewat usulan.',
-  formularium: 'Diisi di awal fase 2 bersama modul farmasi.',
+  penjamin_tarif: 'Isi penjamin dan tarif di dua layar di bawah.',
+  formularium: 'Diisi bersama modul farmasi.',
   kredensial_integrasi: 'Kredensial BPJS/SATUSEHAT disimpan dan diuji di layar Konfigurasi integrasi (tiket 1.9). Sampai itu, langkah ini boleh dilewati dengan alasan.',
   modul_aktif: 'Modul inti fase 1 sudah aktif sejak pemasangan; layar pengaturan modul aktif menyusul.',
 }
