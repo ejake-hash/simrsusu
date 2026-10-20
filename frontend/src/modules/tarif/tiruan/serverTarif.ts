@@ -14,7 +14,6 @@ const ok = (isi: unknown): ResponsTiruan => ({ status: 200, isi })
 const id = (n: number) => `00000000-0000-7000-e000-${n.toString(16).padStart(12, '0')}`
 const TANGGAL_RS = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' })
 
-type Isi = Record<string, unknown>
 interface IsiVersi {
   nama: string
   kelompok: string

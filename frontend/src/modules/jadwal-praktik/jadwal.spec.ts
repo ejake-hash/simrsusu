@@ -83,6 +83,8 @@ describe('layar jadwal praktik', () => {
   }
   it('menampilkan slot hari ini dengan sisa kuota dan tombol kelola', async () => {
     const w = await pasang()
+    await w.get('#tanggal-jadwal').setValue(SENIN)
+    await flushPromises()
     const tabel = w.get('table').text()
     expect(tabel).toContain('Senin')
     expect(tabel).toContain('08:00–12:00')
