@@ -1,7 +1,7 @@
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { useSesiStore } from '@/app/sesi'
 import { pasangTiruan } from '@/modules/akses/tiruan/pasangTiruan'
@@ -73,6 +73,12 @@ describe('api jadwal praktik (server tiruan kontrak v0.17.0)', () => {
 })
 
 describe('layar jadwal praktik', () => {
+  // Layar memakai tanggal lokal sebenarnya; fixture berisi jadwal hari Senin, jadi bekukan jam ke Senin.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-19T03:00:00Z'))
+  })
+  afterEach(() => vi.useRealTimers())
   async function pasang() {
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] })
     await router.push('/master-data/jadwal-praktik')
