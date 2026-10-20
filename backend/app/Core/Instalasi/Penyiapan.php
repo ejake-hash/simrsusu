@@ -8,6 +8,7 @@ use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaPeran;
+use App\Modules\MasterData\Application\BukuTarif;
 use App\Modules\Sdm\Application\RingkasanPegawai;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -329,14 +330,14 @@ final class Penyiapan
     {
         $penjamin = DB::table('inti.penjamin')->where('status', 'aktif')->count();
         $kelas = DB::table('inti.kelas_rawat')->where('status', 'aktif')->count();
-        // Versi berlaku per butir = berlaku_dari terbaru yang ≤ hari ini; hanya yang berstatus aktif dihitung.
+        // Versi berlaku per butir = definisi buku tarif (BukuTarif::SQL_VERSI_BERLAKU); hanya yang berstatus aktif dihitung.
         $tertutup = (int) (DB::selectOne(
             'SELECT count(*) AS n FROM inti.kelas_rawat k WHERE k.status = \'aktif\' AND EXISTS (
-                SELECT 1 FROM keuangan.tarif_versi_harga h
-                JOIN keuangan.tarif_versi v ON v.id = h.tarif_versi_id
-                WHERE h.kelas_rawat_id = k.id AND v.status = \'aktif\' AND v.berlaku_dari <= ?
-                  AND v.versi = (SELECT max(v2.versi) FROM keuangan.tarif_versi v2 WHERE v2.tarif_id = v.tarif_id AND v2.berlaku_dari <= ?))',
-            [self::hariIni(), self::hariIni()],
+                SELECT 1 FROM keuangan.tarif
+                JOIN keuangan.tarif_versi v ON v.id = '.BukuTarif::SQL_VERSI_BERLAKU.'
+                JOIN keuangan.tarif_versi_harga h ON h.tarif_versi_id = v.id
+                WHERE v.status = \'aktif\' AND h.kelas_rawat_id = k.id)',
+            [self::hariIni()],
         )->n ?? 0);
         $tarifLengkap = $kelas > 0 && $tertutup === $kelas;
 

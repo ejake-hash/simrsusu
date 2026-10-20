@@ -133,7 +133,19 @@ class PenyiapanTest extends TestCase
         $harga($versi(1, 'aktif', '2026-01-01'));
         $harga($versi(2, 'nonaktif', '2026-02-01'));
         $this->konfirmasi('penjamin_tarif')->assertStatus(409)->assertJsonPath('error.rincian.0.kode', 'tarif_per_kelas');
+        // Nomor versi tak searah tanggal: v4 berlaku lebih awal tetapi nonaktif; yang berlaku tetap v3 (urut berlaku_dari).
+        $harga($versi(4, 'nonaktif', '2025-06-01'));
+        $this->konfirmasi('penjamin_tarif')->assertStatus(409)->assertJsonPath('error.rincian.0.kode', 'tarif_per_kelas');
         $harga($versi(3, 'aktif', '2026-03-01'));
+
+        // Dua kelas aktif: tarif baru menutup satu kelas saja.
+        $kelasDua = (string) Str::uuid7();
+        DB::table('inti.kelas_rawat')->insert(['id' => $kelasDua, 'kode' => 'II', 'nama' => 'Kelas II', 'berlaku_dari' => '2026-01-01']);
+        $this->konfirmasi('penjamin_tarif')->assertStatus(409)->assertJsonPath('error.rincian.0.keterangan', '1 dari 2 kelas');
+        $tarifDua = (string) Str::uuid7();
+        DB::table('keuangan.tarif')->insert(['id' => $tarifDua, 'kode' => 'T-2']);
+        DB::table('keuangan.tarif_versi')->insert(['id' => $v = (string) Str::uuid7(), 'tarif_id' => $tarifDua, 'versi' => 1, 'nama' => 'Visite II', 'kelompok' => 'visite', 'berlaku_dari' => '2026-01-01', 'dasar' => 'uji']);
+        DB::table('keuangan.tarif_versi_harga')->insert(['id' => (string) Str::uuid7(), 'tarif_versi_id' => $v, 'kelas_rawat_id' => $kelasDua, 'jasa_sarana' => 1, 'jasa_pelayanan' => 1, 'bhp' => 0]);
 
         $data = $this->konfirmasi('penjamin_tarif')->assertOk()->json('data');
         $this->assertSame('selesai', array_column($data['langkah'], 'status', 'kode')['penjamin_tarif']);
