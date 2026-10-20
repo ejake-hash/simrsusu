@@ -20,7 +20,7 @@ const LANGKAH: [KodeLangkah, string][] = [
   ['kredensial_integrasi', 'Kredensial integrasi'],
   ['modul_aktif', 'Modul aktif'],
 ]
-const FASE_2: KodeLangkah[] = ['penjamin_tarif', 'formularium']
+const FASE_2: KodeLangkah[] = ['formularium']
 const PAKET: [SistemReferensi, boolean][] = [['wilayah', true], ['referensi', true], ['icd10', false], ['icd9cm', false], ['loinc', true], ['ucum', true]]
 const LABEL_PAKET: Partial<Record<SistemReferensi, string>> = { wilayah: 'Wilayah', referensi: 'Kode variabel RME', loinc: 'LOINC', ucum: 'UCUM' }
 const TUNTAS: StatusLangkah[] = ['selesai', 'dilewati', 'menunggu_fase_2']
@@ -34,7 +34,7 @@ export interface OpsiServerPenyiapan {
 export function buatServerPenyiapan(opsi: OpsiServerPenyiapan) {
   const iso = () => (opsi.sekarang?.() ?? new Date()).toISOString()
   /** Keadaan data contoh; uji unit boleh mengubahnya. */
-  const keadaan = { superadmin: 2, logo: true, organisasiLengkap: true, pegawai: 3 }
+  const keadaan = { superadmin: 2, logo: true, organisasiLengkap: true, pegawai: 3, penjaminAktif: 1, kelasTanpaTarif: 0 }
   const paket = new Map<SistemReferensi, { versi: string; sumber: string; dimuat_pada: string; jumlah: number; isi: string }[]>()
   const konfirmasi = new Map<KodeLangkah, NonNullable<LangkahPenyiapan['konfirmasi_terakhir']>>()
   let siapSejak: string | null = null
@@ -56,6 +56,11 @@ export function buatServerPenyiapan(opsi: OpsiServerPenyiapan) {
         return PAKET.filter(([, w]) => w).map(([sis]) => s(sis, LABEL_PAKET[sis]!, terakhir(sis) !== null, terakhir(sis) ? `Versi ${terakhir(sis)!.versi}` : 'Belum dimuat'))
       case 'pegawai':
         return [s('pegawai', 'Pegawai aktif', keadaan.pegawai > 0, keadaan.pegawai ? `${keadaan.pegawai} pegawai` : 'Belum ada'), s('izin_praktik', 'Izin praktik yang berlaku', keadaan.pegawai > 0, keadaan.pegawai ? '2 izin' : 'Belum ada')]
+      case 'penjamin_tarif':
+        return [
+          s('penjamin', 'Penjamin aktif', keadaan.penjaminAktif > 0, keadaan.penjaminAktif ? `${keadaan.penjaminAktif} penjamin` : 'Belum ada'),
+          s('tarif_per_kelas', 'Tarif untuk setiap kelas rawat aktif', keadaan.kelasTanpaTarif === 0, keadaan.kelasTanpaTarif ? `${keadaan.kelasTanpaTarif} kelas belum bertarif` : 'Semua kelas bertarif'),
+        ]
       case 'kredensial_integrasi':
         return [s('kredensial', 'Kredensial tersimpan dan uji koneksi berhasil', false, 'Dibangun di tiket 1.9')]
       case 'modul_aktif':

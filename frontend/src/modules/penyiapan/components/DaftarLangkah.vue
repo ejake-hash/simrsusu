@@ -83,7 +83,7 @@ function selesaiMuat(h: HasilMuatReferensi) {
           </p>
           <p v-else class="catatan catatan-peringatan">
             <Ikon nama="peringatan" :ukuran="16" />
-            <span>Instalasi belum bisa melayani pasien sampai langkah 1–6 selesai. Langkah 6–7 (penjamin, tarif, formularium) diisi di awal fase 2.</span>
+            <span>Instalasi belum bisa melayani pasien sampai langkah 1–6 selesai. Langkah 7 (formularium) diisi bersama modul farmasi.</span>
           </p>
         </div>
       </section>
@@ -146,8 +146,8 @@ function selesaiMuat(h: HasilMuatReferensi) {
               <template v-if="l.status === 'sebagian'"> · syarat kini belum lengkap</template>
             </p>
 
-            <div v-if="TAUTAN_LANGKAH[l.kode] || l.dapat_dikonfirmasi || l.dapat_dilewati" class="aksi">
-              <RouterLink v-if="TAUTAN_LANGKAH[l.kode]" :to="TAUTAN_LANGKAH[l.kode]!.rute" class="tombol">{{ TAUTAN_LANGKAH[l.kode]!.label }}</RouterLink>
+            <div v-if="TAUTAN_LANGKAH[l.kode]?.length || l.dapat_dikonfirmasi || l.dapat_dilewati" class="aksi">
+              <RouterLink v-for="t in TAUTAN_LANGKAH[l.kode] ?? []" :key="t.rute" :to="t.rute" class="tombol">{{ t.label }}</RouterLink>
               <button v-if="l.dapat_dilewati" type="button" class="tombol" @click="mulaiLewati(l)">Lewati</button>
               <button v-if="l.dapat_dikonfirmasi" type="button" class="tombol tombol-utama" :disabled="sibuk !== null" @click="konfirmasi(l)">
                 {{ sibuk === l.kode ? 'Mengonfirmasi…' : l.status === 'selesai' ? 'Konfirmasi ulang' : 'Konfirmasi selesai' }}

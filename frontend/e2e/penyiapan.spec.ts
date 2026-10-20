@@ -5,7 +5,7 @@ import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
 /**
  * Pengaturan → Penyiapan instalasi (tiket 1.8f) ke backend asli dengan contoh.superadmin (penyiapan bawaan superadmin).
  * Instalasi e2e berisi akun sintetis: langkah 1 terpenuhi (contoh.superadmin + contoh.superadmin.dua ber-MFA, jaringan
- * RS dari .env), profil RS tanpa logo (langkah 2 belum), langkah 6–7 menunggu fase 2. Muat paket referensi diuji di
+ * RS dari .env), profil RS tanpa logo (langkah 2 belum), langkah 7 menunggu fase 2. Muat paket referensi diuji di
  * unit test dan backend (butuh master_data.katalog.input, bukan izin superadmin).
  */
 const RAHASIA_SUPERADMIN = process.env.E2E_SUPERADMIN_MFA_RAHASIA ?? ''
@@ -49,7 +49,7 @@ test('Beranda menandai instalasi belum siap; penyiapan menampilkan 9 langkah dan
 
   const daftar = page.getByRole('list', { name: 'Langkah penyiapan' })
   await expect(daftar.locator(':scope > li')).toHaveCount(9)
-  await expect(langkah(page, 'penjamin_tarif')).toContainText('Menunggu fase 2')
+  await expect(langkah(page, 'penjamin_tarif')).toBeVisible()
   await expect(langkah(page, 'formularium')).toContainText('Menunggu fase 2')
   await expect(langkah(page, 'superadmin')).toContainText('Dua superadmin dengan MFA')
   await expect(langkah(page, 'profil_rs').getByRole('link', { name: 'Buka Profil rumah sakit' })).toHaveAttribute('href', '/pengaturan/profil-rs')
