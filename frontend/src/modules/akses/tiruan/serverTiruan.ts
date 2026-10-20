@@ -172,7 +172,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   // Pemilik data induk organisasi (1.8a-be: akun contoh.data.induk); superadmin tidak memegangnya.
   tambahPeran(uid(107), 'contoh_data_induk', 'Contoh Admin Data Induk', [
     ...['organisasi', 'jenis_tugas', 'penjamin', 'usulan', 'jadwal_praktik'].flatMap((s) => ['lihat', 'input', 'perbaiki'].map((a) => `master_data.${s}.${a}`)),
-    'master_data.usulan.verifikasi', 'master_data.usulan.setujui',
+    'master_data.usulan.verifikasi', 'master_data.usulan.setujui', 'master_data.tarif.lihat',
   ])
   // Penyiap instalasi (1.8f, MenuBawaan::PERAN_PENYIAP): konfirmasi langkah + muat paket referensi (katalog.input).
   tambahPeran(uid(112), 'penyiap_instalasi', 'Penyiap instalasi', ['pengaturan.penyiapan.lihat', 'pengaturan.penyiapan.perbaiki', 'master_data.katalog.lihat', 'master_data.katalog.input'])

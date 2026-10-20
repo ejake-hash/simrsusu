@@ -94,10 +94,10 @@ describe('Daftar usulan', () => {
     await pasang(DaftarUsulan, { modelValue: null })
     const kpi = document.querySelector('section[aria-label="Ringkasan usulan"]')!.textContent!
     expect(kpi).toMatch(/Menunggu verifikasi\s*1/)
-    expect(kpi).toMatch(/Menunggu persetujuan\s*1/)
+    expect(kpi).toMatch(/Menunggu persetujuan\s*2/)
     expect(kpi).toMatch(/Dikembalikan\s*1/)
     expect(permintaan.find((p) => p.jalur === '/usulan-data-induk')!.kueri.get('tahap')).toBe('terbuka')
-    expect(document.querySelectorAll('tbody tr')).toHaveLength(3)
+    expect(document.querySelectorAll('tbody tr')).toHaveLength(4)
     ;(document.querySelector('input[value="perlu_saya"]') as HTMLInputElement).click()
     await tenang()
     expect(permintaan.filter((p) => p.jalur === '/usulan-data-induk').slice(-1)[0]!.kueri.get('perlu_saya')).toBe('true')

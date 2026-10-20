@@ -13,6 +13,7 @@ import { ambilUsulan } from '../api'
 import { KUNCI_USULAN, LABEL_AKSI_BUTIR, LABEL_JENIS_DATA, LABEL_RIWAYAT_USULAN, LABEL_TAHAP, LANGKAH_ALUR, PIL_TAHAP } from '../usulan'
 import type { UsulanDataInduk } from '../tipe'
 import DialogTindakanUsulan from './DialogTindakanUsulan.vue'
+import DialogUsulanTarif from '@/modules/tarif/components/DialogUsulanTarif.vue'
 import DialogUsulan from './DialogUsulan.vue'
 
 /**
@@ -212,7 +213,8 @@ const handlerTtd = computed(() =>
       </div>
 
       <DialogTindakanUsulan v-model:open="dialogTindakan" :usulan="u" :tindakan="tindakan" @selesai="selesaiTindakan" @muat-ulang="kueri.refetch()" />
-      <DialogUsulan v-model:open="dialogKirimUlang" :usulan="u" @selesai="terkirimUlang" />
+      <DialogUsulanTarif v-if="u.jenis_data === 'tarif'" v-model:open="dialogKirimUlang" :usulan="u" @selesai="terkirimUlang" />
+      <DialogUsulan v-else v-model:open="dialogKirimUlang" :usulan="u" @selesai="terkirimUlang" />
       <TtdModal
         v-model:open="dialogTtd"
         :objek="[{ id: u.id, judul: `${u.nomor} · putaran ${u.putaran}`, ringkasan: u.ringkasan, peringatan: u.perubahan.some((b) => b.objek_berubah) ? 'Ada objek yang berubah sejak diusulkan.' : null }]"
