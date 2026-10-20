@@ -412,6 +412,12 @@ final class MesinUsulan
         return ($butir['objek_jenis'] ?? null) === 'tarif' ? $this->butirTarif : $this->butir;
     }
 
+    /** Jenis objek yang dikenal usulan (gabungan semua jenis data). @return list<string> */
+    public function jenisObjek(): array
+    {
+        return array_values(array_unique(array_merge(...array_values(self::OBJEK_PER_JENIS))));
+    }
+
     /** Jenis data yang punya alur usulan (sumber tunggal untuk validasi controller). @return list<string> */
     public function jenisTerdaftar(): array
     {

@@ -83,6 +83,9 @@ final class KelolaTarif
         return DB::transaction(function () use ($penyunting, $tarif, $versi, $berlakuDari, $alasan, $dasar) {
             SuntinganBerversi::naikkan(Tarif::class, $tarif->id, $versi, $penyunting->id, 'Tarif');
             $terbaru = $this->buku->versiTerbaru($tarif->id) ?? throw new \LogicException('Tarif tanpa versi.');
+            if ($terbaru->status === 'nonaktif') {
+                throw new ApiError(422, 'sudah_nonaktif', 'Tarif ini sudah ditutup.', [['kolom' => 'objek_id', 'pesan' => 'Tarif ini sudah ditutup.']]);
+            }
             $v = $this->tambahVersi($penyunting, $tarif, $terbaru->versi + 1, [...$this->buku->isi($terbaru), 'status' => 'nonaktif'], $berlakuDari, $dasar);
             $this->audit->catat('master_data.tarif_ditutup', $penyunting->id, $tarif->getTable(), $tarif->id,
                 ['kode' => $tarif->kode, 'versi' => $v->versi, 'berlaku_dari' => $berlakuDari, 'alasan' => $alasan, 'dasar_perubahan' => $dasar]);

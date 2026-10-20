@@ -136,6 +136,10 @@ class TarifTest extends TestCase
         $nonaktif = $this->minta('GET', '/api/v1/data-induk/tarif?status=nonaktif')->assertOk();
         $this->assertSame(['nonaktif', '14500.00'], [$nonaktif->json('data.0.status'), $nonaktif->json('data.0.harga.1.total') ?? $nonaktif->json('data.0.harga.0.total')]);
         $this->assertSame(2, DB::table('keuangan.tarif_versi')->where('tarif_id', $tarifId)->count());
+        $this->masukSebagai($this->pengusul);
+        $dua = $this->minta('POST', '/api/v1/usulan-data-induk', $this->usulan([['objek_jenis' => 'tarif', 'aksi' => 'tutup', 'objek_id' => $tarifId,
+            'nilai_baru' => ['alasan' => 'Ditutup lagi']]]))->assertStatus(422);
+        $this->assertSame(['sudah_nonaktif'], collect($dua->json('error.rincian'))->pluck('kode')->all());
     }
 
     public function test_validasi_butir_tarif(): void

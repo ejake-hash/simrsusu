@@ -106,7 +106,7 @@ final class UsulanDataIndukController
         return [
             'perubahan' => ['required', 'array', 'min:1', 'max:50'],
             'perubahan.*' => ['required', 'array:objek_jenis,aksi,objek_id,nilai_baru'],
-            'perubahan.*.objek_jenis' => ['required', Rule::in(['ruang', 'kamar', 'tempat_tidur', 'tarif'])],
+            'perubahan.*.objek_jenis' => ['required', Rule::in($this->mesin->jenisObjek())],
             'perubahan.*.aksi' => ['required', Rule::in(['tambah', 'ubah', 'tutup'])],
             'perubahan.*.objek_id' => ['present', 'nullable', 'uuid'],
             'perubahan.*.nilai_baru' => ['present', 'array'],

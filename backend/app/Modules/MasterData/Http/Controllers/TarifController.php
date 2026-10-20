@@ -109,7 +109,7 @@ final class TarifController
      */
     private function akanBerlaku(array $terbuka, string $tanggal, array $hargaSekarang, callable $saring): ?array
     {
-        $disetujui = array_values(array_filter($terbuka, fn (array $x) => $x[0]->tahap === 'disetujui' && $x[0]->berlaku_dari->toDateString() > $tanggal));
+        $disetujui = array_values(array_filter($terbuka, fn (array $x) => $x[0]->tahap === 'disetujui' && $x[0]->berlaku_dari->toDateString() >= $tanggal));
         if ($disetujui === []) {
             return null;
         }
