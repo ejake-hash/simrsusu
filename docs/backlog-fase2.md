@@ -78,6 +78,7 @@ Uji    :
 - Pengusul tidak bisa memverifikasi usulannya sendiri.
 - Impor CSV tarif awal (penyiapan) menolak baris tanpa kelas atau harga negatif dan melaporkan nomor baris.
 Di luar: paket tarif INA-CBG, analisis unit cost (lampiran berkas saja).
+Utang BE (2.2): impor CSV tarif awal (penyiapan) belum ada; kontrak v0.18.0 tanpa endpoint tulis. `KelolaTarif::buatLangsung` sudah menjaga 409 `harus_lewat_usulan`; endpoint/perintah impor (tolak baris tanpa kelas atau harga negatif, lapor nomor baris) dibuat bersama 2.3 setelah kontraknya ditambah.
 
 ### 2.3 · Wizard langkah 6 aktif → siap melayani
 Tujuan : langkah "Penjamin & tarif" bisa diselesaikan sehingga instalasi menjadi siap melayani (K6).

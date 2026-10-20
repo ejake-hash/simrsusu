@@ -3,8 +3,11 @@
 namespace App\Modules\MasterData\Http\Resources;
 
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\MasterData\Application\BukuTarif;
 use App\Modules\MasterData\Application\ButirRuangTt;
+use App\Modules\MasterData\Application\ButirTarif;
 use App\Modules\MasterData\Application\MesinUsulan;
+use App\Modules\MasterData\Models\TarifVersi;
 use App\Modules\MasterData\Models\UsulanDataInduk;
 use App\Modules\Sdm\Application\RingkasanPegawai;
 use Illuminate\Support\Carbon;
@@ -19,6 +22,7 @@ final class UsulanPresenter
     public function __construct(
         private readonly MesinUsulan $mesin,
         private readonly ButirRuangTt $butir,
+        private readonly ButirTarif $butirTarif,
         private readonly RingkasanPegawai $pegawai,
     ) {}
 
@@ -95,6 +99,38 @@ final class UsulanPresenter
     }
 
     /**
+     * Versi buku tarif (bentuk VersiDataInduk, objek_jenis `tarif`): `sebelum` = isi versi sebelumnya.
+     *
+     * @param  Collection<int, TarifVersi>  $baris
+     * @return list<array<string, mixed>>
+     */
+    public function versiTarif(Collection $baris, BukuTarif $buku): array
+    {
+        $usulan = UsulanDataInduk::query()->whereIn('id', $baris->pluck('usulan_id')->filter()->unique()->values())->pluck('nomor', 'id');
+        $peta = $this->pelaku($baris->pluck('dibuat_oleh')->filter()->unique()->values()->all());
+        $sebelumnya = TarifVersi::query()->whereIn('tarif_id', $baris->pluck('tarif_id')->unique()->values())
+            ->whereIn('versi', $baris->pluck('versi')->map(fn (int $v) => $v - 1)->unique()->values())->get()
+            ->keyBy(fn (TarifVersi $v) => $v->tarif_id.'#'.$v->versi);
+
+        $hasil = [];
+        foreach ($baris as $v) {
+            $lama = $sebelumnya->get($v->tarif_id.'#'.($v->versi - 1));
+            $sebelum = $lama === null ? null : $buku->isi($lama);
+            $sesudah = $buku->isi($v);
+            $hasil[] = [
+                'id' => $v->id, 'versi' => $v->versi, 'objek_jenis' => 'tarif', 'objek_id' => $v->tarif_id,
+                'berlaku_dari' => $v->berlaku_dari->toDateString(), 'sebelum' => $sebelum, 'sesudah' => $sesudah,
+                'tampilan' => $this->butirTarif->tampilanVersi($sebelum, $sesudah),
+                'usulan' => $v->usulan_id === null ? null : ['id' => $v->usulan_id, 'nomor' => (string) ($usulan[$v->usulan_id] ?? '')],
+                'dasar' => $v->dasar, 'diubah_oleh' => $v->dibuat_oleh === null ? null : ($peta[$v->dibuat_oleh] ?? null),
+                'diubah_pada' => $v->dibuat_pada->toIso8601String(),
+            ];
+        }
+
+        return $hasil;
+    }
+
+    /**
      * @param  list<string>  $id
      * @return array<string, array{id: string, nama: string}>
      */
@@ -118,14 +154,15 @@ final class UsulanPresenter
     {
         $berubah = false;
         if ($b['aksi'] !== 'tambah' && in_array($u->tahap, [...UsulanDataInduk::BERJALAN, 'dikembalikan'], true)) {
-            $objek = $this->butir->objek($b['objek_jenis'], (string) $b['objek_id']);
+            $objek = $b['objek_jenis'] === 'tarif' ? $this->butirTarif->objek((string) $b['objek_id'])
+                : $this->butir->objek($b['objek_jenis'], (string) $b['objek_id']);
             $berubah = $objek === null || (int) $objek->getAttribute('revisi') !== (int) ($b['revisi_objek'] ?? -1);
         }
 
         return [
             'objek_jenis' => $b['objek_jenis'], 'aksi' => $b['aksi'], 'objek_id' => $b['objek_id'] ?? $b['objek_id_hasil'] ?? null,
             'objek_label' => $b['objek_label'] ?? '', 'objek_berubah' => $berubah, 'nilai_lama' => $b['nilai_lama'] ?? null,
-            'nilai_baru' => (object) ($b['nilai_baru'] ?? []), 'tampilan' => $this->butir->tampilan($b, $u->berlaku_dari->toDateString()),
+            'nilai_baru' => (object) ($b['nilai_baru'] ?? []), 'tampilan' => ($b['objek_jenis'] === 'tarif' ? $this->butirTarif : $this->butir)->tampilan($b, $u->berlaku_dari->toDateString()),
         ];
     }
 }

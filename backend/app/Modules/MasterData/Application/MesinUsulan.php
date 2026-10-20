@@ -25,9 +25,13 @@ use Illuminate\Support\Str;
  */
 final class MesinUsulan
 {
+    /** Objek yang boleh ada di satu usulan per jenis data (dua jenis tidak boleh bercampur). */
+    private const OBJEK_PER_JENIS = ['ruang_tt' => ['ruang', 'kamar', 'tempat_tidur'], 'tarif' => ['tarif']];
+
     public function __construct(
         private readonly CatatAktivitas $audit,
         private readonly ButirRuangTt $butir,
+        private readonly ButirTarif $butirTarif,
         private readonly CatatVersi $versi,
     ) {}
 
@@ -39,7 +43,7 @@ final class MesinUsulan
         $alur = $this->alur($isi['jenis_data']);
         $this->pastikanPeran($pengusul, $alur->peran_pengusul_id, 'bukan_pengusul_alur', 'Usulan jenis data ini diajukan oleh peran pemilik datanya.');
         $this->pastikanTanggal($isi['berlaku_dari']);
-        [$perubahan, $ringkasan] = $this->periksa($pengusul, $isi['perubahan'], $isi['berlaku_dari']);
+        [$perubahan, $ringkasan] = $this->periksa($pengusul, $isi['jenis_data'], $isi['perubahan'], $isi['berlaku_dari']);
 
         return DB::transaction(function () use ($pengusul, $isi, $perubahan, $ringkasan, $alur) {
             $this->kunciObjek();
@@ -67,7 +71,7 @@ final class MesinUsulan
         }
         $this->pastikanTahap($u, ['dikembalikan']);
         $this->pastikanTanggal($isi['berlaku_dari']);
-        [$perubahan, $ringkasan] = $this->periksa($pengusul, $isi['perubahan'], $isi['berlaku_dari']);
+        [$perubahan, $ringkasan] = $this->periksa($pengusul, $u->jenis_data, $isi['perubahan'], $isi['berlaku_dari']);
 
         return DB::transaction(function () use ($pengusul, $u, $isi, $perubahan, $ringkasan) {
             $this->kunciObjek();
@@ -198,7 +202,7 @@ final class MesinUsulan
                 DB::transaction(function () use ($u, $penyetuju, $efektif, $dasar, &$perubahan) {
                     $this->versi->dariUsulan($u->id, function () use ($penyetuju, $efektif, $dasar, &$perubahan) {
                         foreach ($perubahan as $i => $b) {
-                            $perubahan[$i]['objek_id_hasil'] = $this->butir->terapkan($penyetuju, $b, $efektif, $dasar);
+                            $perubahan[$i]['objek_id_hasil'] = $this->pilih($b)->terapkan($penyetuju, $b, $efektif, $dasar);
                         }
                     });
                 });
@@ -292,15 +296,16 @@ final class MesinUsulan
      * @param  list<array<string, mixed>>  $butir
      * @return array{0: list<array<string, mixed>>, 1: string} butir lengkap (objek_label, nilai_lama, revisi_objek) dan ringkasan
      */
-    private function periksa(Pengguna $pengusul, array $butir, string $berlakuDari): array
+    private function periksa(Pengguna $pengusul, string $jenisData, array $butir, string $berlakuDari): array
     {
         $rincian = [];
         $hasil = [];
         foreach ($butir as $i => $b) {
             $b = array_intersect_key($b, array_flip(['objek_jenis', 'aksi', 'objek_id', 'nilai_baru']));
-            $salah = $this->butir->periksaBentuk($i, $b);
+            $salah = in_array($b['objek_jenis'] ?? null, self::OBJEK_PER_JENIS[$jenisData] ?? [], true) ? $this->pilih($b)->periksaBentuk($i, $b)
+                : [['kolom' => "perubahan.$i.objek_jenis", 'kode' => 'jenis_campur', 'pesan' => 'Satu usulan hanya memuat objek dari satu jenis data.']];
             if ($salah === []) {
-                $potret = $this->butir->potret($b);
+                $potret = $this->pilih($b)->potret($b);
                 if ($potret === null) {
                     $salah = [['kolom' => "perubahan.$i.objek_id", 'kode' => 'objek_tidak_ditemukan', 'pesan' => 'Objek tidak ditemukan.']];
                 } else {
@@ -334,7 +339,7 @@ final class MesinUsulan
             SuntinganBerversi::denganHariAcuan($berlakuDari, function () use ($pengusul, $butir, $berlakuDari, &$rincian) {
                 foreach ($butir as $i => $b) {
                     try {
-                        DB::transaction(fn () => $this->butir->terapkan($pengusul, $b, $berlakuDari, 'Uji kering usulan'));
+                        DB::transaction(fn () => $this->pilih($b)->terapkan($pengusul, $b, $berlakuDari, 'Uji kering usulan'));
                     } catch (ApiError $e) {
                         $isian = $e->rincian[0]['kolom'] ?? null;
                         $rincian[] = ['kolom' => "perubahan.$i".($isian !== null ? ".$isian" : ''), 'kode' => $e->kode, 'pesan' => $e->getMessage()];
@@ -391,7 +396,7 @@ final class MesinUsulan
 
             return "{$nama}: {$sebelum} → ".($sebelum + $tambah - (count($butir) - $tambah)).' TT';
         }
-        $label = ['tempat_tidur' => 'TT', 'kamar' => 'kamar', 'ruang' => 'ruang'];
+        $label = ['tempat_tidur' => 'TT', 'kamar' => 'kamar', 'ruang' => 'ruang', 'tarif' => 'tarif'];
         $hitung = [];
         foreach ($butir as $b) {
             $kunci = ucfirst($b['aksi']).' '.$label[$b['objek_jenis']];
@@ -399,6 +404,24 @@ final class MesinUsulan
         }
 
         return implode(', ', array_map(fn ($k, $n) => preg_replace('/^(\w+) /', '$1 '.$n.' ', $k), array_keys($hitung), $hitung));
+    }
+
+    /** @param  array<string, mixed>  $butir */
+    private function pilih(array $butir): ButirRuangTt|ButirTarif
+    {
+        return ($butir['objek_jenis'] ?? null) === 'tarif' ? $this->butirTarif : $this->butir;
+    }
+
+    /** Jenis objek yang dikenal usulan (gabungan semua jenis data). @return list<string> */
+    public function jenisObjek(): array
+    {
+        return array_values(array_unique(array_merge(...array_values(self::OBJEK_PER_JENIS))));
+    }
+
+    /** Jenis data yang punya alur usulan (sumber tunggal untuk validasi controller). @return list<string> */
+    public function jenisTerdaftar(): array
+    {
+        return DB::table('inti.alur_usulan')->orderBy('jenis_data')->pluck('jenis_data')->all();
     }
 
     private function alur(string $jenis): object

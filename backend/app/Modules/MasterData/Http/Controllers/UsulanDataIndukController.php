@@ -32,7 +32,7 @@ final class UsulanDataIndukController
         $this->izin('lihat');
         $filter = $request->validate([
             'tahap' => ['nullable', Rule::in(self::TAHAP)],
-            'jenis_data' => ['nullable', Rule::in(['ruang_tt'])],
+            'jenis_data' => ['nullable', Rule::in($this->mesin->jenisTerdaftar())],
             'perlu_saya' => ['nullable', Rule::in(['true', 'false', '1', '0'])],
         ]);
         /** @var Pengguna $saya */
@@ -64,7 +64,7 @@ final class UsulanDataIndukController
     {
         $this->izin('input');
         $isi = $request->validate([
-            'jenis_data' => ['required', Rule::in(['ruang_tt'])],
+            'jenis_data' => ['required', Rule::in($this->mesin->jenisTerdaftar())],
             ...$this->aturanIsi(),
         ]);
 
@@ -106,7 +106,7 @@ final class UsulanDataIndukController
         return [
             'perubahan' => ['required', 'array', 'min:1', 'max:50'],
             'perubahan.*' => ['required', 'array:objek_jenis,aksi,objek_id,nilai_baru'],
-            'perubahan.*.objek_jenis' => ['required', Rule::in(['ruang', 'kamar', 'tempat_tidur'])],
+            'perubahan.*.objek_jenis' => ['required', Rule::in($this->mesin->jenisObjek())],
             'perubahan.*.aksi' => ['required', Rule::in(['tambah', 'ubah', 'tutup'])],
             'perubahan.*.objek_id' => ['present', 'nullable', 'uuid'],
             'perubahan.*.nilai_baru' => ['present', 'array'],

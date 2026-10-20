@@ -30,6 +30,12 @@ final class CatatVersi
         }
     }
 
+    /** Usulan yang sedang diterapkan (null di luar penerapan usulan); dipakai tabel versi jenis data lain (tarif, 2.2). */
+    public function usulanAktif(): ?string
+    {
+        return $this->usulanId;
+    }
+
     /**
      * Versi pertama banyak objek baru sekaligus (impor CSV 1.8b).
      *
