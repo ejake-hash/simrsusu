@@ -13,10 +13,10 @@ final class PenjagaUsulan
 {
     public function __construct(private readonly StatusInstalasi $instalasi) {}
 
-    public function pastikanBolehLangsung(): void
+    public function pastikanBolehLangsung(string $objek = 'ruang, kamar, dan tempat tidur'): void
     {
         if ($this->instalasi->siapMelayani()) {
-            throw new ApiError(409, 'harus_lewat_usulan', 'Instalasi sudah melayani pasien: perubahan ruang, kamar, dan tempat tidur diajukan lewat Master Data → Usulan perubahan.');
+            throw new ApiError(409, 'harus_lewat_usulan', "Instalasi sudah melayani pasien: perubahan $objek diajukan lewat Master Data → Usulan perubahan.");
         }
     }
 }

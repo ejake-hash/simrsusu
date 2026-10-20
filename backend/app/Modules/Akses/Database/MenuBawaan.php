@@ -226,6 +226,7 @@ final class MenuBawaan
                 'katalog' => ['Data induk', 54],
                 'usulan' => ['Usulan perubahan', 54],
                 'penjamin' => ['Penjamin', 54],
+                'tarif' => ['Buku tarif', 54],
                 'jadwal_praktik' => ['Jadwal praktik', 54],
             ]],
             'pengaturan' => ['Pengaturan Sistem', 1, 54, [

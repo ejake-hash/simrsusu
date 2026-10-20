@@ -13,6 +13,7 @@ use App\Modules\MasterData\Http\Controllers\PaketReferensiController;
 use App\Modules\MasterData\Http\Controllers\PenjaminController;
 use App\Modules\MasterData\Http\Controllers\PoliklinikController;
 use App\Modules\MasterData\Http\Controllers\RiwayatVersiController;
+use App\Modules\MasterData\Http\Controllers\TarifController;
 use App\Modules\MasterData\Http\Controllers\TempatTidurController;
 use App\Modules\MasterData\Http\Controllers\UnitOrganisasiController;
 use App\Modules\MasterData\Http\Controllers\UsulanDataIndukController;
@@ -20,7 +21,7 @@ use Illuminate\Support\Facades\Route;
 
 // Organisasi, unit & KSM (tiket 1.8a). Izin dan lapis 3 diperiksa di controller lewat Gate → AccessEvaluator:
 // daftar unit boleh untuk dua izin (data induk ATAU pengelola akun), dan cakupan `unit` = subpohon.
-Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->whereUuid(['unit', 'ksm', 'lokasi', 'bangsal', 'kamar', 'tempatTidur', 'kelasRawat', 'penjamin', 'jadwal', 'pengecualian', 'poliklinik', 'usulan', 'objekId'])->group(function () {
+Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->whereUuid(['unit', 'ksm', 'lokasi', 'bangsal', 'kamar', 'tempatTidur', 'kelasRawat', 'penjamin', 'tarif', 'jadwal', 'pengecualian', 'poliklinik', 'usulan', 'objekId'])->group(function () {
     Route::get('unit-organisasi', [UnitOrganisasiController::class, 'index']);
     Route::post('unit-organisasi', [UnitOrganisasiController::class, 'store'])->middleware('can:master_data.organisasi.input');
     Route::get('unit-organisasi/{unit}', [UnitOrganisasiController::class, 'show']);
@@ -75,6 +76,10 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::post('data-induk/penjamin', [PenjaminController::class, 'store']);
     Route::get('data-induk/penjamin/{penjamin}', [PenjaminController::class, 'show']);
     Route::patch('data-induk/penjamin/{penjamin}', [PenjaminController::class, 'update']);
+
+    // Buku tarif (tiket 2.2): hanya baca; izin master_data.tarif.lihat cakupan rs, diperiksa di controller. Perubahan lewat usulan 1.8c.
+    Route::get('data-induk/tarif', [TarifController::class, 'index']);
+    Route::get('data-induk/tarif/{tarif}/versi', [TarifController::class, 'versi']);
 
     // Jadwal praktik dan pengecualian (tiket 2.4): izin master_data.jadwal_praktik.* cakupan rs, diperiksa di controller.
     Route::get('jadwal-praktik', [JadwalPraktikController::class, 'index']);
