@@ -21,13 +21,16 @@ export const PIL_STATUS: Record<StatusLangkah, string> = {
  * Layar pengisi data tiap langkah (tiket fe: tautan, bukan formulir duplikat). Langkah 4 diisi di halaman ini (unggah
  * paket, endpoint wizard 1.8e); null = belum ada layarnya (fase 2, integrasi 1.9, layar modul aktif = utang).
  */
-export const TAUTAN_LANGKAH: Record<KodeLangkah, { rute: string; label: string } | null> = {
-  superadmin: { rute: '/pengaturan/akun', label: 'Buka Akun & akses' },
-  profil_rs: { rute: '/pengaturan/profil-rs', label: 'Buka Profil rumah sakit' },
-  organisasi: { rute: '/master-data/organisasi', label: 'Buka Organisasi, Unit, Ruang & TT' },
+export const TAUTAN_LANGKAH: Record<KodeLangkah, { rute: string; label: string }[] | null> = {
+  superadmin: [{ rute: '/pengaturan/akun', label: 'Buka Akun & akses' }],
+  profil_rs: [{ rute: '/pengaturan/profil-rs', label: 'Buka Profil rumah sakit' }],
+  organisasi: [{ rute: '/master-data/organisasi', label: 'Buka Organisasi, Unit, Ruang & TT' }],
   paket_referensi: null,
-  pegawai: { rute: '/sdm/pegawai', label: 'Buka Data pegawai' },
-  penjamin_tarif: null,
+  pegawai: [{ rute: '/sdm/pegawai', label: 'Buka Data pegawai' }],
+  penjamin_tarif: [
+    { rute: '/master-data/penjamin', label: 'Buka Penjamin' },
+    { rute: '/master-data/tarif', label: 'Buka Buku tarif' },
+  ],
   formularium: null,
   kredensial_integrasi: null,
   modul_aktif: null,
@@ -35,8 +38,8 @@ export const TAUTAN_LANGKAH: Record<KodeLangkah, { rute: string; label: string }
 /** Penjelasan langkah yang belum punya layar pengisi. */
 export const KET_LANGKAH: Partial<Record<KodeLangkah, string>> = {
   superadmin: 'Superadmin kedua dibuat dari konsol server (akses:superadmin-pertama) atau dari akun pegawai; keduanya wajib MFA.',
-  penjamin_tarif: 'Diisi di awal fase 2, sebelum pendaftaran pasien. Instalasi belum bisa melayani pasien sampai langkah ini lengkap.',
-  formularium: 'Diisi di awal fase 2 bersama modul farmasi.',
+  penjamin_tarif: 'Isi penjamin dan tarif di dua layar di bawah.',
+  formularium: 'Diisi bersama modul farmasi.',
   kredensial_integrasi: 'Kredensial BPJS/SATUSEHAT disimpan dan diuji di layar Konfigurasi integrasi (tiket 1.9). Sampai itu, langkah ini boleh dilewati dengan alasan.',
   modul_aktif: 'Modul inti fase 1 sudah aktif sejak pemasangan; layar pengaturan modul aktif menyusul.',
 }

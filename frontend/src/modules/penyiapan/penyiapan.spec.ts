@@ -81,10 +81,12 @@ async function muatSemuaPaketWajib() {
 }
 
 describe('Halaman penyiapan', () => {
-  it('sembilan langkah berurutan; konfirmasi mengikuti dapat_dikonfirmasi; langkah 6–7 menunggu fase 2', async () => {
+  it('sembilan langkah berurutan; konfirmasi mengikuti dapat_dikonfirmasi; langkah 7 menunggu fase 2', async () => {
     await pasang(DaftarLangkah)
     expect(document.querySelectorAll('ol[aria-label="Langkah penyiapan"] > li')).toHaveLength(9)
-    expect(langkah('penjamin_tarif').textContent).toContain('Menunggu fase 2')
+    expect(langkah('penjamin_tarif').textContent).not.toContain('Menunggu fase 2')
+    expect(langkah('formularium').textContent).toContain('Menunggu fase 2')
+    expect([...langkah('penjamin_tarif').querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual(['/master-data/penjamin', '/master-data/tarif'])
     expect(document.body.textContent).toContain('Instalasi belum bisa melayani pasien')
     // Urutan: langkah 2 belum bisa dikonfirmasi sebelum langkah 1.
     expect(tombol('Konfirmasi selesai', langkah('profil_rs'))).toBeUndefined()
@@ -142,9 +144,9 @@ describe('Halaman penyiapan', () => {
     expect(tombol('Terapkan', d)?.disabled).toBe(true)
   })
 
-  it('langkah 8 dilewati dengan alasan wajib sesudah langkah 1–5 selesai', async () => {
+  it('langkah 8 dilewati dengan alasan wajib sesudah langkah 1–6 selesai', async () => {
     await muatSemuaPaketWajib()
-    for (const k of ['superadmin', 'profil_rs', 'organisasi', 'paket_referensi', 'pegawai'] as const) await konfirmasiLangkah(k)
+    for (const k of ['superadmin', 'profil_rs', 'organisasi', 'paket_referensi', 'pegawai', 'penjamin_tarif'] as const) await konfirmasiLangkah(k)
     await pasang(DaftarLangkah)
     await klik(tombol('Lewati', langkah('kredensial_integrasi')))
     const d = dialog()!
@@ -156,8 +158,26 @@ describe('Halaman penyiapan', () => {
     expect(langkah('kredensial_integrasi').textContent).toContain('Dilewati')
     expect(langkah('kredensial_integrasi').textContent).toContain('“Belum ada kredensial dari RS”')
     expect(tombol('Konfirmasi selesai', langkah('modul_aktif'))).toBeTruthy()
-    // Langkah 6 menunggu fase 2: tetap belum bisa melayani.
-    expect(document.body.textContent).toContain('Instalasi belum bisa melayani pasien')
+    expect(document.body.textContent).toContain('Instalasi siap melayani pasien sejak')
+  })
+
+  it('langkah 6: tanpa tombol konfirmasi selama ada kelas rawat tanpa tarif', async () => {
+    await muatSemuaPaketWajib()
+    for (const k of ['superadmin', 'profil_rs', 'organisasi', 'paket_referensi', 'pegawai'] as const) await konfirmasiLangkah(k)
+    server.penyiapan.keadaan.kelasTanpaTarif = 2
+    await pasang(DaftarLangkah)
+    expect(langkah('penjamin_tarif').textContent).toContain('2 kelas belum bertarif')
+    expect(tombol('Konfirmasi selesai', langkah('penjamin_tarif'))).toBeUndefined()
+  })
+
+  it('langkah 6: konfirmasi membuat instalasi siap melayani', async () => {
+    await muatSemuaPaketWajib()
+    for (const k of ['superadmin', 'profil_rs', 'organisasi', 'paket_referensi', 'pegawai'] as const) await konfirmasiLangkah(k)
+    await pasang(DaftarLangkah)
+    await klik(tombol('Konfirmasi selesai', langkah('penjamin_tarif')))
+    expect(permintaan.some((p) => p.metode.toUpperCase() === 'POST' && p.jalur === '/penyiapan/penjamin_tarif/selesai')).toBe(true)
+    expect(langkah('penjamin_tarif').textContent).toContain('Selesai')
+    expect(document.body.textContent).toContain('Instalasi siap melayani pasien sejak')
   })
 
   it('tanpa izin katalog tidak ada tombol muat (tombol konfirmasi mengikuti dapat_* dari server)', async () => {
