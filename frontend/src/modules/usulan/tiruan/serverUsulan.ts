@@ -1,4 +1,5 @@
 import type { PermintaanTiruan, ResponsTiruan } from '../../akses/tiruan/serverTiruan'
+import type { ServerTarif } from '../../tarif/tiruan/serverTarif'
 import type { ButirUsulan, IsianButir, ObjekDataInduk, TahapUsulan, TampilanIsian, UsulanDataInduk, VersiDataInduk } from '../tipe'
 
 /**
@@ -36,6 +37,8 @@ export interface OpsiServerUsulan {
   labelNilai: (isian: string, nilai: unknown) => string | null
   /** Akun sudah menandatangani isi usulan saat ini (server tiruan TTE). */
   sudahTtd?: (objekId: string, akunId: string) => boolean
+  /** Jenis data `tarif` (2.2): butir dibentuk dan diterapkan oleh server tarif tiruan. */
+  tarif?: ServerTarif
   contoh: { kamarA: string; kamarB: string; ruangB: string; kelas: string }
   pengusulLain: string
   sekarang?: () => Date
@@ -69,6 +72,7 @@ export function buatServerUsulan(opsi: OpsiServerUsulan) {
   const pelaku = (akunId: string | null): Pelaku => (akunId ? { id: akunId, nama: opsi.namaAkun(akunId) ?? 'Akun' } : null)
 
   function bentukButir(b: IsianButir): ButirUsulan | { salah: { kode: string; pesan: string } } {
+    if (b.objek_jenis === 'tarif') return opsi.tarif ? opsi.tarif.bentukButir(b) : { salah: { kode: 'aksi_tidak_dikenal', pesan: 'Jenis data tarif tidak tersedia.' } }
     const kunci = `${b.objek_jenis}.${b.aksi}`
     const boleh = ISIAN_BOLEH[kunci]
     if (!boleh) return { salah: { kode: 'aksi_tidak_dikenal', pesan: `Aksi ${kunci} tidak dikenal.` } }
@@ -95,7 +99,7 @@ export function buatServerUsulan(opsi: OpsiServerUsulan) {
     const saya = opsi.penggunaSaatIni()
     const pihak = [u.pengusul, u.pemverifikasi, u.penyetuju].filter(Boolean) as string[]
     return {
-      id: u.id, nomor: u.nomor, jenis_data: 'ruang_tt', ringkasan: u.ringkasan, perubahan: u.perubahan, berlaku_dari: u.berlaku_dari, alasan: u.alasan, dasar: u.dasar,
+      id: u.id, nomor: u.nomor, jenis_data: u.perubahan[0]?.objek_jenis === 'tarif' ? 'tarif' : 'ruang_tt', ringkasan: u.ringkasan, perubahan: u.perubahan, berlaku_dari: u.berlaku_dari, alasan: u.alasan, dasar: u.dasar,
       tahap: u.tahap, putaran: u.putaran, diusulkan_oleh: pelaku(u.pengusul), diusulkan_pada: u.diusulkan_pada, diverifikasi_oleh: pelaku(u.pemverifikasi),
       disetujui_oleh: pelaku(u.penyetuju), gagal_alasan: u.gagal_alasan, riwayat: u.riwayat,
       dapat: {
@@ -112,7 +116,7 @@ export function buatServerUsulan(opsi: OpsiServerUsulan) {
     u.tahap = 'berlaku'
     catat(u, 'diterapkan', null)
     for (const b of u.perubahan) {
-      if (!b.objek_id) continue
+      if (!b.objek_id || b.objek_jenis === 'tarif') continue
       const n = versi.filter((v) => v.objek_id === b.objek_id).length + 1
       versi.push({
         id: id(++nomor), versi: n, objek_jenis: b.objek_jenis, objek_id: b.objek_id, berlaku_dari: u.berlaku_dari, sebelum: b.nilai_lama, sesudah: b.nilai_baru,
@@ -136,6 +140,7 @@ export function buatServerUsulan(opsi: OpsiServerUsulan) {
       else butir.push(h)
     })
     if (salah.length) return error(422, 'perubahan_tidak_valid', 'Ada perubahan yang tidak valid.', salah)
+    if (new Set(butir.map((b) => (b.objek_jenis === 'tarif' ? 'tarif' : 'ruang_tt'))).size > 1) return error(422, 'perubahan_tidak_valid', 'Satu usulan hanya memuat satu jenis data.', [{ kolom: 'perubahan', kode: 'jenis_campur', pesan: 'Pisahkan perubahan tarif dari ruang dan tempat tidur.' }])
     const bentrok = butir.flatMap((b, i) => {
       const lain = usulan.find((u) => u.id !== kecuali && ['diusulkan', 'diverifikasi', 'disetujui'].includes(u.tahap) && u.perubahan.some((x) => x.objek_id && x.objek_id === b.objek_id))
       return lain ? [{ kolom: `perubahan.${i}`, kode: 'objek_sedang_diusulkan', pesan: `${b.objek_label} sedang diusulkan di ${lain.nomor}.`, usulan: { id: lain.id, nomor: lain.nomor } }] : []
@@ -170,6 +175,15 @@ export function buatServerUsulan(opsi: OpsiServerUsulan) {
   u2.riwayat.push({ aksi: 'diverifikasi', oleh: { id: 'pemverifikasi-lain', nama: 'Contoh Kepala Keperawatan' }, pada: iso(), catatan: 'Sesuai kebutuhan bangsal', putaran: 1 })
   const u3 = benih(opsi.penggunaSaatIni(), [{ objek_jenis: 'ruang', aksi: 'ubah', objek_id: ruangB, nilai_baru: { nama: 'Ruang Melati 102 (renovasi)' } }], { berlaku_dari: besok() }, 'dikembalikan')
   u3.riwayat.push({ aksi: 'dikembalikan', oleh: pelaku(opsi.pengusulLain), pada: iso(), catatan: 'Lampirkan memo renovasi dari IPSRS.', putaran: 1 })
+
+  // Usulan tarif terverifikasi (2.2): menunggu penyetuju; tanggal berlaku besok agar harga lama tetap berlaku hari ini.
+  if (opsi.tarif) {
+    const t = opsi.tarif.contoh.tindakan
+    const harga = t.versi[t.versi.length - 1]!.isi.harga.map((h, i) => ({ ...h, jasa_sarana: String(80000 + i * 25000) }))
+    const u4 = benih(opsi.pengusulLain, [{ objek_jenis: 'tarif', aksi: 'ubah', objek_id: t.id, nilai_baru: { harga } }], { berlaku_dari: besok(), alasan: 'Penyesuaian tarif tahunan (sintetis)', dasar: 'SK Direktur Contoh (sintetis)' }, 'diverifikasi')
+    u4.pemverifikasi = 'pemverifikasi-lain'
+    u4.riwayat.push({ aksi: 'diverifikasi', oleh: { id: 'pemverifikasi-lain', nama: 'Contoh Kepala Keuangan' }, pada: iso(), catatan: 'Sesuai SK', putaran: 1 })
+  }
 
   function tangani(r: PermintaanTiruan): ResponsTiruan | null {
     const m = r.metode.toUpperCase()
@@ -235,6 +249,8 @@ export function buatServerUsulan(opsi: OpsiServerUsulan) {
       u.tahap = 'disetujui'
       u.penyetuju = saya
       catat(u, 'disetujui', saya, catatan)
+      // Tarif berversi per tanggal: versi terjadwal langsung tercatat dan baru tampil sebagai harga berlaku pada tanggalnya.
+      for (const b of u.perubahan) if (b.objek_jenis === 'tarif') opsi.tarif?.terapkan(b, u.berlaku_dari, { id: u.id, nomor: u.nomor }, `${u.nomor}; ${u.dasar}`, opsi.namaAkun(saya) ?? 'Akun')
       if (u.berlaku_dari <= hariIni()) terapkan(u)
       return ok({ data: bentuk(u) })
     }
@@ -265,5 +281,10 @@ export function buatServerUsulan(opsi: OpsiServerUsulan) {
     const u = usulan.find((x) => x.id === usulanId)
     return u ? { nomor: u.nomor, tahap: u.tahap, pihak: [u.pengusul, u.pemverifikasi, u.penyetuju].filter(Boolean) as string[], putaran: u.putaran } : null
   }
-  return { tangani, usulanUntukTtd }
+  /** Usulan yang sedang berjalan untuk satu objek (tahap diusulkan, diverifikasi, disetujui). */
+  const usulanTerbuka = (objekId: string) => {
+    const u = usulan.find((x) => ['diusulkan', 'diverifikasi', 'disetujui'].includes(x.tahap) && x.perubahan.some((b) => b.objek_id === objekId))
+    return u ? { id: u.id, nomor: u.nomor } : null
+  }
+  return { tangani, usulanUntukTtd, usulanTerbuka }
 }

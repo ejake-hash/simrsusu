@@ -7,6 +7,7 @@ import { buatServerOrganisasi } from '../../organisasi/tiruan/serverOrganisasi'
 import { buatServerPenyiapan } from '../../penyiapan/tiruan/serverPenyiapan'
 import { buatServerSdm } from '../../sdm/tiruan/serverSdm'
 import { buatServerTtd } from '../../ttd/tiruan/serverTtd'
+import { buatServerTarif } from '../../tarif/tiruan/serverTarif'
 import { buatServerUsulan } from '../../usulan/tiruan/serverUsulan'
 import type { PermintaanTiruan, ResponsTiruan } from './serverTiruan'
 import { buatServerTiruan, ID_SUPERADMIN, ID_SUPERADMIN_DUA, type OpsiServerTiruan } from './serverTiruan'
@@ -71,17 +72,26 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     usulan: (id) => usulan.usulanUntukTtd(id),
     sekarang: opsi.sekarang,
   })
+  let usulanTerbuka: (objekId: string) => { id: string; nomor: string } | null = () => null
+  const tarif = buatServerTarif({
+    boleh: akses.bolehSaya,
+    kelas: () => [lokasi.contoh.k1.id, lokasi.contoh.k3.id].map((kid) => ({ id: kid, label: lokasi.labelNilai('kelas_rawat_id', kid) ?? kid })),
+    usulanTerbuka: (tarifId) => usulanTerbuka(tarifId),
+    sekarang: opsi.sekarang,
+  })
   const usulan = buatServerUsulan({
+    tarif,
     penggunaSaatIni: akses.penggunaSaatIni,
     namaAkun: akses.namaAkunUntukTtd,
     boleh: akses.bolehSaya,
-    potret: lokasi.potretObjek,
+    potret: (jenis, id) => (jenis === 'tarif' ? tarif.potret(id) : lokasi.potretObjek(jenis, id)),
     labelNilai: lokasi.labelNilai,
     sudahTtd: (objekId, akunId) => ttd.sudahTtd(objekId, akunId),
     contoh: { kamarA: lokasi.contoh.km101.id, kamarB: lokasi.contoh.km102.id, ruangB: lokasi.contoh.r102.id, kelas: lokasi.contoh.k1.id },
     pengusulLain: ID_SUPERADMIN_DUA,
     sekarang: opsi.sekarang,
   })
+  usulanTerbuka = usulan.usulanTerbuka
   const penyiapan = buatServerPenyiapan({ boleh: akses.bolehSaya, pelaku: () => ({ id: opsi.penggunaId ?? ID_SUPERADMIN, nama: 'Contoh Superadmin' }), sekarang: opsi.sekarang })
   const penjamin = buatServerPenjamin({ boleh: akses.bolehSaya, sekarang: opsi.sekarang })
   const integrasi = buatServerIntegrasi({ boleh: akses.bolehSaya, pelaku: () => ({ id: opsi.penggunaId ?? ID_SUPERADMIN, nama: 'Contoh Superadmin' }), sekarang: opsi.sekarang })
@@ -107,6 +117,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     akses,
     sdm,
     jadwal,
+    tarif,
     notifikasi,
     ttd,
     usulan,
@@ -117,7 +128,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
       if (akses.wajibGantiSandi() && !bebasGantiSandi(r)) {
         return { status: 403, isi: { error: { kode: 'wajib_ganti_sandi', pesan: 'Ganti sandi awal Anda lebih dulu.', rincian: [] } } }
       }
-      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r)
+      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r)
     },
   }
 }
