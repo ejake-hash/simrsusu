@@ -34,8 +34,8 @@ final class Penyiapan
         'modul_aktif' => 'Modul aktif',
     ];
 
-    /** Langkah 6–7: kerangka saja di fase 1 (K6). */
-    private const FASE_2 = ['penjamin_tarif', 'formularium'];
+    /** Langkah 7: kerangka saja sampai Tahap B (K6). */
+    private const FASE_2 = ['formularium'];
 
     private const BISA_DILEWATI = 'kredensial_integrasi';
 
@@ -177,6 +177,7 @@ final class Penyiapan
                 'organisasi' => $this->syaratOrganisasi(),
                 'paket_referensi' => $this->syaratPaket($paket),
                 'pegawai' => $this->syaratPegawai(),
+                'penjamin_tarif' => $this->syaratPenjaminTarif(),
                 'kredensial_integrasi' => [self::syarat('kredensial', 'Kredensial tersimpan dan uji koneksi berhasil', ...array_values($this->integrasi->periksa()))],
                 'modul_aktif' => $this->syaratModul(),
                 default => [],
@@ -320,6 +321,28 @@ final class Penyiapan
         return [
             self::syarat('pegawai', 'Pegawai aktif', $pegawai > 0, $pegawai > 0 ? "{$pegawai} pegawai" : 'Belum ada'),
             self::syarat('izin_praktik', 'Izin praktik yang berlaku', $izin > 0, $izin > 0 ? "{$izin} izin" : 'Belum ada'),
+        ];
+    }
+
+    /** @return list<array{kode: string, label: string, terpenuhi: bool, keterangan: ?string}> */
+    private function syaratPenjaminTarif(): array
+    {
+        $penjamin = DB::table('inti.penjamin')->where('status', 'aktif')->count();
+        $kelas = DB::table('inti.kelas_rawat')->where('status', 'aktif')->count();
+        // Versi berlaku per butir = berlaku_dari terbaru yang ≤ hari ini; hanya yang berstatus aktif dihitung.
+        $tertutup = (int) (DB::selectOne(
+            'SELECT count(*) AS n FROM inti.kelas_rawat k WHERE k.status = \'aktif\' AND EXISTS (
+                SELECT 1 FROM keuangan.tarif_versi_harga h
+                JOIN keuangan.tarif_versi v ON v.id = h.tarif_versi_id
+                WHERE h.kelas_rawat_id = k.id AND v.status = \'aktif\' AND v.berlaku_dari <= ?
+                  AND v.versi = (SELECT max(v2.versi) FROM keuangan.tarif_versi v2 WHERE v2.tarif_id = v.tarif_id AND v2.berlaku_dari <= ?))',
+            [self::hariIni(), self::hariIni()],
+        )->n ?? 0);
+        $tarifLengkap = $kelas > 0 && $tertutup === $kelas;
+
+        return [
+            self::syarat('penjamin', 'Penjamin aktif', $penjamin > 0, $penjamin > 0 ? "{$penjamin} penjamin" : 'Belum ada yang aktif'),
+            self::syarat('tarif_per_kelas', 'Tarif untuk setiap kelas rawat aktif', $tarifLengkap, $kelas === 0 ? 'Belum ada kelas rawat aktif' : "{$tertutup} dari {$kelas} kelas"),
         ];
     }
 

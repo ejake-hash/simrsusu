@@ -49,7 +49,7 @@ class PenyiapanTest extends TestCase
         );
         $status = array_column($data['langkah'], 'status', 'kode');
         $this->assertNotContains('selesai', $status);
-        $this->assertSame('menunggu_fase_2', $status['penjamin_tarif']);
+        $this->assertSame('belum', $status['penjamin_tarif']);
         $this->assertSame('menunggu_fase_2', $status['formularium']);
         // Satu superadmin (pemanggil) dari dua; jaringan RS terisi di phpunit.xml.
         $this->assertSame('sebagian', $status['superadmin']);
@@ -64,24 +64,24 @@ class PenyiapanTest extends TestCase
         $this->assertTrue($data['langkah'][8]['syarat'][0]['terpenuhi']);
     }
 
-    public function test_data_sintetis_lengkap_langkah_1_5_dan_9_selesai_6_7_menunggu_fase_2_tidak_siap_melayani(): void
+    public function test_alur_lengkap_langkah_1_6_8_9_menjadikan_instalasi_siap_melayani(): void
     {
         $this->isiDataSintetis();
+        $this->isiPenjaminTarif();
 
-        foreach (['superadmin', 'profil_rs', 'organisasi', 'paket_referensi', 'pegawai'] as $langkah) {
+        foreach (['superadmin', 'profil_rs', 'organisasi', 'paket_referensi', 'pegawai', 'penjamin_tarif'] as $langkah) {
             $this->konfirmasi($langkah)->assertOk();
         }
         $this->konfirmasi('kredensial_integrasi', ['dilewati' => true, 'alasan' => 'Belum ada kredensial dari RS'])->assertOk();
         $data = $this->konfirmasi('modul_aktif')->assertOk()->json('data');
 
         $this->assertSame(
-            ['selesai', 'selesai', 'selesai', 'selesai', 'selesai', 'menunggu_fase_2', 'menunggu_fase_2', 'dilewati', 'selesai'],
+            ['selesai', 'selesai', 'selesai', 'selesai', 'selesai', 'selesai', 'menunggu_fase_2', 'dilewati', 'selesai'],
             array_column($data['langkah'], 'status'),
         );
         $this->assertSame('selesai', $data['status']);
-        // Langkah 6 menunggu fase 2 (K6): penjaga tetap false.
-        $this->assertFalse($data['siap_melayani']);
-        $this->assertFalse(app(StatusInstalasi::class)->siapMelayani());
+        $this->assertTrue($data['siap_melayani']);
+        $this->assertTrue(app(StatusInstalasi::class)->siapMelayani());
         $this->assertSame('Belum ada kredensial dari RS', $data['langkah'][7]['konfirmasi_terakhir']['alasan']);
         $this->assertSame($this->superadmin->id, $data['langkah'][0]['konfirmasi_terakhir']['oleh']['id']);
         $this->assertSame('selesai', DB::table('inti.profil_rs')->value('status_penyiapan'));
@@ -89,7 +89,7 @@ class PenyiapanTest extends TestCase
         $this->assertSame(1, (int) DB::table('inti.profil_rs')->value('revisi'));
         $wilayah = collect($data['langkah'][3]['paket'])->firstWhere('sistem', 'wilayah');
         $this->assertSame(['2025.1', 'Kemendagri uji', 2], [$wilayah['versi'], $wilayah['sumber'], $wilayah['jumlah_kode_aktif']]);
-        $this->assertSame(7, DB::table('audit.log_aktivitas')->where('aksi', 'pengaturan.penyiapan_dikonfirmasi')->count());
+        $this->assertSame(8, DB::table('audit.log_aktivitas')->where('aksi', 'pengaturan.penyiapan_dikonfirmasi')->count());
         $audit = DB::table('audit.log_aktivitas')->where('aksi', 'pengaturan.penyiapan_dikonfirmasi')->orderByDesc('urutan')->skip(1)->first();
         $this->assertEquals(['langkah' => 'kredensial_integrasi', 'dilewati' => true, 'alasan' => 'Belum ada kredensial dari RS', 'siap_melayani_terkunci' => false], json_decode($audit->sesudah, true));
 
@@ -101,13 +101,61 @@ class PenyiapanTest extends TestCase
         $this->assertFalse($data['langkah'][4]['dapat_dilewati']);
     }
 
+    public function test_langkah_6_butuh_penjamin_aktif_dan_tarif_per_kelas_lalu_mengunci_siap_melayani_sekali(): void
+    {
+        $this->isiDataSintetis();
+        foreach (['superadmin', 'profil_rs', 'organisasi', 'paket_referensi', 'pegawai'] as $langkah) {
+            $this->konfirmasi($langkah)->assertOk();
+        }
+        $kelasId = DB::table('inti.kelas_rawat')->value('id');
+
+        $this->konfirmasi('penjamin_tarif')->assertStatus(409)->assertJsonPath('error.kode', 'syarat_belum_lengkap')
+            ->assertJsonCount(2, 'error.rincian');
+        $this->assertFalse(collect($this->muatStatus()->json('data.langkah'))->firstWhere('kode', 'penjamin_tarif')['dapat_dikonfirmasi']);
+
+        // Penjamin nonaktif tidak dihitung.
+        $penjamin = (string) Str::uuid7();
+        DB::table('inti.penjamin')->insert(['id' => $penjamin, 'kode' => 'UMUM', 'nama' => 'Umum', 'jenis' => 'umum', 'status' => 'nonaktif']);
+        $this->konfirmasi('penjamin_tarif')->assertStatus(409)->assertJsonCount(2, 'error.rincian');
+        DB::table('inti.penjamin')->where('id', $penjamin)->update(['status' => 'aktif']);
+        $this->konfirmasi('penjamin_tarif')->assertStatus(409)->assertJsonCount(1, 'error.rincian')
+            ->assertJsonPath('error.rincian.0.kode', 'tarif_per_kelas');
+
+        // Tarif berversi nonaktif, atau yang berlaku di masa depan, tidak dihitung.
+        $tarif = (string) Str::uuid7();
+        DB::table('keuangan.tarif')->insert(['id' => $tarif, 'kode' => 'T-1']);
+        $versi = fn (int $n, string $status, string $dari) => tap((string) Str::uuid7(), fn (string $v) => DB::table('keuangan.tarif_versi')->insert([
+            'id' => $v, 'tarif_id' => $tarif, 'versi' => $n, 'nama' => 'Visite', 'kelompok' => 'visite', 'status' => $status, 'berlaku_dari' => $dari, 'dasar' => 'uji',
+        ]));
+        $harga = fn (string $v) => DB::table('keuangan.tarif_versi_harga')->insert([
+            'id' => (string) Str::uuid7(), 'tarif_versi_id' => $v, 'kelas_rawat_id' => $kelasId, 'jasa_sarana' => 1, 'jasa_pelayanan' => 1, 'bhp' => 0,
+        ]);
+        $harga($versi(1, 'aktif', '2026-01-01'));
+        $harga($versi(2, 'nonaktif', '2026-02-01'));
+        $this->konfirmasi('penjamin_tarif')->assertStatus(409)->assertJsonPath('error.rincian.0.kode', 'tarif_per_kelas');
+        $harga($versi(3, 'aktif', '2026-03-01'));
+
+        $data = $this->konfirmasi('penjamin_tarif')->assertOk()->json('data');
+        $this->assertSame('selesai', array_column($data['langkah'], 'status', 'kode')['penjamin_tarif']);
+        $this->assertTrue($data['siap_melayani']);
+        $sejak = DB::table('inti.profil_rs')->value('siap_melayani_sejak');
+        $this->assertNotNull($sejak);
+        $this->assertTrue(app(StatusInstalasi::class)->siapMelayani());
+
+        // Konfirmasi ulang tidak menimpa waktu kunci.
+        $this->konfirmasi('penjamin_tarif')->assertOk();
+        $this->assertEquals($sejak, DB::table('inti.profil_rs')->value('siap_melayani_sejak'));
+        $audit = DB::table('audit.log_aktivitas')->where('aksi', 'pengaturan.penyiapan_dikonfirmasi')->orderByDesc('urutan')->first();
+        $this->assertFalse(json_decode($audit->sesudah, true)['siap_melayani_terkunci']);
+    }
+
     public function test_syarat_urutan_fase_2_dan_validasi(): void
     {
         $this->konfirmasi('profil_rs')->assertStatus(409)->assertJsonPath('error.kode', 'langkah_sebelumnya_belum_selesai')
             ->assertJsonPath('error.rincian.0', ['langkah' => 'superadmin', 'status' => 'sebagian']);
         $this->konfirmasi('superadmin')->assertStatus(409)->assertJsonPath('error.kode', 'syarat_belum_lengkap')
             ->assertJsonPath('error.rincian.0.kode', 'superadmin_mfa')->assertJsonPath('error.rincian.0.keterangan', '1 dari 2');
-        $this->konfirmasi('penjamin_tarif')->assertStatus(409)->assertJsonPath('error.kode', 'langkah_menunggu_fase_2');
+        $this->konfirmasi('formularium')->assertStatus(409)->assertJsonPath('error.kode', 'langkah_menunggu_fase_2');
         $this->konfirmasi('profil_rs', ['dilewati' => true, 'alasan' => 'Tidak perlu'])->assertStatus(422)->assertJsonPath('error.kode', 'tidak_bisa_dilewati');
         $this->konfirmasi('kredensial_integrasi', ['dilewati' => true])->assertStatus(422)->assertJsonPath('error.kode', 'validasi_gagal')
             ->assertJsonPath('error.rincian.0.kolom', 'alasan');
@@ -217,6 +265,17 @@ class PenyiapanTest extends TestCase
                 'paket_identitas' => json_encode(['warna' => ['brand' => '#0B5394', 'accent' => '#F1C232'], 'logo' => ['path' => 'identitas/logo.png', 'tipe' => 'image/png', 'ukuran' => 10]]),
             ]);
         }
+    }
+
+    private function isiPenjaminTarif(): void
+    {
+        $kelasId = DB::table('inti.kelas_rawat')->value('id');
+        DB::table('inti.penjamin')->insert(['id' => (string) Str::uuid7(), 'kode' => 'UMUM', 'nama' => 'Umum', 'jenis' => 'umum']);
+        $tarif = (string) Str::uuid7();
+        $versi = (string) Str::uuid7();
+        DB::table('keuangan.tarif')->insert(['id' => $tarif, 'kode' => 'T-1']);
+        DB::table('keuangan.tarif_versi')->insert(['id' => $versi, 'tarif_id' => $tarif, 'versi' => 1, 'nama' => 'Visite', 'kelompok' => 'visite', 'berlaku_dari' => '2026-01-01', 'dasar' => 'uji']);
+        DB::table('keuangan.tarif_versi_harga')->insert(['id' => (string) Str::uuid7(), 'tarif_versi_id' => $versi, 'kelas_rawat_id' => $kelasId, 'jasa_sarana' => 1, 'jasa_pelayanan' => 1, 'bhp' => 0]);
     }
 
     /** Data sintetis minimal untuk langkah 1–5 (langkah 9 sudah terpenuhi dari migrasi). */
