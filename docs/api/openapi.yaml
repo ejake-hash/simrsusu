@@ -81,7 +81,8 @@ info:
     v0.19.0: Pasien (tiket 2.5): GET /pasien (cari satu kolom; kata cari di header `X-Cari`, bukan query string),
     POST /pasien (No. RM dibuat server, tanpa celah), PATCH /pasien/{id} (jejak versi, melengkapi Mr. X). Bagian baru
     `pendaftaran.pasien.identitas` (aksi `lihat`, sensitif): tanpanya `nik`/`no_paspor` tidak dikirim, hanya samaran.
-    409 `nik_sudah_terdaftar`/`no_kartu_sudah_terdaftar` dengan rujukan No. RM. Hanya kontrak; kode menyusul di tiket BE/FE.
+    Error baru: 409 `nik_sudah_terdaftar`/`no_kartu_sudah_terdaftar` (rujukan No. RM hanya di `rincian`, tidak di `pesan`),
+    422 `kata_cari_wajib`, `kata_cari_tidak_dikenali`, `referensi_tidak_valid`, `wilayah_tidak_valid`. Hanya kontrak; kode menyusul di tiket BE/FE.
 servers:
   - url: /api/v1
 security:
@@ -4631,7 +4632,9 @@ paths:
         tafsirannya:
         - hanya angka (spasi, `-`, `.` diabaikan), 16 digit → `nik` (cocok persis lewat sidik NIK);
         - hanya angka, 13 digit → `no_kartu` (No. kartu BPJS pasien);
-        - hanya angka, panjang lain → `no_rm` (cocok persis; nol di depan boleh dihilangkan);
+        - hanya angka, 1–12 digit → `no_rm` (cocok persis; nol di depan boleh dihilangkan). Panjang No. RM dari
+          konfigurasi server dibatasi ≤ 12 digit supaya tidak tertukar dengan NIK atau No. kartu;
+        - hanya angka dengan panjang lain (14, 15, > 16) → 422 `kata_cari_tidak_dikenali`;
         - teks berisi tanggal (`DD-MM-YYYY`, `DD/MM/YYYY`, atau `YYYY-MM-DD`) dan sisa nama ≥ 3 huruf → `nama_tanggal_lahir`:
           tanggal lahir sama persis dan nama mirip (indeks trigram, tanpa membedakan huruf besar/kecil).
         Header kosong/tidak ada → 422 `kata_cari_wajib`; nama tanpa tanggal lahir atau tanggal saja → 422
@@ -4652,6 +4655,7 @@ paths:
       responses:
         '200':
           description: Satu halaman hasil pencarian (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
           content:
             application/json:
               schema:
@@ -4693,7 +4697,9 @@ paths:
       responses:
         '201':
           description: Pasien terdaftar
-          headers: { ETag: { schema: { type: string } } }
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Pasien' } } }
@@ -4735,7 +4741,9 @@ paths:
       responses:
         '200':
           description: Pasien sesudah diubah
-          headers: { ETag: { schema: { type: string } } }
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Pasien' } } }
@@ -6519,7 +6527,7 @@ components:
         pendidikan: { type: [string, 'null'], maxLength: 50, description: "Kode referensi kelompok `pendidikan`" }
         pekerjaan: { type: [string, 'null'], maxLength: 50, description: "Kode referensi kelompok `pekerjaan`" }
         status_kawin: { type: [string, 'null'], maxLength: 50, description: "Kode referensi kelompok `status_kawin`" }
-        kewarganegaraan: { type: string, enum: [wni, wna], default: wni }
+        kewarganegaraan: { type: string, enum: [wni, wna] }
         bahasa: { type: [string, 'null'], maxLength: 50, description: "Bahasa sehari-hari bila bukan bahasa Indonesia" }
         kebutuhan_khusus: { type: [string, 'null'], maxLength: 200, examples: ['Kursi roda; butuh juru bahasa isyarat'] }
         alamat: { oneOf: [{ $ref: '#/components/schemas/IsianAlamatPasien' }, { type: 'null' }] }
@@ -6532,7 +6540,9 @@ components:
         - $ref: '#/components/schemas/IsianPasienUbah'
         - type: object
           required: [jenis_kelamin]
-          description: "`nama` dan `tanggal_lahir` wajib kecuali `tanpa_identitas: true` (bawaan false)"
+          description: "`nama` dan `tanggal_lahir` wajib kecuali `tanpa_identitas: true` (bawaan false); `kewarganegaraan` kosong = `wni`"
+          properties:
+            kewarganegaraan: { default: wni }
     KodeLabelReferensi:
       type: [object, 'null']
       required: [kode, label]
@@ -6546,7 +6556,7 @@ components:
         tanpa_identitas, ciri_pengenal, meninggal_pada, jumlah_kunjungan, sejak_tahun, versi, dibuat_pada, diubah_pada]
       properties:
         id: { type: string, format: uuid }
-        no_rm: { type: string, pattern: '^[0-9]+$', examples: ['00000127'], description: "Seumur hidup; panjang tetap dari konfigurasi server (nol di depan), tampilan berpemisah urusan klien" }
+        no_rm: { type: string, pattern: '^[0-9]{1,12}$', examples: ['00000127'], description: "Seumur hidup; panjang tetap dari konfigurasi server (nol di depan), tampilan berpemisah urusan klien" }
         nama: { type: string }
         nik: { type: [string, 'null'], description: "Hanya dikirim kepada akun berizin `pendaftaran.pasien.identitas.lihat`; selain itu field tidak ada" }
         nik_samaran: { type: [string, 'null'], examples: ['1271 •••• •••• 0042'], description: "Selalu dikirim; null = NIK belum diisi" }
