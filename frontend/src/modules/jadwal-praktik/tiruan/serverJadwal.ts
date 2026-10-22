@@ -75,10 +75,17 @@ export function buatServerJadwal(opsi: OpsiServerJadwal) {
     alasan: x.alasan, status: x.status, alasan_batal: x.alasan_batal, versi: String(x.v), diubah_pada: x.diubah_pada,
   })
   const menutup = (j: JadwalT) => (x: PengecualianT) => x.status === 'aktif' && (x.pegawai_id === null || x.pegawai_id === j.pegawai_id)
-  /** Terisi sintetis tetap per jadwal dan tanggal: sebagian kuota terpakai agar kolom sisa bermakna. */
+  /** Kuota yang terpakai kunjungan nyata (tiket 2.6) di atas terisi sintetis. Kunci `${jadwalId}|${tanggal}`. */
+  const terpakai = new Map<string, { jkn: number; non: number }>()
+  const kunciPakai = (jadwalId: string, tanggal: string) => `${jadwalId}|${tanggal}`
+  /** Terisi sintetis tetap per jadwal dan tanggal + kunjungan nyata; dibatasi kuota agar kolom sisa bermakna. */
   const terisi = (j: JadwalT, tanggal: string) => {
     const benih = (j.hari * 7 + Number(tanggal.slice(8)) * 3 + parseInt(j.id.slice(-2), 16)) % 10
-    return { jkn: Math.min(j.kuota_jkn, Math.round((j.kuota_jkn * benih) / 10)), non: Math.min(j.kuota_non_jkn, Math.round((j.kuota_non_jkn * ((benih + 4) % 10)) / 10)) }
+    const p = terpakai.get(kunciPakai(j.id, tanggal)) ?? { jkn: 0, non: 0 }
+    return {
+      jkn: Math.min(j.kuota_jkn, Math.round((j.kuota_jkn * benih) / 10) + p.jkn),
+      non: Math.min(j.kuota_non_jkn, Math.round((j.kuota_non_jkn * ((benih + 4) % 10)) / 10) + p.non),
+    }
   }
   function keterisian(j: JadwalT, tanggal: string): KeterisianJadwal {
     const tutup = [...pengecualian.values()].find((x) => menutup(j)(x) && x.dari_tanggal <= tanggal && tanggal <= x.sampai_tanggal)
@@ -220,5 +227,43 @@ export function buatServerJadwal(opsi: OpsiServerJadwal) {
     }
     return null
   }
-  return { tangani }
+
+  // ── Dipakai server tiruan kunjungan (tiket 2.6): satu jadwal = poli + dokter + kuota pada tanggal ──
+  /** Inti jadwal (poli + dokter + kuota) untuk membentuk kunjungan; null bila jadwal/poli/dokter tidak ada. */
+  const ambil = (jadwalId: string) => {
+    const j = jadwal.get(jadwalId)
+    if (!j) return null
+    const poli = opsi.poli(j.poli_id)
+    const dokter = opsi.pegawai(j.pegawai_id)
+    if (!poli || !dokter) return null
+    return {
+      id: j.id, poli: { id: poli.id, kode: poli.kode, nama: poli.nama }, dokter, hari: j.hari, jam_mulai: j.jam_mulai,
+      jam_selesai: j.jam_selesai, berlaku_dari: j.berlaku_dari, berlaku_sampai: j.berlaku_sampai, status: j.status,
+      kuota_jkn: j.kuota_jkn, kuota_non_jkn: j.kuota_non_jkn,
+    }
+  }
+  const keterisianJadwal = (jadwalId: string, tanggal: string): KeterisianJadwal | null => {
+    const j = jadwal.get(jadwalId)
+    return j ? keterisian(j, tanggal) : null
+  }
+  /** Tambah/kurangi kuota terpakai kunjungan (delta +1 saat daftar, −1 saat batal). */
+  const konsumsi = (jadwalId: string, tanggal: string, cara: 'jkn' | 'non_jkn', delta: number) => {
+    const k = kunciPakai(jadwalId, tanggal)
+    const cur = terpakai.get(k) ?? { jkn: 0, non: 0 }
+    if (cara === 'jkn') cur.jkn = Math.max(0, cur.jkn + delta)
+    else cur.non = Math.max(0, cur.non + delta)
+    terpakai.set(k, cur)
+  }
+  /** Slot dokter lain di poli yang sama pada tanggal itu yang masih punya sisa (rincian 409 kuota_habis). */
+  const slotPoli = (poliId: string, tanggal: string, kecualiId: string) =>
+    [...jadwal.values()]
+      .filter((j) => j.poli_id === poliId && j.id !== kecualiId && j.status === 'aktif' && j.hari === hariIso(tanggal) && j.berlaku_dari <= tanggal && (j.berlaku_sampai === null || tanggal <= j.berlaku_sampai))
+      .map((j) => {
+        const k = keterisian(j, tanggal)
+        return { jadwal_praktik_id: j.id, pegawai: opsi.pegawai(j.pegawai_id)!, sisa_jkn: k.sisa_jkn, sisa_non_jkn: k.sisa_non_jkn, jam_mulai: j.jam_mulai }
+      })
+      .filter((s) => s.sisa_jkn > 0 || s.sisa_non_jkn > 0)
+      .sort((a, b) => a.jam_mulai.localeCompare(b.jam_mulai))
+
+  return { tangani, ambil, keterisian: keterisianJadwal, konsumsi, slotPoli }
 }

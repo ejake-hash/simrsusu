@@ -83,7 +83,10 @@ function selesai(hasil: Berversi<Pasien>) {
           <h2 id="judul-cari">Cari atau daftarkan pasien</h2>
           <p>Ketik NIK, No. RM, No. kartu BPJS, atau nama disertai tanggal lahir (mis. Budi 12-03-1980).</p>
         </div>
-        <button v-can="'pendaftaran.pasien.input'" type="button" class="tombol tombol-utama" @click="baru"><Ikon nama="tambah" :ukuran="16" />Pasien baru</button>
+        <div class="aksi-kepala">
+          <RouterLink class="tombol" to="/pendaftaran/kunjungan"><Ikon nama="pendaftaran" :ukuran="16" />Pendaftaran kunjungan poli</RouterLink>
+          <button v-can="'pendaftaran.pasien.input'" type="button" class="tombol tombol-utama" @click="baru"><Ikon nama="tambah" :ukuran="16" />Pasien baru</button>
+        </div>
       </div>
 
       <div class="cari-baris">
@@ -151,6 +154,11 @@ function selesai(hasil: Berversi<Pasien>) {
   padding: 0 var(--space-4) var(--space-2);
   font-size: 13px;
   color: var(--muted);
+}
+.aksi-kepala {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 .tanda {
   margin-left: var(--space-2);
