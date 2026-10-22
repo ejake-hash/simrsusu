@@ -59,6 +59,8 @@ const AKSI_KHUSUS: Record<string, [JenisAksi, boolean][]> = {
   'rekam_medis.pelepasan': [['setujui', true], ['ekspor', true]],
   // Usulan data induk (1.8c-be: aksi verifikasi/setujui di MenuBawaan; pemisahan tugas dijaga server).
   'master_data.usulan': [['verifikasi', false], ['setujui', false]],
+  // Pembatalan kunjungan poli (2.6-be: MenuBawaan aksi baru `batal`, FR-01-21).
+  'pendaftaran.pasien': [['batal', false]],
 }
 const BAGIAN: Record<string, [kode: string, label: string, ikutInduk: boolean][]> = {
   'kasir.tagihan': [['panel_diskon', 'Panel diskon', false], ['panel_bantuan', 'Panel bantuan', true]],

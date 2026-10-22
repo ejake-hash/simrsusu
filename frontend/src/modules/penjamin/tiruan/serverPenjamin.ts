@@ -140,5 +140,11 @@ export function buatServerPenjamin(opsi: OpsiServerPenjamin) {
     }
     return null
   }
-  return { tangani }
+  /** Ringkas penjamin untuk kunjungan (tiket 2.6); null bila tidak ada. */
+  const ringkas = (id: string) => {
+    const p = penjamin.get(id)
+    return p ? { id: p.id, kode: p.kode, nama: p.nama, jenis: p.jenis } : null
+  }
+
+  return { tangani, ringkas }
 }
