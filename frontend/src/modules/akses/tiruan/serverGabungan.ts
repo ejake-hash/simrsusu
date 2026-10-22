@@ -1,4 +1,5 @@
 import { buatServerNotifikasi } from '../../notifikasi/tiruan/serverNotifikasi'
+import { buatServerPasien } from '../../pendaftaran/tiruan/serverPasien'
 import { buatServerPenjamin } from '../../penjamin/tiruan/serverPenjamin'
 import { buatServerLokasi } from '../../organisasi/tiruan/serverLokasi'
 import { buatServerJadwal } from '../../jadwal-praktik/tiruan/serverJadwal'
@@ -36,6 +37,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     akses.tambahPenugasanDev('contoh_sdm')
     akses.tambahPenugasanDev('penyiap_instalasi')
     akses.tambahPenugasanDev('contoh_integrasi')
+    akses.tambahPenugasanDev('contoh_pendaftaran')
   }
   unitMilikSaya = akses.unitMilikSaya
   const lokasi = buatServerLokasi({ unit: organisasi.ringkasUnit, unitContoh: organisasi.akar.irna, sekarang: opsi.sekarang })
@@ -94,6 +96,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
   usulanTerbuka = usulan.usulanTerbuka
   const penyiapan = buatServerPenyiapan({ boleh: akses.bolehSaya, pelaku: () => ({ id: opsi.penggunaId ?? ID_SUPERADMIN, nama: 'Contoh Superadmin' }), sekarang: opsi.sekarang })
   const penjamin = buatServerPenjamin({ boleh: akses.bolehSaya, sekarang: opsi.sekarang })
+  const pasien = buatServerPasien({ boleh: akses.bolehSaya, sekarang: opsi.sekarang })
   const integrasi = buatServerIntegrasi({ boleh: akses.bolehSaya, pelaku: () => ({ id: opsi.penggunaId ?? ID_SUPERADMIN, nama: 'Contoh Superadmin' }), sekarang: opsi.sekarang })
   // TtdSintetisSeeder: superadmin kedua (penyetuju kontrol ganda) sudah punya TTE aktif.
   ttd.aktifkan(ID_SUPERADMIN_DUA)
@@ -124,11 +127,12 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     penyiapan,
     integrasi,
     penjamin,
+    pasien,
     tangani: (r: PermintaanTiruan): ResponsTiruan | Promise<ResponsTiruan> | null => {
       if (akses.wajibGantiSandi() && !bebasGantiSandi(r)) {
         return { status: 403, isi: { error: { kode: 'wajib_ganti_sandi', pesan: 'Ganti sandi awal Anda lebih dulu.', rincian: [] } } }
       }
-      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r)
+      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r) ?? pasien.tangani(r)
     },
   }
 }

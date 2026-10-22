@@ -164,7 +164,9 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
     wajib_mfa: true,
     uraian: 'Mengelola menu, peran, dan akun. Tidak membuka rekam medis atau angka rupiah (PRD 9.2.4).',
   })
+  // Petugas pendaftaran: NIK termasking (tanpa bagian identitas). Pembaca identitas memegang bagian NIK/paspor utuh (2.5).
   tambahPeran(uid(102), 'contoh_admisi', 'Contoh Petugas Admisi', izinMenu(pohon, ['pendaftaran']))
+  tambahPeran(uid(111), 'contoh_pendaftaran', 'Contoh Pendaftaran + Identitas', [...izinMenu(pohon, ['pendaftaran']), 'pendaftaran.pasien.identitas.lihat'])
   tambahPeran(uid(103), 'contoh_perawat', 'Contoh Perawat', izinMenu(pohon, ['igd', 'rawat_inap']))
   tambahPeran(uid(104), 'contoh_dokter', 'Contoh Dokter', izinMenu(pohon, ['igd', 'rawat_jalan', 'rekam_medis']))
   tambahPeran(uid(105), 'contoh_kasir', 'Contoh Kasir', [...izinMenu(pohon, ['kasir']), 'kasir.tagihan.cetak', 'kasir.tagihan.lihat_rupiah'], { wajib_mfa: true })
