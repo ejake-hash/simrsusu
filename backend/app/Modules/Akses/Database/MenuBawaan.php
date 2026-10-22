@@ -67,13 +67,15 @@ final class MenuBawaan
     public const BAGIAN = [
         // NIK pegawai utuh (tiket 1.8d); tanpa izin ini hanya NIK tersamar.
         'sdm.pegawai' => ['identitas' => ['Identitas pribadi (NIK)', ['lihat']]],
+        // NIK dan paspor pasien utuh (tiket 2.5); tanpa izin ini hanya samaran.
+        'pendaftaran.pasien' => ['identitas' => ['Identitas pasien (NIK, paspor)', ['lihat']]],
     ];
 
     /**
      * Izin data pribadi yang sensitif tanpa penyetuju bawaan: tidak bisa diberikan sampai RS menetapkan pemilik datanya
      * (K3, PUT /izin/{kode}/penyetuju). pasang() hanya menyalakan tanda sensitif, tidak pernah mematikannya.
      */
-    public const IZIN_DATA_PRIBADI = ['sdm.pegawai.identitas.lihat'];
+    public const IZIN_DATA_PRIBADI = ['sdm.pegawai.identitas.lihat', 'pendaftaran.pasien.identitas.lihat'];
 
     /**
      * Kode yang pindah tempat (lama => baru), diganti di tempat sebelum pohon dipasang agar id, peran,

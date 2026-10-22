@@ -9,6 +9,10 @@ return [
     // Zona waktu RS untuk tanggal berlaku dan jadwal harian (mis. berlaku_dari unit = hari ini di RS).
     'zona_waktu' => env('INSTALASI_ZONA_WAKTU', 'Asia/Jakarta'),
 
+    // Panjang No. RM dengan nol di depan (tiket 2.5). Paling banyak 12 digit supaya cari satu kolom tidak tertukar
+    // dengan No. kartu BPJS (13) atau NIK (16). Tidak diubah sesudah pasien pertama terdaftar.
+    'panjang_no_rm' => min(12, max(6, (int) env('INSTALASI_PANJANG_NO_RM', 8))),
+
     // Berkas paket identitas (logo, motif, foto; tiket 1.8a). Produksi: disk S3/MinIO (PRD 10.6); bawaan disk
     // lokal privat. Batas ukuran dalam KB.
     'identitas' => [
