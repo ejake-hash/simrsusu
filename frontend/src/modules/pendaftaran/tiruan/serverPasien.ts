@@ -247,7 +247,13 @@ export function buatServerPasien(opsi: OpsiServerPasien) {
         if (!opsi.boleh('pendaftaran.pasien.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak mencari pasien.')
         const kata = r.header['x-cari']
         if (kata === undefined || kata === '') return error(422, 'kata_cari_wajib', 'Isi kata cari.')
-        return cari(decodeURIComponent(kata))
+        let decoded: string
+        try {
+          decoded = decodeURIComponent(kata)
+        } catch {
+          return error(422, 'kata_cari_tidak_dikenali', 'Kata cari tidak dapat dibaca.')
+        }
+        return cari(decoded)
       }
       if (metode === 'POST') {
         if (!opsi.boleh('pendaftaran.pasien.input')) return error(403, 'akses_ditolak', 'Anda tidak berhak mendaftarkan pasien.')

@@ -23,6 +23,8 @@ const buka = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ selesai: [hasil: Berversi<Pasien>]; muatUlang: [] }>()
 
 const KOLOM = ['nama', 'nik', 'no_paspor', 'no_kartu_bpjs', 'tanggal_lahir', 'tempat_lahir', 'jenis_kelamin', 'kewarganegaraan', 'telepon', 'ciri_pengenal', 'alasan_perubahan'] as const
+// TODO(kontrak referensi/wilayah): kode referensi dan kelurahan masih contoh sampai paket referensi 1.8e dan endpoint
+// wilayah tersedia; ganti dengan pilihan dari data master (selaras dengan server tiruan).
 const REF = {
   agama: { islam: 'Islam', kristen: 'Kristen', katolik: 'Katolik', hindu: 'Hindu', buddha: 'Buddha', konghucu: 'Konghucu' },
   pendidikan: { sd: 'SD', smp: 'SMP', sma: 'SMA/SMK', d3: 'Diploma III', s1: 'Sarjana (S1)' },
@@ -31,8 +33,19 @@ const REF = {
 } as const
 
 const ubahMode = computed(() => props.pasien !== null)
-/** Akun boleh mengisi/mengubah NIK/paspor utuh (saat ubah: field dikirim server hanya bila berizin). */
-const bolehIdentitas = computed(() => (ubahMode.value ? props.pasien!.data.nik !== undefined : boleh('pendaftaran.pasien.identitas.lihat')))
+/** Hanya mode baca bila akun tak boleh memperbaiki (kolom disabled, tombol simpan disembunyikan). */
+const bacaSaja = computed(() => ubahMode.value && !boleh('pendaftaran.pasien.perbaiki'))
+/** Akun boleh membuka NIK/paspor utuh (dari server) dan mengubah nilai yang sudah terisi. */
+const punyaIzinIdentitas = computed(() => (ubahMode.value ? props.pasien!.data.nik !== undefined : boleh('pendaftaran.pasien.identitas.lihat')))
+/**
+ * Kontrak v0.19.0: mengisi NIK/paspor yang masih kosong cukup izin input/perbaiki (petugas menyalin dari kartu).
+ * Mengubah/mengosongkan yang sudah terisi butuh izin bagian identitas. Field disembunyikan hanya saat sudah terisi
+ * dan akun tak berizin — nilai termasking lalu tidak pernah dikirim ke server.
+ */
+const nikTerisi = computed(() => (ubahMode.value ? props.pasien!.data.nik_samaran !== null : false))
+const pasporTerisi = computed(() => (ubahMode.value ? props.pasien!.data.no_paspor_samaran !== null : false))
+const nikDapatDiisi = computed(() => punyaIzinIdentitas.value || !nikTerisi.value)
+const pasporDapatDiisi = computed(() => punyaIzinIdentitas.value || !pasporTerisi.value)
 
 const tanpaIdentitas = ref(false)
 const nama = ref('')
@@ -111,10 +124,9 @@ function kumpulkan(): IsianPasien {
     kontak_darurat: kontak.value.filter((k) => k.nama.trim() || k.telepon.trim()),
     tanpa_identitas: tanpaIdentitas.value,
   }
-  if (bolehIdentitas.value) {
-    isi.nik = nik.value.trim() || null
-    isi.no_paspor = noPaspor.value.trim() || null
-  }
+  // Kirim NIK/paspor hanya bila kolomnya dapat diisi (kosong, atau akun berizin identitas). Yang terkunci tidak dikirim.
+  if (nikDapatDiisi.value) isi.nik = nik.value.trim() || null
+  if (pasporDapatDiisi.value) isi.no_paspor = noPaspor.value.trim() || null
   return isi
 }
 
@@ -123,9 +135,11 @@ function validasi(isi: IsianPasien): Record<string, string> {
   if (!isi.tanpa_identitas) {
     if (!isi.nama) e.nama = 'Isi nama pasien.'
     if (!isi.tanggal_lahir) e.tanggal_lahir = 'Isi tanggal lahir.'
-    if (isi.kewarganegaraan === 'wna' && !isi.nik && !isi.no_paspor) e.no_paspor = 'WNA tanpa NIK wajib mengisi nomor paspor.'
+    // WNA tanpa NIK wajib paspor; identitas yang sudah terisi (terkunci) dianggap memenuhi.
+    const adaIdentitas = nik.value.trim() || noPaspor.value.trim() || nikTerisi.value || pasporTerisi.value
+    if (isi.kewarganegaraan === 'wna' && !adaIdentitas) e.no_paspor = 'WNA tanpa NIK wajib mengisi nomor paspor.'
   }
-  if (bolehIdentitas.value && nik.value.trim() && !/^[0-9]{16}$/.test(nik.value.trim())) e.nik = 'NIK harus 16 digit angka.'
+  if (nikDapatDiisi.value && nik.value.trim() && !/^[0-9]{16}$/.test(nik.value.trim())) e.nik = 'NIK harus 16 digit angka.'
   if (noKartu.value.trim() && !/^[0-9]{13}$/.test(noKartu.value.trim())) e.no_kartu_bpjs = 'No. kartu BPJS harus 13 digit angka.'
   for (const [i, k] of kontak.value.entries()) {
     if ((k.nama.trim() || k.telepon.trim()) && !/^\+?[0-9]{8,15}$/.test(k.telepon.trim())) e[`kontak_${i}`] = 'Telepon kontak 8–15 digit.'
@@ -170,6 +184,11 @@ async function kirim() {
 <template>
   <Dialog v-model:open="buka" :judul="pasien ? `Perbaiki data pasien ${pasien.data.no_rm}` : 'Daftarkan pasien baru'" lebar="lebar" :sibuk="sibuk">
     <form id="form-pasien" novalidate @submit.prevent="kirim">
+      <fieldset class="isi-form" :disabled="bacaSaja">
+      <p v-if="bacaSaja" class="catatan" role="note">
+        <Ikon nama="gembok" :ukuran="16" />
+        <span>Akun Anda hanya dapat melihat data pasien. Untuk memperbaikinya, dibutuhkan izin memperbaiki pendaftaran pasien.</span>
+      </p>
       <label class="sakelar-identitas">
         <input v-model="tanpaIdentitas" type="checkbox" :disabled="ubahMode && !pasien?.data.tanpa_identitas" />
         <span>
@@ -211,21 +230,23 @@ async function kirim() {
         </KolomIsian>
       </div>
 
-      <fieldset v-if="bolehIdentitas" class="grup">
+      <fieldset class="grup">
         <legend>Identitas <Ikon nama="gembok" :ukuran="14" /></legend>
         <div class="dua-kolom">
-          <KolomIsian v-slot="a" label="NIK" :error="kesalahan.nik" petunjuk="16 digit sesuai KTP.">
+          <KolomIsian v-if="nikDapatDiisi" v-slot="a" label="NIK" :error="kesalahan.nik" petunjuk="16 digit sesuai KTP.">
             <input v-bind="a" v-model="nik" class="isian kode" inputmode="numeric" autocomplete="off" maxlength="16" />
           </KolomIsian>
-          <KolomIsian v-slot="a" label="No. paspor" :error="kesalahan.no_paspor" petunjuk="Untuk WNA tanpa NIK.">
+          <KolomIsian v-else label="NIK" petunjuk="Mengubah NIK yang sudah terisi butuh izin identitas pasien.">
+            <output class="isian isian-terkunci kode">{{ pasien?.data.nik_samaran }}</output>
+          </KolomIsian>
+          <KolomIsian v-if="pasporDapatDiisi" v-slot="a" label="No. paspor" :error="kesalahan.no_paspor" petunjuk="Untuk WNA tanpa NIK.">
             <input v-bind="a" v-model="noPaspor" class="isian kode" autocomplete="off" maxlength="20" @input="noPaspor = noPaspor.toUpperCase()" />
+          </KolomIsian>
+          <KolomIsian v-else label="No. paspor" petunjuk="Mengubah paspor yang sudah terisi butuh izin identitas pasien.">
+            <output class="isian isian-terkunci kode">{{ pasien?.data.no_paspor_samaran }}</output>
           </KolomIsian>
         </div>
       </fieldset>
-      <p v-else class="catatan" role="note">
-        <Ikon nama="gembok" :ukuran="14" />
-        <span>NIK dan paspor hanya bisa diisi oleh akun berizin identitas pasien. NIK yang tersimpan ditampilkan termasking.</span>
-      </p>
 
       <KolomIsian v-slot="a" label="No. kartu BPJS" :error="kesalahan.no_kartu_bpjs">
         <input v-bind="a" v-model="noKartu" class="isian kode" inputmode="numeric" autocomplete="off" maxlength="13" />
@@ -266,11 +287,24 @@ async function kirim() {
 
       <fieldset class="grup">
         <legend>Kontak darurat (opsional, maks. 3)</legend>
-        <div v-for="(k, i) in kontak" :key="i" class="kontak">
-          <input v-model="k.nama" class="isian" placeholder="Nama" aria-label="Nama kontak darurat" maxlength="150" />
-          <input v-model="k.hubungan" class="isian" placeholder="Hubungan" aria-label="Hubungan" maxlength="50" />
-          <input v-model="k.telepon" class="isian kode" :class="{ 'isian-salah': kesalahan[`kontak_${i}`] }" placeholder="Telepon" aria-label="Telepon kontak darurat" inputmode="tel" maxlength="15" />
-          <button type="button" class="tombol tombol-tautan" :aria-label="`Hapus kontak ${i + 1}`" @click="hapusKontak(i)"><Ikon nama="tutup" :ukuran="16" /></button>
+        <div v-for="(k, i) in kontak" :key="i" class="kontak-baris">
+          <div class="kontak">
+            <input v-model="k.nama" class="isian" placeholder="Nama" aria-label="Nama kontak darurat" maxlength="150" />
+            <input v-model="k.hubungan" class="isian" placeholder="Hubungan" aria-label="Hubungan" maxlength="50" />
+            <input
+              v-model="k.telepon"
+              class="isian kode"
+              :class="{ 'isian-salah': kesalahan[`kontak_${i}`] }"
+              placeholder="Telepon"
+              aria-label="Telepon kontak darurat"
+              :aria-invalid="kesalahan[`kontak_${i}`] ? true : undefined"
+              :aria-describedby="kesalahan[`kontak_${i}`] ? `kontak-error-${i}` : undefined"
+              inputmode="tel"
+              maxlength="15"
+            />
+            <button type="button" class="tombol tombol-tautan" :aria-label="`Hapus kontak ${i + 1}`" @click="hapusKontak(i)"><Ikon nama="tutup" :ukuran="16" /></button>
+          </div>
+          <p v-if="kesalahan[`kontak_${i}`]" :id="`kontak-error-${i}`" class="kontak-error" role="alert">{{ kesalahan[`kontak_${i}`] }}</p>
         </div>
         <button v-if="kontak.length < 3" type="button" class="tombol" @click="tambahKontak"><Ikon nama="tambah" :ukuran="16" />Tambah kontak</button>
       </fieldset>
@@ -278,6 +312,7 @@ async function kirim() {
       <KolomIsian v-if="ubahMode" v-slot="a" label="Alasan perubahan" :error="kesalahan.alasan_perubahan" petunjuk="Permenkes 24/2022 Ps. 30: setiap perbaikan direkam. Minimal 5 karakter." wajib>
         <input v-bind="a" v-model="alasan" class="isian" autocomplete="off" maxlength="200" />
       </KolomIsian>
+      </fieldset>
 
       <p v-if="error" class="catatan catatan-bahaya" role="alert">
         <Ikon nama="peringatan" :ukuran="16" />
@@ -286,8 +321,8 @@ async function kirim() {
       <button v-if="versiBerubah" type="button" class="tombol muat-ulang" @click="((buka = false), emit('muatUlang'))">Muat ulang</button>
     </form>
     <template #aksi>
-      <button type="button" class="tombol" :disabled="sibuk" @click="buka = false">Batal</button>
-      <Tombol type="submit" form="form-pasien" varian="utama" :sibuk="sibuk">{{ sibuk ? 'Menyimpan…' : pasien ? 'Simpan perubahan' : 'Daftarkan pasien' }}</Tombol>
+      <button type="button" class="tombol" :disabled="sibuk" @click="buka = false">{{ bacaSaja ? 'Tutup' : 'Batal' }}</button>
+      <Tombol v-if="!bacaSaja" type="submit" form="form-pasien" varian="utama" :sibuk="sibuk">{{ sibuk ? 'Menyimpan…' : pasien ? 'Simpan perubahan' : 'Daftarkan pasien' }}</Tombol>
     </template>
   </Dialog>
 </template>
@@ -341,14 +376,36 @@ async function kirim() {
   padding: 0 var(--space-1);
   font-weight: var(--font-weight-semibold);
 }
+.isi-form {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.isi-form:disabled {
+  opacity: 0.85;
+}
+.isian-terkunci {
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  background: var(--bg);
+}
+.kontak-baris {
+  margin-bottom: var(--space-2);
+}
 .kontak {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: var(--space-2);
-  margin-bottom: var(--space-2);
 }
 .isian-salah {
   border-color: var(--danger);
+}
+.kontak-error {
+  margin: var(--space-1) 0 0;
+  font-size: 12px;
+  color: var(--danger);
 }
 .muat-ulang {
   margin-top: var(--space-2);

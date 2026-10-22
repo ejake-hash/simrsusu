@@ -112,6 +112,11 @@ describe('klien cari pasien (X-Cari, bukan query string)', () => {
     const salah = await cariPasien('Contoh Pasien Satu 01-01-2000')
     expect(salah.data).toHaveLength(0)
   })
+
+  it('respons pencarian tidak di-cache (Cache-Control: no-store)', async () => {
+    const r = await klien.get('/pasien', { headers: { 'X-Cari': encodeURIComponent('1271010101800042') } })
+    expect(r.headers['cache-control']).toBe('no-store')
+  })
 })
 
 describe('Layar pendaftaran pasien', () => {
@@ -120,8 +125,14 @@ describe('Layar pendaftaran pasien', () => {
     expect(noRmDiTabel()).toHaveLength(0)
     await ketikCari('1271010101800042')
     expect(noRmDiTabel().length).toBeGreaterThan(0)
-    expect(permintaan.some((p) => p.jalur === '/pasien' && p.header['x-cari'])).toBe(true)
-    expect(permintaan.every((p) => p.jalur === '/pasien' ? !p.jalur.includes('1271') : true)).toBe(true)
+    const cari = permintaan.filter((p) => p.jalur === '/pasien' && p.metode === 'get')
+    expect(cari.length).toBeGreaterThan(0)
+    // Kata cari hanya di header X-Cari; query string hanya kursor/batas, tidak memuat NIK.
+    for (const p of cari) {
+      expect(p.header['x-cari']).toBeTruthy()
+      expect([...p.kueri.keys()].every((k) => ['kursor', 'batas'].includes(k))).toBe(true)
+      expect([...p.kueri.values()].some((v) => v.includes('1271'))).toBe(false)
+    }
   })
 
   it('akun tanpa bagian identitas menerima NIK termasking dari server (bukan disembunyikan di layar)', async () => {
@@ -181,15 +192,51 @@ describe('Layar pendaftaran pasien', () => {
     await expect(ubahPasien(t.id, '"999"', { tempat_lahir: 'Kota Lain', alasan_perubahan: 'uji versi berubah' })).rejects.toMatchObject({ status: 412, kode: 'versi_berubah' })
   })
 
-  it('mendaftarkan pasien baru dari layar memberi No. RM dan muncul di pencarian', async () => {
+  it('If-Match wajib (428); No. kartu BPJS ganda → 409 no_kartu_sudah_terdaftar dengan rujukan', async () => {
+    const p = await cariPasien('1271010101800042')
+    const t = p.data[0]!
+    await expect(ubahPasien(t.id, '', { tempat_lahir: 'Kota Lain', alasan_perubahan: 'uji if-match wajib' })).rejects.toMatchObject({ status: 428, kode: 'if_match_wajib' })
+    try {
+      await buatPasien({ nama: 'Contoh Kartu Ganda', tanggal_lahir: '1991-01-01', jenis_kelamin: 'perempuan', no_kartu_bpjs: '0001234567890' })
+      throw new Error('seharusnya 409')
+    } catch (e) {
+      expect((e as ApiError).kode).toBe('no_kartu_sudah_terdaftar')
+      expect((e as ApiError).rincian[0]).toMatchObject({ no_rm: t.no_rm })
+    }
+  })
+
+  it('akun tanpa izin identitas tetap bisa MENGISI NIK pasien baru (petugas menyalin kartu), tetapi tidak MENGUBAH yang terisi', async () => {
+    gabungan.akses.sebagai(ID_ADMISI)
+    // Mengisi NIK saat daftar baru tidak butuh izin bagian identitas (kontrak POST).
+    const baru = await buatPasien({ nama: 'Contoh WNI Baru', tanggal_lahir: '1995-05-05', jenis_kelamin: 'laki_laki', nik: '3201019999990001' })
+    expect(baru.data.nik_samaran).toBeTruthy()
+    expect(baru.data.nik).toBeUndefined()
+    // Mengubah NIK yang sudah terisi butuh izin identitas → 403.
+    await expect(ubahPasien(baru.data.id, baru.etag, { nik: '3201010000000002', alasan_perubahan: 'uji ubah nik tanpa izin' })).rejects.toMatchObject({ status: 403, kode: 'akses_ditolak' })
+  })
+
+  it('daftarkan pasien baru dari layar: POST terkirim dan No. RM baru muncul di pencarian', async () => {
     await pasang()
     await klik(tombol('Pasien baru'))
     await isi('Nama lengkap', 'Contoh Pasien Baru')
     await isi('Tanggal lahir', '2001-07-07')
     await klik(document.querySelector<HTMLButtonElement>('button[form="form-pasien"]'))
     expect(permintaan.some((p) => p.metode === 'post' && p.jalur === '/pasien')).toBe(true)
-    // Setelah daftar, kolom cari diisi No. RM baru; tunggu pencarian tertunda selesai lalu hasil menampilkannya.
     await tenang(120)
     expect(noRmDiTabel().length).toBeGreaterThan(0)
+  })
+
+  it('Mr. X lewat sakelar di layar: nama/tanggal lahir disembunyikan, server mengisi Mr. X', async () => {
+    await pasang()
+    await klik(tombol('Pasien baru'))
+    const sakelar = document.querySelector<HTMLInputElement>('.sakelar-identitas input[type="checkbox"]')
+    sakelar!.click()
+    await tenang()
+    // Tanpa identitas: tidak ada kolom "Nama lengkap" wajib di dialog.
+    expect([...document.querySelectorAll('[role="dialog"] label')].some((l) => l.textContent?.trim().startsWith('Nama lengkap'))).toBe(false)
+    await klik(document.querySelector<HTMLButtonElement>('button[form="form-pasien"]'))
+    const post = permintaan.find((p) => p.metode === 'post' && p.jalur === '/pasien')
+    expect(post).toBeTruthy()
+    expect((post!.isi as { tanpa_identitas?: boolean }).tanpa_identitas).toBe(true)
   })
 })
