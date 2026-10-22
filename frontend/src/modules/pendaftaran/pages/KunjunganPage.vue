@@ -13,7 +13,7 @@ import Ikon from '@/design-system/ikon/Ikon.vue'
 import HalamanModul from '@/layouts/HalamanModul.vue'
 import { errorKolom, pesanError } from '@/modules/akses/pengaturan'
 import { daftarJadwal } from '@/modules/jadwal-praktik/api'
-import { hariIniLokal, labelHari, nadaSisa } from '@/modules/jadwal-praktik/jadwal'
+import { hariIniLokal, labelHari, LABEL_ALASAN, nadaSisa } from '@/modules/jadwal-praktik/jadwal'
 import type { JadwalPraktik } from '@/modules/jadwal-praktik/tipe'
 import { daftarPoliklinik } from '@/modules/organisasi/apiLokasi'
 import { daftarPenjamin } from '@/modules/penjamin/api'
@@ -129,7 +129,8 @@ const slotAlternatif = computed<SlotTerdekat[]>(() => {
   const e = galatBuat.value
   return e instanceof ApiError && e.kode === 'kuota_habis' ? (e.rincian as unknown as SlotTerdekat[]) : []
 })
-const bolehKirim = computed(() => Boolean(pasienDipilih.value && jadwalId.value && (caraBayar.value !== 'jkn' || penjaminId.value)))
+const jadwalTersedia = computed(() => jadwalTerpilih.value?.pada_tanggal?.tersedia !== false)
+const bolehKirim = computed(() => Boolean(pasienDipilih.value && jadwalId.value && jadwalTersedia.value && (caraBayar.value !== 'jkn' || penjaminId.value)))
 function pilihSlotAlternatif(s: SlotTerdekat) {
   jadwalId.value = s.jadwal_praktik_id
   if (caraBayar.value === 'jkn' ? s.sisa_jkn <= 0 : s.sisa_non_jkn <= 0) caraBayar.value = s.sisa_jkn > 0 ? 'jkn' : 'non_jkn'
@@ -188,7 +189,7 @@ const batal = useMutation({
         <KolomIsian v-slot="a" label="Tanggal kunjungan" wajib>
           <input v-bind="a" v-model="tanggal" type="date" class="isian" />
         </KolomIsian>
-        <KolomIsian v-slot="a" label="Poliklinik" wajib :error="errorKolomBuat.jadwal_praktik_id">
+        <KolomIsian v-slot="a" label="Poliklinik" wajib>
           <select v-bind="a" v-model="poliId" class="isian">
             <option value="" disabled>Pilih poliklinik…</option>
             <option v-for="p in poli.data.value ?? []" :key="p.id" :value="p.id">{{ p.nama }}</option>
@@ -225,7 +226,7 @@ const batal = useMutation({
         >
           <template #sel-dokter="{ baris: j }">
             <b>{{ j.pegawai.nama }}</b>
-            <span v-if="j.pada_tanggal && !j.pada_tanggal.tersedia" class="ket">Tidak tersedia</span>
+            <span v-if="j.pada_tanggal && !j.pada_tanggal.tersedia" class="ket">{{ j.pada_tanggal.alasan_tidak_tersedia ? LABEL_ALASAN[j.pada_tanggal.alasan_tidak_tersedia] : 'Tidak tersedia' }}</span>
           </template>
           <template #sel-jam="{ baris: j }">{{ labelHari(j.hari) }} · {{ j.jam_mulai }}–{{ j.jam_selesai }}</template>
           <template #sel-jkn="{ baris: j }">
@@ -301,7 +302,10 @@ const batal = useMutation({
       </Pesan>
 
       <div class="aksi-kirim">
-        <p v-if="jadwalTerpilih && sisaTerpilih !== null" class="tafsir">
+        <p v-if="jadwalTerpilih && !jadwalTersedia" class="tafsir" role="status">
+          {{ jadwalTerpilih.pegawai.nama }} tidak tersedia pada tanggal ini. Pilih dokter atau tanggal lain.
+        </p>
+        <p v-else-if="jadwalTerpilih && sisaTerpilih !== null" class="tafsir">
           Sisa kuota {{ caraBayar === 'jkn' ? 'JKN' : 'non-JKN' }} dr. {{ jadwalTerpilih.pegawai.nama }}: <b>{{ sisaTerpilih }}</b>
         </p>
         <Tombol v-can="'pendaftaran.pasien.input'" varian="utama" :disabled="!bolehKirim || undefined" :sibuk="buat.isPending.value" @click="buat.mutate()">
@@ -343,10 +347,11 @@ const batal = useMutation({
         <template #sel-cara_bayar="{ baris: k }">{{ LABEL_CARA_BAYAR[k.cara_bayar] }}</template>
         <template #sel-status="{ baris: k }">
           <Lencana :jenis="NADA_STATUS[k.status]">{{ LABEL_STATUS[k.status] }}</Lencana>
+          <span v-if="k.status === 'batal' && k.alasan_batal" class="ket">{{ k.alasan_batal }}</span>
         </template>
         <template #sel-aksi="{ baris: k }">
           <Tombol v-if="k.status === 'terdaftar' && boleh('pendaftaran.pasien.batal')" varian="bahaya" :aria-label="`Batalkan kunjungan ${k.nomor}`" @click="bukaBatal(k)">Batal</Tombol>
-          <span v-else-if="k.status === 'batal'" class="ket" :title="k.alasan_batal ?? ''">Dibatalkan</span>
+          <span v-else class="ket" aria-hidden="true">—</span>
         </template>
       </DataTable>
     </section>
