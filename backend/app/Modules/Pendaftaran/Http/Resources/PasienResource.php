@@ -44,8 +44,10 @@ final class PasienResource
             ->get(['k.id', 'k.kode_kemendagri', 'k.nama AS kelurahan', 'kc.nama AS kecamatan', 'kb.nama AS kabupaten_kota', 'pv.nama AS provinsi'])
             ->keyBy('id');
         $zona = (string) config('instalasi.zona_waktu');
+        $kunjungan = DB::table('kunjungan.kunjungan')->whereIn('pasien_id', $baris->pluck('id'))->where('status', '<>', 'batal')
+            ->groupBy('pasien_id')->selectRaw('pasien_id, count(*) AS jumlah')->pluck('jumlah', 'pasien_id');
 
-        return $baris->map(function (Pasien $p) use ($boleh, $referensi, $wilayah, $zona) {
+        return $baris->map(function (Pasien $p) use ($boleh, $referensi, $wilayah, $zona, $kunjungan) {
             $nik = $p->nilaiIdentitas('nik');
             $paspor = $p->nilaiIdentitas('no_paspor');
             $alamat = $p->alamat_enkripsi;
@@ -85,7 +87,7 @@ final class PasienResource
                 'tanpa_identitas' => $p->tanpa_identitas,
                 'ciri_pengenal' => $p->ciri_pengenal,
                 'meninggal_pada' => $p->meninggal_pada?->toIso8601String(),
-                'jumlah_kunjungan' => 0, // Kunjungan menyusul di tiket 2.6.
+                'jumlah_kunjungan' => (int) ($kunjungan[$p->id] ?? 0),
                 'sejak_tahun' => (int) $p->dibuat_pada->clone()->setTimezone($zona)->format('Y'),
                 'versi' => (string) $p->revisi,
                 'dibuat_pada' => $p->dibuat_pada->toIso8601String(),

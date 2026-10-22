@@ -7,12 +7,15 @@ use App\Modules\MasterData\Models\JadwalPengecualian;
 use App\Modules\MasterData\Models\JadwalPraktik;
 use App\Modules\MasterData\Models\Lokasi;
 use App\Modules\MasterData\Models\Poliklinik;
+use App\Modules\Pendaftaran\Application\KeterisianKunjungan;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Support\Collection;
 
 /** Bentuk JadwalPraktik dan JadwalPengecualian (kontrak v0.17.0). Relasi dimuat per halaman, bukan per baris. */
 final class JadwalPraktikResource
 {
+    public function __construct(private readonly KeterisianKunjungan $keterisian) {}
+
     /**
      * @param  Collection<int, JadwalPraktik>  $jadwal
      * @return list<array<string, mixed>>
@@ -23,8 +26,9 @@ final class JadwalPraktikResource
         $poli = Poliklinik::query()->whereIn('id', $jadwal->pluck('poli_id')->unique())->get()->keyBy('id');
         $ruang = Lokasi::query()->whereIn('id', $jadwal->pluck('ruang_id')->filter()->unique())->get()->keyBy('id');
         $pengecualian = $this->pengecualianAktif($pegawai->keys()->all());
+        $terisi = $tanggal === null ? [] : $this->keterisian->terisi($jadwal->pluck('id')->all(), $tanggal);
 
-        return $jadwal->map(function (JadwalPraktik $j) use ($pegawai, $poli, $ruang, $pengecualian, $tanggal) {
+        return $jadwal->map(function (JadwalPraktik $j) use ($pegawai, $poli, $ruang, $pengecualian, $tanggal, $terisi) {
             $menutup = $pengecualian->filter(fn (JadwalPengecualian $p) => $p->pegawai_id === null || $p->pegawai_id === $j->pegawai_id);
 
             return [
@@ -40,7 +44,7 @@ final class JadwalPraktikResource
                 'berlaku_dari' => $j->berlaku_dari->toDateString(),
                 'berlaku_sampai' => $j->berlaku_sampai?->toDateString(),
                 'status' => $j->status,
-                'pada_tanggal' => $tanggal === null ? null : $this->keterisian($j, $tanggal, $menutup),
+                'pada_tanggal' => $tanggal === null ? null : $this->keterisian($j, $tanggal, $menutup, $terisi[$j->id] ?? ['jkn' => 0, 'non_jkn' => 0]),
                 'pengecualian' => $menutup->map(fn (JadwalPengecualian $p) => $this->pengecualian($p, $pegawai[$p->pegawai_id] ?? null))->values()->all(),
                 'versi' => (string) $j->revisi,
                 'diubah_pada' => $j->diubah_pada->toIso8601String(),
@@ -68,20 +72,21 @@ final class JadwalPraktikResource
     }
 
     /**
-     * Terisi selalu 0 sampai tabel kunjungan ada (tiket 2.6).
+     * Terisi = kunjungan tidak batal pada tanggal itu (tiket 2.6).
      *
      * @param  Collection<int, JadwalPengecualian>  $menutup
+     * @param  array{jkn: int, non_jkn: int}  $terisi
      * @return array<string, mixed>
      */
-    private function keterisian(JadwalPraktik $j, string $tanggal, Collection $menutup): array
+    private function keterisian(JadwalPraktik $j, string $tanggal, Collection $menutup, array $terisi): array
     {
         $kena = $menutup->first(fn (JadwalPengecualian $p) => $p->dari_tanggal->toDateString() <= $tanggal && $p->sampai_tanggal->toDateString() >= $tanggal);
         $alasan = $j->status !== 'aktif' ? 'nonaktif' : $kena?->jenis;
 
         return [
             'tanggal' => $tanggal,
-            'kuota_jkn' => $j->kuota_jkn, 'terisi_jkn' => 0, 'sisa_jkn' => $j->kuota_jkn,
-            'kuota_non_jkn' => $j->kuota_non_jkn, 'terisi_non_jkn' => 0, 'sisa_non_jkn' => $j->kuota_non_jkn,
+            'kuota_jkn' => $j->kuota_jkn, 'terisi_jkn' => $terisi['jkn'], 'sisa_jkn' => max(0, $j->kuota_jkn - $terisi['jkn']),
+            'kuota_non_jkn' => $j->kuota_non_jkn, 'terisi_non_jkn' => $terisi['non_jkn'], 'sisa_non_jkn' => max(0, $j->kuota_non_jkn - $terisi['non_jkn']),
             'tersedia' => $alasan === null, 'alasan_tidak_tersedia' => $alasan,
         ];
     }

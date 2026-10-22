@@ -36,6 +36,8 @@ final class MenuBawaan
     /** Aksi selain aksi dasar per sub-menu (PRD 9.2 JenisAksi): mis. alur usulan data induk berjenjang (tiket 1.8c). */
     public const AKSI_TAMBAHAN = [
         'master_data.usulan' => ['verifikasi', 'setujui'],
+        // Tiket 2.6: pembatalan kunjungan dengan alasan (FR-01-21).
+        'pendaftaran.pasien' => ['batal'],
     ];
 
     /** Superadmin mengelola peran, akun, dan profil RS (wizard langkah 2); tidak membuka rekam medis, rupiah, atau data induk milik unit (PRD 9.2.4, FR-54-01). */
