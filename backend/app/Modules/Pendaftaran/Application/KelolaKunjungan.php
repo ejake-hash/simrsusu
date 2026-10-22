@@ -91,8 +91,7 @@ final class KelolaKunjungan
     public function batal(Pengguna $petugas, string $kunjunganId, string $alasan): Kunjungan
     {
         return DB::transaction(function () use ($petugas, $kunjunganId, $alasan) {
-            $kunjungan = Kunjungan::query()->whereKey($kunjunganId)->lockForUpdate()->first()
-                ?? throw new ApiError(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.');
+            $kunjungan = $this->kunciUntukBatal($kunjunganId) ?? throw new ApiError(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.');
             if ($kunjungan->status === 'batal') {
                 throw new ApiError(409, 'sudah_batal', 'Kunjungan sudah dibatalkan.');
             }
@@ -125,7 +124,7 @@ final class KelolaKunjungan
                 ->orderBy('k.tanggal')->orderBy('k.id')->limit($batas)->pluck('k.id');
             foreach ($ids as $id) {
                 DB::transaction(function () use ($id, &$jumlah) {
-                    $kunjungan = Kunjungan::query()->whereKey($id)->lockForUpdate()->first();
+                    $kunjungan = $this->kunciUntukBatal($id);
                     if ($kunjungan?->status === 'terdaftar') {
                         $this->tandaiBatal($kunjungan, self::ALASAN_BATAL_OTOMATIS, null);
                         $jumlah++;
@@ -137,7 +136,22 @@ final class KelolaKunjungan
         return $jumlah;
     }
 
-    /** $olehId null = sistem. Dipanggil di dalam transaksi dengan baris kunjungan terkunci. */
+    /**
+     * Kunci pasien lalu kunjungan, urutan yang sama dengan daftar(): pendaftaran serentak pasien yang sama menunggu
+     * sampai pembatalan selesai, jadi tidak menempel ke episode yang baru saja ikut batal.
+     */
+    private function kunciUntukBatal(string $kunjunganId): ?Kunjungan
+    {
+        $pasienId = Kunjungan::query()->whereKey($kunjunganId)->value('pasien_id');
+        if ($pasienId === null) {
+            return null;
+        }
+        Pasien::query()->whereKey($pasienId)->lockForUpdate()->first();
+
+        return Kunjungan::query()->whereKey($kunjunganId)->lockForUpdate()->first();
+    }
+
+    /** $olehId null = sistem. Dipanggil di dalam transaksi dengan baris pasien dan kunjungan terkunci (kunciUntukBatal). */
     private function tandaiBatal(Kunjungan $kunjungan, string $alasan, ?string $olehId): void
     {
         $kunjungan->forceFill([
