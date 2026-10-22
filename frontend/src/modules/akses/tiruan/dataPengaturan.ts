@@ -65,17 +65,19 @@ const BAGIAN: Record<string, [kode: string, label: string, ikutInduk: boolean][]
   'rawat_inap.cppt': [['konfirmasi_lisan', 'Konfirmasi instruksi lisan', false]],
   // NIK pegawai utuh (1.8d-be: MenuBawaan::BAGIAN); hanya aksi lihat.
   'sdm.pegawai': [['identitas', 'Identitas pribadi (NIK)', false]],
+  // NIK/paspor pasien utuh (2.5-be: MenuBawaan::BAGIAN); hanya aksi lihat.
+  'pendaftaran.pasien': [['identitas', 'Identitas pasien (NIK/paspor)', false]],
 }
-const AKSI_BAGIAN: Record<string, JenisAksi[]> = { 'sdm.pegawai.identitas': ['lihat'] }
+const AKSI_BAGIAN: Record<string, JenisAksi[]> = { 'sdm.pegawai.identitas': ['lihat'], 'pendaftaran.pasien.identitas': ['lihat'] }
 
-export const TERSEDIA = new Set(['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.penjamin', 'master_data.usulan', 'master_data.jadwal_praktik', 'master_data.tarif', 'sdm.pegawai'])
+export const TERSEDIA = new Set(['beranda', 'pendaftaran.pasien', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.penjamin', 'master_data.usulan', 'master_data.jadwal_praktik', 'master_data.tarif', 'sdm.pegawai'])
 /** Modul yang dimatikan di instalasi contoh, agar penanda "modul nonaktif" ikut teruji. */
 const MODUL_NONAKTIF = new Set(['kamar_operasi'])
 
 /** Pengelola akses (input/perbaiki peran dan akun) sensitif sejak 1.2c-be: pemberiannya butuh persetujuan (1.2d). */
 const SUB_PENGELOLA_AKSES = new Set(['pengaturan.peran', 'pengaturan.akun'])
 /** Data pribadi sensitif tanpa penyetuju bawaan (1.8d-be: MenuBawaan::IZIN_DATA_PRIBADI, K3). */
-const IZIN_DATA_PRIBADI = new Set(['sdm.pegawai.identitas.lihat'])
+const IZIN_DATA_PRIBADI = new Set(['sdm.pegawai.identitas.lihat', 'pendaftaran.pasien.identitas.lihat'])
 const izinDasar = (kode: string, aksi: JenisAksi[] = ['lihat', 'input', 'perbaiki']): IzinNode[] =>
   aksi.map((a) => ({ kode: `${kode}.${a}`, jenis_aksi: a, sensitif: (SUB_PENGELOLA_AKSES.has(kode) && a !== 'lihat') || IZIN_DATA_PRIBADI.has(`${kode}.${a}`) }))
 
