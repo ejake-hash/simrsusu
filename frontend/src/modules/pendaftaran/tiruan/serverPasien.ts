@@ -270,7 +270,15 @@ export function buatServerPasien(opsi: OpsiServerPasien) {
     return null
   }
 
-  return { tangani, contoh: { satu: daftar[0]!, dua: daftar[1]!, tiga: daftar[2]! } }
+  /** Dua penanda identitas untuk papan kunjungan (tiket 2.6); tanpa NIK/alamat. Null bila pasien tidak ada. */
+  const ringkas = (id: string) => {
+    const t = daftar.find((x) => x.id === id)
+    if (!t) return null
+    const v = t.versi[t.versi.length - 1]!.isi
+    return { id: t.id, no_rm: t.no_rm, nama: v.nama ?? namaSementara(v.jenis_kelamin), jenis_kelamin: v.jenis_kelamin, tanggal_lahir: v.tanggal_lahir ?? null }
+  }
+
+  return { tangani, ringkas, contoh: { satu: daftar[0]!, dua: daftar[1]!, tiga: daftar[2]! } }
 }
 
 export type ServerPasien = ReturnType<typeof buatServerPasien>

@@ -26,7 +26,7 @@ Format dan aturan agen ada di skill `kerja-tiket` § 1–2 dan § 5. Ringkas: sa
 | 2.3 | Wizard langkah 6 aktif → instalasi siap melayani | BE+FE | S | 2.2 |
 | 2.4 | Jadwal praktik dokter dan kuota poli | BE+FE | M | 2.0 |
 | 2.5 | Cari pasien satu kolom + pasien baru | BE+FE | M | 2.3 · **FE selesai** (PR #128, layar cari + form pasien, data tiruan v0.19.0); BE belum merge (kerja/2.5-be) |
-| 2.6 | Kunjungan poli + episode + relasi perawatan | BE+FE | M | 2.4, 2.5 |
+| 2.6 | Kunjungan poli + episode + relasi perawatan | BE+FE | M | 2.4, 2.5 · **FE selesai** (layar pendaftaran kunjungan poli: pilih pasien/poli/dokter dari jadwal, sisa kuota, batal; data tiruan v0.20.0); BE belum merge |
 | 2.7 | Kepesertaan, rujukan, dan SEP (simulator VClaim) | BE+FE | M | 2.6 |
 | 2.8 | Antrean loket dan poli + display | BE+FE | M | 2.6 |
 | 2.9 | Duplikat pasien + usulan gabung RM | BE+FE | M | 2.5 |
