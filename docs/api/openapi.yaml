@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.19.0
+  version: 0.20.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -83,6 +83,14 @@ info:
     `pendaftaran.pasien.identitas` (aksi `lihat`, sensitif): tanpanya `nik`/`no_paspor` tidak dikirim, hanya samaran.
     Error baru: 409 `nik_sudah_terdaftar`/`no_kartu_sudah_terdaftar` (rujukan No. RM hanya di `rincian`, tidak di `pesan`),
     422 `kata_cari_wajib`, `kata_cari_tidak_dikenali`, `referensi_tidak_valid`, `wilayah_tidak_valid`. Hanya kontrak; kode menyusul di tiket BE/FE.
+    v0.20.0: Kunjungan poli dan episode (tiket 2.6): POST /kunjungan (episode rawat jalan harian terbentuk/digabung otomatis
+    dari No. RM + tanggal, 7.00.2; event `KunjunganDibuat`, FR-00-04), POST /kunjungan/{id}/batal (status batal, kuota
+    dikembalikan; pembatalan otomatis jam tutup lewat job), GET /kunjungan?tanggal=&poli_id= (papan kunjungan per poli per
+    hari, keyset). Jenis kunjungan dibatasi `poliklinik` (FR-01-06; lainnya 422 `jenis_belum_didukung`). Aksi baru
+    `pendaftaran.pasien.batal`. Error baru: 409 `kuota_habis` (rincian slot terdekat), `kunjungan_ganda`, `sudah_batal`,
+    `sudah_dilayani`; 422 `jadwal_tidak_tersedia`, `tanggal_di_luar_jadwal`, `penjamin_wajib`, `penjamin_tidak_sesuai`.
+    Pasien.jumlah_kunjungan mulai terisi. Hanya kontrak; kode (tabel `kunjungan.episode`/`kunjungan.kunjungan`,
+    `akses.relasi_perawatan` lapis 4, job batal otomatis) menyusul di tiket BE.
 servers:
   - url: /api/v1
 security:
@@ -4754,6 +4762,121 @@ paths:
         '412': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '428': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # Kunjungan poli + episode (tiket 2.6; PRD FR-01-06, FR-01-15, FR-01-21, FR-00-01, FR-00-04, 7.00.2, 7.01).
+  # Izin: `pendaftaran.pasien.lihat|input` + aksi baru `pendaftaran.pasien.batal`, cakupan `rs`.
+  # Jenis kunjungan dibatasi `poliklinik` di tahap ini (FR-01-06 daftar penuh; lainnya → 422 `jenis_belum_didukung`).
+  # Poli dan dokter dipilih lewat satu `jadwal_praktik_id` (poli + dokter + hari + jam, tiket 2.4); kuota dipakai sesuai
+  # `cara_bayar` (jkn/non_jkn). Episode rawat jalan harian terbentuk/digabung otomatis dari No. RM + tanggal (7.00.2,
+  # FR-00-01): kunjungan poli berikutnya pasien yang sama pada tanggal yang sama masuk episode yang sama; tanggal berbeda
+  # → episode baru. Koreksi casemix di luar tiket ini. Event `KunjunganDibuat` terbit di bus kejadian (FR-00-04; dipakai
+  # 2.7 SEP dan 2.8 antrean). Nomor antrean/SEP bukan bagian kontrak ini.
+  # Data pasien (NIK, nama, tanggal lahir) tidak pernah di URL, query string, log, audit, atau pesan error; respons
+  # kunjungan `Cache-Control: no-store`. Ringkasan pasien pada daftar mengikuti izin `pendaftaran.pasien.lihat`.
+  /kunjungan:
+    get:
+      operationId: daftarKunjungan
+      summary: Daftar kunjungan satu poli pada satu tanggal (paginasi kursor)
+      description: |
+        Izin: pendaftaran.pasien.lihat, cakupan `rs`. `tanggal` dan `poli_id` wajib (papan kunjungan per poli per hari;
+        tanpa salah satunya → 422 `validasi_gagal`). Urut: nomor urut daftar naik, lalu `(dibuat_pada, id)` untuk kursor
+        keyset. `status` menyaring (bawaan: semua kecuali `batal`; `status=batal` menampilkan yang batal saja). Kunjungan
+        batal tetap tampil dengan `status=batal` agar dapat ditelusuri, tidak dihapus. Ringkasan pasien hanya memuat
+        No. RM, nama, jenis kelamin, dan tanggal lahir (dua penanda identitas, 5.1 butir 9); NIK tidak dikirim di sini.
+      parameters:
+        - { in: query, name: tanggal, required: true, schema: { type: string, format: date } }
+        - { in: query, name: poli_id, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: pegawai_id, schema: { type: string, format: uuid }, description: "Saring per dokter (sdm.pegawai.id)" }
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/StatusKunjungan' } }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman kunjungan poli (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Kunjungan' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatKunjungan
+      summary: Daftarkan kunjungan poli (episode terbentuk/digabung otomatis)
+      description: |
+        Izin: pendaftaran.pasien.input. Mendaftarkan pasien ke satu jadwal praktik (poli + dokter) pada `tanggal`.
+        Server membentuk atau menggabungkan episode rawat jalan harian (7.00.2, FR-00-01) dan menerbitkan event
+        `KunjunganDibuat` (FR-00-04).
+        - 409 `kuota_habis`: kuota `cara_bayar` pada jadwal/tanggal itu penuh (FR-01-15). `rincian`:
+          `[{jadwal_praktik_id, pegawai, sisa_jkn, sisa_non_jkn, jam_mulai}]` untuk satu atau lebih jadwal dokter lain di
+          poli yang sama pada tanggal itu yang masih punya sisa (slot terdekat), agar petugas menawarkan alternatif
+          (7.01.1 baris "Kuota dokter penuh"); daftar kosong bila tidak ada.
+        - 422 `jadwal_tidak_tersedia`: jadwal tertutup pengecualian (cuti dokter/libur RS) atau tidak aktif pada
+          `tanggal` (`rincian.alasan` = cuti|libur|nonaktif; lihat KeterisianJadwal.alasan_tidak_tersedia, tiket 2.4).
+        - 422 `jenis_belum_didukung`: `jenis_kunjungan` selain `poliklinik` (FR-01-06; pos lain menyusul tahap C).
+        - 422 `tanggal_di_luar_jadwal`: `tanggal` bukan hari praktik jadwal itu, di luar `berlaku_dari`–`berlaku_sampai`,
+          masa lalu, atau lebih dari rentang yang diizinkan ke depan.
+        - 422 `penjamin_wajib` bila `cara_bayar = jkn` tanpa `penjamin_id`; 422 `penjamin_tidak_sesuai` bila penjamin
+          bukan jenis yang cocok dengan `cara_bayar` (jkn → penjamin jenis `bpjs`).
+        - 409 `kunjungan_ganda`: pasien sudah punya kunjungan aktif (belum batal) pada jadwal + tanggal yang sama.
+        - 404 bila `pasien_id` atau `jadwal_praktik_id` tidak ada.
+        Audit `kunjungan.dibuat` (nomor kunjungan, poli, dokter, episode; tanpa nilai identitas pasien).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianKunjungan' }
+      responses:
+        '201':
+          description: Kunjungan terdaftar
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Kunjungan' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/batal:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: batalkanKunjungan
+      summary: Batalkan kunjungan dengan alasan (status batal; baris tidak dihapus)
+      description: |
+        Izin: pendaftaran.pasien.batal. Pembatalan manual petugas (FR-01-21); pembatalan otomatis karena tidak dilayani
+        sampai jam tutup poli dijalankan job terjadwal dengan `alasan_batal` baku, bukan endpoint ini. Kunjungan tidak
+        dihapus: `status = batal`, `alasan_batal`, `dibatalkan_oleh`, `dibatalkan_pada`; kuota jadwal dikembalikan.
+        - 409 `sudah_batal`: kunjungan sudah berstatus batal.
+        - 409 `sudah_dilayani`: pelayanan klinis sudah dimulai (status bukan `terdaftar`); pembatalan tidak lagi berlaku.
+        Audit `kunjungan.dibatalkan` (nomor kunjungan dan alasan; tanpa nilai identitas pasien).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PermintaanBatal' }
+      responses:
+        '200':
+          description: Kunjungan sesudah dibatalkan
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Kunjungan' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -6595,8 +6718,90 @@ components:
         tanpa_identitas: { type: boolean }
         ciri_pengenal: { type: [string, 'null'] }
         meninggal_pada: { type: [string, 'null'], format: date-time }
-        jumlah_kunjungan: { type: integer, minimum: 0, description: "Kunjungan yang tidak batal (0 sampai tiket 2.6)" }
+        jumlah_kunjungan: { type: integer, minimum: 0, description: "Kunjungan yang tidak batal (mulai terisi di tiket 2.6)" }
         sejak_tahun: { type: integer, description: "Tahun pasien pertama terdaftar (zona RS)" }
         versi: { type: string }
         dibuat_pada: { type: string, format: date-time }
         diubah_pada: { type: string, format: date-time }
+    JenisKunjungan:
+      type: string
+      enum: [poliklinik, igd, rawat_inap_elektif, penunjang_langsung, mcu, terjadwal_rutin, telekonsultasi, kemoterapi_sehari]
+      description: "FR-01-06. Tahap ini hanya `poliklinik` diterima; lainnya → 422 `jenis_belum_didukung`."
+    CaraBayar:
+      type: string
+      enum: [jkn, non_jkn]
+      description: "Menentukan kuota jadwal yang dipakai (kuota_jkn / kuota_non_jkn, tiket 2.4). Rincian penjamin di `penjamin_id`."
+    StatusKunjungan:
+      type: string
+      enum: [terdaftar, dilayani, selesai, batal]
+      description: "terdaftar = baru didaftarkan, belum dilayani (masih bisa dibatalkan); dilayani = pelayanan klinis sudah dimulai; selesai = pasien selesai di pos ini; batal = dibatalkan (tidak dihapus)."
+    RingkasPasienKunjungan:
+      type: object
+      required: [id, no_rm, nama, jenis_kelamin, tanggal_lahir]
+      description: "Ringkasan pasien untuk papan kunjungan: dua penanda identitas (nama + No. RM/tanggal lahir, 5.1 butir 9). NIK dan alamat tidak disertakan di sini."
+      properties:
+        id: { type: string, format: uuid }
+        no_rm: { type: string, pattern: '^[0-9]{1,12}$', examples: ['00000127'] }
+        nama: { type: string }
+        jenis_kelamin: { $ref: '#/components/schemas/JenisKelaminPasien' }
+        tanggal_lahir: { type: [string, 'null'], format: date }
+    RingkasEpisode:
+      type: object
+      required: [id, jenis, mulai_tanggal]
+      properties:
+        id: { type: string, format: uuid }
+        jenis: { type: string, enum: [rawat_jalan_harian], description: "Hanya `rawat_jalan_harian` di tiket 2.6; jenis episode lain menyusul tahap berikutnya (7.00.2)." }
+        mulai_tanggal: { type: string, format: date, description: "Tanggal episode terbentuk (zona RS)" }
+    IsianKunjungan:
+      type: object
+      required: [pasien_id, jadwal_praktik_id, tanggal, cara_bayar]
+      properties:
+        pasien_id: { type: string, format: uuid }
+        jadwal_praktik_id: { type: string, format: uuid, description: "Jadwal praktik (poli + dokter + hari + jam), tiket 2.4" }
+        tanggal: { type: string, format: date, description: "Tanggal kunjungan (zona RS); harus hari praktik jadwal itu" }
+        jenis_kunjungan: { $ref: '#/components/schemas/JenisKunjungan', description: "Bawaan: poliklinik" }
+        cara_bayar: { $ref: '#/components/schemas/CaraBayar' }
+        penjamin_id: { type: [string, 'null'], format: uuid, description: "Wajib bila cara_bayar = jkn (penjamin jenis bpjs); null untuk non_jkn tanpa penjamin tetap" }
+        keluhan: { type: [string, 'null'], maxLength: 500, description: "Keluhan awal/alasan kunjungan (opsional); bukan diagnosis" }
+    Kunjungan:
+      type: object
+      required: [id, nomor, pasien, episode, jenis_kunjungan, poliklinik, dokter, tanggal, cara_bayar, penjamin, status,
+        keluhan, alasan_batal, dibatalkan_oleh, dibatalkan_pada, didaftarkan_oleh, versi, dibuat_pada, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        nomor: { type: string, description: "Nomor kunjungan (identitas tampil, dibuat server); bukan nomor antrean poli (tiket 2.8)", examples: ['RJ-20261022-0007'] }
+        pasien: { $ref: '#/components/schemas/RingkasPasienKunjungan' }
+        episode: { $ref: '#/components/schemas/RingkasEpisode' }
+        jenis_kunjungan: { $ref: '#/components/schemas/JenisKunjungan' }
+        poliklinik:
+          type: object
+          required: [id, kode, nama]
+          properties:
+            id: { type: string, format: uuid }
+            kode: { type: string }
+            nama: { type: string }
+        dokter: { $ref: '#/components/schemas/RingkasPegawai' }
+        tanggal: { type: string, format: date }
+        cara_bayar: { $ref: '#/components/schemas/CaraBayar' }
+        penjamin:
+          description: "null = tanpa penjamin tetap (umum tunai)"
+          oneOf: [{ $ref: '#/components/schemas/RingkasPenjamin' }, { type: 'null' }]
+        status: { $ref: '#/components/schemas/StatusKunjungan' }
+        keluhan: { type: [string, 'null'] }
+        alasan_batal: { type: [string, 'null'] }
+        dibatalkan_oleh:
+          description: "Pelaku pembatalan; null bila belum batal. Pembatalan otomatis karena jam tutup = pelaku sistem (null nama)."
+          oneOf: [{ $ref: '#/components/schemas/Pelaku' }, { type: 'null' }]
+        dibatalkan_pada: { type: [string, 'null'], format: date-time }
+        didaftarkan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        versi: { type: string }
+        dibuat_pada: { type: string, format: date-time }
+        diubah_pada: { type: string, format: date-time }
+    RingkasPenjamin:
+      type: object
+      required: [id, kode, nama, jenis]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+        jenis: { $ref: '#/components/schemas/JenisPenjamin' }
