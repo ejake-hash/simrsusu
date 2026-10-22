@@ -223,7 +223,7 @@ final class KelolaPasien
     {
         KontakDaruratPasien::query()->where('pasien_id', $pasien->id)->where('aktif', true)
             ->update(['aktif' => false, 'diganti_pada' => now(), 'diubah_pada' => now(), 'diubah_oleh' => $olehId]);
-        foreach (array_values($kontak) as $i => $k) {
+        foreach ($kontak as $i => $k) {
             (new KontakDaruratPasien(['pasien_id' => $pasien->id, 'urutan' => $i + 1, 'nama' => $k['nama'], 'hubungan' => $k['hubungan'], 'telepon_enkripsi' => $k['telepon']]))
                 ->forceFill(['dibuat_oleh' => $olehId, 'diubah_oleh' => $olehId])->save();
         }

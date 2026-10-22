@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
  * @property string $jenis nik | paspor | kartu_bpjs
  * @property string|null $nilai_enkripsi sudah didekripsi oleh cast `encrypted`
  * @property string|null $sidik
+ * @property string|null $dibuat_oleh
  * @property int $revisi
  * @property Carbon $diubah_pada
  */
