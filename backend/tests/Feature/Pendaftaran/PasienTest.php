@@ -139,6 +139,7 @@ class PasienTest extends TestCase
         $this->mintaDenganVersi('PATCH', "/api/v1/pasien/$id", '0', ['nik' => self::NIK_2, 'alasan_perubahan' => self::ALASAN])
             ->assertForbidden()->assertJsonPath('error.kode', 'akses_ditolak');
         $this->mintaDenganVersi('PATCH', "/api/v1/pasien/$id", '0', ['nik' => null, 'alasan_perubahan' => self::ALASAN])->assertForbidden();
+        $this->mintaDenganVersi('PATCH', "/api/v1/pasien/$id", '0', ['nik' => self::NIK, 'alasan_perubahan' => self::ALASAN])->assertForbidden();
         $this->mintaDenganVersi('PATCH', "/api/v1/pasien/$id", '0', ['no_kartu_bpjs' => self::KARTU, 'alasan_perubahan' => self::ALASAN])
             ->assertOk()->assertJsonPath('data.no_kartu_bpjs', self::KARTU)->assertJsonMissingPath('data.nik');
     }
@@ -170,7 +171,7 @@ class PasienTest extends TestCase
         $audit = DB::table('audit.log_aktivitas')->where('aksi', 'pasien.dicari')->orderByDesc('urutan')->first();
         $this->assertNotNull($audit);
         $this->assertSame(0, DB::table('audit.log_aktivitas')->where('aksi', 'pasien.dicari')
-            ->whereRaw('sesudah::text ILIKE ?', ['%contoh%'])->orWhereRaw('sesudah::text LIKE ?', ['%'.self::KARTU.'%'])->count());
+            ->where(fn ($q) => $q->whereRaw('sesudah::text ILIKE ?', ['%contoh%'])->orWhereRaw('sesudah::text LIKE ?', ['%'.self::KARTU.'%']))->count());
     }
 
     public function test_referensi_wilayah_wna_dan_kontak_darurat_diganti(): void

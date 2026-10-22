@@ -57,7 +57,8 @@ final class KelolaPasien
             $sebelum = $this->isi($pasien);
 
             foreach (['nik', 'no_paspor'] as $field) {
-                if (array_key_exists($field, $isi) && $sebelum[$field] !== null && $isi[$field] !== $sebelum[$field] && ! $bolehIdentitas) {
+                // Ditolak walau nilainya sama: jawaban berbeda untuk nilai sama/beda membuka tebakan NIK.
+                if (array_key_exists($field, $isi) && $sebelum[$field] !== null && ! $bolehIdentitas) {
                     throw new ApiError(403, 'akses_ditolak', 'Mengubah NIK atau paspor yang sudah terisi butuh izin melihat identitas pasien.');
                 }
             }
