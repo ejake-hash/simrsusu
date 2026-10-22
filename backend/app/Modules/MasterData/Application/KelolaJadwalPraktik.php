@@ -8,6 +8,7 @@ use App\Modules\Akses\Models\Pengguna;
 use App\Modules\MasterData\Models\JadwalPraktik;
 use App\Modules\MasterData\Models\Lokasi;
 use App\Modules\MasterData\Models\Poliklinik;
+use App\Modules\Pendaftaran\Application\KeterisianKunjungan;
 use App\Modules\Sdm\Models\IzinPraktik;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Support\Facades\DB;
@@ -16,13 +17,13 @@ use Illuminate\Validation\ValidationException;
 /**
  * Jadwal praktik dokter (tiket 2.4, kontrak v0.17.0). Tanpa DELETE (status nonaktif). Versi = revisi (412 bila berubah).
  * Penguncian baris pegawai membuat dua penambahan serentak untuk dokter yang sama dicek bergantian (anti tumpang tindih).
- * Utang 2.6: `kuota_di_bawah_terisi` (kontrak PATCH) menunggu tabel kunjungan; sampai saat itu keterisian selalu 0.
+ * Kuota tidak bisa diturunkan di bawah kunjungan yang sudah terisi pada tanggal mendatang (`kuota_di_bawah_terisi`, 2.6).
  */
 final class KelolaJadwalPraktik
 {
     private const KOLOM_UBAH = ['ruang_id', 'hari', 'jam_mulai', 'jam_selesai', 'kuota_jkn', 'kuota_non_jkn', 'berlaku_dari', 'berlaku_sampai', 'status'];
 
-    public function __construct(private readonly CatatAktivitas $audit) {}
+    public function __construct(private readonly CatatAktivitas $audit, private readonly KeterisianKunjungan $keterisian) {}
 
     /** @param  array<string, mixed>  $isi */
     public function buat(Pengguna $penyunting, array $isi): JadwalPraktik
@@ -52,6 +53,9 @@ final class KelolaJadwalPraktik
                 $this->periksaPegawai($jadwal->pegawai_id);
             }
             $this->periksa($jadwal, isset($isi['berlaku_dari']) || (($isi['status'] ?? null) === 'aktif'));
+            if ($jadwal->isDirty(['kuota_jkn', 'kuota_non_jkn'])) {
+                $this->periksaKuotaTerisi($jadwal);
+            }
             $jadwal->forceFill(['diubah_oleh' => $penyunting->id])->save();
             $this->audit->catat('master_data.jadwal_praktik_diubah', $penyunting->id, $jadwal->getTable(), $jadwal->id,
                 [...$this->isiAudit($jadwal->refresh()), 'dasar_perubahan' => $isi['dasar_perubahan']], $sebelum);
@@ -88,6 +92,17 @@ final class KelolaJadwalPraktik
                 $this->periksaSip($jadwal);
             }
             $this->periksaTumpangTindih($jadwal, $mulai, $selesai);
+        }
+    }
+
+    private function periksaKuotaTerisi(JadwalPraktik $jadwal): void
+    {
+        $puncak = $this->keterisian->puncakSejak($jadwal->id, SuntinganBerversi::hariIni());
+        foreach (['jkn' => $jadwal->kuota_jkn, 'non_jkn' => $jadwal->kuota_non_jkn] as $cara => $kuota) {
+            if ($puncak[$cara] > $kuota) {
+                throw new ApiError(422, 'kuota_di_bawah_terisi', 'Kuota lebih kecil dari kunjungan yang sudah terdaftar pada tanggal mendatang.',
+                    [['kolom' => "kuota_$cara", 'pesan' => "Sudah terisi {$puncak[$cara]} pada salah satu tanggal mendatang."]]);
+            }
         }
     }
 
