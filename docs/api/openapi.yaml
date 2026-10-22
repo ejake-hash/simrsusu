@@ -4779,10 +4779,11 @@ paths:
       summary: Daftar kunjungan satu poli pada satu tanggal (paginasi kursor)
       description: |
         Izin: pendaftaran.pasien.lihat, cakupan `rs`. `tanggal` dan `poli_id` wajib (papan kunjungan per poli per hari;
-        tanpa salah satunya → 422 `validasi_gagal`). Urut: nomor urut daftar naik, lalu `(dibuat_pada, id)` untuk kursor
-        keyset. `status` menyaring (bawaan: semua kecuali `batal`; `status=batal` menampilkan yang batal saja). Kunjungan
-        batal tetap tampil dengan `status=batal` agar dapat ditelusuri, tidak dihapus. Ringkasan pasien hanya memuat
-        No. RM, nama, jenis kelamin, dan tanggal lahir (dua penanda identitas, 5.1 butir 9); NIK tidak dikirim di sini.
+        tanpa salah satunya → 422 `validasi_gagal`). Urut: terlama didaftarkan dulu; kursor keyset `(dibuat_pada, id)`
+        (14.1.1). `status` menyaring (bawaan: semua kecuali `batal`; `status=batal` menampilkan yang batal saja). Kunjungan
+        batal tetap tampil dengan `status=batal` agar dapat ditelusuri, tidak dihapus. Ringkasan pasien memuat No. RM, nama,
+        jenis kelamin, dan tanggal lahir (cukup untuk dua penanda identitas nama + No. RM/tanggal lahir, 5.1 butir 9);
+        NIK dan alamat tidak dikirim di sini.
       parameters:
         - { in: query, name: tanggal, required: true, schema: { type: string, format: date } }
         - { in: query, name: poli_id, required: true, schema: { type: string, format: uuid } }
@@ -6789,9 +6790,7 @@ components:
         status: { $ref: '#/components/schemas/StatusKunjungan' }
         keluhan: { type: [string, 'null'] }
         alasan_batal: { type: [string, 'null'] }
-        dibatalkan_oleh:
-          description: "Pelaku pembatalan; null bila belum batal. Pembatalan otomatis karena jam tutup = pelaku sistem (null nama)."
-          oneOf: [{ $ref: '#/components/schemas/Pelaku' }, { type: 'null' }]
+        dibatalkan_oleh: { $ref: '#/components/schemas/Pelaku', description: "Pelaku pembatalan; null bila belum batal. Pembatalan otomatis karena jam tutup = pelaku sistem (Pelaku null)." }
         dibatalkan_pada: { type: [string, 'null'], format: date-time }
         didaftarkan_oleh: { $ref: '#/components/schemas/Pelaku' }
         versi: { type: string }
