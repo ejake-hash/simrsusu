@@ -28,7 +28,7 @@ final class MenuBawaan
     public const IZIN_PENYIAP = ['pengaturan.penyiapan.lihat', 'pengaturan.penyiapan.perbaiki', 'master_data.katalog.lihat', 'master_data.katalog.input'];
 
     /** Halaman yang sudah dibangun; menu lain tampil sebagai Segera hadir atau disembunyikan. */
-    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.usulan', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'sdm.pegawai'];
+    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.usulan', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'pendaftaran.master_pasien', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'sdm.pegawai'];
 
     /** Aksi dasar Permenkes 24/2022 Ps. 30 ayat 3 untuk setiap sub-menu (FR-09-03). */
     public const AKSI_DASAR = ['lihat', 'input', 'perbaiki'];
@@ -38,6 +38,8 @@ final class MenuBawaan
         'master_data.usulan' => ['verifikasi', 'setujui'],
         // Tiket 2.6: pembatalan kunjungan dengan alasan (FR-01-21).
         'pendaftaran.pasien' => ['batal'],
+        // Tiket 2.9: usul gabung RM ganda dan verifikasinya oleh Rekam Medis (FR-01-02).
+        'pendaftaran.master_pasien' => ['usul', 'verifikasi'],
     ];
 
     /** Superadmin mengelola peran, akun, dan profil RS (wizard langkah 2); tidak membuka rekam medis, rupiah, atau data induk milik unit (PRD 9.2.4, FR-54-01). */

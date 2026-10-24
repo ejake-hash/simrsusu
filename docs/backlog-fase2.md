@@ -29,7 +29,7 @@ Format dan aturan agen ada di skill `kerja-tiket` § 1–2 dan § 5. Ringkas: sa
 | 2.6 | Kunjungan poli + episode + relasi perawatan | BE+FE | M | 2.4, 2.5 · **FE selesai** (PR #130, layar pendaftaran kunjungan poli, data tiruan v0.20.0); **BE selesai** (PR #129: kunjungan, episode, relasi perawatan lapis 4, batal otomatis; merge setelah pemilik memeriksa lapis 4); integrasi FE menyusul |
 | 2.7 | Kepesertaan, rujukan, dan SEP (simulator VClaim) | BE+FE | M | 2.6 |
 | 2.8 | Antrean loket dan poli + display | BE+FE | M | 2.6 |
-| 2.9 | Duplikat pasien + usulan gabung RM | BE+FE | M | 2.5 |
+| 2.9 | Duplikat pasien + usulan gabung RM | BE+FE | M | 2.5 · **Selesai** (satu PR BE+FE, kontrak v0.21.0; usulan dua tahap meniru pola 1.8c, tabel sendiri `pasien.usulan_gabung`; unmerge = utang) |
 
 Urutan paralel (dua agen hanya bila kuota cukup; satu agen = kolom BE lalu FE berurutan):
 
@@ -165,6 +165,7 @@ Uji    :
 - Gabung memindahkan kunjungan ke RM tujuan; RM lama ditandai "digabung ke …", tidak dihapus; bisa ditelusuri.
 - Pengusul ≠ verifikator.
 Di luar: pemisahan RM (unmerge) — catat sebagai utang bila tidak muat.
+Utang 2.9: pemisahan RM (unmerge) belum ada; identitas (NIK/kartu BPJS) RM lama tetap di RM lama; notifikasi kotak kerja ke Rekam Medis belum ada.
 
 ### Keluar Tahap A (di staging, data sintetis)
 - e2e: pasien baru BPJS → kunjungan poli → SEP (simulator) → antrean → dipanggil → display.

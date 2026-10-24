@@ -97,7 +97,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
   usulanTerbuka = usulan.usulanTerbuka
   const penyiapan = buatServerPenyiapan({ boleh: akses.bolehSaya, pelaku: () => ({ id: opsi.penggunaId ?? ID_SUPERADMIN, nama: 'Contoh Superadmin' }), sekarang: opsi.sekarang })
   const penjamin = buatServerPenjamin({ boleh: akses.bolehSaya, sekarang: opsi.sekarang })
-  const pasien = buatServerPasien({ boleh: akses.bolehSaya, sekarang: opsi.sekarang })
+  const pasien = buatServerPasien({ boleh: akses.bolehSaya, penggunaId: () => akses.penggunaSaatIni(), sekarang: opsi.sekarang })
   const kunjungan = buatServerKunjungan({
     boleh: akses.bolehSaya,
     jadwal: { ambil: jadwal.ambil, keterisian: jadwal.keterisian, konsumsi: jadwal.konsumsi, slotPoli: jadwal.slotPoli },

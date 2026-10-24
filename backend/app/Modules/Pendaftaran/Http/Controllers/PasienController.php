@@ -57,6 +57,22 @@ final class PasienController
         return $this->satu($request, $kelola->buat($request->user(), $isi), 201);
     }
 
+    /**
+     * Peringatan sebelum simpan (FR-01-02): pasien berlaku dengan tanggal lahir sama dan nama mirip. Tidak memblokir;
+     * petugas memutuskan. Nama dan tanggal lahir di badan permintaan, bukan URL.
+     */
+    public function cekDuplikat(Request $request, CatatAktivitas $audit): JsonResponse
+    {
+        self::izin('pendaftaran.pasien.input');
+        $isi = $request->validate(['nama' => ['required', 'string', 'min:3', 'max:150'], 'tanggal_lahir' => ['required', 'date_format:Y-m-d']]);
+        $baris = Pasien::query()->whereNull('digabung_ke_id')->where('tanggal_lahir', $isi['tanggal_lahir'])
+            ->whereRaw('similarity(nama, ?) >= ?', [$isi['nama'], (float) config('instalasi.ambang_nama_mirip')])
+            ->orderByRaw('similarity(nama, ?) DESC', [$isi['nama']])->orderBy('id')->limit(10)->get();
+        $audit->catat('pasien.dicek_duplikat', $request->user()->id, null, null, ['jumlah' => $baris->count()]);
+
+        return (new JsonResponse(['data' => $this->resource->banyak($baris, $request->user())]))->header('Cache-Control', 'no-store');
+    }
+
     public function update(Request $request, string $pasien, KelolaPasien $kelola): JsonResponse
     {
         // Izin diperiksa sebelum mencari pasien: tanpa izin, ada atau tidaknya id tidak terbaca dari 403/404.

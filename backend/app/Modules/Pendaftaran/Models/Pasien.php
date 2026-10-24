@@ -30,6 +30,8 @@ use Illuminate\Support\Carbon;
  * @property bool $tanpa_identitas
  * @property string|null $ciri_pengenal
  * @property Carbon|null $meninggal_pada
+ * @property string|null $digabung_ke_id
+ * @property Carbon|null $digabung_pada
  * @property int $revisi
  * @property Carbon $dibuat_pada
  * @property Carbon $diubah_pada
@@ -63,7 +65,7 @@ final class Pasien extends Model
     protected function casts(): array
     {
         return [
-            'tanggal_lahir' => 'date', 'meninggal_pada' => 'datetime', 'tanpa_identitas' => 'boolean', 'revisi' => 'integer',
+            'tanggal_lahir' => 'date', 'meninggal_pada' => 'datetime', 'digabung_pada' => 'datetime', 'tanpa_identitas' => 'boolean', 'revisi' => 'integer',
             'alamat_enkripsi' => 'encrypted:array', 'telepon_enkripsi' => 'encrypted',
         ];
     }

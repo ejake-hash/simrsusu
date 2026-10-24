@@ -61,6 +61,8 @@ const AKSI_KHUSUS: Record<string, [JenisAksi, boolean][]> = {
   'master_data.usulan': [['verifikasi', false], ['setujui', false]],
   // Pembatalan kunjungan poli (2.6-be: MenuBawaan aksi baru `batal`, FR-01-21).
   'pendaftaran.pasien': [['batal', false]],
+  // Gabung RM ganda (2.9-be: aksi usul/verifikasi di MenuBawaan; pengusul ≠ pemverifikasi dijaga server).
+  'pendaftaran.master_pasien': [['usul', false], ['verifikasi', false]],
 }
 const BAGIAN: Record<string, [kode: string, label: string, ikutInduk: boolean][]> = {
   'kasir.tagihan': [['panel_diskon', 'Panel diskon', false], ['panel_bantuan', 'Panel bantuan', true]],
@@ -72,7 +74,7 @@ const BAGIAN: Record<string, [kode: string, label: string, ikutInduk: boolean][]
 }
 const AKSI_BAGIAN: Record<string, JenisAksi[]> = { 'sdm.pegawai.identitas': ['lihat'], 'pendaftaran.pasien.identitas': ['lihat'] }
 
-export const TERSEDIA = new Set(['beranda', 'pendaftaran.pasien', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.penjamin', 'master_data.usulan', 'master_data.jadwal_praktik', 'master_data.tarif', 'sdm.pegawai'])
+export const TERSEDIA = new Set(['beranda', 'pendaftaran.pasien', 'pendaftaran.master_pasien', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.penjamin', 'master_data.usulan', 'master_data.jadwal_praktik', 'master_data.tarif', 'sdm.pegawai'])
 /** Modul yang dimatikan di instalasi contoh, agar penanda "modul nonaktif" ikut teruji. */
 const MODUL_NONAKTIF = new Set(['kamar_operasi'])
 

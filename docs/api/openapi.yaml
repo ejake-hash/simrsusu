@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.21.0
+  version: 0.22.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -101,6 +101,11 @@ info:
     `rujukan_tidak_sesuai`, `rujukan_kedaluwarsa`; 409 `sep_sudah_terbit`, `sep_sedang_diproses`, `status_tidak_sesuai`,
     `jeda_panggilan_belum_lewat`, `batas_panggilan_tercapai`, `sesi_berakhir`; 503 `integrasi_tidak_tersedia`. Hanya
     kontrak; kode (`integrasi.sep`, `kunjungan.antrean`, `kunjungan.antrean_jejak`, simulator VClaim) menyusul di tiket BE.
+    v0.21.0: Duplikat pasien dan usulan gabung RM (tiket 2.9; FR-01-02): POST /pasien/cek-duplikat (peringatan sebelum
+    simpan), GET|POST /gabung-pasien, POST /gabung-pasien/{id}/verifikasi. Aksi baru `usul` (JenisAksi) dan
+    `pendaftaran.master_pasien.usul|verifikasi`. Pasien.digabung_ke dan digabung_dari (jejak RM lama). Error baru:
+    409 `usulan_gabung_terbuka`, `pasien_sudah_digabung`, `gabung_bentrok`, `pasien_digabung`, `tahap_tidak_sesuai`;
+    403 `bukan_pemverifikasi`.
 servers:
   - url: /api/v1
 security:
@@ -4772,6 +4777,129 @@ paths:
         '412': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '428': { $ref: '#/components/responses/Error' }
+  /pasien/cek-duplikat:
+    post:
+      operationId: cekDuplikatPasien
+      summary: Peringatan duplikat sebelum pasien baru disimpan (nama mirip + tanggal lahir sama)
+      description: |
+        Izin: pendaftaran.pasien.input. Mengembalikan paling banyak 10 pasien berlaku (belum digabung) dengan tanggal lahir
+        sama persis dan nama mirip (trigram; ambang dari konfigurasi server), termirip dulu. Tidak memblokir: petugas
+        memutuskan membuka pasien yang ada atau tetap menyimpan. Nama dan tanggal lahir di badan, bukan URL. Audit
+        `pasien.dicek_duplikat` (jumlah saja).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nama, tanggal_lahir]
+              properties:
+                nama: { type: string, minLength: 3, maxLength: 150 }
+                tanggal_lahir: { type: string, format: date }
+      responses:
+        '200':
+          description: Kandidat duplikat (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { type: array, maxItems: 10, items: { $ref: '#/components/schemas/Pasien' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /gabung-pasien:
+    get:
+      operationId: daftarGabungPasien
+      summary: Daftar usulan gabung RM (paginasi kursor)
+      description: Izin pendaftaran.master_pasien.lihat. Terbaru dulu; `?tahap=` menyaring.
+      parameters:
+        - in: query
+          name: tahap
+          schema: { type: string, enum: [diusulkan, digabung, ditolak] }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman usulan
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/UsulanGabung' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: usulkanGabungPasien
+      summary: Usulkan menggabung RM ganda
+      description: |
+        Izin: pendaftaran.master_pasien.usul. `pasien_sumber_id` = RM yang digabung (ditandai "digabung ke …"),
+        `pasien_tujuan_id` = RM yang dipertahankan. Belum ada perubahan data sampai diverifikasi.
+        - 409 `pasien_sudah_digabung`: salah satu RM sudah digabung. 409 `usulan_gabung_terbuka`: salah satu RM sudah ada
+          di usulan yang belum diputuskan. 404 `tidak_ditemukan`. 422 `validasi_gagal` (sumber = tujuan).
+        Audit `pasien.gabung_diusulkan` (id pasien saja).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pasien_sumber_id, pasien_tujuan_id, alasan]
+              properties:
+                pasien_sumber_id: { type: string, format: uuid }
+                pasien_tujuan_id: { type: string, format: uuid }
+                alasan: { type: string, minLength: 5, maxLength: 300 }
+      responses:
+        '201':
+          description: Usulan tercatat (tahap diusulkan)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/UsulanGabung' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /gabung-pasien/{id}/verifikasi:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: verifikasiGabungPasien
+      summary: Setujui atau tolak usulan gabung RM (verifikator Rekam Medis)
+      description: |
+        Izin: pendaftaran.master_pasien.verifikasi (diberikan ke peran Rekam Medis). Pengusul tidak boleh memverifikasi
+        usulannya sendiri (403 `bukan_pemverifikasi`). `setuju`: dalam satu transaksi kunjungan, episode, dan relasi
+        perawatan RM sumber pindah ke RM tujuan, RM sumber ditandai `digabung_ke`; tidak ada yang dihapus.
+        `tolak` wajib `catatan`.
+        - 409 `tahap_tidak_sesuai` (sudah diputuskan), `pasien_sudah_digabung`, `gabung_bentrok` (kunjungan kedua RM
+          bertumpuk pada poli+tanggal atau episode harian yang sama; usulan tetap terbuka).
+        Audit `pasien.gabung_diterapkan` atau `pasien.gabung_ditolak`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keputusan]
+              properties:
+                keputusan: { type: string, enum: [setuju, tolak] }
+                catatan: { type: [string, 'null'], minLength: 5, maxLength: 300 }
+      responses:
+        '200':
+          description: Usulan sesudah diputuskan
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/UsulanGabung' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   # ---------------------------------------------------------------------------
   # Kunjungan poli + episode (tiket 2.6; PRD FR-01-06, FR-01-15, FR-01-21, FR-00-01, FR-00-04, 7.00.2, 7.01).
   # Izin: `pendaftaran.pasien.lihat|input` + aksi baru `pendaftaran.pasien.batal`, cakupan `rs`.
@@ -6608,7 +6736,7 @@ components:
       description: "Diterima: `rs` (cakupan_id kosong) dan `unit` (cakupan_id = unit aktif, tiket 1.8a; unit induk mencakup turunannya). Lainnya 422 cakupan_belum_didukung"
     JenisAksi:
       type: string
-      enum: [lihat, input, perbaiki, sahkan, verifikasi, setujui, batal, ekspor, cetak, lihat_rupiah]
+      enum: [lihat, input, perbaiki, sahkan, verifikasi, setujui, batal, ekspor, cetak, lihat_rupiah, usul]
     PermintaanBatal:
       type: object
       required: [alasan_batal]
@@ -7005,11 +7133,56 @@ components:
       properties:
         kode: { type: string }
         label: { type: string }
+    RujukanPasien:
+      type: object
+      required: [id, no_rm]
+      properties:
+        id: { type: string, format: uuid }
+        no_rm: { type: string }
+    RingkasPasienGabung:
+      type: object
+      required: [id, no_rm, nama, tanggal_lahir]
+      properties:
+        id: { type: string, format: uuid }
+        no_rm: { type: string }
+        nama: { type: string }
+        tanggal_lahir: { type: [string, 'null'], format: date }
+    UsulanGabung:
+      type: object
+      required: [id, tahap, sumber, tujuan, alasan, diusulkan_oleh, diusulkan_pada, diverifikasi_oleh, diverifikasi_pada, catatan_verifikasi,
+        jumlah_dipindah, dapat_verifikasi, dibuat_pada]
+      properties:
+        id: { type: string, format: uuid }
+        tahap: { type: string, enum: [diusulkan, digabung, ditolak] }
+        sumber: { $ref: '#/components/schemas/RingkasPasienGabung' }
+        tujuan: { $ref: '#/components/schemas/RingkasPasienGabung' }
+        alasan: { type: string }
+        diusulkan_oleh: { $ref: '#/components/schemas/PelakuGabung' }
+        diusulkan_pada: { type: string, format: date-time }
+        diverifikasi_oleh: { oneOf: [{ $ref: '#/components/schemas/PelakuGabung' }, { type: 'null' }] }
+        diverifikasi_pada: { type: [string, 'null'], format: date-time }
+        catatan_verifikasi: { type: [string, 'null'] }
+        jumlah_dipindah:
+          type: [object, 'null']
+          description: "Terisi sesudah digabung: jumlah objek yang dipindah"
+          required: [kunjungan, episode, relasi_perawatan]
+          properties:
+            kunjungan: { type: integer }
+            episode: { type: integer }
+            relasi_perawatan: { type: integer }
+        dapat_verifikasi: { type: boolean, description: "Akun ini boleh memverifikasi sekarang (izin, tahap diusulkan, bukan pengusul)" }
+        dibuat_pada: { type: string, format: date-time }
+    PelakuGabung:
+      type: object
+      required: [id, nama_pengguna]
+      properties:
+        id: { type: string, format: uuid }
+        nama_pengguna: { type: [string, 'null'] }
     Pasien:
       type: object
       required: [id, no_rm, nama, nik_samaran, no_paspor_samaran, no_kartu_bpjs, tanggal_lahir, tempat_lahir, jenis_kelamin,
         agama, pendidikan, pekerjaan, status_kawin, kewarganegaraan, bahasa, kebutuhan_khusus, alamat, telepon, kontak_darurat,
-        tanpa_identitas, ciri_pengenal, meninggal_pada, jumlah_kunjungan, sejak_tahun, versi, dibuat_pada, diubah_pada]
+        tanpa_identitas, ciri_pengenal, meninggal_pada, digabung_ke, digabung_dari, jumlah_kunjungan, sejak_tahun, versi, dibuat_pada, diubah_pada]
       properties:
         id: { type: string, format: uuid }
         no_rm: { type: string, pattern: '^[0-9]{1,12}$', examples: ['00000127'], description: "Seumur hidup; panjang tetap dari konfigurasi server (nol di depan), tampilan berpemisah urusan klien" }
@@ -7051,6 +7224,8 @@ components:
         tanpa_identitas: { type: boolean }
         ciri_pengenal: { type: [string, 'null'] }
         meninggal_pada: { type: [string, 'null'], format: date-time }
+        digabung_ke: { oneOf: [{ $ref: '#/components/schemas/RujukanPasien' }, { type: 'null' }], description: "Terisi = RM ini sudah digabung ke RM tujuan dan tidak dipakai lagi (FR-01-02); tidak dihapus" }
+        digabung_dari: { type: array, items: { $ref: '#/components/schemas/RujukanPasien' }, description: "RM lama yang digabung ke RM ini (jejak)" }
         jumlah_kunjungan: { type: integer, minimum: 0, description: "Kunjungan yang tidak batal (mulai terisi di tiket 2.6)" }
         sejak_tahun: { type: integer, description: "Tahun pasien pertama terdaftar (zona RS)" }
         versi: { type: string }

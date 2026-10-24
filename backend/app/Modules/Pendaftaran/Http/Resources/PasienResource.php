@@ -43,11 +43,15 @@ final class PasienResource
             ->whereIn('k.id', $baris->pluck('wilayah_id')->filter()->unique()->values())
             ->get(['k.id', 'k.kode_kemendagri', 'k.nama AS kelurahan', 'kc.nama AS kecamatan', 'kb.nama AS kabupaten_kota', 'pv.nama AS provinsi'])
             ->keyBy('id');
+        $ids = $baris->pluck('id');
+        $tujuan = DB::table('pasien.pasien')->whereIn('id', $baris->pluck('digabung_ke_id')->filter()->unique()->values())->pluck('no_rm', 'id');
+        $asal = DB::table('pasien.pasien')->whereIn('digabung_ke_id', $ids)->orderBy('digabung_pada')->get(['id', 'no_rm', 'digabung_ke_id'])
+            ->groupBy('digabung_ke_id');
         $zona = (string) config('instalasi.zona_waktu');
         $kunjungan = DB::table('kunjungan.kunjungan')->whereIn('pasien_id', $baris->pluck('id'))->where('status', '<>', 'batal')
             ->groupBy('pasien_id')->selectRaw('pasien_id, count(*) AS jumlah')->pluck('jumlah', 'pasien_id');
 
-        return $baris->map(function (Pasien $p) use ($boleh, $referensi, $wilayah, $zona, $kunjungan) {
+        return $baris->map(function (Pasien $p) use ($boleh, $referensi, $wilayah, $zona, $kunjungan, $tujuan, $asal) {
             $nik = $p->nilaiIdentitas('nik');
             $paspor = $p->nilaiIdentitas('no_paspor');
             $alamat = $p->alamat_enkripsi;
@@ -87,6 +91,8 @@ final class PasienResource
                 'tanpa_identitas' => $p->tanpa_identitas,
                 'ciri_pengenal' => $p->ciri_pengenal,
                 'meninggal_pada' => $p->meninggal_pada?->toIso8601String(),
+                'digabung_ke' => $p->digabung_ke_id === null ? null : ['id' => $p->digabung_ke_id, 'no_rm' => (string) $tujuan->get($p->digabung_ke_id)],
+                'digabung_dari' => ($asal->get($p->id) ?? collect())->map(fn ($a) => ['id' => $a->id, 'no_rm' => $a->no_rm])->values()->all(),
                 'jumlah_kunjungan' => (int) ($kunjungan[$p->id] ?? 0),
                 'sejak_tahun' => (int) $p->dibuat_pada->clone()->setTimezone($zona)->format('Y'),
                 'versi' => (string) $p->revisi,

@@ -48,6 +48,9 @@ final class KelolaKunjungan
         return DB::transaction(function () use ($petugas, $isi) {
             $pasien = Pasien::query()->whereKey($isi['pasien_id'])->lockForUpdate()->first()
                 ?? throw new ApiError(404, 'tidak_ditemukan', 'Pasien tidak ditemukan.');
+            if ($pasien->digabung_ke_id !== null) {
+                throw new ApiError(409, 'pasien_digabung', 'No. RM ini sudah digabung ke RM lain. Daftarkan kunjungan di RM tujuan.');
+            }
             $jadwal = JadwalPraktik::query()->whereKey($isi['jadwal_praktik_id'])->lockForUpdate()->first()
                 ?? throw new ApiError(404, 'tidak_ditemukan', 'Jadwal praktik tidak ditemukan.');
             $tanggal = (string) $isi['tanggal'];

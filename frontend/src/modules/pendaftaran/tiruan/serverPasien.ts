@@ -1,10 +1,11 @@
 import type { PermintaanTiruan, ResponsTiruan } from '../../akses/tiruan/serverTiruan'
-import type { IsianPasien, JenisCariPasien, JenisKelaminPasien, KodeLabelReferensi, KontakDaruratPasien, Pasien, UbahPasien } from '../tipe'
+import type { IsianPasien, JenisCariPasien, JenisKelaminPasien, KodeLabelReferensi, KontakDaruratPasien, Pasien, UbahPasien, UsulanGabung } from '../tipe'
 
 /**
  * Server tiruan kontrak v0.19.0 (tiket 2.5): GET /pasien (cari satu kolom lewat header X-Cari), POST /pasien
  * (No. RM dibuat server, tanpa celah), PATCH /pasien/{id} (jejak versi, melengkapi Mr. X). Menyimpan keadaan di
- * memori dan meniru aturan kontrak termasuk 409/412/422/428. Semua data sintetis; bukan sumber aturan.
+ * memori dan meniru aturan kontrak termasuk 409/412/422/428. Kontrak v0.22.0 (tiket 2.9): POST /pasien/cek-duplikat,
+ * GET|POST /gabung-pasien, POST /gabung-pasien/{id}/verifikasi. Semua data sintetis; bukan sumber aturan.
  */
 const error = (status: number, kode: string, pesan: string, rincian: Record<string, unknown>[] = []): ResponsTiruan => ({ status, isi: { error: { kode, pesan, rincian } } })
 const uid = (n: number) => `00000000-0000-7000-a000-${n.toString(16).padStart(12, '0')}`
@@ -36,11 +37,14 @@ interface PasienT {
   no_kartu_sidik: string | null
   versi: VersiP[]
   meninggal_pada: string | null
+  digabung_ke: string | null
   dibuat_pada: string
 }
 
 export interface OpsiServerPasien {
   boleh: (kode: string) => boolean
+  /** Id akun yang sedang masuk (pengusul/pemverifikasi gabung RM). */
+  penggunaId?: () => string
   sekarang?: () => Date
 }
 
@@ -94,6 +98,8 @@ export function buatServerPasien(opsi: OpsiServerPasien) {
       tanpa_identitas: v.tanpa_identitas ?? false,
       ciri_pengenal: v.ciri_pengenal ?? null,
       meninggal_pada: t.meninggal_pada,
+      digabung_ke: t.digabung_ke ? { id: t.digabung_ke, no_rm: daftar.find((x) => x.id === t.digabung_ke)!.no_rm } : null,
+      digabung_dari: daftar.filter((x) => x.digabung_ke === t.id).map((x) => ({ id: x.id, no_rm: x.no_rm })),
       jumlah_kunjungan: 0,
       sejak_tahun: Number(t.dibuat_pada.slice(0, 4)),
       versi: String(t.versi.length),
@@ -116,6 +122,7 @@ export function buatServerPasien(opsi: OpsiServerPasien) {
       no_kartu_sidik: isi.no_kartu_bpjs ?? null,
       versi: [{ isi, alasan: null, oleh, pada: iso() }],
       meninggal_pada: null,
+      digabung_ke: null,
       dibuat_pada: iso(),
     }
     daftar.push(t)
@@ -238,10 +245,85 @@ export function buatServerPasien(opsi: OpsiServerPasien) {
     return { status: 200, header: { ...NO_STORE, ETag: `"${t.versi.length}"` }, isi: { data: bentuk(t) } }
   }
 
+  // ── Duplikat dan gabung RM (kontrak v0.22.0) ──
+  const gabung: UsulanGabung[] = []
+  const ringkasGabung = (t: PasienT) => {
+    const v = t.versi[t.versi.length - 1]!.isi
+    return { id: t.id, no_rm: t.no_rm, nama: v.nama ?? namaSementara(v.jenis_kelamin), tanggal_lahir: v.tanggal_lahir ?? null }
+  }
+  const bentukGabung = (u: UsulanGabung): UsulanGabung => ({ ...u, dapat_verifikasi: u.tahap === 'diusulkan' && opsi.boleh('pendaftaran.master_pasien.verifikasi') && u.diusulkan_oleh.id !== (opsi.penggunaId?.() ?? '') })
+
+  function cekDuplikat(isi: { nama?: string; tanggal_lahir?: string }): ResponsTiruan {
+    if (!isi.nama || isi.nama.trim().length < 3 || !isi.tanggal_lahir) return salahIsi([{ kolom: 'nama', pesan: 'Isi nama (minimal 3 huruf) dan tanggal lahir.' }])
+    const hasil = daftar.filter((t) => !t.digabung_ke && t.versi[t.versi.length - 1]!.isi.tanggal_lahir === isi.tanggal_lahir && miripNama(t.versi[t.versi.length - 1]!.isi.nama ?? '', isi.nama!)).slice(0, 10)
+    return { status: 200, header: NO_STORE, isi: { data: hasil.map(bentuk) } }
+  }
+
+  function usulGabung(isi: { pasien_sumber_id?: string; pasien_tujuan_id?: string; alasan?: string }): ResponsTiruan {
+    if (!opsi.boleh('pendaftaran.master_pasien.usul')) return error(403, 'akses_ditolak', 'Anda tidak berhak mengusulkan gabung RM.')
+    const sumber = daftar.find((x) => x.id === isi.pasien_sumber_id)
+    const tujuan = daftar.find((x) => x.id === isi.pasien_tujuan_id)
+    if (!sumber || !tujuan) return error(404, 'tidak_ditemukan', 'Pasien tidak ditemukan.')
+    if (sumber.id === tujuan.id) return salahIsi([{ kolom: 'pasien_tujuan_id', pesan: 'RM tujuan harus berbeda dari RM yang digabung.' }])
+    if (!isi.alasan || isi.alasan.trim().length < 5) return salahIsi([{ kolom: 'alasan', pesan: 'Isi alasan, minimal 5 karakter.' }])
+    if (sumber.digabung_ke || tujuan.digabung_ke) return error(409, 'pasien_sudah_digabung', 'Salah satu RM sudah digabung ke RM lain. Pilih RM yang masih berlaku.')
+    if (gabung.some((u) => u.tahap === 'diusulkan' && [u.sumber.id, u.tujuan.id].some((i) => i === sumber.id || i === tujuan.id))) {
+      return error(409, 'usulan_gabung_terbuka', 'Salah satu RM ini sudah ada di usulan gabung yang belum diputuskan.')
+    }
+    const u: UsulanGabung = {
+      id: uid(++idN), tahap: 'diusulkan', sumber: ringkasGabung(sumber), tujuan: ringkasGabung(tujuan), alasan: isi.alasan.trim(),
+      diusulkan_oleh: { id: opsi.penggunaId?.() ?? uid(1), nama_pengguna: 'contoh.pendaftaran' }, diusulkan_pada: iso(), diverifikasi_oleh: null,
+      diverifikasi_pada: null, catatan_verifikasi: null, jumlah_dipindah: null, dapat_verifikasi: false, dibuat_pada: iso(),
+    }
+    gabung.unshift(u)
+    return { status: 201, header: NO_STORE, isi: { data: bentukGabung(u) } }
+  }
+
+  function verifikasiGabung(id: string, isi: { keputusan?: string; catatan?: string | null }): ResponsTiruan {
+    if (!opsi.boleh('pendaftaran.master_pasien.verifikasi')) return error(403, 'akses_ditolak', 'Anda tidak berhak memverifikasi gabung RM.')
+    const u = gabung.find((x) => x.id === id)
+    if (!u) return error(404, 'tidak_ditemukan', 'Usulan gabung tidak ditemukan.')
+    if (u.diusulkan_oleh.id === (opsi.penggunaId?.() ?? '')) return error(403, 'bukan_pemverifikasi', 'Pengusul tidak bisa memverifikasi usulannya sendiri.')
+    if (u.tahap !== 'diusulkan') return error(409, 'tahap_tidak_sesuai', 'Usulan ini sudah diputuskan.')
+    const setuju = isi.keputusan === 'setuju'
+    if (!setuju && (!isi.catatan || isi.catatan.trim().length < 5)) return salahIsi([{ kolom: 'catatan', pesan: 'Isi catatan penolakan, minimal 5 karakter.' }])
+    if (setuju) {
+      const sumber = daftar.find((x) => x.id === u.sumber.id)!
+      const tujuan = daftar.find((x) => x.id === u.tujuan.id)!
+      if (sumber.digabung_ke || tujuan.digabung_ke) return error(409, 'pasien_sudah_digabung', 'Salah satu RM sudah digabung ke RM lain.')
+      sumber.digabung_ke = tujuan.id
+      u.jumlah_dipindah = { kunjungan: 0, episode: 0, relasi_perawatan: 0 }
+    }
+    u.tahap = setuju ? 'digabung' : 'ditolak'
+    u.diverifikasi_oleh = { id: opsi.penggunaId?.() ?? uid(1), nama_pengguna: 'contoh.rekam_medis' }
+    u.diverifikasi_pada = iso()
+    u.catatan_verifikasi = isi.catatan?.trim() || null
+    return { status: 200, header: NO_STORE, isi: { data: bentukGabung(u) } }
+  }
+
+  function tanganiGabung(r: PermintaanTiruan, segmen: string[]): ResponsTiruan | null {
+    const metode = r.metode.toUpperCase()
+    if (segmen.length === 1 && metode === 'GET') {
+      if (!opsi.boleh('pendaftaran.master_pasien.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak melihat usulan gabung.')
+      const tahap = r.kueri.get('tahap')
+      const baris = gabung.filter((u) => !tahap || u.tahap === tahap).map(bentukGabung)
+      return { status: 200, header: NO_STORE, isi: { data: baris, meta: { kursor_berikutnya: null } } }
+    }
+    if (segmen.length === 1 && metode === 'POST') return usulGabung((r.isi ?? {}) as Parameters<typeof usulGabung>[0])
+    if (segmen.length === 3 && segmen[2] === 'verifikasi' && metode === 'POST') return verifikasiGabung(segmen[1]!, (r.isi ?? {}) as Parameters<typeof verifikasiGabung>[1])
+    return null
+  }
+
   function tangani(r: PermintaanTiruan): ResponsTiruan | null {
-    const [a0, a1] = r.jalur.replace(/^\/+|\/+$/g, '').split('/')
+    const segmen = r.jalur.replace(/^\/+|\/+$/g, '').split('/')
+    const [a0, a1] = segmen
+    if (a0 === 'gabung-pasien') return tanganiGabung(r, segmen)
     if (a0 !== 'pasien') return null
     const metode = r.metode.toUpperCase()
+    if (a1 === 'cek-duplikat' && metode === 'POST') {
+      if (!opsi.boleh('pendaftaran.pasien.input')) return error(403, 'akses_ditolak', 'Anda tidak berhak mendaftarkan pasien.')
+      return cekDuplikat((r.isi ?? {}) as { nama?: string; tanggal_lahir?: string })
+    }
     if (!a1) {
       if (metode === 'GET') {
         if (!opsi.boleh('pendaftaran.pasien.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak mencari pasien.')

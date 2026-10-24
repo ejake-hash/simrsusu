@@ -8,8 +8,8 @@ import { errorKolom, pesanError } from '@/modules/akses/pengaturan'
 import type { Berversi } from '@/modules/organisasi/api'
 import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
-import { buatPasien, ubahPasien } from '../api'
-import { LABEL_JENIS_KELAMIN } from '../pasien'
+import { buatPasien, cekDuplikatPasien, ubahPasien } from '../api'
+import { formatNoRm, formatTanggal, LABEL_JENIS_KELAMIN } from '../pasien'
 import type { IsianPasien, JenisKelaminPasien, KontakDaruratPasien, Pasien, UbahPasien } from '../tipe'
 
 /**
@@ -71,6 +71,13 @@ const kesalahan = ref<Record<string, string>>({})
 const error = ref<string | null>(null)
 const versiBerubah = ref(false)
 const sibuk = ref(false)
+/** Pasien dengan nama mirip dan tanggal lahir sama (FR-01-02): petugas memeriksa dulu sebelum membuat No. RM baru. */
+const kandidat = ref<Pasien[]>([])
+const duplikatDiperiksa = ref(false)
+watch([nama, tanggalLahir, tanpaIdentitas], () => {
+  kandidat.value = []
+  duplikatDiperiksa.value = false
+})
 
 watch(buka, (b) => {
   if (!b) return
@@ -97,6 +104,8 @@ watch(buka, (b) => {
   kesalahan.value = {}
   error.value = null
   versiBerubah.value = false
+  kandidat.value = []
+  duplikatDiperiksa.value = false
 })
 
 function tambahKontak() {
@@ -156,6 +165,15 @@ async function kirim() {
   sibuk.value = true
   error.value = null
   try {
+    if (!props.pasien && !duplikatDiperiksa.value && !isi.tanpa_identitas && isi.nama && isi.tanggal_lahir) {
+      // Peringatan saja: gagal memeriksa tidak menghalangi pendaftaran (server tetap menolak NIK/kartu ganda).
+      const ada = await cekDuplikatPasien(isi.nama, isi.tanggal_lahir).catch(() => [])
+      duplikatDiperiksa.value = true
+      if (ada.length) {
+        kandidat.value = ada
+        return
+      }
+    }
     let hasil: Berversi<Pasien>
     if (props.pasien) {
       const ubah: UbahPasien = { ...isi, alasan_perubahan: alasan.value.trim() }
@@ -314,6 +332,17 @@ async function kirim() {
       </KolomIsian>
       </fieldset>
 
+      <div v-if="kandidat.length" class="catatan catatan-peringatan duplikat" role="alert" data-uji="peringatan-duplikat">
+        <Ikon nama="peringatan" :ukuran="16" />
+        <div>
+          <b>Mungkin pasien ini sudah terdaftar.</b>
+          <p>Ada {{ kandidat.length }} pasien dengan nama mirip dan tanggal lahir sama. Periksa dulu agar tidak membuat No. RM ganda.</p>
+          <ul>
+            <li v-for="k in kandidat" :key="k.id"><code>{{ formatNoRm(k.no_rm) }}</code> {{ k.nama }}, lahir {{ formatTanggal(k.tanggal_lahir) }}</li>
+          </ul>
+          <p>Bila memang orang yang berbeda, pilih "Tetap daftarkan sebagai pasien baru".</p>
+        </div>
+      </div>
       <p v-if="error" class="catatan catatan-bahaya" role="alert">
         <Ikon nama="peringatan" :ukuran="16" />
         <span>{{ error }}</span>
@@ -322,12 +351,22 @@ async function kirim() {
     </form>
     <template #aksi>
       <button type="button" class="tombol" :disabled="sibuk" @click="buka = false">{{ bacaSaja ? 'Tutup' : 'Batal' }}</button>
-      <Tombol v-if="!bacaSaja" type="submit" form="form-pasien" varian="utama" :sibuk="sibuk">{{ sibuk ? 'Menyimpan…' : pasien ? 'Simpan perubahan' : 'Daftarkan pasien' }}</Tombol>
+      <Tombol v-if="!bacaSaja" type="submit" form="form-pasien" varian="utama" :sibuk="sibuk">{{ sibuk ? 'Menyimpan…' : pasien ? 'Simpan perubahan' : kandidat.length ? 'Tetap daftarkan sebagai pasien baru' : 'Daftarkan pasien' }}</Tombol>
     </template>
   </Dialog>
 </template>
 
 <style scoped>
+.duplikat {
+  align-items: flex-start;
+}
+.duplikat ul {
+  margin: var(--space-1) 0;
+  padding-left: var(--space-4);
+}
+.duplikat p {
+  margin: var(--space-1) 0;
+}
 .sakelar-identitas {
   display: flex;
   gap: var(--space-2);

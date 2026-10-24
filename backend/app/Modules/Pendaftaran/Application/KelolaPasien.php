@@ -54,6 +54,9 @@ final class KelolaPasien
             if (IfMatch::revisi($versi) !== $pasien->revisi) {
                 throw new ApiError(412, 'versi_berubah', 'Data pasien ini diubah orang lain sejak Anda membukanya. Muat ulang untuk melihat perubahan terbaru.');
             }
+            if ($pasien->digabung_ke_id !== null) {
+                throw new ApiError(409, 'pasien_digabung', 'No. RM ini sudah digabung ke RM lain dan tidak diubah lagi. Perbaiki data di RM tujuan.');
+            }
             $sebelum = $this->isi($pasien);
 
             foreach (['nik', 'no_paspor'] as $field) {

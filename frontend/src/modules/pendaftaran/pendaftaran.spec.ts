@@ -239,4 +239,28 @@ describe('Layar pendaftaran pasien', () => {
     expect(post).toBeTruthy()
     expect((post!.isi as { tanpa_identitas?: boolean }).tanpa_identitas).toBe(true)
   })
+
+  it('nama mirip + tanggal lahir sama memunculkan peringatan sebelum simpan; baru tersimpan setelah dikonfirmasi', async () => {
+    await pasang()
+    await klik(tombol('Pasien baru'))
+    await isi('Nama lengkap', 'Contoh Pasien Satu')
+    await isi('Tanggal lahir', '1980-03-12')
+    await klik(document.querySelector<HTMLButtonElement>('button[form="form-pasien"]'))
+    expect(permintaan.some((p) => p.metode === 'post' && p.jalur === '/pasien/cek-duplikat')).toBe(true)
+    expect(permintaan.some((p) => p.metode === 'post' && p.jalur === '/pasien')).toBe(false)
+    expect(document.querySelector('[data-uji="peringatan-duplikat"]')?.textContent).toContain('Contoh Pasien Satu')
+    // Tombol berubah menjadi konfirmasi; menekannya menyimpan tanpa memeriksa ulang.
+    await klik(tombol('Tetap daftarkan sebagai pasien baru') ?? null)
+    expect(permintaan.some((p) => p.metode === 'post' && p.jalur === '/pasien')).toBe(true)
+  })
+
+  it('tanpa kemiripan, pasien langsung tersimpan tanpa peringatan', async () => {
+    await pasang()
+    await klik(tombol('Pasien baru'))
+    await isi('Nama lengkap', 'Zzz Tidak Ada Kembar')
+    await isi('Tanggal lahir', '1980-03-12')
+    await klik(document.querySelector<HTMLButtonElement>('button[form="form-pasien"]'))
+    expect(document.querySelector('[data-uji="peringatan-duplikat"]')).toBeNull()
+    expect(permintaan.some((p) => p.metode === 'post' && p.jalur === '/pasien')).toBe(true)
+  })
 })

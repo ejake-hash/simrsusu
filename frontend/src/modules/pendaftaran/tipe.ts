@@ -61,11 +61,20 @@ export interface Pasien {
   tanpa_identitas: boolean
   ciri_pengenal: string | null
   meninggal_pada: string | null
+  /** Terisi = RM ini sudah digabung ke RM tujuan dan tidak dipakai lagi (FR-01-02, kontrak v0.22.0). */
+  digabung_ke: RujukanPasien | null
+  /** RM lama yang digabung ke RM ini. */
+  digabung_dari: RujukanPasien[]
   jumlah_kunjungan: number
   sejak_tahun: number
   versi: string
   dibuat_pada: string
   diubah_pada: string
+}
+
+export interface RujukanPasien {
+  id: string
+  no_rm: string
 }
 
 export interface HalamanPasien extends Halaman<Pasien> {
@@ -107,4 +116,39 @@ export interface IsianPasien {
 /** PATCH menambah `alasan_perubahan` wajib dan `tanpa_identitas: false` untuk melengkapi Mr. X. */
 export interface UbahPasien extends Partial<IsianPasien> {
   alasan_perubahan: string
+}
+
+/** Gabung RM ganda (tiket 2.9, kontrak v0.22.0). */
+export type TahapGabung = 'diusulkan' | 'digabung' | 'ditolak'
+
+export interface RingkasPasienGabung {
+  id: string
+  no_rm: string
+  nama: string
+  tanggal_lahir: string | null
+}
+
+export interface PelakuGabung {
+  id: string
+  nama_pengguna: string | null
+}
+
+export interface UsulanGabung {
+  id: string
+  tahap: TahapGabung
+  sumber: RingkasPasienGabung
+  tujuan: RingkasPasienGabung
+  alasan: string
+  diusulkan_oleh: PelakuGabung
+  diusulkan_pada: string
+  diverifikasi_oleh: PelakuGabung | null
+  diverifikasi_pada: string | null
+  catatan_verifikasi: string | null
+  jumlah_dipindah: { kunjungan: number; episode: number; relasi_perawatan: number } | null
+  dapat_verifikasi: boolean
+  dibuat_pada: string
+}
+
+export interface HalamanGabung extends Halaman<UsulanGabung> {
+  meta: { kursor_berikutnya: string | null }
 }
