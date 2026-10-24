@@ -120,6 +120,8 @@ function selesai(hasil: Berversi<Pasien>) {
           <b>{{ p.nama }}</b>
           <Lencana v-if="p.tanpa_identitas" jenis="peringatan" class="tanda">Tanpa identitas</Lencana>
           <Lencana v-if="p.meninggal_pada" jenis="netral" class="tanda">Meninggal</Lencana>
+          <Lencana v-if="p.digabung_ke" jenis="info" class="tanda">Digabung ke {{ formatNoRm(p.digabung_ke.no_rm) }}</Lencana>
+          <Lencana v-if="p.digabung_dari.length" jenis="netral" class="tanda">Gabungan dari {{ p.digabung_dari.map((d) => formatNoRm(d.no_rm)).join(', ') }}</Lencana>
         </template>
         <template #sel-nik="{ baris: p }">
           <span class="nik">{{ tampilanNik(p) ?? '—' }}</span>

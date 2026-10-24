@@ -1,9 +1,20 @@
-import type { JenisCariPasien, JenisKelaminPasien, Pasien } from './tipe'
+import type { JenisCariPasien, JenisKelaminPasien, Pasien, TahapGabung } from './tipe'
 
 /** Kunci cache dan label bersama layar Pendaftaran pasien (tiket 2.5, kontrak v0.19.0). */
 export const KUNCI_PASIEN = {
   semua: ['pasien'] as const,
   cari: (kata: string) => ['pasien', 'cari', kata] as const,
+}
+
+/** Cache dan label usulan gabung RM (tiket 2.9, kontrak v0.21.0). */
+export const KUNCI_GABUNG = {
+  semua: ['gabung-pasien'] as const,
+  daftar: (tahap: string) => ['gabung-pasien', tahap] as const,
+}
+export const LABEL_TAHAP_GABUNG: Record<TahapGabung, string> = {
+  diusulkan: 'Menunggu verifikasi',
+  digabung: 'Sudah digabung',
+  ditolak: 'Ditolak',
 }
 
 export const LABEL_JENIS_KELAMIN: Record<JenisKelaminPasien, string> = {

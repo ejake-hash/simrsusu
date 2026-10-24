@@ -13,6 +13,9 @@ return [
     // dengan No. kartu BPJS (13) atau NIK (16). Tidak diubah sesudah pasien pertama terdaftar.
     'panjang_no_rm' => min(12, max(6, (int) env('INSTALASI_PANJANG_NO_RM', 8))),
 
+    // Ambang kemiripan nama (pg_trgm, 0–1) untuk peringatan duplikat pasien baru (tiket 2.9); tanggal lahir harus sama.
+    'ambang_nama_mirip' => min(1.0, max(0.3, (float) env('INSTALASI_AMBANG_NAMA_MIRIP', 0.5))),
+
     // Berkas paket identitas (logo, motif, foto; tiket 1.8a). Produksi: disk S3/MinIO (PRD 10.6); bawaan disk
     // lokal privat. Batas ukuran dalam KB.
     'identitas' => [

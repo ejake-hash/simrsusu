@@ -22,6 +22,7 @@ export const LABEL_AKSI: Record<JenisAksi, string> = {
   ekspor: 'Ekspor',
   cetak: 'Cetak',
   lihat_rupiah: 'Lihat rupiah',
+  usul: 'Usul',
 }
 
 export const LABEL_TINGKAT: Record<Tingkat, string> = { tidak: 'Tidak ada', lihat: 'Lihat', input: 'Input', perbaiki: 'Perbaiki' }

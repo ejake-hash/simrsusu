@@ -69,7 +69,7 @@ return new class extends Migration
             $table->index('menu_id');
         });
         DB::statement("ALTER TABLE akses.izin ADD CONSTRAINT izin_jenis_aksi_cek CHECK (jenis_aksi IN
-            ('lihat', 'input', 'perbaiki', 'sahkan', 'verifikasi', 'setujui', 'batal', 'ekspor', 'cetak', 'lihat_rupiah'))");
+            ('lihat', 'input', 'perbaiki', 'sahkan', 'verifikasi', 'setujui', 'batal', 'ekspor', 'cetak', 'lihat_rupiah', 'usul'))");
 
         Schema::create('akses.peran_menu', function (Blueprint $table) {
             $table->comment('Sub-menu dan bagian yang diberikan peran (lapis 1).');
