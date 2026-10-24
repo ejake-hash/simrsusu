@@ -61,7 +61,7 @@ export interface Pasien {
   tanpa_identitas: boolean
   ciri_pengenal: string | null
   meninggal_pada: string | null
-  /** Terisi = RM ini sudah digabung ke RM tujuan dan tidak dipakai lagi (FR-01-02, kontrak v0.21.0). */
+  /** Terisi = RM ini sudah digabung ke RM tujuan dan tidak dipakai lagi (FR-01-02, kontrak v0.22.0). */
   digabung_ke: RujukanPasien | null
   /** RM lama yang digabung ke RM ini. */
   digabung_dari: RujukanPasien[]
@@ -118,7 +118,7 @@ export interface UbahPasien extends Partial<IsianPasien> {
   alasan_perubahan: string
 }
 
-/** Gabung RM ganda (tiket 2.9, kontrak v0.21.0). */
+/** Gabung RM ganda (tiket 2.9, kontrak v0.22.0). */
 export type TahapGabung = 'diusulkan' | 'digabung' | 'ditolak'
 
 export interface RingkasPasienGabung {

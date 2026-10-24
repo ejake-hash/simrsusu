@@ -10,7 +10,7 @@ import { klien } from '@/shared/api/klien'
 import { aturIzin } from '@/shared/composables/usePermission'
 import { buatPasien, cariPasien, cekDuplikatPasien, daftarGabung, usulkanGabung, verifikasiGabung } from './api'
 
-/** Gabung RM ganda (tiket 2.9, kontrak v0.21.0) terhadap server tiruan: usul → verifikasi, pengusul ≠ pemverifikasi. */
+/** Gabung RM ganda (tiket 2.9, kontrak v0.22.0) terhadap server tiruan: usul → verifikasi, pengusul ≠ pemverifikasi. */
 const adapterAsli = klien.defaults.adapter
 let gabungan: ReturnType<typeof buatServerGabungan>
 

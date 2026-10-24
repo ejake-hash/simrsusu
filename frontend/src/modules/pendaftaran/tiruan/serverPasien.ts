@@ -4,7 +4,7 @@ import type { IsianPasien, JenisCariPasien, JenisKelaminPasien, KodeLabelReferen
 /**
  * Server tiruan kontrak v0.19.0 (tiket 2.5): GET /pasien (cari satu kolom lewat header X-Cari), POST /pasien
  * (No. RM dibuat server, tanpa celah), PATCH /pasien/{id} (jejak versi, melengkapi Mr. X). Menyimpan keadaan di
- * memori dan meniru aturan kontrak termasuk 409/412/422/428. Kontrak v0.21.0 (tiket 2.9): POST /pasien/cek-duplikat,
+ * memori dan meniru aturan kontrak termasuk 409/412/422/428. Kontrak v0.22.0 (tiket 2.9): POST /pasien/cek-duplikat,
  * GET|POST /gabung-pasien, POST /gabung-pasien/{id}/verifikasi. Semua data sintetis; bukan sumber aturan.
  */
 const error = (status: number, kode: string, pesan: string, rincian: Record<string, unknown>[] = []): ResponsTiruan => ({ status, isi: { error: { kode, pesan, rincian } } })
@@ -245,7 +245,7 @@ export function buatServerPasien(opsi: OpsiServerPasien) {
     return { status: 200, header: { ...NO_STORE, ETag: `"${t.versi.length}"` }, isi: { data: bentuk(t) } }
   }
 
-  // ── Duplikat dan gabung RM (kontrak v0.21.0) ──
+  // ── Duplikat dan gabung RM (kontrak v0.22.0) ──
   const gabung: UsulanGabung[] = []
   const ringkasGabung = (t: PasienT) => {
     const v = t.versi[t.versi.length - 1]!.isi

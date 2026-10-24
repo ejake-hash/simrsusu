@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 /**
- * /api/v1/gabung-pasien (kontrak v0.21.0, tiket 2.9). Izin pendaftaran.master_pasien.lihat|usul|verifikasi, cakupan rs.
+ * /api/v1/gabung-pasien (kontrak v0.22.0, tiket 2.9). Izin pendaftaran.master_pasien.lihat|usul|verifikasi, cakupan rs.
  * Nama pasien hanya dikirim sebagai ringkasan usulan (No. RM + nama), tidak pernah di URL atau audit.
  */
 final class GabungPasienController

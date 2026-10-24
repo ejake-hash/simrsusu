@@ -27,7 +27,7 @@ export const buatPasien = async (isian: IsianPasien) => berversi(await klien.pos
 export const ubahPasien = async (id: string, etag: string, isian: UbahPasien) =>
   berversi(await klien.patch(`${JALUR}/${id}`, isian, { headers: { 'If-Match': etag } }))
 
-/** Peringatan sebelum simpan (kontrak v0.21.0): pasien berlaku, tanggal lahir sama, nama mirip. Nama di badan, bukan URL. */
+/** Peringatan sebelum simpan (kontrak v0.22.0): pasien berlaku, tanggal lahir sama, nama mirip. Nama di badan, bukan URL. */
 export async function cekDuplikatPasien(nama: string, tanggalLahir: string): Promise<Pasien[]> {
   const { data } = await klien.post<{ data: Pasien[] }>(`${JALUR}/cek-duplikat`, { nama, tanggal_lahir: tanggalLahir })
   return data.data

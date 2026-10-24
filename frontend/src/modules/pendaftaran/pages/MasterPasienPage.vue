@@ -15,7 +15,7 @@ import { formatNoRm, formatTanggal, KUNCI_GABUNG, LABEL_TAHAP_GABUNG } from '../
 import type { TahapGabung, UsulanGabung } from '../tipe'
 
 /**
- * Pendaftaran → Master pasien (tiket 2.9, kontrak v0.21.0; FR-01-02). Usulan gabung RM ganda: pendaftaran mengusulkan,
+ * Pendaftaran → Master pasien (tiket 2.9, kontrak v0.22.0; FR-01-02). Usulan gabung RM ganda: pendaftaran mengusulkan,
  * Rekam Medis memverifikasi (pengusul ≠ pemverifikasi). RM lama ditandai digabung dan tetap bisa ditelusuri.
  */
 const qc = useQueryClient()

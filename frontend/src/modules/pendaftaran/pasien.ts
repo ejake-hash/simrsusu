@@ -6,7 +6,7 @@ export const KUNCI_PASIEN = {
   cari: (kata: string) => ['pasien', 'cari', kata] as const,
 }
 
-/** Cache dan label usulan gabung RM (tiket 2.9, kontrak v0.21.0). */
+/** Cache dan label usulan gabung RM (tiket 2.9, kontrak v0.22.0). */
 export const KUNCI_GABUNG = {
   semua: ['gabung-pasien'] as const,
   daftar: (tahap: string) => ['gabung-pasien', tahap] as const,

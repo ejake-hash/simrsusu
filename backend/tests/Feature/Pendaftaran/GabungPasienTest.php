@@ -15,7 +15,7 @@ use Tests\Support\KontrakApi;
 use Tests\Support\KunjunganUji;
 use Tests\TestCase;
 
-/** Tiket 2.9: peringatan duplikat dan usulan gabung RM berjenjang (kontrak v0.21.0). Data sintetis saja. */
+/** Tiket 2.9: peringatan duplikat dan usulan gabung RM berjenjang (kontrak v0.22.0). Data sintetis saja. */
 class GabungPasienTest extends TestCase
 {
     use AksesUji, KlienSpa, KontrakApi, KunjunganUji;
