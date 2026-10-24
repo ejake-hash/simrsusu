@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * Gabung RM ganda lewat usulan berjenjang (tiket 2.9; FR-01-02), pola mesin usulan 1.8c: pengusul ≠ pemverifikasi,
  * tahap dibaca ulang dengan kunci baris. Verifikasi "setuju" memindahkan kunjungan, episode, dan relasi perawatan ke RM
- * tujuan dalam satu transaksi; RM sumber ditandai `digabung_ke_id`, tidak dihapus. Audit tanpa nama atau identitas.
+ * tujuan dalam satu transaksi; RM sumber ditandai `digabung_ke_id`, tidak dihapus. Audit hanya memuat id (tanpa nama, No. RM, atau identitas).
  */
 final class GabungPasien
 {
@@ -36,8 +36,7 @@ final class GabungPasien
                 }
                 $u = new UsulanGabung(['sumber_id' => $sumber->id, 'tujuan_id' => $tujuan->id, 'alasan' => $alasan]);
                 $u->forceFill(['diusulkan_oleh' => $pengusul->id, 'diusulkan_pada' => now(), 'dibuat_oleh' => $pengusul->id, 'diubah_oleh' => $pengusul->id])->save();
-                $this->audit->catat('pasien.gabung_diusulkan', $pengusul->id, 'pasien.usulan_gabung', $u->id,
-                    ['no_rm_sumber' => $sumber->no_rm, 'no_rm_tujuan' => $tujuan->no_rm]);
+                $this->audit->catat('pasien.gabung_diusulkan', $pengusul->id, 'pasien.usulan_gabung', $u->id, ['sumber_id' => $sumber->id, 'tujuan_id' => $tujuan->id]);
 
                 return $u;
             });
@@ -66,7 +65,7 @@ final class GabungPasien
                 [$sumber, $tujuan] = $this->kunciPasien($u->sumber_id, $u->tujuan_id);
                 $this->pastikanBisaGabung($sumber, $tujuan);
                 $rincian = $this->pindahkan($sumber, $tujuan, $pemverifikasi->id);
-                $dataAudit = ['no_rm_sumber' => $sumber->no_rm, 'no_rm_tujuan' => $tujuan->no_rm, 'dipindah' => array_map('count', $rincian)];
+                $dataAudit = ['sumber_id' => $sumber->id, 'tujuan_id' => $tujuan->id, 'dipindah' => array_map('count', $rincian)];
             }
             $u->forceFill(['tahap' => $setuju ? 'digabung' : 'ditolak', 'diverifikasi_oleh' => $pemverifikasi->id, 'diverifikasi_pada' => now(),
                 'catatan_verifikasi' => $catatan, 'rincian_pindah' => $rincian, 'diubah_oleh' => $pemverifikasi->id, 'revisi' => $u->revisi + 1])->save();

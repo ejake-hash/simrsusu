@@ -4840,7 +4840,7 @@ paths:
         `pasien_tujuan_id` = RM yang dipertahankan. Belum ada perubahan data sampai diverifikasi.
         - 409 `pasien_sudah_digabung`: salah satu RM sudah digabung. 409 `usulan_gabung_terbuka`: salah satu RM sudah ada
           di usulan yang belum diputuskan. 404 `tidak_ditemukan`. 422 `validasi_gagal` (sumber = tujuan).
-        Audit `pasien.gabung_diusulkan` (No. RM saja).
+        Audit `pasien.gabung_diusulkan` (id pasien saja).
       requestBody:
         required: true
         content:
