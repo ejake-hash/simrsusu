@@ -95,7 +95,8 @@ info:
     di path seperti tulisan tiket, PRD 14.2), POST /kunjungan/{id}/sep (rujukan kedaluwarsa ditolak kecuali IGD; 503 →
     "simpan, terbitkan SEP nanti" lewat `tunda`; tugas SEP_TERTUNDA). Antrean poli + display (tiket 2.8): POST
     /antrean/{id}/panggil|lewati|sisip|batal, GET /display/{area} (polling ETag/304; nomor + inisial, nama poli netral,
-    suara tanpa nama); bagian baru `pendaftaran.antrean.display` untuk akun perangkat display. Error baru: 422
+    suara tanpa nama); bagian baru `pendaftaran.antrean.display` untuk akun perangkat display yang masuk dengan token
+    perangkat (`tokenPerangkat`, PRD 10.3.1), bukan sesi cookie. Error baru: 422
     `bpjs_menolak`, `nomor_tidak_dikenali`, `bukan_jkn`, `no_kartu_wajib`, `pemetaan_bpjs_belum_lengkap`, `rujukan_wajib`,
     `rujukan_tidak_sesuai`, `rujukan_kedaluwarsa`; 409 `sep_sudah_terbit`, `sep_sedang_diproses`, `status_tidak_sesuai`,
     `jeda_panggilan_belum_lewat`, `batas_panggilan_tercapai`, `sesi_berakhir`; 503 `integrasi_tidak_tersedia`. Hanya
@@ -4917,7 +4918,8 @@ paths:
         - Peserta tidak aktif tetap 200 dengan `status.aktif = false` dan keterangan BPJS (UC-01 2b: petugas mengalihkan ke
           penjamin lain dengan persetujuan pasien).
         - `pasien` terisi bila No. kartu atau sidik NIK cocok dengan pasien terdaftar, supaya petugas membuka pasien itu,
-          bukan membuat No. RM baru (FR-01-02).
+          bukan membuat No. RM baru (FR-01-02). Field ini tidak dikirim bila akun tidak memegang `pendaftaran.pasien.lihat`
+          (bagian tanpa izin tidak dikirim, 10.3.1).
         - NIK mengikuti izin bagian `pendaftaran.pasien.identitas.lihat` seperti skema Pasien: tanpa izin hanya `nik_samaran`.
         - 422 `bpjs_menolak` (mis. peserta tidak ditemukan) dan 503 `integrasi_tidak_tersedia`: lihat catatan blok.
         Audit `bpjs.peserta.dibaca` (jenis nomor, hasil, `pasien_id` bila cocok; tanpa nilai nomor).
@@ -4945,7 +4947,8 @@ paths:
       summary: Baca rujukan FKTP/antar-RS dari VClaim beserta masa berlakunya
       description: |
         Izin: pendaftaran.sep.lihat. Tiket menulis `GET /bpjs/rujukan/{no}`; nomor rujukan dipindah ke header `X-Nomor`
-        (PRD 14.2). Header kosong atau lebih dari 40 karakter sesudah di-decode → 422 `nomor_tidak_dikenali`. `asal` membatasi
+        (PRD 14.2). Header kosong atau lebih dari 40 karakter sesudah di-decode (batas yang sama dengan `IsianSep.no_rujukan`)
+        → 422 `nomor_tidak_dikenali`. `asal` membatasi
         pencarian ke rujukan dari FKTP atau dari RS; tanpa `asal` server mencari keduanya.
         Masa berlaku (FR-01-08): `berlaku_sampai` dihitung server dari tanggal rujukan dan masa berlaku rujukan di konfigurasi
         (nilai awal mengikuti ketentuan BPJS, **perlu verifikasi**; bukan konstanta di kode). Terhadap `tanggal`:
@@ -5001,7 +5004,11 @@ paths:
              mengulang permintaan dengan `tunda: true`.
            - `tunda: true` → 202, SEP `menunggu` + kiriman outbox (dikirim pekerja queue `integrasi` sesudah circuit breaker
              tertutup) + tugas `SEP_TERTUNDA` di kotak kerja pemegang `pendaftaran.sep.input` (1.7). Kunjungan tetap
-             tersimpan dan pasien tetap dilayani (UC-01 6a).
+             tersimpan dan pasien tetap dilayani (UC-01 6a). Pemeriksaan langkah 1, 2, dan 4 (bila `diagnosis_awal`
+             dikirim) tetap dijalankan saat itu; rujukan tidak bisa dibaca, jadi `rujukan` hanya berisi `no_rujukan`. Sebelum mengirim, pekerja membaca rujukan
+             dan menjalankan pemeriksaan langkah 3 dengan aturan yang sama. Rujukan kedaluwarsa atau milik peserta lain
+             membuat SEP `ditolak` tanpa dikirim ke BPJS (`galat.sumber = simrs`, `galat.kode` = kode error langkah 3),
+             dan tugas `SEP_TERTUNDA` diperbarui dengan alasannya.
            - selain itu SEP + kiriman disimpan lalu dikirim saat itu juga. Berhasil → 201, SEP `terbit` dengan `no_sep`.
              BPJS menolak → 422 `bpjs_menolak` (kode dan pesan BPJS apa adanya); baris SEP berstatus `ditolak`, kunjungan
              tidak berubah, petugas boleh mengajukan ulang. Batas waktu atau tidak tersambung saat dikirim → 202, SEP
@@ -5053,7 +5060,8 @@ paths:
   #   `kembali`, dan `selesai` diubah kejadian pelayanan (RME, penunjang), bukan endpoint di sini.
   # - Izin petugas `pendaftaran.antrean.perbaiki`, cakupan `rs`. Display memakai bagian baru `pendaftaran.antrean.display`
   #   (aksi `lihat`, tidak sensitif, tidak ikut induk) yang diberikan ke akun perangkat display; akun itu tidak memegang izin
-  #   data pasien. Data pasien tidak pernah ada di respons display, URL, log, atau teks suara.
+  #   data pasien dan masuk dengan token perangkat (`tokenPerangkat`), bukan sesi cookie. Data pasien tidak pernah ada di
+  #   respons display, URL, log, atau teks suara.
   # ---------------------------------------------------------------------------
   /antrean/{id}/panggil:
     parameters:
@@ -5156,11 +5164,18 @@ paths:
     get:
       operationId: bacaDisplayAntrean
       summary: Isi display antrean satu area (polling; tanpa data identitas)
+      security:
+        - tokenPerangkat: []
       description: |
-        Izin: pendaftaran.antrean.display.lihat (akun perangkat display, sesi cookie biasa). Polling setiap `interval_detik`
-        (5–10 detik, dari konfigurasi server); Reverb menyusul Tahap C bersama papan IGD (K1). ETag = sidik isi; If-None-Match
-        yang sama → 304. Display tidak mengirim `X-Permintaan-Latar`: pollingnya dihitung aktivitas, jadi sesi akun perangkat
-        tidak berakhir karena diam selama display menyala.
+        Izin: pendaftaran.antrean.display.lihat. Autentikasi token perangkat (PRD 10.3.1 baris "Kios dan perangkat", 7.01.1),
+        bukan sesi cookie: perangkat display tidak memakai sesi login, jadi batas diam sesi area publik (14.2) tidak
+        dilonggarkan. Token milik akun perangkat display (akun tanpa izin data pasien), berkemampuan `display` saja
+        (endpoint lain menolak token ini dengan 403), dapat dibatasi ke area tertentu (area di luar daftar → 403), bisa
+        dicabut, dan dibatasi laju per perangkat. Token dibuat dan dicabut lewat perintah konsol (2.8-be) sampai halaman
+        Perangkat Anjungan & Display (FR-01-23) dibangun; nilainya hanya tampil sekali saat dibuat dan tersimpan sebagai hash.
+        Akun perangkat nonaktif atau token dicabut → 401.
+        Polling setiap `interval_detik` (5–10 detik, dari konfigurasi server); Reverb menyusul Tahap C bersama papan IGD (K1).
+        ETag = sidik isi tanpa `waktu_server`; If-None-Match yang sama → 304.
         Privasi (FR-02-15, 7.02.1, UU PDP Ps. 4):
         - hanya nomor tampil dan inisial nama (huruf awal paling banyak dua kata nama, contoh `S.W.`); pasien berlabel
           `privasi_tinggi` (B-18) atau tanpa identitas → `inisial` null (nomor saja);
@@ -5211,6 +5226,10 @@ components:
       schema: { type: string }
       description: "ETag/versi dari GET terakhir; tidak cocok → 412 versi_berubah, tidak ada → 428 if_match_wajib"
   securitySchemes:
+    tokenPerangkat:
+      type: http
+      scheme: bearer
+      description: "Token perangkat bercakupan sempit untuk display antrean (tiket 2.8, PRD 10.3.1); bukan token akun orang dan tidak dipakai SPA petugas."
     sesiCookie:
       type: apiKey
       in: cookie
@@ -7135,7 +7154,7 @@ components:
     PesertaBpjs:
       type: object
       required: [no_kartu, nama, nik_samaran, tanggal_lahir, jenis_kelamin, status, jenis_peserta, kelas_hak,
-        faskes_tingkat_pertama, prolanis_prb, pasien, lingkungan, dibaca_pada]
+        faskes_tingkat_pertama, prolanis_prb, lingkungan, dibaca_pada]
       properties:
         no_kartu: { type: string, pattern: '^[0-9]{13}$' }
         nama: { type: string }
@@ -7157,7 +7176,7 @@ components:
         prolanis_prb: { type: [string, 'null'], description: "Keterangan Prolanis/PRB dari BPJS apa adanya; null = tidak ada" }
         pasien:
           type: [object, 'null']
-          description: "Pasien terdaftar yang cocok (No. kartu atau sidik NIK); null = belum terdaftar"
+          description: "Pasien terdaftar yang cocok (No. kartu atau sidik NIK); null = belum terdaftar. Tidak dikirim bila akun tidak memegang `pendaftaran.pasien.lihat`."
           required: [id, no_rm]
           properties:
             id: { type: string, format: uuid }
@@ -7213,11 +7232,11 @@ components:
     StatusSep:
       type: string
       enum: [menunggu, terbit, ditolak, batal]
-      description: "menunggu = tersimpan, belum diterima BPJS (ditunda atau menunggu kirim ulang); terbit = diterima BPJS, `no_sep` terisi; ditolak = BPJS menolak (baris disimpan untuk jejak, kunjungan bisa diajukan ulang); batal = dihapus di VClaim (FR-01-10, B-10; endpointnya menyusul, baris tidak dihapus)."
+      description: "menunggu = tersimpan, belum diterima BPJS (ditunda atau menunggu kirim ulang); terbit = diterima BPJS, `no_sep` terisi; ditolak = BPJS menolak, atau pemeriksaan rujukan oleh pekerja gagal untuk SEP yang ditunda (baris disimpan untuk jejak, kunjungan bisa diajukan ulang); batal = dihapus di VClaim (FR-01-10, B-10; endpointnya menyusul, baris tidak dihapus)."
     Sep:
       type: object
       required: [id, kunjungan_id, episode_id, pasien_id, no_sep, tanggal_sep, jenis_pelayanan, status, rujukan, diagnosis_awal,
-        catatan, peringatan, galat_bpjs, kiriman_id, lingkungan, diajukan_oleh, terbit_pada, dibuat_pada, diubah_pada]
+        catatan, peringatan, galat, kiriman_id, lingkungan, diajukan_oleh, terbit_pada, dibuat_pada, diubah_pada]
       properties:
         id: { type: string, format: uuid }
         kunjungan_id: { type: string, format: uuid }
@@ -7229,16 +7248,17 @@ components:
         status: { $ref: '#/components/schemas/StatusSep' }
         rujukan:
           type: [object, 'null']
-          description: "null = tanpa rujukan (IGD)"
+          description: "null = tanpa rujukan (IGD). Pada SEP yang ditunda, selain `no_rujukan` bernilai null sampai pekerja membaca rujukannya."
           required: [no_rujukan, asal, tanggal_rujukan, berlaku_sampai, status_masa_berlaku]
           properties:
             no_rujukan: { type: string }
-            asal: { $ref: '#/components/schemas/AsalRujukan' }
-            tanggal_rujukan: { type: string, format: date }
-            berlaku_sampai: { type: string, format: date }
-            status_masa_berlaku: { $ref: '#/components/schemas/StatusMasaBerlakuRujukan' }
+            asal: { oneOf: [{ $ref: '#/components/schemas/AsalRujukan' }, { type: 'null' }] }
+            tanggal_rujukan: { type: [string, 'null'], format: date }
+            berlaku_sampai: { type: [string, 'null'], format: date }
+            status_masa_berlaku: { oneOf: [{ $ref: '#/components/schemas/StatusMasaBerlakuRujukan' }, { type: 'null' }] }
         diagnosis_awal:
-          type: object
+          type: [object, 'null']
+          description: "null = SEP ditunda tanpa `diagnosis_awal`; pekerja mengambilnya dari rujukan"
           required: [kode, nama]
           properties:
             kode: { type: string }
@@ -7253,13 +7273,14 @@ components:
             properties:
               kode: { type: string, examples: [rujukan_hampir_habis] }
               pesan: { type: string }
-        galat_bpjs:
+        galat:
           type: [object, 'null']
-          description: "Penolakan atau galat percobaan terakhir dari BPJS, apa adanya; null bila tidak ada"
-          required: [kode_bpjs, pesan_bpjs]
+          description: "Penolakan atau galat percobaan terakhir; null bila tidak ada"
+          required: [sumber, kode, pesan]
           properties:
-            kode_bpjs: { type: string }
-            pesan_bpjs: { type: string }
+            sumber: { type: string, enum: [bpjs, simrs], description: "bpjs = kode dan pesan BPJS apa adanya; simrs = pemeriksaan rujukan oleh pekerja (SEP ditunda)" }
+            kode: { type: string, description: "Kode BPJS, atau kode error SIMRS (mis. rujukan_kedaluwarsa)" }
+            pesan: { type: string }
         kiriman_id: { type: [string, 'null'], format: uuid, description: "Kiriman outbox (GET /integrasi/kotak-keluar)" }
         lingkungan: { oneOf: [{ $ref: '#/components/schemas/LingkunganIntegrasi' }, { type: 'null' }], description: "Lingkungan aktif saat SEP diajukan" }
         diajukan_oleh: { $ref: '#/components/schemas/Pelaku' }
