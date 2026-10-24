@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.20.0
+  version: 0.21.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -91,6 +91,15 @@ info:
     `sudah_dilayani`; 422 `jadwal_tidak_tersedia`, `tanggal_di_luar_jadwal`, `penjamin_wajib`, `penjamin_tidak_sesuai`.
     Pasien.jumlah_kunjungan mulai terisi. Hanya kontrak; kode (tabel `kunjungan.episode`/`kunjungan.kunjungan`,
     `akses.relasi_perawatan` lapis 4, job batal otomatis) menyusul di tiket BE.
+    v0.21.0: Kepesertaan, rujukan, SEP (tiket 2.7): GET /bpjs/peserta, GET /bpjs/rujukan (nomor di header `X-Nomor`, bukan
+    di path seperti tulisan tiket, PRD 14.2), POST /kunjungan/{id}/sep (rujukan kedaluwarsa ditolak kecuali IGD; 503 →
+    "simpan, terbitkan SEP nanti" lewat `tunda`; tugas SEP_TERTUNDA). Antrean poli + display (tiket 2.8): POST
+    /antrean/{id}/panggil|lewati|sisip|batal, GET /display/{area} (polling ETag/304; nomor + inisial, nama poli netral,
+    suara tanpa nama); bagian baru `pendaftaran.antrean.display` untuk akun perangkat display. Error baru: 422
+    `bpjs_menolak`, `nomor_tidak_dikenali`, `bukan_jkn`, `no_kartu_wajib`, `pemetaan_bpjs_belum_lengkap`, `rujukan_wajib`,
+    `rujukan_tidak_sesuai`, `rujukan_kedaluwarsa`; 409 `sep_sudah_terbit`, `sep_sedang_diproses`, `status_tidak_sesuai`,
+    `jeda_panggilan_belum_lewat`, `batas_panggilan_tercapai`, `sesi_berakhir`; 503 `integrasi_tidak_tersedia`. Hanya
+    kontrak; kode (`integrasi.sep`, `kunjungan.antrean`, `kunjungan.antrean_jejak`, simulator VClaim) menyusul di tiket BE.
 servers:
   - url: /api/v1
 security:
@@ -4878,6 +4887,304 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # Kepesertaan, rujukan, SEP (tiket 2.7; PRD FR-01-07, FR-01-08, FR-01-10, FR-50-01, UC-01, aturan bisnis 7.01 "SEP tidak
+  # bisa terbit bila rujukan kedaluwarsa kecuali IGD"). Semua panggilan VClaim lewat gateway 1.9 (`bpjs_vclaim`, lingkungan
+  # aktif, circuit breaker, log integrasi disamarkan). Lokal dan CI memakai simulator VClaim yang mengikuti catatan lapangan
+  # di luar repo; tidak ada kredensial nyata di repo. Bentuk permintaan/respons VClaim (nama field, kode, enkripsi) bukan
+  # bagian kontrak ini: pemetaannya di backend dan **perlu verifikasi** ke katalog resmi sebelum sandbox nyata (syarat pilot).
+  # - Izin `pendaftaran.sep.lihat` (baca peserta dan rujukan) dan `pendaftaran.sep.input` (terbitkan SEP), cakupan `rs`.
+  # - No. kartu, NIK, dan nomor rujukan adalah data pasien: dikirim di header `X-Nomor` (di-encode persen seperti `X-Cari`,
+  #   v0.19.0), tidak di path atau query string (PRD 14.2). Respons `Cache-Control: no-store`; audit tanpa nilai nomor.
+  # - Baca peserta/rujukan = panggilan baca langsung (tanpa outbox; LogIntegrasi.kotak_keluar_id null) dengan batas waktu
+  #   dari konfigurasi server. Penerbitan SEP lewat outbox: baris SEP + kiriman disimpan dulu, lalu dikirim saat itu juga.
+  # - BPJS menjawab tetapi menolak: 422 `bpjs_menolak`, `rincian: [{kode_bpjs, pesan_bpjs}]` berisi kode dan pesan BPJS apa
+  #   adanya untuk ditampilkan ke petugas. `pesan` tetap kalimat umum tanpa data pasien; isi `rincian` tidak ditulis ke log
+  #   aplikasi (log integrasi menyimpannya disamarkan, 1.9).
+  # - Sistem luar tidak bisa dipakai: 503 `integrasi_tidak_tersedia`, `rincian: [{penyebab, coba_lagi_pada}]`, `penyebab` =
+  #   circuit_breaker_terbuka | batas_waktu | tidak_tersambung | integrasi_nonaktif | kredensial_belum_lengkap |
+  #   kode_ppk_kosong; `coba_lagi_pada` hanya terisi untuk circuit breaker (selain itu null).
+  # ---------------------------------------------------------------------------
+  /bpjs/peserta:
+    get:
+      operationId: bacaPesertaBpjs
+      summary: Baca kepesertaan BPJS (status, jenis peserta, kelas, FKTP, Prolanis/PRB) dari VClaim
+      description: |
+        Izin: pendaftaran.sep.lihat. Tiket menulis `GET /bpjs/peserta/{no}`; nomornya dipindah ke header `X-Nomor` karena
+        data pasien tidak boleh ada di URL (PRD 14.2). Server menafsirkan isinya sesudah spasi, `-`, dan `.` dibuang:
+        13 digit → No. kartu BPJS, 16 digit → NIK. Header kosong atau bentuk lain → 422 `nomor_tidak_dikenali` (pesan menyebut
+        bentuk yang diterima, tanpa mengulang nomor). `tanggal` = tanggal pelayanan yang diperiksa (bawaan hari ini, zona RS).
+        - Peserta tidak aktif tetap 200 dengan `status.aktif = false` dan keterangan BPJS (UC-01 2b: petugas mengalihkan ke
+          penjamin lain dengan persetujuan pasien).
+        - `pasien` terisi bila No. kartu atau sidik NIK cocok dengan pasien terdaftar, supaya petugas membuka pasien itu,
+          bukan membuat No. RM baru (FR-01-02).
+        - NIK mengikuti izin bagian `pendaftaran.pasien.identitas.lihat` seperti skema Pasien: tanpa izin hanya `nik_samaran`.
+        - 422 `bpjs_menolak` (mis. peserta tidak ditemukan) dan 503 `integrasi_tidak_tersedia`: lihat catatan blok.
+        Audit `bpjs.peserta.dibaca` (jenis nomor, hasil, `pasien_id` bila cocok; tanpa nilai nomor).
+      parameters:
+        - in: header
+          name: X-Nomor
+          required: true
+          schema: { type: string, maxLength: 60 }
+          description: "No. kartu BPJS (13 digit) atau NIK (16 digit)"
+        - { in: query, name: tanggal, schema: { type: string, format: date }, description: "Tanggal pelayanan; bawaan hari ini (zona RS)" }
+      responses:
+        '200':
+          description: Data kepesertaan dari VClaim
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PesertaBpjs' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /bpjs/rujukan:
+    get:
+      operationId: bacaRujukanBpjs
+      summary: Baca rujukan FKTP/antar-RS dari VClaim beserta masa berlakunya
+      description: |
+        Izin: pendaftaran.sep.lihat. Tiket menulis `GET /bpjs/rujukan/{no}`; nomor rujukan dipindah ke header `X-Nomor`
+        (PRD 14.2). Header kosong atau lebih dari 40 karakter sesudah di-decode → 422 `nomor_tidak_dikenali`. `asal` membatasi
+        pencarian ke rujukan dari FKTP atau dari RS; tanpa `asal` server mencari keduanya.
+        Masa berlaku (FR-01-08): `berlaku_sampai` dihitung server dari tanggal rujukan dan masa berlaku rujukan di konfigurasi
+        (nilai awal mengikuti ketentuan BPJS, **perlu verifikasi**; bukan konstanta di kode). Terhadap `tanggal`:
+        `kedaluwarsa` bila `tanggal` > `berlaku_sampai`; `hampir_habis` bila sisa ≤ 7 hari (FR-01-08, UC-01 2a); selain itu
+        `berlaku`. `sisa_hari` = `berlaku_sampai` − `tanggal` (negatif bila kedaluwarsa). Rujukan kedaluwarsa tetap 200 agar
+        petugas melihat alasannya; penolakannya di POST /kunjungan/{id}/sep.
+        `poli_tujuan.poliklinik` = poliklinik lokal dengan `kode_poli_bpjs` yang sama (null bila belum dipetakan).
+        - 422 `bpjs_menolak` (mis. rujukan tidak ditemukan) dan 503 `integrasi_tidak_tersedia`: lihat catatan blok.
+        Audit `bpjs.rujukan.dibaca` (asal dan hasil; tanpa nomor rujukan dan No. kartu).
+      parameters:
+        - in: header
+          name: X-Nomor
+          required: true
+          schema: { type: string, maxLength: 120 }
+          description: "Nomor rujukan"
+        - { in: query, name: asal, schema: { $ref: '#/components/schemas/AsalRujukan' } }
+        - { in: query, name: tanggal, schema: { type: string, format: date }, description: "Tanggal rencana pelayanan untuk menghitung sisa masa berlaku; bawaan hari ini (zona RS)" }
+      responses:
+        '200':
+          description: Rujukan dari VClaim
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/RujukanBpjs' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/sep:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: terbitkanSep
+      summary: Terbitkan SEP untuk kunjungan JKN, atau simpan untuk diterbitkan nanti
+      description: |
+        Izin: pendaftaran.sep.input. SEP melekat ke kunjungan, episode, dan No. RM (tagihan menyusul, FR-01-10). Server
+        mengambil data dari kunjungan (pasien, No. kartu, poli, dokter, tanggal), profil RS (kode PPK), dan rujukan yang dibaca
+        ulang dari VClaim saat itu; klien tidak mengirim ulang data yang sudah ada di server. Urutan pemeriksaan:
+        1. Kunjungan: 409 `sudah_batal`; 422 `bukan_jkn` (`cara_bayar` bukan `jkn`); 422 `no_kartu_wajib` (pasien tanpa
+           No. kartu BPJS); 422 `pemetaan_bpjs_belum_lengkap` bila kode BPJS yang dibutuhkan belum diisi di data induk
+           (`rincian: [{kode}]`, mis. `kode_poli_bpjs`, `kode_ppk_bpjs`).
+        2. SEP yang ada: 409 `sep_sudah_terbit` (sudah ada SEP `terbit`, `rincian: [{sep_id}]`); 409 `sep_sedang_diproses`
+           (ada SEP `menunggu`).
+        3. Rujukan (aturan 7.01): wajib kecuali kunjungan `igd` (422 `rujukan_wajib`). Rujukan milik peserta lain → 422
+           `rujukan_tidak_sesuai`. `tanggal` kunjungan melewati `berlaku_sampai` → 422 `rujukan_kedaluwarsa`
+           (`rincian: [{berlaku_sampai}]`), kecuali kunjungan `igd`. Rujukan `hampir_habis` tidak menolak: SEP terbit dengan
+           `peringatan` `rujukan_hampir_habis`.
+        4. Diagnosis awal: bawaan diagnosis pada rujukan; kode yang dikirim harus ada di paket referensi ICD-10 aktif (1.8e),
+           selain itu 422 `referensi_tidak_valid`.
+        5. Pengiriman:
+           - circuit breaker `bpjs_vclaim` terbuka atau integrasi tidak siap, dan `tunda` false → 503
+             `integrasi_tidak_tersedia`; tidak ada yang disimpan. Layar menawarkan "Simpan, terbitkan SEP nanti", yang
+             mengulang permintaan dengan `tunda: true`.
+           - `tunda: true` → 202, SEP `menunggu` + kiriman outbox (dikirim pekerja queue `integrasi` sesudah circuit breaker
+             tertutup) + tugas `SEP_TERTUNDA` di kotak kerja pemegang `pendaftaran.sep.input` (1.7). Kunjungan tetap
+             tersimpan dan pasien tetap dilayani (UC-01 6a).
+           - selain itu SEP + kiriman disimpan lalu dikirim saat itu juga. Berhasil → 201, SEP `terbit` dengan `no_sep`.
+             BPJS menolak → 422 `bpjs_menolak` (kode dan pesan BPJS apa adanya); baris SEP berstatus `ditolak`, kunjungan
+             tidak berubah, petugas boleh mengajukan ulang. Batas waktu atau tidak tersambung saat dikirim → 202, SEP
+             `menunggu` diulang pekerja + tugas `SEP_TERTUNDA`; sebelum mengirim ulang pekerja memastikan SEP belum terbit
+             untuk kunjungan itu (cara memeriksanya mengikuti katalog VClaim, **perlu verifikasi**).
+        `Idempotency-Key` (opsional, PRD 10.3.1): permintaan ulang dengan kunci yang sama untuk kunjungan yang sama
+        mengembalikan respons pertama tanpa mengirim lagi ke BPJS.
+        Audit `sep.diterbitkan`, `sep.ditunda`, atau `sep.ditolak` (nomor kunjungan, status, kode BPJS; tanpa No. kartu, NIK,
+        nomor rujukan, atau pesan BPJS).
+      parameters:
+        - { in: header, name: Idempotency-Key, schema: { type: string, maxLength: 100 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianSep' }
+      responses:
+        '201':
+          description: SEP terbit
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Sep' } } }
+        '202':
+          description: SEP tersimpan berstatus menunggu (ditunda atau sistem luar tidak menjawab); tugas SEP_TERTUNDA dibuat
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Sep' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # Antrean poli + display (tiket 2.8; PRD 7.02, 7.02.1, FR-02-01/03/04/08/09/11/15/16; prototipe `displayantrean.html`).
+  # - Antrean dibuat server, tidak lewat endpoint: antrean titik `poli` terbit dari event `KunjunganDibuat` (2.6) dengan
+  #   nomor `<prefiks poli>-<urut per hari>` (FR-02-01; prefiks dan area display dari data induk, bawaan kode poliklinik).
+  #   Satu kunjungan = satu QR; nomor setiap titik tertaut ke kunjungan yang sama (FR-02-08). Kunjungan batal → antreannya
+  #   ikut batal; antrean batal tidak membatalkan kunjungan.
+  # - Aturan panggil ulang, lewati, dan sisip (FR-02-11, 7.02.1) dibaca dari data induk aturan antrean: batas panggilan,
+  #   jeda antarpanggilan, dan jumlah nomor yang didahulukan saat sisip (nilai awal 3 kali, 1 menit, 2 nomor; ditetapkan
+  #   kebijakan RS), bukan konstanta di kode. Pengelolaan nilainya di luar tiket ini.
+  # - Setiap transisi menyimpan jam server dan pelakunya di `kunjungan.antrean_jejak` (FR-02-16, dasar waktu tunggu INM)
+  #   dan menerbitkan event `AntreanBerubah` (task ID Antrean Online menyusul Tahap B).
+  # - Transisi lewat endpoint blok ini: `menunggu` → `dipanggil` (→ `dipanggil` lagi saat panggil ulang), `dipanggil` →
+  #   `dilewati`, `dilewati` → `menunggu` (sisip), `menunggu`/`dipanggil`/`dilewati` → `batal`. Status `dilayani`,
+  #   `kembali`, dan `selesai` diubah kejadian pelayanan (RME, penunjang), bukan endpoint di sini.
+  # - Izin petugas `pendaftaran.antrean.perbaiki`, cakupan `rs`. Display memakai bagian baru `pendaftaran.antrean.display`
+  #   (aksi `lihat`, tidak sensitif, tidak ikut induk) yang diberikan ke akun perangkat display; akun itu tidak memegang izin
+  #   data pasien. Data pasien tidak pernah ada di respons display, URL, log, atau teks suara.
+  # ---------------------------------------------------------------------------
+  /antrean/{id}/panggil:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: panggilAntrean
+      summary: Panggil atau panggil ulang nomor antrean
+      description: |
+        Izin: pendaftaran.antrean.perbaiki. `menunggu` → `dipanggil` (panggilan ke-1); dari `dipanggil` = panggil ulang
+        (panggilan ke-n). Setiap panggilan dicatat (urutan panggilan, pelaku, ruang, jam server) dan tampil di display area
+        itu dengan teks suara tanpa nama.
+        - 409 `status_tidak_sesuai`: status bukan `menunggu`/`dipanggil` (`rincian: [{status}]`).
+        - 409 `jeda_panggilan_belum_lewat`: jeda dari panggilan sebelumnya belum lewat (`rincian: [{boleh_panggil_pada}]`).
+        - 409 `batas_panggilan_tercapai`: jumlah panggilan sudah sama dengan batas data induk; lanjutkan dengan lewati.
+        - 422 `validasi_gagal`: `lokasi_id` bukan ruang aktif.
+        Audit `antrean.dipanggil` (nomor tampil dan panggilan ke-; tanpa data pasien).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lokasi_id: { type: [string, 'null'], format: uuid, description: "Ruang/loket tempat pasien dipanggil (disebut di display dan suara); bawaan lokasi poliklinik" }
+      responses:
+        '200': { $ref: '#/components/responses/AntreanSesudahAksi' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /antrean/{id}/lewati:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: lewatiAntrean
+      summary: Tandai nomor yang dipanggil sebagai dilewati (pasien tidak hadir)
+      description: |
+        Izin: pendaftaran.antrean.perbaiki. `dipanggil` → `dilewati`; boleh sebelum batas panggilan tercapai (keputusan
+        petugas). Nomor berikutnya bisa langsung dipanggil.
+        - 409 `status_tidak_sesuai`: status bukan `dipanggil` (`rincian: [{status}]`).
+        Audit `antrean.dilewati`.
+      responses:
+        '200': { $ref: '#/components/responses/AntreanSesudahAksi' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /antrean/{id}/sisip:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: sisipAntrean
+      summary: Sisipkan kembali nomor yang dilewati karena pasien datang lagi
+      description: |
+        Izin: pendaftaran.antrean.perbaiki. `dilewati` → `menunggu`, ditempatkan sesudah N nomor menunggu berikutnya (N dari
+        data induk; bila yang menunggu kurang dari N, di akhir). Hitungan panggilan mulai lagi dari 0 (FR-02-11, 7.02.1).
+        - 409 `status_tidak_sesuai`: status bukan `dilewati` (`rincian: [{status}]`).
+        - 409 `sesi_berakhir`: jam praktik jadwal kunjungan itu sudah lewat; pilihan petugas tinggal batal.
+        Audit `antrean.disisipkan`.
+      responses:
+        '200': { $ref: '#/components/responses/AntreanSesudahAksi' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /antrean/{id}/batal:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: batalkanAntrean
+      summary: Batalkan nomor antrean dengan alasan (baris tidak dihapus)
+      description: |
+        Izin: pendaftaran.antrean.perbaiki. `menunggu`/`dipanggil`/`dilewati` → `batal` setelah dikonfirmasi petugas
+        (7.02.1: tidak hadir sampai sesi berakhir; task 99 Antrean Online menyusul Tahap B). `alasan_batal`,
+        `dibatalkan_oleh`, `dibatalkan_pada` disimpan; baris tidak dihapus. Kunjungan tidak ikut batal (POST
+        /kunjungan/{id}/batal atau job jam tutup 2.6).
+        - 409 `sudah_batal`.
+        - 409 `status_tidak_sesuai`: status `dilayani`, `kembali`, atau `selesai` (`rincian: [{status}]`).
+        Audit `antrean.dibatalkan` (nomor tampil dan alasan; tanpa data pasien).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PermintaanBatal' }
+      responses:
+        '200': { $ref: '#/components/responses/AntreanSesudahAksi' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /display/{area}:
+    parameters:
+      - in: path
+        name: area
+        required: true
+        schema: { type: string, pattern: '^[a-z0-9][a-z0-9_-]{0,39}$' }
+        description: "Kode area display (`Antrean.area`)"
+    get:
+      operationId: bacaDisplayAntrean
+      summary: Isi display antrean satu area (polling; tanpa data identitas)
+      description: |
+        Izin: pendaftaran.antrean.display.lihat (akun perangkat display, sesi cookie biasa). Polling setiap `interval_detik`
+        (5–10 detik, dari konfigurasi server); Reverb menyusul Tahap C bersama papan IGD (K1). ETag = sidik isi; If-None-Match
+        yang sama → 304. Display tidak mengirim `X-Permintaan-Latar`: pollingnya dihitung aktivitas, jadi sesi akun perangkat
+        tidak berakhir karena diam selama display menyala.
+        Privasi (FR-02-15, 7.02.1, UU PDP Ps. 4):
+        - hanya nomor tampil dan inisial nama (huruf awal paling banyak dua kata nama, contoh `S.W.`); pasien berlabel
+          `privasi_tinggi` (B-18) atau tanpa identitas → `inisial` null (nomor saja);
+        - poli bertanda sensitif di data induk tampil dengan nama netral (mis. "Klinik 7"), termasuk di `tujuan` dan
+          `teks_suara`;
+        - `teks_suara` dibuat server: nomor dan tujuan, tanpa nama. Klien memutar suara untuk setiap pasangan
+          (`nomor_tampil`, `panggilan_ke`, `dipanggil_pada`) yang belum diputar;
+        - tidak ada id pasien, kunjungan, atau antrean, No. RM, tanggal lahir, maupun nama asli poli sensitif.
+        Hanya antrean hari ini (zona RS). Area tidak dikenal → 404.
+      parameters:
+        - { in: header, name: If-None-Match, schema: { type: string } }
+      responses:
+        '200':
+          description: Isi display area
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/DisplayAntrean' } } }
+        '304': { description: "Tidak berubah sejak ETag yang dikirim" }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -4915,6 +5222,12 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
+    AntreanSesudahAksi:
+      description: Antrean sesudah aksi (tiket 2.8)
+      headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+      content:
+        application/json:
+          schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Antrean' } } }
   schemas:
     Error:
       type: object
@@ -6804,3 +7117,244 @@ components:
         kode: { type: string }
         nama: { type: string }
         jenis: { $ref: '#/components/schemas/JenisPenjamin' }
+    KodeNamaBpjs:
+      type: [object, 'null']
+      required: [kode, nama]
+      description: "Kode dan nama dari BPJS apa adanya (tiket 2.7); null bila BPJS tidak mengirimnya"
+      properties:
+        kode: { type: string }
+        nama: { type: string }
+    AsalRujukan:
+      type: string
+      enum: [fktp, rs]
+      description: "fktp = rujukan dari fasilitas kesehatan tingkat pertama; rs = rujukan antar-RS (FR-01-08)"
+    StatusMasaBerlakuRujukan:
+      type: string
+      enum: [berlaku, hampir_habis, kedaluwarsa]
+      description: "hampir_habis = sisa ≤ 7 hari (FR-01-08); kedaluwarsa = tanggal pelayanan melewati berlaku_sampai"
+    PesertaBpjs:
+      type: object
+      required: [no_kartu, nama, nik_samaran, tanggal_lahir, jenis_kelamin, status, jenis_peserta, kelas_hak,
+        faskes_tingkat_pertama, prolanis_prb, pasien, lingkungan, dibaca_pada]
+      properties:
+        no_kartu: { type: string, pattern: '^[0-9]{13}$' }
+        nama: { type: string }
+        nik: { type: [string, 'null'], description: "Hanya dikirim kepada akun berizin `pendaftaran.pasien.identitas.lihat`; selain itu field tidak ada" }
+        nik_samaran: { type: [string, 'null'], examples: ['1271 •••• •••• 0042'] }
+        tanggal_lahir: { type: [string, 'null'], format: date }
+        jenis_kelamin: { $ref: '#/components/schemas/JenisKelaminPasien' }
+        status:
+          type: object
+          required: [aktif, kode, keterangan]
+          description: "Status kepesertaan pada `tanggal` yang diminta (FR-01-07)"
+          properties:
+            aktif: { type: boolean }
+            kode: { type: string, description: "Kode status dari BPJS apa adanya" }
+            keterangan: { type: string, description: "Keterangan status dari BPJS apa adanya" }
+        jenis_peserta: { $ref: '#/components/schemas/KodeNamaBpjs' }
+        kelas_hak: { $ref: '#/components/schemas/KodeNamaBpjs', description: "Hak kelas rawat peserta" }
+        faskes_tingkat_pertama: { $ref: '#/components/schemas/KodeNamaBpjs', description: "FKTP terdaftar" }
+        prolanis_prb: { type: [string, 'null'], description: "Keterangan Prolanis/PRB dari BPJS apa adanya; null = tidak ada" }
+        pasien:
+          type: [object, 'null']
+          description: "Pasien terdaftar yang cocok (No. kartu atau sidik NIK); null = belum terdaftar"
+          required: [id, no_rm]
+          properties:
+            id: { type: string, format: uuid }
+            no_rm: { type: string, pattern: '^[0-9]{1,12}$' }
+        lingkungan: { $ref: '#/components/schemas/LingkunganIntegrasi' }
+        dibaca_pada: { type: string, format: date-time }
+    RujukanBpjs:
+      type: object
+      required: [no_rujukan, asal, tanggal_rujukan, berlaku_sampai, sisa_hari, status_masa_berlaku, faskes_asal, poli_tujuan,
+        diagnosis, peserta, lingkungan, dibaca_pada]
+      properties:
+        no_rujukan: { type: string }
+        asal: { $ref: '#/components/schemas/AsalRujukan' }
+        tanggal_rujukan: { type: string, format: date }
+        berlaku_sampai: { type: string, format: date, description: "Dihitung server dari tanggal rujukan + masa berlaku di konfigurasi" }
+        sisa_hari: { type: integer, description: "berlaku_sampai − tanggal yang diminta; negatif bila kedaluwarsa" }
+        status_masa_berlaku: { $ref: '#/components/schemas/StatusMasaBerlakuRujukan' }
+        faskes_asal: { $ref: '#/components/schemas/KodeNamaBpjs' }
+        poli_tujuan:
+          type: object
+          required: [kode_poli_bpjs, nama, poliklinik]
+          properties:
+            kode_poli_bpjs: { type: string }
+            nama: { type: string, description: "Nama poli dari BPJS" }
+            poliklinik:
+              type: [object, 'null']
+              description: "Poliklinik lokal dengan kode_poli_bpjs sama; null = belum dipetakan"
+              required: [id, kode, nama]
+              properties:
+                id: { type: string, format: uuid }
+                kode: { type: string }
+                nama: { type: string }
+        diagnosis: { $ref: '#/components/schemas/KodeNamaBpjs', description: "Diagnosis pada rujukan (ICD-10 dari BPJS)" }
+        peserta:
+          type: object
+          required: [no_kartu, nama]
+          description: "Untuk dicocokkan dengan pasien di layar (bersama tanggal lahir pasien sebagai penanda kedua)"
+          properties:
+            no_kartu: { type: string, pattern: '^[0-9]{13}$' }
+            nama: { type: string }
+        lingkungan: { $ref: '#/components/schemas/LingkunganIntegrasi' }
+        dibaca_pada: { type: string, format: date-time }
+    IsianSep:
+      type: object
+      properties:
+        no_rujukan: { type: [string, 'null'], maxLength: 40, description: "Wajib kecuali kunjungan igd" }
+        asal_rujukan:
+          description: "Bawaan: server mencari di keduanya, sama seperti GET /bpjs/rujukan"
+          oneOf: [{ $ref: '#/components/schemas/AsalRujukan' }, { type: 'null' }]
+        diagnosis_awal: { type: [string, 'null'], maxLength: 10, description: "Kode ICD-10 dari paket referensi aktif; null = diagnosis pada rujukan" }
+        catatan: { type: [string, 'null'], maxLength: 200 }
+        tunda: { type: boolean, default: false, description: "true = simpan sebagai menunggu tanpa memanggil BPJS sekarang (\"Simpan, terbitkan SEP nanti\")" }
+    StatusSep:
+      type: string
+      enum: [menunggu, terbit, ditolak, batal]
+      description: "menunggu = tersimpan, belum diterima BPJS (ditunda atau menunggu kirim ulang); terbit = diterima BPJS, `no_sep` terisi; ditolak = BPJS menolak (baris disimpan untuk jejak, kunjungan bisa diajukan ulang); batal = dihapus di VClaim (FR-01-10, B-10; endpointnya menyusul, baris tidak dihapus)."
+    Sep:
+      type: object
+      required: [id, kunjungan_id, episode_id, pasien_id, no_sep, tanggal_sep, jenis_pelayanan, status, rujukan, diagnosis_awal,
+        catatan, peringatan, galat_bpjs, kiriman_id, lingkungan, diajukan_oleh, terbit_pada, dibuat_pada, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        kunjungan_id: { type: string, format: uuid }
+        episode_id: { type: string, format: uuid }
+        pasien_id: { type: string, format: uuid }
+        no_sep: { type: [string, 'null'], description: "Terisi sejak status terbit" }
+        tanggal_sep: { type: string, format: date, description: "Tanggal kunjungan" }
+        jenis_pelayanan: { type: string, enum: [rawat_jalan, rawat_inap], description: "Tiket 2.7 hanya rawat_jalan" }
+        status: { $ref: '#/components/schemas/StatusSep' }
+        rujukan:
+          type: [object, 'null']
+          description: "null = tanpa rujukan (IGD)"
+          required: [no_rujukan, asal, tanggal_rujukan, berlaku_sampai, status_masa_berlaku]
+          properties:
+            no_rujukan: { type: string }
+            asal: { $ref: '#/components/schemas/AsalRujukan' }
+            tanggal_rujukan: { type: string, format: date }
+            berlaku_sampai: { type: string, format: date }
+            status_masa_berlaku: { $ref: '#/components/schemas/StatusMasaBerlakuRujukan' }
+        diagnosis_awal:
+          type: object
+          required: [kode, nama]
+          properties:
+            kode: { type: string }
+            nama: { type: string }
+        catatan: { type: [string, 'null'] }
+        peringatan:
+          type: array
+          description: "Hal yang tidak menolak tetapi perlu diperhatikan petugas"
+          items:
+            type: object
+            required: [kode, pesan]
+            properties:
+              kode: { type: string, examples: [rujukan_hampir_habis] }
+              pesan: { type: string }
+        galat_bpjs:
+          type: [object, 'null']
+          description: "Penolakan atau galat percobaan terakhir dari BPJS, apa adanya; null bila tidak ada"
+          required: [kode_bpjs, pesan_bpjs]
+          properties:
+            kode_bpjs: { type: string }
+            pesan_bpjs: { type: string }
+        kiriman_id: { type: [string, 'null'], format: uuid, description: "Kiriman outbox (GET /integrasi/kotak-keluar)" }
+        lingkungan: { oneOf: [{ $ref: '#/components/schemas/LingkunganIntegrasi' }, { type: 'null' }], description: "Lingkungan aktif saat SEP diajukan" }
+        diajukan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        terbit_pada: { type: [string, 'null'], format: date-time }
+        dibuat_pada: { type: string, format: date-time }
+        diubah_pada: { type: string, format: date-time }
+    TitikAntrean:
+      type: string
+      enum: [loket, perawat, poli, lab, radiologi, farmasi, kasir]
+      description: "PRD 11.2 kunjungan.antrean.titik. Tiket 2.8 membuat titik `poli` (satu nomor untuk perawat dan dokter, 7.02.1); titik lain menyusul tiketnya."
+    StatusAntrean:
+      type: string
+      enum: [belum_check_in, menunggu, dipanggil, dilayani, dilewati, kembali, selesai, batal]
+      description: "FR-02-03 dan PRD 11.2. `belum_check_in` = reservasi Mobile JKN (Tahap B); `kembali` = kembali membawa hasil penunjang (Tahap C)."
+    Antrean:
+      type: object
+      required: [id, tanggal, titik, area, nomor, nomor_tampil, kunjungan_id, pasien, poliklinik, dokter, lokasi_panggil, sumber,
+        prioritas, status, panggilan_ke, panggilan_maks, boleh_panggil_pada, jejak, alasan_batal, dibatalkan_oleh,
+        dibatalkan_pada, dibuat_pada, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        tanggal: { type: string, format: date }
+        titik: { $ref: '#/components/schemas/TitikAntrean' }
+        area: { type: string, description: "Kode area display" }
+        nomor: { type: integer, minimum: 1, description: "Urut per prefiks per hari" }
+        nomor_tampil: { type: string, examples: ['PD-023'] }
+        kunjungan_id: { type: [string, 'null'], format: uuid, description: "null hanya untuk nomor loket sebelum admisi (menyusul)" }
+        pasien:
+          description: "Dua penanda identitas untuk layar petugas (5.1 butir 9); null bila belum tertaut ke pasien"
+          oneOf: [{ $ref: '#/components/schemas/RingkasPasienKunjungan' }, { type: 'null' }]
+        poliklinik:
+          type: [object, 'null']
+          required: [id, kode, nama]
+          properties:
+            id: { type: string, format: uuid }
+            kode: { type: string }
+            nama: { type: string }
+        dokter: { $ref: '#/components/schemas/RingkasPegawai' }
+        lokasi_panggil:
+          description: "Ruang/loket panggilan terakhir; null = belum dipanggil"
+          oneOf: [{ $ref: '#/components/schemas/RingkasLokasi' }, { type: 'null' }]
+        sumber: { type: string, enum: [loket, mobile_jkn, apm, web] }
+        prioritas: { type: boolean }
+        status: { $ref: '#/components/schemas/StatusAntrean' }
+        panggilan_ke: { type: integer, minimum: 0, description: "Jumlah panggilan sejak terakhir menunggu" }
+        panggilan_maks: { type: integer, minimum: 1, description: "Batas panggilan dari data induk" }
+        boleh_panggil_pada: { type: [string, 'null'], format: date-time, description: "Jeda panggilan belum lewat sampai waktu ini; null = tidak ada jeda yang berjalan" }
+        jejak:
+          type: array
+          description: "Setiap transisi status dengan jam server (FR-02-16), urut waktu"
+          items:
+            type: object
+            required: [status, terjadi_pada, oleh]
+            properties:
+              status: { $ref: '#/components/schemas/StatusAntrean' }
+              terjadi_pada: { type: string, format: date-time }
+              oleh: { $ref: '#/components/schemas/Pelaku' }
+              panggilan_ke: { type: integer, minimum: 1, description: "Hanya untuk status dipanggil" }
+        alasan_batal: { type: [string, 'null'] }
+        dibatalkan_oleh: { $ref: '#/components/schemas/Pelaku', description: "null bila belum batal atau batal oleh sistem" }
+        dibatalkan_pada: { type: [string, 'null'], format: date-time }
+        dibuat_pada: { type: string, format: date-time }
+        diubah_pada: { type: string, format: date-time }
+    PanggilanDisplay:
+      type: object
+      required: [nomor_tampil, inisial, tujuan, panggilan_ke, dipanggil_pada, teks_suara]
+      properties:
+        nomor_tampil: { type: string, examples: ['PD-023'] }
+        inisial: { type: [string, 'null'], examples: ['S.W.'], description: "null = pasien privasi tinggi atau tanpa identitas" }
+        tujuan: { type: string, examples: ['Ruang 3 · Poli Penyakit Dalam'], description: "Ruang/loket dan nama poli tampil (nama netral untuk poli sensitif)" }
+        panggilan_ke: { type: integer, minimum: 1 }
+        dipanggil_pada: { type: string, format: date-time }
+        teks_suara: { type: string, examples: ['Nomor P D 0 2 3, silakan ke Ruang 3'], description: "Tanpa nama pasien" }
+    DisplayAntrean:
+      type: object
+      required: [area, dipanggil, berikutnya, interval_detik, waktu_server]
+      properties:
+        area:
+          type: object
+          required: [kode, nama]
+          properties:
+            kode: { type: string }
+            nama: { type: string, description: "Nama tampil area (nama netral bila area hanya berisi poli sensitif)" }
+        dipanggil:
+          type: array
+          description: "Panggilan terbaru dulu; jumlahnya dari konfigurasi server"
+          items: { $ref: '#/components/schemas/PanggilanDisplay' }
+        berikutnya:
+          type: array
+          description: "Nomor menunggu menurut urutan antrean; jumlahnya dari konfigurasi server"
+          items:
+            type: object
+            required: [nomor_tampil, inisial]
+            properties:
+              nomor_tampil: { type: string }
+              inisial: { type: [string, 'null'] }
+        interval_detik: { type: integer, minimum: 5, maximum: 10, description: "Jeda polling yang diminta server" }
+        waktu_server: { type: string, format: date-time }
