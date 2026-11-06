@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 import DataTable, { type KolomTabel } from '@/design-system/components/DataTable.vue'
 import Dialog from '@/design-system/components/Dialog.vue'
@@ -31,7 +31,7 @@ import type { CaraBayar, Kunjungan, SlotTerdekat } from '../tipeKunjungan'
  * Pendaftaran → Pendaftaran kunjungan poli (tiket 2.6, kontrak v0.20.0). Petugas memilih pasien, poli, dan dokter dari
  * jadwal praktik hari itu (sisa kuota JKN/non-JKN tampil per slot), lalu mendaftarkan kunjungan — episode rawat jalan
  * harian terbentuk otomatis di server (7.00.2). Papan kunjungan poli hari itu dapat dibatalkan dengan alasan (FR-01-21).
- * Memakai data tiruan kontrak sampai backend 2.6 tersedia.
+ * Pilihan poli, jadwal, dan penjamin memakai endpoint data induk: peran pendaftaran butuh izin lihat ketiganya.
  */
 const qc = useQueryClient()
 
@@ -45,6 +45,8 @@ const pasienDipilih = ref<Pasien | null>(null)
 
 // ── Pilihan poliklinik ──
 const poli = useQuery({ queryKey: ['kunjungan', 'poli'], queryFn: async () => (await daftarPoliklinik({ status: 'aktif' }, null, 200)).data, staleTime: 60_000 })
+/** Pilihan yang gagal dimuat (mis. 403 tanpa izin lihat data induk) tampil di kolomnya, bukan dropdown kosong tanpa pesan. */
+const galatPilihan = (e: unknown, apa: string) => (e ? `Daftar ${apa} tidak dapat dimuat: ${pesanError(e)}` : undefined)
 
 // ── Jadwal praktik (poli + dokter + kuota) pada tanggal terpilih ──
 const filterJadwal = computed(() => ({ tanggal: tanggal.value, poli_id: poliId.value, status: 'aktif' as const }))
@@ -138,12 +140,14 @@ function pilihSlotAlternatif(s: SlotTerdekat) {
 
 // ── Papan kunjungan poli hari itu ──
 const statusPapan = ref<'aktif' | 'batal'>('aktif')
-const kunjunganKueri = useQuery({
+const kunjunganKueri = useInfiniteQuery({
   queryKey: computed(() => KUNCI_KUNJUNGAN.daftar({ tanggal: tanggal.value, poli_id: poliId.value, status: statusPapan.value })),
-  queryFn: async () => (await daftarKunjungan({ tanggal: tanggal.value, poli_id: poliId.value, status: statusPapan.value === 'batal' ? 'batal' : undefined }, null, 200)).data,
+  queryFn: ({ pageParam }) => daftarKunjungan({ tanggal: tanggal.value, poli_id: poliId.value, status: statusPapan.value === 'batal' ? 'batal' : undefined }, pageParam),
+  initialPageParam: null as string | null,
+  getNextPageParam: (h) => h.meta.kursor_berikutnya,
   enabled: computed(() => Boolean(poliId.value && tanggal.value)),
 })
-const kunjunganBaris = computed<Kunjungan[]>(() => kunjunganKueri.data.value ?? [])
+const kunjunganBaris = computed<Kunjungan[]>(() => kunjunganKueri.data.value?.pages.flatMap((h) => h.data) ?? [])
 const kolomPapan = computed<KolomTabel[]>(() => [
   { kunci: 'nomor', label: 'No. kunjungan', lebar: '170px' },
   { kunci: 'pasien', label: 'Pasien' },
@@ -189,7 +193,7 @@ const batal = useMutation({
         <KolomIsian v-slot="a" label="Tanggal kunjungan" wajib>
           <input v-bind="a" v-model="tanggal" type="date" class="isian" />
         </KolomIsian>
-        <KolomIsian v-slot="a" label="Poliklinik" wajib>
+        <KolomIsian v-slot="a" label="Poliklinik" wajib :error="galatPilihan(poli.error.value, 'poliklinik')">
           <select v-bind="a" v-model="poliId" class="isian">
             <option value="" disabled>Pilih poliklinik…</option>
             <option v-for="p in poli.data.value ?? []" :key="p.id" :value="p.id">{{ p.nama }}</option>
@@ -279,7 +283,7 @@ const batal = useMutation({
             <span>{{ label }}</span>
           </label>
         </fieldset>
-        <KolomIsian v-if="caraBayar === 'jkn'" v-slot="a" label="Penjamin (BPJS)" wajib :error="errorKolomBuat.penjamin_id">
+        <KolomIsian v-if="caraBayar === 'jkn'" v-slot="a" label="Penjamin (BPJS)" wajib :error="errorKolomBuat.penjamin_id ?? galatPilihan(penjaminBpjs.error.value, 'penjamin')">
           <select v-bind="a" v-model="penjaminId" class="isian">
             <option value="" disabled>Pilih penjamin…</option>
             <option v-for="pj in penjaminBpjs.data.value ?? []" :key="pj.id" :value="pj.id">{{ pj.nama }}</option>
@@ -334,8 +338,11 @@ const batal = useMutation({
         :kunci-baris="(k: Kunjungan) => k.id"
         label="Papan kunjungan poliklinik"
         :memuat="kunjunganKueri.isPending.value"
+        :memuat-lagi="kunjunganKueri.isFetchingNextPage.value"
         :error="kunjunganKueri.isError.value ? pesanError(kunjunganKueri.error.value) : null"
+        :ada-lagi="kunjunganKueri.hasNextPage.value"
         :teks-kosong="statusPapan === 'batal' ? 'Tidak ada kunjungan yang dibatalkan.' : 'Belum ada kunjungan pada poli dan tanggal ini.'"
+        @muat-lagi="kunjunganKueri.fetchNextPage()"
         @coba-lagi="kunjunganKueri.refetch()"
       >
         <template #sel-nomor="{ baris: k }"><code>{{ k.nomor }}</code></template>
@@ -481,8 +488,10 @@ const batal = useMutation({
   color: var(--muted);
 }
 .segmen button.aktif {
-  background: var(--accent);
+  /* --accent-ink hanya dijamin ≥ 4,5:1 di atas --accent-bg (tema.ts), bukan --accent. */
+  background: var(--accent-bg);
   color: var(--accent-ink);
+  font-weight: 600;
 }
 .pil {
   font-variant-numeric: tabular-nums;

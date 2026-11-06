@@ -53,6 +53,9 @@ watch(
       lupakanSesi(queryClient)
       if (mfaUlangTerbuka.value) jawabMfaUlang(false)
       lupakanMasaMfaUlang()
+    } else {
+      // Profil yang gagal dimuat saat mulai (mis. 502 ketika backend dimulai ulang) dicoba lagi; yang sudah termuat dilewati.
+      void muatProfilRs()
     }
   },
 )
