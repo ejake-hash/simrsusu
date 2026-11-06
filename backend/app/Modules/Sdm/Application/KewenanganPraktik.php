@@ -14,9 +14,10 @@ final class KewenanganPraktik
     /** Jenis izin praktik yang memberi kewenangan klinis (PRD 9.2.2: SIP/SPK). */
     public const JENIS_PRAKTIK = ['sip', 'spk'];
 
-    public function izinPraktikBerlaku(string $pegawaiId): bool
+    /** @param  string|null  $tanggal  Y-m-d zona RS; null = hari ini */
+    public function izinPraktikBerlaku(string $pegawaiId, ?string $tanggal = null): bool
     {
-        $hariIni = $this->hariIni();
+        $hariIni = $tanggal ?? $this->hariIni();
 
         return IzinPraktik::query()->where('pegawai_id', $pegawaiId)->where('status', 'aktif')
             ->whereIn('jenis', self::JENIS_PRAKTIK)->where('terbit', '<=', $hariIni)

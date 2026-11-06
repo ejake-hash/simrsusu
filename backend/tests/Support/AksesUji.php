@@ -2,6 +2,7 @@
 
 namespace Tests\Support;
 
+use App\Core\Instalasi\StatusInstalasi;
 use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Domain\Totp;
@@ -20,6 +21,20 @@ use Illuminate\Testing\TestResponse;
 trait AksesUji
 {
     protected const SANDI_UJI = 'kuda-lumping-biru-29';
+
+    /** Penjaga FR-54-08: tes yang mendaftarkan pasien/kunjungan menganggap langkah 1–6 penyiapan sudah lengkap. */
+    protected function tandaiInstalasiSiap(bool $siap = true): void
+    {
+        $this->app->instance(StatusInstalasi::class, new class($siap) implements StatusInstalasi
+        {
+            public function __construct(private readonly bool $siap) {}
+
+            public function siapMelayani(): bool
+            {
+                return $this->siap;
+            }
+        });
+    }
 
     protected function buatPengguna(array $atribut = []): Pengguna
     {

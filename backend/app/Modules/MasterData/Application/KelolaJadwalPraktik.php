@@ -11,13 +11,15 @@ use App\Modules\MasterData\Models\Poliklinik;
 use App\Modules\Pendaftaran\Application\KeterisianKunjungan;
 use App\Modules\Sdm\Models\IzinPraktik;
 use App\Modules\Sdm\Models\Pegawai;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
  * Jadwal praktik dokter (tiket 2.4, kontrak v0.17.0). Tanpa DELETE (status nonaktif). Versi = revisi (412 bila berubah).
  * Penguncian baris pegawai membuat dua penambahan serentak untuk dokter yang sama dicek bergantian (anti tumpang tindih).
- * Kuota tidak bisa diturunkan di bawah kunjungan yang sudah terisi pada tanggal mendatang (`kuota_di_bawah_terisi`, 2.6).
+ * Kuota tidak bisa diturunkan di bawah kunjungan yang sudah terisi pada tanggal mendatang (`kuota_di_bawah_terisi`, 2.6);
+ * hari, masa berlaku, jam selesai, dan status tidak bisa diubah bila meninggalkan kunjungan terdaftar (`jadwal_sudah_terisi`).
  */
 final class KelolaJadwalPraktik
 {
@@ -55,6 +57,9 @@ final class KelolaJadwalPraktik
             $this->periksa($jadwal, isset($isi['berlaku_dari']) || (($isi['status'] ?? null) === 'aktif'));
             if ($jadwal->isDirty(['kuota_jkn', 'kuota_non_jkn'])) {
                 $this->periksaKuotaTerisi($jadwal);
+            }
+            if ($jadwal->isDirty(['hari', 'berlaku_dari', 'berlaku_sampai', 'status', 'jam_selesai'])) {
+                $this->periksaKunjunganTercakup($jadwal);
             }
             $jadwal->forceFill(['diubah_oleh' => $penyunting->id])->save();
             $this->audit->catat('master_data.jadwal_praktik_diubah', $penyunting->id, $jadwal->getTable(), $jadwal->id,
@@ -104,6 +109,28 @@ final class KelolaJadwalPraktik
                     [['kolom' => "kuota_$cara", 'pesan' => "Sudah terisi {$puncak[$cara]} pada salah satu tanggal mendatang."]]);
             }
         }
+    }
+
+    /** Kunjungan terdaftar pada tanggal mendatang harus tetap jatuh di hari, masa berlaku, dan jam praktik jadwal. */
+    private function periksaKunjunganTercakup(JadwalPraktik $jadwal): void
+    {
+        $hariIni = SuntinganBerversi::hariIni();
+        $tutupHariIni = $jadwal->isDirty('jam_selesai') && now((string) config('instalasi.zona_waktu'))->format('H:i:s') >= $jadwal->jam_selesai;
+        $lepas = array_values(array_filter($this->keterisian->tanggalTerdaftar(['jadwal_praktik_id' => $jadwal->id], $hariIni), fn (string $t) => $jadwal->status !== 'aktif'
+            || Carbon::parse($t)->isoWeekday() !== $jadwal->hari
+            || $t < $jadwal->berlaku_dari->toDateString()
+            || ($jadwal->berlaku_sampai !== null && $t > $jadwal->berlaku_sampai->toDateString())
+            || ($t === $hariIni && $tutupHariIni)));
+        if ($lepas !== []) {
+            throw self::sudahTerisi($lepas);
+        }
+    }
+
+    /** @param  list<string>  $tanggal */
+    public static function sudahTerisi(array $tanggal): ApiError
+    {
+        return new ApiError(422, 'jadwal_sudah_terisi', 'Masih ada kunjungan terdaftar yang tidak lagi tercakup jadwal. Batalkan atau pindahkan kunjungan itu lebih dulu.',
+            array_map(fn (string $t) => ['tanggal' => $t], array_slice($tanggal, 0, 20)));
     }
 
     private function periksaSip(JadwalPraktik $jadwal): void

@@ -134,7 +134,14 @@ final class PengirimKiriman
                 ->whereNotIn('penyebab_tertahan_kode', self::tahanManual())->where('coba_lagi_pada', '<=', now())->orderBy('coba_lagi_pada')->limit($batas)->get();
             foreach ($tertahan as $b) {
                 $penangan = $this->penangan->untuk($sistem, $b->jenis_resource);
-                $syarat = $penangan?->periksa(Kiriman::dariBaris($b));
+                try {
+                    $syarat = $penangan?->periksa(Kiriman::dariBaris($b));
+                } catch (Throwable $e) {
+                    // Sama dengan proses(): satu penangan cacat tidak menghentikan putaran; keluar dari tertahan agar percobaannya terbatas.
+                    $this->galatPenangan($b, Kiriman::dariBaris($b), $e, false, ['penyebab_tertahan_kode' => null, 'penyebab_tertahan_pesan' => null]);
+
+                    continue;
+                }
                 if ($penangan !== null && $syarat === null) {
                     $this->simpan($b, ['status' => 'menunggu', 'penyebab_tertahan_kode' => null, 'penyebab_tertahan_pesan' => null, 'coba_lagi_pada' => now()]);
                     KirimKiriman::dispatch($b->id);
@@ -150,8 +157,10 @@ final class PengirimKiriman
      * Exception dari penangan = cacat kode, bukan gangguan sistem luar. Pesan exception bisa memuat URL atau data
      * pasien, jadi yang dicatat hanya kelasnya. Kiriman dihitung satu percobaan (tidak berulang tanpa batas) dan jatah
      * percobaan circuit breaker dilepas.
+     *
+     * @param  array<string, mixed>  $tambahan  kolom lain yang ikut diubah
      */
-    private function galatPenangan(object $baris, Kiriman $kiriman, Throwable $e, bool $sudahMemakaiJatah): void
+    private function galatPenangan(object $baris, Kiriman $kiriman, Throwable $e, bool $sudahMemakaiJatah, array $tambahan = []): void
     {
         Log::error('Penangan kiriman integrasi gagal', ['kiriman_id' => $kiriman->id, 'tujuan' => $kiriman->tujuan->value,
             'jenis_resource' => $kiriman->jenisResource, 'exception' => $e::class]);
@@ -162,7 +171,7 @@ final class PengirimKiriman
         $habis = $percobaan >= (int) config('integrasi.maks_percobaan');
         $this->simpan($baris, ['status' => $habis ? 'gagal' : 'menunggu', 'percobaan' => $percobaan,
             'error_terakhir' => 'Kesalahan internal saat memproses kiriman ('.class_basename($e).').',
-            'coba_lagi_pada' => $habis ? null : now()->addMinutes(self::tunggu($percobaan))]);
+            'coba_lagi_pada' => $habis ? null : now()->addMinutes(self::tunggu($percobaan)), ...$tambahan]);
     }
 
     /** Menit tunggu sebelum percobaan berikutnya: dasar × 2^(n-1), paling lama tunggu_maks. */

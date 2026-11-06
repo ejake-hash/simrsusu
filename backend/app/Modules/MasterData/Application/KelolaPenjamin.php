@@ -11,8 +11,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Data induk penjamin (tiket 2.1, kontrak v0.17.0). Tanpa DELETE (status nonaktif). Versi = revisi (412 bila berubah).
- * Kode ganda → 422 validasi_gagal pada field `kode`. Utang: larangan mengubah `jenis` setelah dipakai kunjungan
- * (kontrak PATCH) wajib ditambahkan di sini oleh tiket pendaftaran, saat tabel kunjungan ada.
+ * Kode ganda → 422 validasi_gagal pada field `kode`; `jenis` tidak diubah setelah dipakai kunjungan (field `jenis`).
  */
 final class KelolaPenjamin
 {
@@ -44,6 +43,9 @@ final class KelolaPenjamin
             $penjamin->refresh();
             $sebelum = $this->isiAudit($penjamin);
             $penjamin->fill(array_intersect_key($isi, array_flip(['kode', 'nama', 'jenis', 'status', 'masa_berlaku_gl_hari', 'plafon', 'jatuh_tempo_hari'])));
+            if ($penjamin->isDirty('jenis') && DB::table('kunjungan.kunjungan')->where('penjamin_id', $penjamin->id)->exists()) {
+                throw ValidationException::withMessages(['jenis' => 'Jenis penjamin tidak dapat diubah karena sudah dipakai kunjungan.']);
+            }
             $penjamin->forceFill(['diubah_oleh' => $penyunting->id])->save();
             $this->audit->catat('master_data.penjamin_diubah', $penyunting->id, $penjamin->getTable(), $penjamin->id,
                 [...$this->isiAudit($penjamin->refresh()), 'dasar_perubahan' => $isi['dasar_perubahan']], $sebelum);

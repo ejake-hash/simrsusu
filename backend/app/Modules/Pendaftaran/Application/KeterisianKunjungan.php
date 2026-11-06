@@ -43,4 +43,18 @@ final class KeterisianKunjungan
             'non_jkn' => (int) $baris->where('cara_bayar', 'non_jkn')->max('jumlah'),
         ];
     }
+
+    /**
+     * Tanggal dalam [$dari, $sampai] yang masih punya kunjungan `terdaftar` (belum dilayani), disaring kolom kunjungan
+     * (mis. jadwal_praktik_id atau pegawai_id). Dipakai agar perubahan jadwal/pengecualian tidak meninggalkan kunjungan.
+     *
+     * @param  array<string, string>  $saring
+     * @return list<string>
+     */
+    public function tanggalTerdaftar(array $saring, string $dari, ?string $sampai = null): array
+    {
+        return DB::table('kunjungan.kunjungan')->where($saring)->where('status', 'terdaftar')->where('tanggal', '>=', $dari)
+            ->when($sampai, fn ($q, $s) => $q->where('tanggal', '<=', $s))
+            ->distinct()->orderBy('tanggal')->pluck('tanggal')->map(fn ($t) => substr((string) $t, 0, 10))->all();
+    }
 }
