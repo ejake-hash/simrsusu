@@ -12,6 +12,7 @@ use App\Modules\MasterData\Models\Penjamin;
 use App\Modules\MasterData\Models\Poliklinik;
 use App\Modules\MasterData\Models\UnitOrganisasi;
 use App\Modules\Pendaftaran\Models\Pasien;
+use App\Modules\Sdm\Models\IzinPraktik;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
@@ -29,6 +30,7 @@ trait KunjunganUji
     protected function siapkanKunjungan(): void
     {
         $this->travelTo(Carbon::parse(self::SENIN.' 07:00', (string) config('instalasi.zona_waktu')));
+        $this->tandaiInstalasiSiap();
         $unit = UnitOrganisasi::query()->create(['kode' => 'POLI-UJI', 'nama' => 'Poli Uji', 'jenis' => 'poli', 'berlaku_dari' => '2026-01-01']);
         $this->poli = Poliklinik::query()->create(['kode' => 'UJI', 'nama' => 'Poli Contoh', 'unit_organisasi_id' => $unit->id]);
     }
@@ -37,6 +39,7 @@ trait KunjunganUji
     {
         /** @var Pegawai $pegawai */
         $pegawai = Pegawai::factory()->create(['profesi' => 'dokter']);
+        IzinPraktik::query()->create(['pegawai_id' => $pegawai->id, 'jenis' => 'sip', 'nomor' => 'SIP/UJI/'.random_int(1, 99999), 'terbit' => '2020-01-01', 'berlaku_sampai' => '2040-01-01']);
 
         return $pegawai;
     }

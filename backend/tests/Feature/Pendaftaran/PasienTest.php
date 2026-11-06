@@ -36,6 +36,7 @@ class PasienTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->tandaiInstalasiSiap();
         $versi = ['aktif' => true, 'versi_terakhir' => 'uji'];
         $induk = null;
         foreach ([['99', 'provinsi', 'Provinsi Contoh'], ['99.01', 'kabupaten', 'Kota Contoh'], ['99.01.01', 'kecamatan', 'Kecamatan Contoh'],

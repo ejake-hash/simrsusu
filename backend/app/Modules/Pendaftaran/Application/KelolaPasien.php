@@ -5,6 +5,7 @@ namespace App\Modules\Pendaftaran\Application;
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
 use App\Core\Http\IfMatch;
+use App\Core\Instalasi\StatusInstalasi;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Pendaftaran\Models\IdentitasPasien;
 use App\Modules\Pendaftaran\Models\KontakDaruratPasien;
@@ -21,11 +22,13 @@ use Illuminate\Support\Str;
  */
 final class KelolaPasien
 {
-    public function __construct(private readonly CatatAktivitas $audit) {}
+    public function __construct(private readonly CatatAktivitas $audit, private readonly StatusInstalasi $instalasi) {}
 
     /** @param  array<string, mixed>  $isi  isian POST (kontrak IsianPasien) */
     public function buat(Pengguna $oleh, array $isi): Pasien
     {
+        self::pastikanSiapMelayani($this->instalasi);
+
         return $this->tangkapGanda($isi, null, fn () => DB::transaction(function () use ($oleh, $isi) {
             $pasien = new Pasien;
             $pasien->tanpa_identitas = (bool) ($isi['tanpa_identitas'] ?? false);
@@ -100,6 +103,14 @@ final class KelolaPasien
 
             return $pasien;
         }));
+    }
+
+    /** FR-54-08: pasien tidak dilayani (No. RM tidak terpakai) sebelum langkah 1–6 penyiapan lengkap. */
+    public static function pastikanSiapMelayani(StatusInstalasi $instalasi): void
+    {
+        if (! $instalasi->siapMelayani()) {
+            throw new ApiError(409, 'instalasi_belum_siap', 'Instalasi belum siap melayani pasien: lengkapi langkah 1–6 Penyiapan instalasi lebih dulu.');
+        }
     }
 
     /** Nomor berikutnya dari penghitung satu baris; kunci baris menahan pendaftaran lain sampai commit. */

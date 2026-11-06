@@ -4,6 +4,7 @@ namespace App\Modules\Pendaftaran\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
+use App\Core\Instalasi\StatusInstalasi;
 use App\Modules\Akses\Application\KelolaRelasiPerawatan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\MasterData\Application\SuntinganBerversi;
@@ -14,6 +15,7 @@ use App\Modules\Pendaftaran\Events\KunjunganDibuat;
 use App\Modules\Pendaftaran\Models\Episode;
 use App\Modules\Pendaftaran\Models\Kunjungan;
 use App\Modules\Pendaftaran\Models\Pasien;
+use App\Modules\Sdm\Application\KewenanganPraktik;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -35,11 +37,14 @@ final class KelolaKunjungan
         private readonly CatatAktivitas $audit,
         private readonly KelolaRelasiPerawatan $relasi,
         private readonly KeterisianKunjungan $keterisian,
+        private readonly StatusInstalasi $instalasi,
+        private readonly KewenanganPraktik $kewenangan,
     ) {}
 
     /** @param  array<string, mixed>  $isi  sudah divalidasi bentuknya */
     public function daftar(Pengguna $petugas, array $isi): Kunjungan
     {
+        KelolaPasien::pastikanSiapMelayani($this->instalasi);
         if (($isi['jenis_kunjungan'] ?? 'poliklinik') !== 'poliklinik') {
             throw new ApiError(422, 'jenis_belum_didukung', 'Saat ini hanya kunjungan poliklinik yang dapat didaftarkan.',
                 [['kolom' => 'jenis_kunjungan', 'pesan' => 'Pilih poliklinik.']]);
@@ -57,6 +62,7 @@ final class KelolaKunjungan
             $caraBayar = (string) $isi['cara_bayar'];
 
             $this->periksaJadwal($jadwal, $tanggal);
+            $this->periksaDokter($jadwal->pegawai_id, $tanggal);
             $penjaminId = $this->periksaPenjamin($caraBayar, $isi['penjamin_id'] ?? null);
             $ganda = Kunjungan::query()->where('pasien_id', $pasien->id)->where('jadwal_praktik_id', $jadwal->id)
                 ->where('tanggal', $tanggal)->where('status', '<>', 'batal')->exists();
@@ -201,6 +207,18 @@ final class KelolaKunjungan
             ->orderByRaw("jenis = 'libur' DESC")->value('jenis');
         if ($tutup !== null) {
             throw self::tidakTersedia($tutup, $tutup === 'libur' ? 'RS libur pada tanggal itu.' : 'Dokter cuti pada tanggal itu.');
+        }
+    }
+
+    /** Dokter keluar atau tanpa SIP/SPK berlaku pada tanggal kunjungan tidak dipesan (dan tidak mendapat relasi perawatan). */
+    private function periksaDokter(string $pegawaiId, string $tanggal): void
+    {
+        $dokter = Pegawai::query()->find($pegawaiId, ['id', 'status', 'tanggal_keluar']);
+        if ($dokter === null || $dokter->status !== 'aktif' || ($dokter->tanggal_keluar !== null && $dokter->tanggal_keluar->toDateString() <= $tanggal)) {
+            throw self::tidakTersedia('nonaktif', 'Dokter jadwal ini tidak lagi bertugas pada tanggal itu.');
+        }
+        if (! $this->kewenangan->izinPraktikBerlaku($pegawaiId, $tanggal)) {
+            throw self::tidakTersedia('nonaktif', 'Izin praktik (SIP) dokter jadwal ini tidak berlaku pada tanggal itu.');
         }
     }
 

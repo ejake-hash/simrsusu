@@ -7,8 +7,11 @@ use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PeranIzin;
 use App\Modules\Akses\Models\PeranMenu;
+use App\Modules\Pendaftaran\Models\IdentitasPasien;
 use App\Modules\Pendaftaran\Models\Pasien;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Testing\TestResponse;
 use Tests\Support\AksesUji;
 use Tests\Support\KlienSpa;
 use Tests\Support\KontrakApi;
@@ -141,6 +144,58 @@ class GabungPasienTest extends TestCase
         $this->minta('POST', "/api/v1/gabung-pasien/$id/verifikasi", ['keputusan' => 'setuju'])->assertStatus(409)->assertJsonPath('error.kode', 'gabung_bentrok');
         $this->assertNull($lama->refresh()->digabung_ke_id);
         $this->assertSame('diusulkan', DB::table('pasien.usulan_gabung')->where('id', $id)->value('tahap'));
+    }
+
+    public function test_episode_harian_di_tanggal_sama_disatukan_tanpa_membatalkan_kunjungan_dilayani(): void
+    {
+        $lama = $this->pasienBernama('Contoh Episode', '1980-02-02');
+        $baru = $this->pasienBernama('Contoh Episode', '1980-02-02');
+        $pagi = $this->jadwal($this->dokter());
+        $siang = $this->jadwal($this->dokter(), ['jam_mulai' => '13:00', 'jam_selesai' => '16:00']);
+        $this->masukSebagai($this->petugasPendaftaran());
+        $kunjunganLama = $this->daftarKunjungan($lama, $pagi)->assertCreated();
+        $episodeBaru = $this->daftarKunjungan($baru, $siang)->assertCreated()->json('data.episode.id');
+        DB::table('kunjungan.kunjungan')->where('id', $kunjunganLama->json('data.id'))->update(['status' => 'dilayani']);
+        $id = $this->usulDanSetujui($lama, $baru)->assertJsonPath('data.tahap', 'digabung')->json('data.id');
+
+        $this->assertSame([$baru->id, $episodeBaru, 'dilayani'], array_values((array) DB::table('kunjungan.kunjungan')
+            ->where('id', $kunjunganLama->json('data.id'))->first(['pasien_id', 'episode_id', 'status'])));
+        $episodeLama = DB::table('kunjungan.episode')->where('id', $kunjunganLama->json('data.episode.id'))->first();
+        $this->assertSame(['batal', 'Digabung ke RM '.$baru->no_rm], [$episodeLama->status, $episodeLama->alasan_batal]);
+        $this->assertSame(1, DB::table('kunjungan.episode')->where('pasien_id', $baru->id)->where('status', '<>', 'batal')->count());
+        $this->assertAuditTerakhir('pasien.gabung_diterapkan', $id);
+    }
+
+    public function test_nomor_identitas_rm_sumber_pindah_ke_tujuan_tanpa_dihapus_dan_tanpa_bocor_ke_audit(): void
+    {
+        $lama = $this->pasienBernama('Contoh Identitas', '1980-02-02');
+        $baru = $this->pasienBernama('Contoh Identitas', '1980-02-02');
+        foreach ([[$lama, 'nik', '9999010101800001'], [$lama, 'kartu_bpjs', '9999000000001'], [$baru, 'nik', '9999010101800002']] as [$p, $jenis, $nilai]) {
+            $i = new IdentitasPasien(['pasien_id' => $p->id, 'jenis' => $jenis]);
+            $i->aturNilai($nilai);
+            $i->save();
+        }
+        $id = $this->usulDanSetujui($lama, $baru)->assertJsonPath('data.tahap', 'digabung')->json('data.id');
+
+        $nilai = fn (Pasien $p) => IdentitasPasien::query()->where('pasien_id', $p->id)->get()->mapWithKeys(fn ($i) => [$i->jenis => $i->nilai_enkripsi])->sortKeys()->all();
+        $this->assertSame(['kartu_bpjs' => '9999000000001', 'nik' => '9999010101800002'], $nilai($baru));
+        $this->assertSame(['kartu_bpjs' => null, 'nik' => null], $nilai($lama));
+        $versi = DB::table('pasien.pasien_versi')->where('pasien_id', $lama->id)->value('isi_enkripsi');
+        $this->assertEquals(['nik' => '9999010101800001', 'no_kartu_bpjs' => '9999000000001'], json_decode(Crypt::decryptString((string) $versi), true));
+        $audit = $this->assertAuditTerakhir('pasien.gabung_diterapkan', $id);
+        foreach (['9999010101800001', '9999000000001', $lama->no_rm] as $rahasia) {
+            $this->assertStringNotContainsString($rahasia, (string) $audit->sesudah);
+        }
+    }
+
+    private function usulDanSetujui(Pasien $sumber, Pasien $tujuan): TestResponse
+    {
+        $this->masukSebagai($this->petugasGabung());
+        $id = $this->minta('POST', '/api/v1/gabung-pasien', ['pasien_sumber_id' => $sumber->id, 'pasien_tujuan_id' => $tujuan->id, 'alasan' => 'Dugaan ganda'])
+            ->assertCreated()->json('data.id');
+        $this->masukSebagai($this->petugasGabung());
+
+        return $this->minta('POST', "/api/v1/gabung-pasien/$id/verifikasi", ['keputusan' => 'setuju']);
     }
 
     public function test_usul_dan_verifikasi_butuh_izin_masing_masing(): void

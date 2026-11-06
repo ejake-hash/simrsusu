@@ -4530,6 +4530,8 @@ paths:
         Aturan 422 sama dengan POST (`sip_tidak_aktif`, `jadwal_bertumpuk`, `bukan_ruang`, `validasi_gagal`);
         `pegawai_id` dan `poli_id` tidak diubah (nonaktifkan lalu buat jadwal baru). Kuota di bawah jumlah yang
         sudah terisi pada tanggal mendatang → 422 `kuota_di_bawah_terisi`. Jadwal tidak dihapus: `status = nonaktif`.
+        Perubahan `hari`, `berlaku_dari`/`berlaku_sampai`, `jam_selesai`, atau `status` yang meninggalkan kunjungan
+        `terdaftar` mulai hari ini → 422 `jadwal_sudah_terisi` (`rincian` = `[{tanggal}]`).
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -4572,7 +4574,8 @@ paths:
         Izin: master_data.jadwal_praktik.input. `jenis = cuti` wajib `pegawai_id` (semua jadwal dokter itu tertutup pada
         rentang); `jenis = libur` dengan `pegawai_id` kosong menutup semua jadwal RS pada rentang. Daftar pengecualian
         dibaca lewat `JadwalPraktik.pengecualian` (GET /jadwal-praktik); tidak ada daftar tersendiri. 422 `validasi_gagal`
-        bila `sampai_tanggal` < `dari_tanggal`, `cuti` tanpa `pegawai_id`, atau `libur` dengan `pegawai_id`.
+        bila `sampai_tanggal` < `dari_tanggal`, `cuti` tanpa `pegawai_id`, atau `libur` dengan `pegawai_id`. 422
+        `jadwal_sudah_terisi` (`rincian` = `[{tanggal}]`) bila rentang menutup kunjungan `terdaftar` mulai hari ini.
       requestBody:
         required: true
         content:
@@ -4606,7 +4609,8 @@ paths:
       description: |
         Izin: master_data.jadwal_praktik.perbaiki. Wajib If-Match (412, 428). Pembatalan = `status = batal` dengan
         `alasan_batal` (tidak dihapus); pengecualian batal tidak lagi menutup jadwal. Pengecualian yang sudah lewat
-        seluruhnya tidak dapat diubah (422 `validasi_gagal`).
+        seluruhnya tidak dapat diubah (422 `validasi_gagal`). Rentang baru yang menutup kunjungan `terdaftar` → 422
+        `jadwal_sudah_terisi`.
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -4705,6 +4709,7 @@ paths:
           `[{pasien_id, no_rm}]` pasien yang ada, supaya petugas membukanya alih-alih membuat No. RM baru. Pasien tanpa NIK
           (bayi, Mr. X, WNA) tidak diperiksa.
         - 409 `no_kartu_sudah_terdaftar`: No. kartu BPJS sudah tercatat untuk pasien lain; `rincian` sama.
+        - 409 `instalasi_belum_siap`: langkah 1–6 penyiapan instalasi (FR-54-08) belum lengkap; No. RM tidak terpakai.
         - Pasien tanpa identitas (`tanpa_identitas: true`, FR-01-05): `nama`, `nik`, `tanggal_lahir` boleh kosong; bila
           `nama` kosong server mengisi `Mr. X` (laki-laki), `Ny. X` (perempuan), atau `X`. Tetap mendapat No. RM.
         - Selain pasien tanpa identitas, `nama` dan `tanggal_lahir` wajib (422 `validasi_gagal`); `kewarganegaraan`
@@ -4876,7 +4881,9 @@ paths:
         perawatan RM sumber pindah ke RM tujuan, RM sumber ditandai `digabung_ke`; tidak ada yang dihapus.
         `tolak` wajib `catatan`.
         - 409 `tahap_tidak_sesuai` (sudah diputuskan), `pasien_sudah_digabung`, `gabung_bentrok` (kunjungan kedua RM
-          bertumpuk pada poli+tanggal atau episode harian yang sama; usulan tetap terbuka).
+          bertumpuk pada jadwal+tanggal yang sama; usulan tetap terbuka). Episode harian kedua RM di tanggal yang sama
+          disatukan: kunjungan sumber masuk episode tujuan, episode sumber `batal`. NIK/paspor/No. kartu RM sumber pindah
+          ke tujuan bila jenis itu belum terisi di tujuan; di sumber dikosongkan (isi lama di versi pasien).
         Audit `pasien.gabung_diterapkan` atau `pasien.gabung_ditolak`.
       requestBody:
         required: true
@@ -4957,6 +4964,8 @@ paths:
           (7.01.1 baris "Kuota dokter penuh"); daftar kosong bila tidak ada.
         - 422 `jadwal_tidak_tersedia`: jadwal tertutup pengecualian (cuti dokter/libur RS) atau tidak aktif pada
           `tanggal` (`rincian.alasan` = cuti|libur|nonaktif; lihat KeterisianJadwal.alasan_tidak_tersedia, tiket 2.4).
+          Dokter jadwal yang tidak aktif/keluar atau tanpa SIP/SPK berlaku pada `tanggal` juga `nonaktif`.
+        - 409 `instalasi_belum_siap`: langkah 1–6 penyiapan instalasi (FR-54-08) belum lengkap.
         - 422 `jenis_belum_didukung`: `jenis_kunjungan` selain `poliklinik` (FR-01-06; pos lain menyusul tahap C).
         - 422 `tanggal_di_luar_jadwal`: `tanggal` bukan hari praktik jadwal itu, di luar `berlaku_dari`–`berlaku_sampai`,
           masa lalu, atau lebih dari rentang yang diizinkan ke depan.
