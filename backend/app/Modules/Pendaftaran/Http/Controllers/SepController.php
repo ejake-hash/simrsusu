@@ -58,7 +58,7 @@ final class SepController
         }
         $nik = isset($p['nik']) && $p['nik'] !== '' ? (string) $p['nik'] : null;
         $data = [
-            'no_kartu' => (string) $p['noKartu'],
+            'no_kartu' => (string) ($p['noKartu'] ?? ''),
             'nama' => (string) ($p['nama'] ?? ''),
             ...(PasienResource::bolehIdentitas($request->user()) ? ['nik' => $nik] : []),
             'nik_samaran' => $nik === null ? null : substr($nik, 0, 4).' •••• •••• '.substr($nik, -4),

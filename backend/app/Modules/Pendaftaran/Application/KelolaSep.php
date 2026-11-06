@@ -129,10 +129,13 @@ final class KelolaSep
         }
         if (! $tunda) {
             $this->pengirim->proses((string) $sep->kiriman_id);
-            $sep->refresh();
-            if ($sep->status === 'menunggu') {
-                DB::transaction(fn () => $this->tunda($sep, $kunjungan));
-            }
+            // Kunci + cek ulang: pekerja bisa menerbitkan SEP di antara proses() dan transaksi ini; tanpanya tugas tertunda yatim.
+            DB::transaction(function () use ($sep, $kunjungan) {
+                $terkunci = Sep::query()->whereKey($sep->id)->lockForUpdate()->firstOrFail();
+                if ($terkunci->status === 'menunggu') {
+                    $this->tunda($terkunci, $kunjungan);
+                }
+            });
         }
 
         return self::hasil($sep->refresh());

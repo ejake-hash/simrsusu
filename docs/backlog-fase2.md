@@ -144,6 +144,8 @@ Uji    :
 - Respons simulator mengikuti catatan lapangan (di luar repo); tidak ada kredensial nyata.
 Di luar: biometrik (FR-01-09), surat kontrol/SPRI (Tahap C), sandbox nyata (syarat pilot).
 
+Utang 2.7 (PR #138): pekerja belum memeriksa SEP sudah terbit di BPJS sebelum kirim ulang (bentuk respons monitoring belum ada di catatan lapangan; kini hanya dedup BPJS); dua permintaan serentak dengan `Idempotency-Key` sama → yang kedua 409 `sep_sedang_diproses`, bukan respons pertama; masa berlaku rujukan 90 hari dan isi SEP (`suplesi`, `klsRawatHak`) perlu verifikasi katalog VClaim; `SepController` menyalin format `nik_samaran` (ikut PR #136).
+
 ### 2.8 · Antrean loket dan poli + display
 Tujuan : pasien punya satu QR kunjungan; petugas memanggil; display menampilkan nomor tanpa membuka identitas.
 FR     : FR-02-01, 02-03, 02-04, 02-08, 02-09, 02-11, 02-15, 02-16; prototipe `displayantrean.html`
