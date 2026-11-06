@@ -87,6 +87,14 @@ final class AkunSintetisSeeder extends Seeder
     ];
 
     /**
+     * Izin tambahan per peran contoh di atas. Layar Pendaftaran kunjungan poli memuat pilihan poli, jadwal praktik, dan
+     * penjamin dari endpoint data induk, jadi petugas admisi butuh izin lihat ketiganya (RS nyata memberinya lewat Peran & izin).
+     */
+    private const IZIN_TAMBAHAN_CONTOH = [
+        'contoh_admisi' => ['master_data.organisasi.lihat', 'master_data.jadwal_praktik.lihat', 'master_data.penjamin.lihat'],
+    ];
+
+    /**
      * Peran contoh dengan izin terpilih (bukan seluruh menu): kode peran => [nama, akun, kode izin].
      * Bagian data pribadi (sdm.pegawai.identitas.lihat) sengaja tidak diberikan: NIK tampil tersamar.
      */
@@ -189,6 +197,7 @@ final class AkunSintetisSeeder extends Seeder
             foreach (Izin::query()->whereIn('menu_id', $subMenu)->pluck('id') as $izinId) {
                 $this->aktifkan('akses.peran_izin', ['peran_id' => $peran->id, 'izin_id' => $izinId]);
             }
+            $this->beriIzin($peran, self::IZIN_TAMBAHAN_CONTOH[$kode] ?? []);
             app(CacheHakAkses::class)->lupakanSemua();
 
             $this->tugaskan($namaPengguna, $peran);
@@ -196,20 +205,26 @@ final class AkunSintetisSeeder extends Seeder
 
         foreach (self::PERAN_IZIN_CONTOH as $kode => [$nama, $namaPengguna, $daftarIzin]) {
             $peran = Peran::query()->updateOrCreate(['kode' => $kode], ['nama' => $nama, 'uraian' => 'Peran sintetis untuk lokal/staging.']);
-            $izin = Izin::query()->whereIn('kode', $daftarIzin)->get(['id', 'menu_id', 'jenis_aksi']);
-            if ($izin->count() !== count($daftarIzin)) {
-                throw new RuntimeException("Izin peran {$kode} tidak lengkap di akses.izin.");
-            }
-            // Sama dengan KelolaPeran: peran_menu diturunkan dari izin lihat.
-            foreach ($izin->where('jenis_aksi', 'lihat')->pluck('menu_id')->unique() as $menuId) {
-                $this->aktifkan('akses.peran_menu', ['peran_id' => $peran->id, 'menu_id' => $menuId]);
-            }
-            foreach ($izin->pluck('id') as $izinId) {
-                $this->aktifkan('akses.peran_izin', ['peran_id' => $peran->id, 'izin_id' => $izinId]);
-            }
+            $this->beriIzin($peran, $daftarIzin);
             app(CacheHakAkses::class)->lupakanSemua();
 
             $this->tugaskan($namaPengguna, $peran);
+        }
+    }
+
+    /** @param  list<string>  $daftarIzin */
+    private function beriIzin(Peran $peran, array $daftarIzin): void
+    {
+        $izin = Izin::query()->whereIn('kode', $daftarIzin)->get(['id', 'menu_id', 'jenis_aksi']);
+        if ($izin->count() !== count($daftarIzin)) {
+            throw new RuntimeException("Izin peran {$peran->kode} tidak lengkap di akses.izin.");
+        }
+        // Sama dengan KelolaPeran: peran_menu diturunkan dari izin lihat.
+        foreach ($izin->where('jenis_aksi', 'lihat')->pluck('menu_id')->unique() as $menuId) {
+            $this->aktifkan('akses.peran_menu', ['peran_id' => $peran->id, 'menu_id' => $menuId]);
+        }
+        foreach ($izin->pluck('id') as $izinId) {
+            $this->aktifkan('akses.peran_izin', ['peran_id' => $peran->id, 'izin_id' => $izinId]);
         }
     }
 

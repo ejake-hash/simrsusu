@@ -7,7 +7,8 @@ import { terapkanTema } from './tema'
 /**
  * Profil dan paket identitas RS dari GET /profil-rs (publik terbatas, tiket 1.8a; PRD 3.4), menggantikan variabel
  * VITE_RS_*: nama, logo, motif, foto, kontak pengelola akun, tanda instalasi demo, dan warna merek (tema). Dimuat
- * sekali saat aplikasi mulai (halaman masuk ikut memakainya) dan diganti langsung sesudah profil disunting.
+ * saat aplikasi mulai (halaman masuk ikut memakainya; diulang sesudah masuk bila gagal) dan diganti langsung sesudah
+ * profil disunting.
  * Nilai kosong = bagian itu tidak ditampilkan; build produksi tanpa variabel apa pun tetap bekerja.
  */
 export interface ProfilRs {
@@ -66,11 +67,19 @@ export function terapkanProfilRs(d: ProfilRsApi): void {
   terapkanTema(d.paket_identitas.warna)
 }
 
-/** Gagal (server mati, instalasi belum siap) = tetap profil bawaan; layar masuk tetap bisa dipakai. */
-export async function muatProfilRs(): Promise<void> {
-  try {
-    terapkanProfilRs((await ambilProfilRs()).data)
-  } catch {
-    // Profil bawaan sudah terpasang.
-  }
+let pemuatan: Promise<void> | null = null
+
+/**
+ * Gagal (server mati, instalasi belum siap) = tetap profil bawaan; layar masuk tetap bisa dipakai. Sekali berhasil,
+ * panggilan berikutnya tidak mengambil ulang; sesudah gagal, panggilan berikutnya mencoba lagi (dipanggil lagi sesudah
+ * /saya berhasil, agar pita DEMO dan nama/logo RS kembali tanpa muat ulang halaman).
+ */
+export function muatProfilRs(): Promise<void> {
+  pemuatan ??= ambilProfilRs().then(
+    (r) => terapkanProfilRs(r.data),
+    () => {
+      pemuatan = null
+    },
+  )
+  return pemuatan
 }
