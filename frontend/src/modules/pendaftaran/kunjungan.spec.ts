@@ -1,5 +1,6 @@
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { flushPromises, mount } from '@vue/test-utils'
+import { AxiosError, AxiosHeaders, type AxiosAdapter } from 'axios'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
@@ -183,5 +184,20 @@ describe('KunjunganPage — layar', () => {
     const tombol = [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Daftarkan kunjungan') as HTMLButtonElement | undefined
     expect(tombol).toBeTruthy()
     expect(tombol!.disabled).toBe(true)
+  })
+
+  it('pilihan poliklinik yang ditolak (403) tampil sebagai error di kolomnya, bukan dropdown kosong', async () => {
+    const tiruan = klien.defaults.adapter as AxiosAdapter
+    klien.defaults.adapter = async (config) => {
+      if (!config.url?.includes('poliklinik')) return tiruan(config)
+      throw new AxiosError('gagal', 'ERR', config, null, {
+        status: 403, statusText: '', headers: {}, config: { ...config, headers: new AxiosHeaders() },
+        data: { error: { kode: 'tidak_berwenang', pesan: 'Anda tidak berwenang.', rincian: [] } },
+      })
+    }
+    await pasang()
+    const select = document.querySelector('select')!
+    expect(select.getAttribute('aria-invalid')).toBe('true')
+    expect(document.getElementById(select.getAttribute('aria-describedby')!)!.textContent).toBe('Daftar poliklinik tidak dapat dimuat: Anda tidak berwenang.')
   })
 })

@@ -19,6 +19,7 @@ use App\Modules\Integrasi\Console\SinkronSatusehatCommand;
 use App\Modules\Integrasi\Domain\PenyimpanRahasia;
 use App\Modules\Integrasi\Infrastructure\PenyandiKredensial;
 use App\Modules\MasterData\Events\KapasitasTempatTidurBerubah;
+use App\Modules\Pendaftaran\Application\PenanganSep;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -32,7 +33,7 @@ class ModuleServiceProvider extends ServiceProvider
     {
         // Penangan kiriman per tujuan + jenis_resource dipasang di sini oleh tiket yang membangunnya.
         $this->app->singleton(DaftarPenangan::class, fn ($app) => new DaftarPenangan(array_map(fn (string $kelas) => $app->make($kelas),
-            [PenanganAplicares::class, PenanganOrganization::class, PenanganLocation::class, PenanganPractitioner::class])));
+            [PenanganAplicares::class, PenanganOrganization::class, PenanganLocation::class, PenanganPractitioner::class, PenanganSep::class])));
         $this->app->bind(SyaratKredensialIntegrasi::class, SyaratPenyiapan::class);
         // K9: enkripsi tabel dengan kunci khusus; vault bisa menggantikan binding ini.
         $this->app->bind(PenyimpanRahasia::class, PenyandiKredensial::class);

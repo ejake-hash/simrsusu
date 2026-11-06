@@ -18,7 +18,7 @@ final class AkunPegawaiController
 {
     public function __invoke(Request $request, Pegawai $pegawai, AkunPegawai $layanan, AkunPresenter $presenter): JsonResponse
     {
-        abort_unless(Gate::allows('sdm.pegawai.lihat', Cakupan::rs()), 403);
+        Gate::authorize('sdm.pegawai.lihat', Cakupan::rs());
         $isi = $request->validate([
             'nama_pengguna' => ['required', 'string', 'regex:/^[a-z][a-z0-9._-]{2,49}$/'],
             'email' => ['nullable', 'email', 'max:200'],

@@ -20,7 +20,7 @@ final class JadwalPengecualianController
 
     public function store(Request $request, KelolaJadwalPengecualian $kelola): JsonResponse
     {
-        abort_unless(Gate::allows('master_data.jadwal_praktik.input', Cakupan::rs()), 403);
+        Gate::authorize('master_data.jadwal_praktik.input', Cakupan::rs());
         $isi = $request->validate([
             'jenis' => ['required', Rule::in(['cuti', 'libur'])],
             'pegawai_id' => ['nullable', 'uuid'],
@@ -34,7 +34,7 @@ final class JadwalPengecualianController
 
     public function update(Request $request, JadwalPengecualian $pengecualian, KelolaJadwalPengecualian $kelola): JsonResponse
     {
-        abort_unless(Gate::allows('master_data.jadwal_praktik.perbaiki', Cakupan::rs()), 403);
+        Gate::authorize('master_data.jadwal_praktik.perbaiki', Cakupan::rs());
         $isi = $request->validate([
             'dari_tanggal' => ['sometimes', 'date_format:Y-m-d'],
             'sampai_tanggal' => ['sometimes', 'date_format:Y-m-d'],

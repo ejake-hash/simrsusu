@@ -13,12 +13,15 @@ use Illuminate\Support\Str;
  * atau izin khusus hanya menghapus kunci akun itu. Bila generasi terbuang dari cache (allkeys-lru),
  * generasi baru dibuat dan semua kunci lama ikut tidak terpakai: terbuang = dihitung ulang, bukan usang.
  *
- * Penghapusan diulang setelah commit, agar permintaan lain yang sempat menghitung dari data lama
- * sebelum commit tidak meninggalkan hasil usang di cache.
+ * Perubahan per akun mengganti "versi" akun itu, sekarang dan lagi setelah commit. Kunci (generasi +
+ * versi) dibaca sebelum menghitung, jadi permintaan lain yang sempat menghitung dari data lama menyimpan
+ * hasilnya di kunci yang sudah tidak terpakai, bukan di kunci yang dibaca berikutnya.
  */
 final class CacheHakAkses
 {
     private const GENERASI = 'akses:hak:generasi';
+
+    private const VERSI = 'akses:hak:v:';
 
     public function __construct(private readonly Repository $cache) {}
 
@@ -39,9 +42,9 @@ final class CacheHakAkses
 
     public function lupakan(string $penggunaId): void
     {
-        $hapus = fn () => $this->cache->forget($this->kunci($penggunaId));
-        $hapus();
-        DB::afterCommit($hapus);
+        $ganti = fn () => $this->cache->forever(self::VERSI.$penggunaId, Str::random(16));
+        $ganti();
+        DB::afterCommit($ganti);
     }
 
     public function lupakanSemua(): void
@@ -54,7 +57,8 @@ final class CacheHakAkses
     private function kunci(string $penggunaId): string
     {
         $generasi = $this->cache->rememberForever(self::GENERASI, fn () => Str::random(16));
+        $versi = $this->cache->rememberForever(self::VERSI.$penggunaId, fn () => Str::random(16));
 
-        return "akses:hak:$generasi:$penggunaId";
+        return "akses:hak:$generasi:$versi:$penggunaId";
     }
 }

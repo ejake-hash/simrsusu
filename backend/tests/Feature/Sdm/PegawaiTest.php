@@ -9,8 +9,11 @@ use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PeranIzin;
 use App\Modules\Akses\Models\PeranMenu;
 use App\Modules\MasterData\Models\UnitOrganisasi;
+use App\Modules\Sdm\Application\KelolaKredensial;
+use App\Modules\Sdm\Models\IzinPraktik;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\Support\AksesUji;
@@ -264,5 +267,20 @@ class PegawaiTest extends TestCase
         $this->tugaskan($pengguna, $peran);
 
         return $pengguna;
+    }
+
+    public function test_status_izin_praktik_membandingkan_tanggal_di_zona_rs(): void
+    {
+        $zona = (string) config('instalasi.zona_waktu');
+        $this->travelTo(Carbon::parse('2026-11-06 10:00', $zona));
+        $status = fn (string $terbit, ?string $sampai) => KelolaKredensial::statusIzin((new IzinPraktik)->forceFill(['status' => 'aktif', 'terbit' => $terbit, 'berlaku_sampai' => $sampai]));
+        $batasPeringatan = now($zona)->addDays((int) config('sdm.izin_praktik_hari_peringatan'))->toDateString();
+
+        $this->assertSame('berlaku', $status('2026-11-06', null), 'SIP terbit hari ini sudah berlaku');
+        $this->assertSame('belum_berlaku', $status('2026-11-07', null));
+        $this->assertSame('akan_habis', $status('2020-01-01', '2026-11-06'));
+        $this->assertSame('habis', $status('2020-01-01', '2026-11-05'));
+        $this->assertSame('akan_habis', $status('2020-01-01', $batasPeringatan));
+        $this->assertSame('berlaku', $status('2020-01-01', Carbon::parse($batasPeringatan)->addDay()->toDateString()));
     }
 }

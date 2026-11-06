@@ -120,6 +120,11 @@ class AkunSintetisSeederTest extends TestCase
 
         $this->assertTrue($evaluator->bolehMenu($akun('contoh.admisi'), 'pendaftaran.pasien'));
         $this->assertFalse($evaluator->bolehMenu($akun('contoh.admisi'), 'igd.papan'));
+        // Pilihan poli, jadwal, dan penjamin di layar kunjungan poli: lihat saja, tanpa ubah data induk.
+        foreach (['master_data.organisasi.lihat', 'master_data.jadwal_praktik.lihat', 'master_data.penjamin.lihat'] as $kode) {
+            $this->assertTrue($evaluator->boleh($akun('contoh.admisi'), $kode), $kode);
+        }
+        $this->assertFalse($evaluator->boleh($akun('contoh.admisi'), 'master_data.jadwal_praktik.input'));
         $this->assertTrue($evaluator->boleh($akun('contoh.dokter'), 'rawat_jalan.pemeriksaan.input'));
         $this->assertTrue($evaluator->bolehMenu($akun('contoh.perawat'), 'rawat_inap.pemberian_obat'));
         $this->assertFalse($evaluator->bolehMenu($akun('contoh.mfa'), 'igd.papan'));

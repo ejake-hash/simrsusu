@@ -66,7 +66,7 @@ final class KelolaAksesAkun
             if ($ganda->masihAktif()->exists()) {
                 throw new ApiError(409, 'penugasan_ganda', 'Akun ini sudah punya penugasan aktif untuk peran dan cakupan yang sama.');
             }
-            $this->permintaan->tindaklanjuti($isi['permintaan_akses_id'] ?? null, $akun, $penyunting);
+            $ditindaklanjuti = $this->permintaan->tindaklanjuti($isi['permintaan_akses_id'] ?? null, $akun, $penyunting);
 
             // Menunggu persetujuan, satu baris per peran penyetuju: superadmin (K4); peran berizin sensitif (K3, pemilik
             // data tiap izin); peran yang menjadi penyetuju izin sensitif (superadmin lain, K13: satu superadmin tidak
@@ -80,11 +80,14 @@ final class KelolaAksesAkun
                     throw $this->persetujuanGanda();
                 }
 
-                return $this->alur->ajukan($penyunting, $peran->kode === MenuBawaan::PERAN_SUPERADMIN ? 'peran_superadmin' : 'izin_sensitif', 'penugasan', [
+                $diajukan = $this->alur->ajukan($penyunting, $peran->kode === MenuBawaan::PERAN_SUPERADMIN ? 'peran_superadmin' : 'izin_sensitif', 'penugasan', [
                     'pengguna_id' => $akun->id, 'peran_id' => $peran->id, 'cakupan_jenis' => $isi['cakupan_jenis'], 'cakupan_id' => $cakupanId,
                     'berlaku_dari' => $dari->toIso8601String(), 'berlaku_sampai' => $sampai?->toIso8601String(),
                     'dasar_pemberian' => $isi['dasar_pemberian'], 'alasan' => $isi['alasan'] ?? null,
                 ], $penyetuju, ['peran_id' => $peran->id, 'sasaran_pengguna_id' => $akun->id], $isi['dasar_pemberian'], $isi['alasan'] ?? null)[0];
+                $this->permintaan->catatTindaklanjut($ditindaklanjuti, $penyunting);
+
+                return $diajukan;
             }
 
             $penugasan = new PenggunaPeran([
@@ -97,6 +100,7 @@ final class KelolaAksesAkun
             $this->audit->catat('akses.penugasan_dibuat', $penyunting->id, 'akses.pengguna', $akun->id, [
                 'penugasan_id' => $penugasan->id, 'peran' => $peran->kode, ...$this->isiPemberian($penugasan),
             ]);
+            $this->permintaan->catatTindaklanjut($ditindaklanjuti, $penyunting);
 
             return $penugasan;
         });
@@ -170,7 +174,7 @@ final class KelolaAksesAkun
             if ($ganda->masihAktif()->exists()) {
                 throw new ApiError(409, 'pengecualian_ganda', 'Pengecualian yang sama untuk akun ini masih aktif.');
             }
-            $this->permintaan->tindaklanjuti($isi['permintaan_akses_id'] ?? null, $akun, $penyunting);
+            $ditindaklanjuti = $this->permintaan->tindaklanjuti($isi['permintaan_akses_id'] ?? null, $akun, $penyunting);
 
             if ($penyetuju !== [] && $izin !== null) {
                 if (PersetujuanAkses::query()->menunggu()->where('objek_jenis', 'izin_khusus')->where('sasaran_pengguna_id', $akun->id)
@@ -178,11 +182,14 @@ final class KelolaAksesAkun
                     throw $this->persetujuanGanda();
                 }
 
-                return $this->alur->ajukan($penyunting, 'pengecualian', 'izin_khusus', [
+                $diajukan = $this->alur->ajukan($penyunting, 'pengecualian', 'izin_khusus', [
                     'pengguna_id' => $akun->id, 'izin_id' => $izin->id, 'efek' => $isi['efek'],
                     'berlaku_dari' => $dari->toIso8601String(), 'berlaku_sampai' => $sampai?->toIso8601String(),
                     'dasar_pemberian' => $isi['dasar_pemberian'], 'alasan' => $isi['alasan'],
                 ], array_values($penyetuju), ['izin_id' => $izin->id, 'sasaran_pengguna_id' => $akun->id], $isi['dasar_pemberian'], $isi['alasan'])[0];
+                $this->permintaan->catatTindaklanjut($ditindaklanjuti, $penyunting);
+
+                return $diajukan;
             }
 
             $khusus = new PenggunaIzinKhusus([
@@ -196,6 +203,7 @@ final class KelolaAksesAkun
                 'izin_khusus_id' => $khusus->id, 'efek' => $isi['efek'], 'sasaran_jenis' => $isi['sasaran_jenis'],
                 'sasaran_kode' => $isi['sasaran_kode'], ...$this->isiPemberian($khusus),
             ]);
+            $this->permintaan->catatTindaklanjut($ditindaklanjuti, $penyunting);
 
             return $khusus;
         });

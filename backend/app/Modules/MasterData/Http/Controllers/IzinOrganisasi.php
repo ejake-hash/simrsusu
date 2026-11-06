@@ -13,7 +13,7 @@ trait IzinOrganisasi
 {
     private function izin(string $aksi): void
     {
-        abort_unless(Gate::allows("master_data.organisasi.$aksi", Cakupan::rs()), 403);
+        Gate::authorize("master_data.organisasi.$aksi", Cakupan::rs());
     }
 
     /** @param  array<string, mixed>  $isi */

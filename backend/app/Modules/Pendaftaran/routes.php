@@ -3,6 +3,7 @@
 use App\Modules\Pendaftaran\Http\Controllers\GabungPasienController;
 use App\Modules\Pendaftaran\Http\Controllers\KunjunganController;
 use App\Modules\Pendaftaran\Http\Controllers\PasienController;
+use App\Modules\Pendaftaran\Http\Controllers\SepController;
 use Illuminate\Support\Facades\Route;
 
 // Pasien (tiket 2.5) dan kunjungan (tiket 2.6). Izin pendaftaran.pasien.* cakupan rs diperiksa di controller (Gate → AccessEvaluator).
@@ -24,4 +25,9 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
         ->withoutMiddleware('throttle:api')->middleware('throttle:api-layar-kerja');
     Route::post('kunjungan', [KunjunganController::class, 'store']);
     Route::post('kunjungan/{kunjungan}/batal', [KunjunganController::class, 'batal']);
+
+    // Kepesertaan, rujukan, SEP (tiket 2.7): nomor di header X-Nomor, bukan URL.
+    Route::get('bpjs/peserta', [SepController::class, 'peserta']);
+    Route::get('bpjs/rujukan', [SepController::class, 'rujukan']);
+    Route::post('kunjungan/{kunjungan}/sep', [SepController::class, 'terbitkan']);
 });

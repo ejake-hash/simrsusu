@@ -27,7 +27,7 @@ Format dan aturan agen ada di skill `kerja-tiket` § 1–2 dan § 5. Ringkas: sa
 | 2.4 | Jadwal praktik dokter dan kuota poli | BE+FE | M | 2.0 |
 | 2.5 | Cari pasien satu kolom + pasien baru | BE+FE | M | 2.3 · **Selesai** (BE PR #127, FE PR #128 dengan data tiruan v0.19.0; integrasi FE menyusul) |
 | 2.6 | Kunjungan poli + episode + relasi perawatan | BE+FE | M | 2.4, 2.5 · **FE selesai** (PR #130, layar pendaftaran kunjungan poli, data tiruan v0.20.0); **BE selesai** (PR #129: kunjungan, episode, relasi perawatan lapis 4, batal otomatis; merge setelah pemilik memeriksa lapis 4); integrasi FE menyusul |
-| 2.7 | Kepesertaan, rujukan, dan SEP (simulator VClaim) | BE+FE | M | 2.6 |
+| 2.7 | Kepesertaan, rujukan, dan SEP (simulator VClaim) | BE+FE | M | 2.6 · **BE selesai** (PR #138: peserta/rujukan via X-Nomor, `integrasi.sep` lewat outbox + simulator insert SEP, tugas SEP_TERTUNDA) |
 | 2.8 | Antrean loket dan poli + display | BE+FE | M | 2.6 |
 | 2.9 | Duplikat pasien + usulan gabung RM | BE+FE | M | 2.5 · **Selesai** (satu PR BE+FE, kontrak v0.21.0; usulan dua tahap meniru pola 1.8c, tabel sendiri `pasien.usulan_gabung`; unmerge = utang) |
 
@@ -144,6 +144,8 @@ Uji    :
 - Respons simulator mengikuti catatan lapangan (di luar repo); tidak ada kredensial nyata.
 Di luar: biometrik (FR-01-09), surat kontrol/SPRI (Tahap C), sandbox nyata (syarat pilot).
 
+Utang 2.7 (PR #138): pekerja belum memeriksa SEP sudah terbit di BPJS sebelum kirim ulang (bentuk respons monitoring belum ada di catatan lapangan; kini hanya dedup BPJS); dua permintaan serentak dengan `Idempotency-Key` sama → yang kedua 409 `sep_sedang_diproses`, bukan respons pertama; masa berlaku rujukan 90 hari dan isi SEP (`suplesi`, `klsRawatHak`) perlu verifikasi katalog VClaim; `SepController` menyalin format `nik_samaran` (ikut PR #136).
+
 ### 2.8 · Antrean loket dan poli + display
 Tujuan : pasien punya satu QR kunjungan; petugas memanggil; display menampilkan nomor tanpa membuka identitas.
 FR     : FR-02-01, 02-03, 02-04, 02-08, 02-09, 02-11, 02-15, 02-16; prototipe `displayantrean.html`
@@ -165,12 +167,41 @@ Uji    :
 - Gabung memindahkan kunjungan ke RM tujuan; RM lama ditandai "digabung ke …", tidak dihapus; bisa ditelusuri.
 - Pengusul ≠ verifikator.
 Di luar: pemisahan RM (unmerge) — catat sebagai utang bila tidak muat.
-Utang 2.9: pemisahan RM (unmerge) belum ada; identitas (NIK/kartu BPJS) RM lama tetap di RM lama; notifikasi kotak kerja ke Rekam Medis belum ada.
+Utang 2.9: pemisahan RM (unmerge) belum ada; notifikasi kotak kerja ke Rekam Medis belum ada. (Identitas RM lama kini dipindah saat gabung, PR #135.)
 
 ### Keluar Tahap A (di staging, data sintetis)
 - e2e: pasien baru BPJS → kunjungan poli → SEP (simulator) → antrean → dipanggil → display.
 - Penjaga siap melayani terbukti menolak pendaftaran di instalasi yang belum lengkap.
 - Backlog Tahap B ditulis rinci (oleh perencana), PRD diselaraskan sekali.
+
+## Utang dan keputusan tertunda (audit repo 6 Nov 2026)
+Audit menyeluruh oleh sesi; perbaikan sudah merge di #133 (bom waktu cookie tes), #134 (akses: cache versi, `catat()` di akhir,
+batas sandi, `Gate::authorize`), #135 (pendaftaran: penjaga siap melayani, jadwal/cuti vs kunjungan, dokter keluar/SIP, gabung
+RM), #137 (layar pendaftaran, e2e admisi). Sisa:
+
+**[Perlu pemilik]**
+- PR #136: `nik_samaran` hanya 4 digit akhir. Format kontrak lama (4 awal + 4 akhir) bisa direkonstruksi dari tanggal lahir + kode wilayah.
+- Form pasien: kode agama/pendidikan/pekerjaan/status kawin/kelurahan masih hard-coded di `DialogPasien.vue` dan ditolak backend
+  (422). Butuh (a) kontrak endpoint baca `GET /referensi?kelompok=` dan `GET /wilayah?induk=`, (b) berkas paket referensi resmi
+  (`backend/database/referensi/SUMBER.md`, utang 1.8e).
+- Endpoint lookup (`/poliklinik`, `/jadwal-praktik`, `/data-induk/penjamin`) hanya menerima izin `master_data.*.lihat`; layar
+  kunjungan admisi butuh ketiganya. Saat ini diatasi lewat peran (data contoh #137). Terima juga izin `pendaftaran.pasien.input`?
+- `AlurPersetujuan::alasanTidakBoleh`: satu orang dengan dua peran penyetuju bisa menyetujui dua baris dalam satu grup. PRD belum mengatur.
+
+**Utang teknis (tiket kecil / disisipkan ke tiket terkait)**
+- Lean: hapus skeleton Laravel di backend (`welcome.blade.php`, `resources/js|css`, `package.json`, `vite.config.js`, rute `/`,
+  ExampleTest, `inspire`, `laravel/sail`; skrip `composer setup` migrasi tanpa `pgsql_migrator`), helper `berversi()` FE disalin
+  9×, wrapper penerus (`PenjagaPenyunting::versiDiminta`, `AkunPegawai::sandiAwal`, forwarder `AlurPersetujuan`,
+  `KelolaPeran::naikkanVersi`), antarmuka `PendaftaranPerangkat` satu implementasi, `KelolaPegawai` menyalin
+  `SuntinganBerversi::naikkan`, ekspor FE tak terpakai, modul kosong `Igd` + folder FE `igd`/`rawat-inap`/`rawat-jalan`. ±500 baris.
+- Sisa 3 `abort_unless(Gate::any(...))` (`MenuController:16`, `UnitOrganisasiController:51,72`) → jalur `Gate`/middleware.
+- Kontrak: `JadwalPengecualian.pegawai` `oneOf [RingkasPegawai, null]` padahal `RingkasPegawai` sudah nullable → libur tanpa pegawai gagal validasi kontrak.
+- Gabung RM: revisi tujuan naik tanpa baris `pasien_versi` tujuan (jejak hanya di versi sumber).
+- POST cuti/libur tidak mengunci jadwal; berbarengan dengan pendaftaran bisa lolos keduanya (dampak kecil).
+- `lokal:kunjungan-contoh --batal` mengosongkan `siap_melayani_sejak` tanpa syarat dan tidak membersihkan poli `POLI-PD`.
+- `Penandatangan::status` satu query `kunci_publik` per tanda tangan (verifikasi ≤ 100 query).
+- CI: `e2e-nightly.yml` tanpa `permissions: {contents: read}`; `docker-compose.yml` mem-publish Postgres/Valkey di 0.0.0.0 (pakai `127.0.0.1:`).
+- Lapisan tiruan FE (`*/tiruan/`, ±5.500 baris) masih tulang punggung 31 spec unit; layar Fase 2 butuh e2e terhadap backend asli per layar.
 
 ## Kerangka tahap berikutnya (dirinci kemudian)
 - **B — Rawat jalan + RME**: formularium (wizard langkah 7, KFA via simulator), CPPT lintas pos (`CpptLinimasa`), asesmen RJ, order penunjang bersama (7.00.5), e-resep → antrean farmasi, Antrean Online BPJS task ID 1–7, APM, akses darurat (K12).

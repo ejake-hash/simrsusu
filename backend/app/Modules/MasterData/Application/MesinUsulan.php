@@ -432,7 +432,7 @@ final class MesinUsulan
 
     private function pastikanIzin(string $aksi): void
     {
-        abort_unless(Gate::allows("master_data.usulan.$aksi", Cakupan::rs()), 403);
+        Gate::authorize("master_data.usulan.$aksi", Cakupan::rs());
     }
 
     private function pastikanPeran(Pengguna $pengguna, ?string $peranId, string $kode, string $pesan): void

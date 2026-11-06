@@ -78,18 +78,15 @@ final class KelolaLabel
                 throw new ApiError(409, 'label_masih_berlaku', 'Akun ini masih punya izin label tersebut. Cabut dulu bila ingin mengganti masa berlakunya.');
             }
 
-            $p = $this->alur->ajukan($penyunting, 'izin_label', 'izin_label', [
+            return $this->alur->ajukan($penyunting, 'izin_label', 'izin_label', [
                 'pengguna_id' => $akun->id, 'label_id' => $label->id, 'label_kode' => $label->kode, 'label_nama' => $label->nama,
                 'berlaku_sampai' => $sampai->toIso8601String(), 'dasar_pemberian' => $isi['dasar_pemberian'], 'alasan' => $isi['alasan'],
-            ], [(string) $label->peran_penyetuju_id], ['sasaran_pengguna_id' => $akun->id], $isi['dasar_pemberian'], $isi['alasan'])[0];
-
-            (new PenggunaLabel)->forceFill([
-                'pengguna_id' => $akun->id, 'label_sensitivitas_id' => $label->id, 'persetujuan_akses_id' => $p->id, 'status' => 'menunggu',
-                'berlaku_sampai' => $sampai, 'dasar_pemberian' => $isi['dasar_pemberian'], 'alasan' => $isi['alasan'],
-                'diberikan_oleh' => $penyunting->id, 'dibuat_oleh' => $penyunting->id, 'diubah_oleh' => $penyunting->id,
-            ])->save();
-
-            return $p;
+            ], [(string) $label->peran_penyetuju_id], ['sasaran_pengguna_id' => $akun->id], $isi['dasar_pemberian'], $isi['alasan'],
+                sebelumAudit: fn (PersetujuanAkses $p) => (new PenggunaLabel)->forceFill([
+                    'pengguna_id' => $akun->id, 'label_sensitivitas_id' => $label->id, 'persetujuan_akses_id' => $p->id, 'status' => 'menunggu',
+                    'berlaku_sampai' => $sampai, 'dasar_pemberian' => $isi['dasar_pemberian'], 'alasan' => $isi['alasan'],
+                    'diberikan_oleh' => $penyunting->id, 'dibuat_oleh' => $penyunting->id, 'diubah_oleh' => $penyunting->id,
+                ])->save())[0];
         });
     }
 

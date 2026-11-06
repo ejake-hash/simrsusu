@@ -25,7 +25,7 @@ final class JadwalPraktikResource
         $pegawai = Pegawai::query()->whereIn('id', $jadwal->pluck('pegawai_id')->unique())->get()->keyBy('id');
         $poli = Poliklinik::query()->whereIn('id', $jadwal->pluck('poli_id')->unique())->get()->keyBy('id');
         $ruang = Lokasi::query()->whereIn('id', $jadwal->pluck('ruang_id')->filter()->unique())->get()->keyBy('id');
-        $pengecualian = $this->pengecualianAktif($pegawai->keys()->all());
+        $pengecualian = $this->pengecualianAktif($pegawai->keys()->all(), min($tanggal ?? SuntinganBerversi::hariIni(), SuntinganBerversi::hariIni()));
         $terisi = $tanggal === null ? [] : $this->keterisian->terisi($jadwal->pluck('id')->all(), $tanggal);
 
         return $jadwal->map(function (JadwalPraktik $j) use ($pegawai, $poli, $ruang, $pengecualian, $tanggal, $terisi) {
@@ -92,14 +92,14 @@ final class JadwalPraktikResource
     }
 
     /**
-     * Pengecualian aktif yang belum lewat: milik dokter di halaman ini atau libur RS.
+     * Pengecualian aktif yang belum lewat (atau masih mencakup `?tanggal=` lampau): milik dokter di halaman ini atau libur RS.
      *
      * @param  list<string|int>  $pegawaiIds
      * @return Collection<int, JadwalPengecualian>
      */
-    private function pengecualianAktif(array $pegawaiIds): Collection
+    private function pengecualianAktif(array $pegawaiIds, string $sejak): Collection
     {
-        return JadwalPengecualian::query()->where('status', 'aktif')->where('sampai_tanggal', '>=', SuntinganBerversi::hariIni())
+        return JadwalPengecualian::query()->where('status', 'aktif')->where('sampai_tanggal', '>=', $sejak)
             ->where(fn ($q) => $q->whereNull('pegawai_id')->orWhereIn('pegawai_id', $pegawaiIds))
             ->orderBy('dari_tanggal')->orderBy('id')->get();
     }

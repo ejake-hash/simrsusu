@@ -112,6 +112,6 @@ final class KredensialController
 
     private static function izin(string $aksi): void
     {
-        abort_unless(Gate::allows("sdm.kredensial.$aksi", Cakupan::rs()), 403);
+        Gate::authorize("sdm.kredensial.$aksi", Cakupan::rs());
     }
 }
