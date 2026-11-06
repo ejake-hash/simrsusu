@@ -1,9 +1,15 @@
+import { AxiosError, AxiosHeaders, type AxiosAdapter } from 'axios'
 import { afterEach, describe, expect, it } from 'vitest'
 import { profilRsTiruan } from '@/modules/organisasi/tiruan/profilRs'
 import { HALAMAN_MASUK_BAWAAN } from '@/modules/organisasi/halamanMasuk'
-import { dariRespons, PROFIL_BAWAAN, terapkanProfilRs, useProfilRs } from './profilRs'
+import { klien } from '@/shared/api/klien'
+import { dariRespons, muatProfilRs, PROFIL_BAWAAN, terapkanProfilRs, useProfilRs } from './profilRs'
 
-afterEach(() => terapkanProfilRs(profilRsTiruan()))
+const adapterAsli = klien.defaults.adapter
+afterEach(() => {
+  klien.defaults.adapter = adapterAsli
+  terapkanProfilRs(profilRsTiruan())
+})
 
 describe('profil RS dari GET /profil-rs', () => {
   it('memetakan nama, berkas identitas, kontak pengelola akun, dan tanda demo', () => {
@@ -39,5 +45,25 @@ describe('profil RS dari GET /profil-rs', () => {
     terapkanProfilRs(profilRsTiruan({ nama: 'RS Baru', instalasi_demo: true }))
     expect(profil.value.nama).toBe('RS Baru')
     expect(profil.value.demo).toBe(true)
+  })
+
+  it('muatProfilRs: gagal saat mulai (502) dicoba lagi pada panggilan berikutnya; sesudah berhasil tidak mengambil ulang', async () => {
+    terapkanProfilRs(profilRsTiruan({ instalasi_demo: false }))
+    let panggilan = 0
+    const adapter: AxiosAdapter = async (config) => {
+      if (++panggilan === 1) {
+        throw new AxiosError('gagal', 'ERR', config, null, { status: 502, statusText: '', headers: {}, config: { ...config, headers: new AxiosHeaders() }, data: '' })
+      }
+      return { data: { data: profilRsTiruan({ nama: 'RS Contoh Pendidikan', instalasi_demo: true }) }, status: 200, statusText: 'OK', headers: {}, config }
+    }
+    klien.defaults.adapter = adapter
+    const profil = useProfilRs()
+
+    await muatProfilRs()
+    expect(profil.value.demo).toBe(false)
+    await muatProfilRs()
+    expect(profil.value).toMatchObject({ nama: 'RS Contoh Pendidikan', demo: true })
+    await muatProfilRs()
+    expect(panggilan).toBe(2)
   })
 })

@@ -6,6 +6,7 @@ use App\Core\Instalasi\StatusInstalasi;
 use App\Core\Instalasi\StatusPenyiapan;
 use App\Core\Log\InstallMasking;
 use App\Core\Lokal\Console\KodeMfa;
+use App\Core\Lokal\Console\KunjunganContoh;
 use App\Core\Lokal\Console\SiapkanEnv;
 use App\Core\Lokal\PerintahLokal;
 use App\Core\PemeriksaanProduksi;
@@ -53,7 +54,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Perintah lokal (tiket 1.16) tidak terdaftar sama sekali di production.
         if ($this->app->runningInConsole() && PerintahLokal::diizinkan(app())) {
-            $this->commands([SiapkanEnv::class, KodeMfa::class]);
+            $this->commands([SiapkanEnv::class, KodeMfa::class, KunjunganContoh::class]);
         }
 
         // throttle:api dipasang ke grup `api` di bootstrap/app.php; nilai di config/rate_limit.php.
