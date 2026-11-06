@@ -89,7 +89,7 @@ final class JenisTugasController
 
     private static function izin(string $aksi): void
     {
-        abort_unless(Gate::allows("master_data.jenis_tugas.$aksi", Cakupan::rs()), 403);
+        Gate::authorize("master_data.jenis_tugas.$aksi", Cakupan::rs());
     }
 
     private function satu(JenisTugas $jenis): JsonResponse

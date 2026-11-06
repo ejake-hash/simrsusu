@@ -58,10 +58,11 @@ final class AlurPersetujuan
      * @param  array<string, mixed>  $objek  isi yang diterapkan bila disetujui
      * @param  list<string>  $penyetujuPeranId  diabaikan bila $penyetujuPenggunaId diisi
      * @param  array{peran_id?: string|null, izin_id?: string|null, sasaran_pengguna_id?: string|null}  $kunci
+     * @param  (\Closure(PersetujuanAkses): mixed)|null  $sebelumAudit  tulisan pemanggil yang butuh baris pengajuan; dijalankan sebelum catat()
      * @return list<PersetujuanAkses>
      */
     public function ajukan(Pengguna $pengaju, string $jenis, string $objekJenis, array $objek, array $penyetujuPeranId, array $kunci, string $dasar, ?string $alasan,
-        ?string $penyetujuPenggunaId = null): array
+        ?string $penyetujuPenggunaId = null, ?\Closure $sebelumAudit = null): array
     {
         $grup = (string) Str::uuid7();
         $kedaluwarsa = now()->addDays(self::MASA_HARI);
@@ -77,6 +78,9 @@ final class AlurPersetujuan
             $p->save();
             $baris[] = $p;
             PersetujuanDiajukan::dispatch($p->id, $p->nomor, $peranId, $penyetujuPenggunaId);
+        }
+        if ($sebelumAudit !== null) {
+            $sebelumAudit($baris[0]);
         }
         $this->audit->catat('akses.persetujuan_diajukan', $pengaju->id, 'akses.persetujuan_akses', $baris[0]->id, [
             'grup_id' => $grup, 'nomor' => array_map(fn (PersetujuanAkses $p) => $p->nomor, $baris), 'jenis' => $jenis,
@@ -168,8 +172,9 @@ final class AlurPersetujuan
                     'catatan_keputusan' => $catatan, 'diubah_oleh' => $penyetuju->id])->save();
                 PersetujuanDitutup::dispatch([$p->id], 'disetujui');
                 if ($grup->every(fn (PersetujuanAkses $b) => $b->status === 'disetujui')) {
-                    $this->penerap->terapkan($p, $penyetuju);
+                    // Ditandai lebih dulu: terapkan() diakhiri catat(), dan sesudah catat() tidak boleh ada tulisan lain.
                     PersetujuanAkses::query()->where('grup_id', $p->grup_id)->update(['diterapkan_pada' => now()]);
+                    $this->penerap->terapkan($p, $penyetuju);
                     $p->refresh();
                 }
                 $this->audit->catat('akses.persetujuan_disetujui', $penyetuju->id, 'akses.persetujuan_akses', $p->id, [

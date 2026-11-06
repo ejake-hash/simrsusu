@@ -8,7 +8,7 @@ Route::prefix('api/v1')->middleware('api')->whereIn('jenis', ['logo', 'motif', '
     Route::get('profil-rs', [ProfilRsController::class, 'show']);
     Route::get('profil-rs/berkas/{jenis}', [ProfilRsController::class, 'berkas']);
 
-    Route::middleware(['auth:web', 'sesi.pengguna', 'can:pengaturan.profil_rs.perbaiki'])->group(function () {
+    Route::middleware(['auth:web', 'sesi.pengguna', 'can.rs:pengaturan.profil_rs.perbaiki'])->group(function () {
         Route::put('profil-rs', [ProfilRsController::class, 'update']);
         Route::put('profil-rs/berkas/{jenis}', [ProfilRsController::class, 'gantiBerkas']);
     });

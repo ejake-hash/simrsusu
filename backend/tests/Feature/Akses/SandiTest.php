@@ -2,6 +2,10 @@
 
 namespace Tests\Feature\Akses;
 
+use App\Core\Http\ApiError;
+use App\Modules\Akses\Application\GantiSandi;
+use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Ttd\Application\KelolaTtd;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
@@ -13,6 +17,43 @@ class SandiTest extends TestCase
     public function test_hash_sandi_memakai_argon2id(): void
     {
         $this->assertSame('argon2id', password_get_info(Hash::make('kuda-lumping-biru-29'))['algoName']);
+    }
+
+    /**
+     * Permintaan paralel dengan sandi salah: semuanya sudah lewat cek batas sebelum yang pertama selesai Argon2. Disimulasikan
+     * dengan memanggil ulang dari dalam Hash::check; hitungan harus naik sebelum Argon2 sehingga yang ke-(batas+1) ditolak.
+     */
+    public function test_batas_sandi_salah_tidak_bisa_ditembus_permintaan_paralel(): void
+    {
+        $pengguna = Pengguna::factory()->create();
+        $panggil = [
+            'ganti sandi' => fn () => app(GantiSandi::class)->ganti(request(), $pengguna, 'salah-sandi-lama-99', 'Kuda-Biru-Lompat-77'),
+            'aktivasi TTE' => fn () => app(KelolaTtd::class)->aktivasi(request(), $pengguna, 'salah-sandi-lama-99', '135792', '135792'),
+        ];
+        $argon = 0;
+        $ditolak = [];
+        $coba = $panggil['ganti sandi'];
+        Hash::shouldReceive('check')->andReturnUsing(function () use (&$argon, &$ditolak, &$coba) {
+            if (++$argon <= GantiSandi::BATAS_SALAH) {
+                try {
+                    $coba();
+                } catch (ApiError $e) {
+                    $ditolak[] = $e->getStatusCode();
+                }
+            }
+
+            return false;
+        });
+        foreach ($panggil as $nama => $coba) {
+            [$argon, $ditolak] = [0, []];
+            try {
+                $coba();
+            } catch (ApiError) {
+            }
+
+            $this->assertSame(GantiSandi::BATAS_SALAH, $argon, "$nama: percobaan yang sampai ke Argon2 melebihi batas.");
+            $this->assertContains(429, $ditolak, $nama);
+        }
     }
 
     public function test_sandi_kurang_dari_dua_belas_karakter_ditolak(): void

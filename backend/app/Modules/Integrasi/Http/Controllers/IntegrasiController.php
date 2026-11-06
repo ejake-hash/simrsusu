@@ -38,7 +38,7 @@ final class IntegrasiController
 
     public function simpanKredensial(Request $request, KelolaKredensial $kredensial, StatusSistem $status, string $kode): JsonResponse
     {
-        abort_unless(Gate::allows('pengaturan.integrasi.perbaiki', Cakupan::rs()), 403);
+        Gate::authorize('pengaturan.integrasi.perbaiki', Cakupan::rs());
         $sistem = SistemIntegrasi::from($kode);
         $isi = $request->validate([
             'lingkungan' => ['required', Rule::in(SistemIntegrasi::LINGKUNGAN)],
@@ -54,7 +54,7 @@ final class IntegrasiController
 
     public function ujiKoneksi(Request $request, UjiKoneksi $uji, string $kode): JsonResponse
     {
-        abort_unless(Gate::allows('pengaturan.integrasi.perbaiki', Cakupan::rs()), 403);
+        Gate::authorize('pengaturan.integrasi.perbaiki', Cakupan::rs());
         $isi = $request->validate(['lingkungan' => ['sometimes', 'nullable', Rule::in(SistemIntegrasi::LINGKUNGAN)]]);
 
         return new JsonResponse(['data' => $uji->uji(SistemIntegrasi::from($kode), $isi['lingkungan'] ?? null, $request->user()->id)]);
@@ -85,7 +85,7 @@ final class IntegrasiController
     {
         $baris = KotakKeluar::cari($id);
         abort_if($baris === null, 404);
-        abort_unless(Gate::allows(SistemIntegrasi::from($baris->tujuan)->subMenuPemantauan().'.perbaiki', Cakupan::rs()), 403);
+        Gate::authorize(SistemIntegrasi::from($baris->tujuan)->subMenuPemantauan().'.perbaiki', Cakupan::rs());
         $kotakKeluar->kirimUlang($baris, $request->user()->id);
 
         $sesudah = DB::table('integrasi.kotak_keluar')->select(IntegrasiPresenter::KOLOM_KIRIMAN)->where('id', $id)->first();
@@ -95,7 +95,7 @@ final class IntegrasiController
 
     public function log(Request $request): JsonResponse
     {
-        abort_unless(Gate::allows('integrasi.log.lihat', Cakupan::rs()), 403);
+        Gate::authorize('integrasi.log.lihat', Cakupan::rs());
         if ((int) $request->query('batas', '0') > self::BATAS_LOG) {
             throw new ApiError(422, 'ukuran_halaman_melebihi_batas', 'Paling banyak '.self::BATAS_LOG.' baris log per halaman.', [['kolom' => 'batas', 'pesan' => 'Maksimum '.self::BATAS_LOG.'.']]);
         }

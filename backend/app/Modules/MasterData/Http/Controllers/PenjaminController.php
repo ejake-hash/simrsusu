@@ -81,7 +81,7 @@ final class PenjaminController
 
     private function izin(string $aksi): void
     {
-        abort_unless(Gate::allows("master_data.penjamin.$aksi", Cakupan::rs()), 403);
+        Gate::authorize("master_data.penjamin.$aksi", Cakupan::rs());
     }
 
     /** @return array<string, mixed> */

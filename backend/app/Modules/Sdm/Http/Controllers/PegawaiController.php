@@ -108,7 +108,7 @@ final class PegawaiController
 
     private static function izin(string $kode): void
     {
-        abort_unless(Gate::allows($kode, Cakupan::rs()), 403);
+        Gate::authorize($kode, Cakupan::rs());
     }
 
     private function satu(Request $request, Pegawai $pegawai, int $status = 200, bool $tampilkanNik = false): JsonResponse

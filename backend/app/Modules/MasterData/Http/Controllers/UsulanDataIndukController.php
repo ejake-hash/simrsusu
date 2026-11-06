@@ -142,7 +142,7 @@ final class UsulanDataIndukController
 
     private function izin(string $aksi): void
     {
-        abort_unless(Gate::allows("master_data.usulan.$aksi", Cakupan::rs()), 403);
+        Gate::authorize("master_data.usulan.$aksi", Cakupan::rs());
     }
 
     private function satu(UsulanDataInduk $u, Request $request, int $status = 200): JsonResponse
