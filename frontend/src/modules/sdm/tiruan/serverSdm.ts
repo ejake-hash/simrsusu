@@ -104,7 +104,7 @@ export function buatServerSdm(opsi: OpsiServerSdm) {
     }
     return hasil
   }
-  const samaran = (nik: string | null) => (nik ? `${nik.slice(0, 4)} •••• •••• ${nik.slice(12)}` : null)
+  const samaran = (nik: string | null) => (nik ? `•••• •••• •••• ${nik.slice(12)}` : null)
   const unitRingkas = (uid: string | null) => {
     const u = uid ? opsi.unit(uid) : null
     return u ? { id: u.id, kode: u.kode, nama: u.nama } : null

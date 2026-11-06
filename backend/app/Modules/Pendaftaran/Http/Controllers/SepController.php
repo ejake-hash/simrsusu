@@ -61,7 +61,7 @@ final class SepController
             'no_kartu' => (string) ($p['noKartu'] ?? ''),
             'nama' => (string) ($p['nama'] ?? ''),
             ...(PasienResource::bolehIdentitas($request->user()) ? ['nik' => $nik] : []),
-            'nik_samaran' => $nik === null ? null : substr($nik, 0, 4).' •••• •••• '.substr($nik, -4),
+            'nik_samaran' => $nik === null ? null : '•••• •••• •••• '.substr($nik, -4),
             'tanggal_lahir' => $p['tglLahir'] ?? null,
             'jenis_kelamin' => match ($p['sex'] ?? null) {
                 'L' => 'laki_laki', 'P' => 'perempuan', default => 'tidak_diketahui'
