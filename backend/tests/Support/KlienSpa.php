@@ -60,7 +60,8 @@ trait KlienSpa
         $respons = $this->withCredentials()->json($metode, $uri, $data);
 
         foreach ($respons->headers->getCookies() as $kue) {
-            if ($kue->isCleared()) {
+            // Bukan isCleared(): itu memakai time() asli, sehingga di tes travelTo() ke masa lalu cookie baru dianggap kedaluwarsa.
+            if ($kue->getExpiresTime() !== 0 && $kue->getExpiresTime() < now()->getTimestamp()) {
                 unset($this->kue[$kue->getName()]);
             } else {
                 $this->kue[$kue->getName()] = $kue->getValue();
