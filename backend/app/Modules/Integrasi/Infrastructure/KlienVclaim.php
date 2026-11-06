@@ -22,8 +22,31 @@ final class KlienVclaim
      */
     public function get(string $lingkungan, array $kredensial, string $path, ?string $pathLog = null, ?string $kotakKeluarId = null): array
     {
+        return $this->panggil('GET', $lingkungan, $kredensial, $path, null, $pathLog, $kotakKeluarId);
+    }
+
+    /**
+     * Tulis VClaim (mis. SEP/2.0/insert, catatan §5.1): isi JSON; isi permintaan di log disamarkan allowlist (1.9).
+     *
+     * @param  array<string, string>  $kredensial
+     * @param  array<string, mixed>  $isi
+     * @return array{jawaban: JawabanHttp, code: string|null, message: string|null, response: mixed, terbuka: bool}
+     */
+    public function post(string $lingkungan, array $kredensial, string $path, array $isi, ?string $kotakKeluarId = null): array
+    {
+        return $this->panggil('POST', $lingkungan, $kredensial, $path, $isi, null, $kotakKeluarId);
+    }
+
+    /**
+     * @param  array<string, string>  $kredensial
+     * @param  array<string, mixed>|null  $isi
+     * @return array{jawaban: JawabanHttp, code: string|null, message: string|null, response: mixed, terbuka: bool}
+     */
+    private function panggil(string $metode, string $lingkungan, array $kredensial, string $path, ?array $isi, ?string $pathLog, ?string $kotakKeluarId): array
+    {
         $waktu = time();
-        $jawaban = $this->http->kirim(SistemIntegrasi::BpjsVclaim, $lingkungan, 'GET', $path, ['headers' => KlienBpjs::header($kredensial, $waktu)]);
+        $jawaban = $this->http->kirim(SistemIntegrasi::BpjsVclaim, $lingkungan, $metode, $path,
+            ['headers' => KlienBpjs::header($kredensial, $waktu), ...($isi === null ? [] : ['json' => $isi])]);
         $json = $jawaban->json();
         $meta = KlienBpjs::meta($json);
         $response = $json['response'] ?? null;
@@ -41,7 +64,7 @@ final class KlienVclaim
         };
         // Isi yang bukan struktur JSON tidak dicatat (bisa memuat data peserta dalam teks bebas).
         $responsLog = is_array($response) || $response === null ? $response : '['.strlen((string) $response).' bita bukan JSON]';
-        $this->http->catat(SistemIntegrasi::BpjsVclaim, $lingkungan, 'GET', $pathLog ?? $path, $jawaban, $berhasil, $pesan, null,
+        $this->http->catat(SistemIntegrasi::BpjsVclaim, $lingkungan, $metode, $pathLog ?? $path, $jawaban, $berhasil, $pesan, $isi,
             $json === null ? null : ['metaData' => ['code' => $meta['code'], 'message' => $meta['message']], 'response' => $responsLog], $kotakKeluarId);
 
         return ['jawaban' => $jawaban, 'code' => $meta['code'], 'message' => $meta['message'], 'response' => $response, 'terbuka' => $terbuka];

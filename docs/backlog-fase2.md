@@ -27,7 +27,7 @@ Format dan aturan agen ada di skill `kerja-tiket` § 1–2 dan § 5. Ringkas: sa
 | 2.4 | Jadwal praktik dokter dan kuota poli | BE+FE | M | 2.0 |
 | 2.5 | Cari pasien satu kolom + pasien baru | BE+FE | M | 2.3 · **Selesai** (BE PR #127, FE PR #128 dengan data tiruan v0.19.0; integrasi FE menyusul) |
 | 2.6 | Kunjungan poli + episode + relasi perawatan | BE+FE | M | 2.4, 2.5 · **FE selesai** (PR #130, layar pendaftaran kunjungan poli, data tiruan v0.20.0); **BE selesai** (PR #129: kunjungan, episode, relasi perawatan lapis 4, batal otomatis; merge setelah pemilik memeriksa lapis 4); integrasi FE menyusul |
-| 2.7 | Kepesertaan, rujukan, dan SEP (simulator VClaim) | BE+FE | M | 2.6 |
+| 2.7 | Kepesertaan, rujukan, dan SEP (simulator VClaim) | BE+FE | M | 2.6 · **BE selesai** (PR #138: peserta/rujukan via X-Nomor, `integrasi.sep` lewat outbox + simulator insert SEP, tugas SEP_TERTUNDA) |
 | 2.8 | Antrean loket dan poli + display | BE+FE | M | 2.6 |
 | 2.9 | Duplikat pasien + usulan gabung RM | BE+FE | M | 2.5 · **Selesai** (satu PR BE+FE, kontrak v0.21.0; usulan dua tahap meniru pola 1.8c, tabel sendiri `pasien.usulan_gabung`; unmerge = utang) |
 
@@ -143,6 +143,8 @@ Uji    :
 - Circuit breaker terbuka → layar menawarkan "simpan, terbitkan SEP nanti" dan tugas masuk kotak kerja.
 - Respons simulator mengikuti catatan lapangan (di luar repo); tidak ada kredensial nyata.
 Di luar: biometrik (FR-01-09), surat kontrol/SPRI (Tahap C), sandbox nyata (syarat pilot).
+
+Utang 2.7 (PR #138): pekerja belum memeriksa SEP sudah terbit di BPJS sebelum kirim ulang (bentuk respons monitoring belum ada di catatan lapangan; kini hanya dedup BPJS); dua permintaan serentak dengan `Idempotency-Key` sama → yang kedua 409 `sep_sedang_diproses`, bukan respons pertama; masa berlaku rujukan 90 hari dan isi SEP (`suplesi`, `klsRawatHak`) perlu verifikasi katalog VClaim; `SepController` menyalin format `nik_samaran` (ikut PR #136).
 
 ### 2.8 · Antrean loket dan poli + display
 Tujuan : pasien punya satu QR kunjungan; petugas memanggil; display menampilkan nomor tanpa membuka identitas.

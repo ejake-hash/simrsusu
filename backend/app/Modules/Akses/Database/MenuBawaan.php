@@ -41,6 +41,8 @@ final class MenuBawaan
         'pendaftaran.pasien' => ['batal'],
         // Tiket 2.9: usul gabung RM ganda dan verifikasinya oleh Rekam Medis (FR-01-02).
         'pendaftaran.master_pasien' => ['usul', 'verifikasi'],
+        // Tiket 2.7: "hapus" SEP (FR-01-10) = pembatalan beralasan (B-10, JenisAksi `batal`); endpointnya menyusul.
+        'pendaftaran.sep' => ['batal'],
     ];
 
     /** Superadmin mengelola peran, akun, dan profil RS (wizard langkah 2); tidak membuka rekam medis, rupiah, atau data induk milik unit (PRD 9.2.4, FR-54-01). */
