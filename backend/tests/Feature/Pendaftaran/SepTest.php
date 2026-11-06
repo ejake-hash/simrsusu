@@ -63,7 +63,7 @@ class SepTest extends TestCase
     {
         $peserta = $this->baca('/api/v1/bpjs/peserta', '9990-0000-00001')->assertOk()
             ->assertJsonPath('data.status.aktif', true)->assertJsonPath('data.pasien.id', $this->peserta->id)
-            ->assertJsonPath('data.nik_samaran', '9900 •••• •••• 0001')->assertJsonMissingPath('data.nik');
+            ->assertJsonPath('data.nik_samaran', '•••• •••• •••• 0001')->assertJsonMissingPath('data.nik');
         $this->assertSesuaiKontrak($peserta, 'GET', '/bpjs/peserta');
         $this->assertStringContainsString('no-store', (string) $peserta->headers->get('Cache-Control'));
         $audit = DB::table('audit.log_aktivitas')->where('aksi', 'bpjs.peserta.dibaca')->orderByDesc('urutan')->first();
