@@ -68,4 +68,8 @@ return [
     'log_hari' => (int) env('INTEGRASI_LOG_HARI', 90),
     // Isi permintaan/respons per baris log paling banyak (bita), sesudah disamarkan.
     'log_maks_bita' => 16384,
+
+    // Masa berlaku rujukan sejak tanggal rujukan (hari; FR-01-08, tiket 2.7). Nilai awal mengikuti ketentuan BPJS yang
+    // umum dipakai (3 bulan), **perlu verifikasi** ke ketentuan resmi sebelum pilot.
+    'vclaim_masa_berlaku_rujukan_hari' => (int) env('INTEGRASI_VCLAIM_MASA_BERLAKU_RUJUKAN_HARI', 90),
 ];

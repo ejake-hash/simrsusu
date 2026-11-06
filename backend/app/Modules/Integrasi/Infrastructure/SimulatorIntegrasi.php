@@ -94,6 +94,9 @@ final class SimulatorIntegrasi
         if ($sistem === SistemIntegrasi::BpjsVclaim && $metode === 'GET') {
             return $this->vclaim($lingkungan, $path, $header, $latensi);
         }
+        if ($sistem === SistemIntegrasi::BpjsVclaim && $metode === 'POST' && $path === '/SEP/2.0/insert') {
+            return $this->insertSep($lingkungan, $header, $isi, $latensi);
+        }
         if ($sistem === SistemIntegrasi::Aplicares && ($j = $this->aplicares($lingkungan, $metode, $path, $isi, $latensi)) !== null) {
             return $j;
         }
@@ -282,6 +285,36 @@ final class SimulatorIntegrasi
 
         return self::json(200, ['metaData' => ['code' => '200', 'message' => 'Sukses'],
             'response' => KlienVclaim::tutup($isi, $kredensial, (int) $header['X-timestamp'])], $latensi);
+    }
+
+    /**
+     * Insert SEP (catatan §5.1, §5.2, §13 butir 2): isi `request.t_sep`; `tujuanKunj` selain string kosong ditolak
+     * "flagProcedure tidak sesuai". Hanya peserta sintetis 9990000000001 yang diterima. Kode penolakan "201" adalah asumsi
+     * simulator (perlu verifikasi); No. SEP sintetis = kode PPK + "V" + 9 digit acak.
+     *
+     * @param  array<string, string>  $header
+     * @param  array<string, mixed>  $isi
+     */
+    private function insertSep(string $lingkungan, array $header, array $isi, int $latensi): JawabanHttp
+    {
+        $t = $isi['request']['t_sep'] ?? null;
+        $tolak = fn (string $pesan) => self::json(200, ['metaData' => ['code' => '201', 'message' => $pesan], 'response' => null], $latensi);
+        $kurang = is_array($t) ? array_filter(['noKartu', 'tglSep', 'ppkPelayanan', 'jnsPelayanan', 'diagAwal', 'noMR'], fn (string $k) => ($t[$k] ?? '') === '') : ['t_sep'];
+        if ($kurang !== [] || ($t['poli']['tujuan'] ?? '') === '') {
+            return $tolak('Data '.implode(', ', $kurang ?: ['poli.tujuan']).' wajib diisi');
+        }
+        if (($t['tujuanKunj'] ?? '') !== '') {
+            return $tolak('flagProcedure tidak sesuai');
+        }
+        if ($t['noKartu'] !== '9990000000001') {
+            return $tolak('Peserta tidak ditemukan');
+        }
+        $kredensial = app(KelolaKredensial::class)->nilai(SistemIntegrasi::BpjsVclaim, $lingkungan) ?? [];
+        $sep = ['sep' => ['noSep' => $t['ppkPelayanan'].'V'.str_pad((string) random_int(0, 999999999), 9, '0', STR_PAD_LEFT), 'tglSep' => $t['tglSep'],
+            'peserta' => ['noKartu' => $t['noKartu'], 'nama' => 'PESERTA SINTETIS'], 'diagnosa' => $t['diagAwal']]];
+
+        return self::json(200, ['metaData' => ['code' => '200', 'message' => 'Sukses'],
+            'response' => KlienVclaim::tutup($sep, $kredensial, (int) $header['X-timestamp'])], $latensi);
     }
 
     /**
