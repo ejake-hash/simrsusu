@@ -63,7 +63,9 @@ final class SepController
             ...(PasienResource::bolehIdentitas($request->user()) ? ['nik' => $nik] : []),
             'nik_samaran' => $nik === null ? null : substr($nik, 0, 4).' •••• •••• '.substr($nik, -4),
             'tanggal_lahir' => $p['tglLahir'] ?? null,
-            'jenis_kelamin' => match ($p['sex'] ?? null) { 'L' => 'laki_laki', 'P' => 'perempuan', default => 'tidak_diketahui' },
+            'jenis_kelamin' => match ($p['sex'] ?? null) {
+                'L' => 'laki_laki', 'P' => 'perempuan', default => 'tidak_diketahui'
+            },
             'status' => ['aktif' => (string) ($p['statusPeserta']['kode'] ?? '') === '0', 'kode' => (string) ($p['statusPeserta']['kode'] ?? ''),
                 'keterangan' => (string) ($p['statusPeserta']['keterangan'] ?? '')],
             'jenis_peserta' => KelolaSep::kodeNama($p['jenisPeserta'] ?? null),

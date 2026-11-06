@@ -68,7 +68,7 @@ final class LayananVclaim
         }
         $hasil = null;
         $jalur = array_filter(['1' => ["Rujukan/$nomor", 'Rujukan/***'], '2' => ["Rujukan/RS/$nomor", 'Rujukan/RS/***']],
-            fn (string $k) => $asal === null || $asal === $k, ARRAY_FILTER_USE_KEY);
+            fn (int $k) => $asal === null || $asal === "$k", ARRAY_FILTER_USE_KEY);
         foreach ($jalur as $asal => [$path, $pathLog]) {
             $hasil = $this->baca($path, $pathLog);
             $rujukan = $hasil['data']['rujukan'] ?? null;
