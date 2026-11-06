@@ -5,6 +5,7 @@ namespace App\Modules\Ttd\Application;
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
 use App\Modules\Akses\Application\AlurPersetujuan;
+use App\Modules\Akses\Application\BatasSandiSalah;
 use App\Modules\Akses\Application\StatusTtdSaya;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PersetujuanAkses;
@@ -17,7 +18,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Siklus hidup TTE T1 (tiket 1.6, kontrak v0.8.0): aktivasi oleh pemilik (dengan sandi akun), ganti PIN, reset lewat
@@ -59,16 +59,8 @@ final class KelolaTtd implements StatusTtdSaya
 
     public function aktivasi(Request $request, Pengguna $pengguna, string $sandi, string $pin, string $pinUlang): void
     {
-        $kunci = 'ttd-aktivasi:'.$pengguna->id;
-        if (RateLimiter::tooManyAttempts($kunci, self::BATAS_SANDI_SALAH)) {
-            throw new ApiError(429, 'terlalu_banyak_permintaan', 'Terlalu banyak percobaan. Coba lagi sebentar lagi.', [],
-                ['Retry-After' => (string) RateLimiter::availableIn($kunci)]);
-        }
-        if (! Hash::check($sandi, $pengguna->sandi_hash)) {
-            RateLimiter::hit($kunci, self::JENDELA_DETIK);
-            throw new ApiError(422, 'sandi_salah', 'Sandi akun tidak cocok.', [['kolom' => 'sandi', 'kode' => 'sandi_salah', 'pesan' => 'Sandi akun tidak cocok.']]);
-        }
-        RateLimiter::clear($kunci);
+        BatasSandiSalah::periksa('ttd-aktivasi:'.$pengguna->id, self::BATAS_SANDI_SALAH, self::JENDELA_DETIK, $sandi, $pengguna->sandi_hash,
+            new ApiError(422, 'sandi_salah', 'Sandi akun tidak cocok.', [['kolom' => 'sandi', 'kode' => 'sandi_salah', 'pesan' => 'Sandi akun tidak cocok.']]));
         $this->pastikanPinBaru($pin, $pinUlang, 'pin');
         $server = $this->kunciServer->aktif();
 

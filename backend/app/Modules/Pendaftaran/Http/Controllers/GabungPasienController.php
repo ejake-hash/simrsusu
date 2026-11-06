@@ -86,6 +86,6 @@ final class GabungPasienController
 
     private static function izin(string $kode): void
     {
-        abort_unless(Gate::allows($kode, Cakupan::rs()), 403);
+        Gate::authorize($kode, Cakupan::rs());
     }
 }

@@ -64,7 +64,7 @@ final class KunjunganController
 
     private static function izin(string $kode): void
     {
-        abort_unless(Gate::allows($kode, Cakupan::rs()), 403);
+        Gate::authorize($kode, Cakupan::rs());
     }
 
     private function satu(Kunjungan $kunjungan, int $status = 200): JsonResponse

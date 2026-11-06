@@ -10,7 +10,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
 
@@ -31,15 +30,8 @@ final class GantiSandi
 
     public function ganti(Request $request, Pengguna $pengguna, string $sandiLama, string $sandiBaru): Pengguna
     {
-        $kunci = 'ganti-sandi:'.$pengguna->id;
-        if (RateLimiter::tooManyAttempts($kunci, self::BATAS_SALAH)) {
-            throw new ApiError(429, 'terlalu_banyak_permintaan', 'Terlalu banyak percobaan. Coba lagi sebentar lagi.', [],
-                ['Retry-After' => (string) RateLimiter::availableIn($kunci)]);
-        }
-        if (! Hash::check($sandiLama, $pengguna->sandi_hash)) {
-            RateLimiter::hit($kunci, self::JENDELA_DETIK);
-            throw new ApiError(422, 'sandi_lama_salah', 'Sandi lama tidak cocok.', [['kolom' => 'sandi_lama', 'pesan' => 'Sandi lama tidak cocok.']]);
-        }
+        BatasSandiSalah::periksa('ganti-sandi:'.$pengguna->id, self::BATAS_SALAH, self::JENDELA_DETIK, $sandiLama, $pengguna->sandi_hash,
+            new ApiError(422, 'sandi_lama_salah', 'Sandi lama tidak cocok.', [['kolom' => 'sandi_lama', 'pesan' => 'Sandi lama tidak cocok.']]));
         // Aturan PRD 14.2 ditulis eksplisit agar semua pesan berbahasa Indonesia (pesan bawaan Laravel berbahasa Inggris).
         $minimal = max(12, (int) config('autentikasi.sandi.panjang_minimal'));
         $aturan = ['required', 'string', 'max:200', 'min:'.$minimal, app(SandiTidakBocor::class), new SandiKontekstual($pengguna->nama_pengguna),
@@ -54,7 +46,6 @@ final class GantiSandi
             throw new ApiError(422, 'validasi_gagal', 'Sandi baru belum memenuhi aturan.',
                 array_map(fn (string $pesan) => ['kolom' => 'sandi_baru', 'pesan' => $pesan], $validasi->errors()->get('sandi_baru')));
         }
-        RateLimiter::clear($kunci);
 
         $pengguna = DB::transaction(function () use ($pengguna, $sandiBaru) {
             $akun = Pengguna::query()->whereKey($pengguna->id)->lockForUpdate()->firstOrFail();

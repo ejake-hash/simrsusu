@@ -44,7 +44,7 @@ final class TtdController
 
     public function reset(Request $request, PersetujuanPresenter $presenter, string $pengguna): JsonResponse
     {
-        abort_unless(Gate::allows('sdm.kredensial.perbaiki', Cakupan::rs()), 403);
+        Gate::authorize('sdm.kredensial.perbaiki', Cakupan::rs());
         $isi = $request->validate(['alasan' => ['required', 'string', 'min:5', 'max:500'], 'dasar' => ['required', 'string', 'min:3', 'max:200']]);
         $pemilik = Pengguna::query()->find($pengguna) ?? throw new ApiError(404, 'tidak_ditemukan', 'Data tidak ditemukan.');
         $p = $this->kelola->ajukanReset($request->user(), $pemilik, $isi['alasan'], $isi['dasar']);

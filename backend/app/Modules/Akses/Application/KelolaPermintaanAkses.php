@@ -84,12 +84,12 @@ final class KelolaPermintaanAkses
 
     /**
      * Tandai permintaan ditindaklanjuti (dipanggil dalam transaksi pemberian). Null = tanpa permintaan.
-     * Pemanggil sudah memastikan penyunting bukan akun itu sendiri.
+     * Pemanggil sudah memastikan penyunting bukan akun itu sendiri. Audit lewat catatTindaklanjut() di akhir transaksi.
      */
-    public function tindaklanjuti(?string $permintaanId, Pengguna $akun, Pengguna $penyunting): void
+    public function tindaklanjuti(?string $permintaanId, Pengguna $akun, Pengguna $penyunting): ?PermintaanAkses
     {
         if ($permintaanId === null) {
-            return;
+            return null;
         }
         $permintaan = PermintaanAkses::query()->whereKey($permintaanId)->lockForUpdate()->first();
         if ($permintaan === null || $permintaan->pengguna_id !== $akun->id || $permintaan->status !== 'menunggu') {
@@ -101,7 +101,16 @@ final class KelolaPermintaanAkses
         $permintaan->forceFill(['status' => 'ditindaklanjuti', 'diputuskan_oleh' => $penyunting->id, 'diputuskan_pada' => now(),
             'diubah_oleh' => $penyunting->id])->save();
         PermintaanAksesDitutup::dispatch($permintaan->id, 'ditindaklanjuti');
-        $this->audit->catat('akses.permintaan_ditindaklanjuti', $penyunting->id, 'akses.permintaan_akses', $permintaan->id, ['nomor' => $permintaan->nomor]);
+
+        return $permintaan;
+    }
+
+    /** Dipanggil pemberian sesudah catat() miliknya, agar kunci rantai audit dipegang sesingkat mungkin (ADR 0003). */
+    public function catatTindaklanjut(?PermintaanAkses $permintaan, Pengguna $penyunting): void
+    {
+        if ($permintaan !== null) {
+            $this->audit->catat('akses.permintaan_ditindaklanjuti', $penyunting->id, 'akses.permintaan_akses', $permintaan->id, ['nomor' => $permintaan->nomor]);
+        }
     }
 
     private function pastikanMenunggu(PermintaanAkses $permintaan): void

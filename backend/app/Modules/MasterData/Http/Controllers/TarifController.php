@@ -122,6 +122,6 @@ final class TarifController
 
     private function izin(): void
     {
-        abort_unless(Gate::allows('master_data.tarif.lihat', Cakupan::rs()), 403);
+        Gate::authorize('master_data.tarif.lihat', Cakupan::rs());
     }
 }
