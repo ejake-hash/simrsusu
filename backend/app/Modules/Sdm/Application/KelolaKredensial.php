@@ -117,14 +117,16 @@ final class KelolaKredensial
     /** belum_berlaku | berlaku | akan_habis | habis | batal (zona RS; ambang dari konfigurasi). */
     public static function statusIzin(IzinPraktik $izin): string
     {
-        $hariIni = now(config('instalasi.zona_waktu'))->startOfDay();
+        // Bandingkan tanggal sebagai teks: cast `date` = tengah malam UTC, bukan tengah malam zona RS.
+        $hariIni = now(config('instalasi.zona_waktu'));
+        $sampai = $izin->berlaku_sampai?->toDateString();
 
         return match (true) {
             $izin->status === 'batal' => 'batal',
-            $izin->terbit->gt($hariIni) => 'belum_berlaku',
-            $izin->berlaku_sampai === null => 'berlaku',
-            $izin->berlaku_sampai->lt($hariIni) => 'habis',
-            $izin->berlaku_sampai->lte($hariIni->copy()->addDays((int) config('sdm.izin_praktik_hari_peringatan'))) => 'akan_habis',
+            $izin->terbit->toDateString() > $hariIni->toDateString() => 'belum_berlaku',
+            $sampai === null => 'berlaku',
+            $sampai < $hariIni->toDateString() => 'habis',
+            $sampai <= $hariIni->copy()->addDays((int) config('sdm.izin_praktik_hari_peringatan'))->toDateString() => 'akan_habis',
             default => 'berlaku',
         };
     }

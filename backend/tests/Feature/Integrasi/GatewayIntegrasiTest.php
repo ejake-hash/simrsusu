@@ -240,6 +240,23 @@ class GatewayIntegrasiTest extends TestCase
         PenangananUji::$siap = false;
     }
 
+    public function test_penangan_yang_melempar_saat_periksa_ulang_tidak_menghentikan_putaran(): void
+    {
+        $this->aktifkanSemua();
+        $cacat = $this->antrekan(SistemIntegrasi::Satusehat, 'uji', 'lokasi', (string) Str::uuid7(), ['kurang' => true, 'lempar_periksa' => true]);
+        $sehat = $this->antrekan(SistemIntegrasi::Satusehat, 'uji', 'lokasi', (string) Str::uuid7(), ['kurang' => true]);
+        $this->assertSame(['tertahan', 'tertahan'], [$this->kiriman($cacat)->status, $this->kiriman($sehat)->status]);
+
+        PenangananUji::$siap = true;
+        $this->travel(16)->minutes();
+        $this->putaran();
+        $this->assertSame('terkirim', $this->kiriman($sehat)->status);
+        $k = $this->kiriman($cacat);
+        $this->assertSame(['menunggu', 1], [$k->status, $k->percobaan]);
+        $this->assertStringNotContainsString('3201234567890001', (string) $k->error_terakhir);
+        PenangananUji::$siap = false;
+    }
+
     public function test_pindah_lingkungan_menahan_kiriman_lama_dan_kirim_ulang_tidak_memindahkan(): void
     {
         $this->aktifkanSemua();
@@ -387,6 +404,10 @@ final class PenangananUji implements PenanganKiriman
 
     public function periksa(Kiriman $kiriman): ?array
     {
+        if (($kiriman->muatan['lempar_periksa'] ?? false) && self::$siap) {
+            throw new \RuntimeException('Gagal memeriksa https://contoh.invalid/Patient?nik=3201234567890001');
+        }
+
         return ($kiriman->muatan['kurang'] ?? false) && ! self::$siap
             ? ['kode' => 'induk_belum_terdaftar', 'pesan' => 'Lokasi induk belum terdaftar di SATUSEHAT.', 'pemilik_unit_id' => null]
             : null;

@@ -214,4 +214,85 @@ class KunjunganTest extends TestCase
         $this->mintaDenganVersi('PATCH', "/api/v1/jadwal-praktik/{$jadwal->id}", $versi, ['kuota_non_jkn' => 2, 'dasar_perubahan' => 'SK uji kuota'])
             ->assertOk();
     }
+
+    public function test_instalasi_belum_siap_menolak_pasien_baru_dan_kunjungan_tanpa_memakai_no_rm(): void
+    {
+        $jadwal = $this->jadwal($this->dokter());
+        $pasien = $this->pasien();
+        $this->masukSebagai($this->petugasPendaftaran());
+        $this->tandaiInstalasiSiap(false);
+        $nomor = DB::table('pasien.nomor_rm')->value('terakhir');
+
+        $r = $this->minta('POST', '/api/v1/pasien', ['nama' => 'Contoh Belum Siap', 'tanggal_lahir' => '1990-01-01', 'jenis_kelamin' => 'laki_laki'])
+            ->assertStatus(409)->assertJsonPath('error.kode', 'instalasi_belum_siap');
+        $this->assertSesuaiKontrak($r, 'POST', '/pasien');
+        $this->assertSame($nomor, DB::table('pasien.nomor_rm')->value('terakhir'));
+        $k = $this->daftarKunjungan($pasien, $jadwal)->assertStatus(409)->assertJsonPath('error.kode', 'instalasi_belum_siap');
+        $this->assertSesuaiKontrak($k, 'POST', '/kunjungan');
+        $this->assertFalse(Kunjungan::query()->where('pasien_id', $pasien->id)->exists());
+    }
+
+    public function test_dokter_keluar_atau_sip_tidak_berlaku_pada_tanggal_kunjungan_tidak_bisa_dipesan(): void
+    {
+        $sipHabis = $this->dokter();
+        DB::table('sdm.izin_praktik')->where('pegawai_id', $sipHabis->id)->update(['berlaku_sampai' => '2026-11-05']);
+        $keluar = $this->dokter();
+        $keluar->forceFill(['tanggal_keluar' => '2026-11-09', 'alasan_keluar' => 'Pindah tugas'])->save();
+        $nonaktif = $this->dokter();
+        $nonaktif->forceFill(['status' => 'nonaktif', 'tanggal_keluar' => '2026-10-30', 'alasan_keluar' => 'Pensiun'])->save();
+        $pasien = $this->pasien();
+        $this->masukSebagai($this->petugasPendaftaran());
+
+        $this->daftarKunjungan($pasien, $this->jadwal($sipHabis))->assertCreated();
+        foreach ([[$sipHabis, '2026-11-09'], [$keluar, '2026-11-09'], [$nonaktif, self::SENIN]] as $i => [$dokter, $tanggal]) {
+            $jadwal = $this->jadwal($dokter, ['jam_mulai' => sprintf('%02d:00', 13 + $i), 'jam_selesai' => sprintf('%02d:30', 13 + $i)]);
+            $r = $this->daftarKunjungan($pasien, $jadwal, ['tanggal' => $tanggal])->assertStatus(422)
+                ->assertJsonPath('error.kode', 'jadwal_tidak_tersedia')->assertJsonPath('error.rincian.0.alasan', 'nonaktif');
+            $this->assertSesuaiKontrak($r, 'POST', '/kunjungan');
+        }
+        $this->daftarKunjungan($pasien, $this->jadwal($keluar), ['tanggal' => self::SENIN])->assertCreated();
+        $this->assertSame(0, DB::table('akses.relasi_perawatan')->where('pegawai_id', $nonaktif->id)->count());
+    }
+
+    public function test_ubah_jadwal_dan_cuti_tidak_meninggalkan_kunjungan_terdaftar(): void
+    {
+        $jadwal = $this->jadwal($this->dokter());
+        $petugas = $this->petugasPendaftaran();
+        $this->tugaskan($petugas, $this->buatPeran(['master_data.jadwal_praktik']));
+        $this->masukSebagai($petugas);
+        $kunjungan = $this->daftarKunjungan($this->pasien(), $jadwal, ['tanggal' => '2026-11-09'])->assertCreated()->json('data.id');
+        $ubah = fn (array $isi) => $this->mintaDenganVersi('PATCH', "/api/v1/jadwal-praktik/{$jadwal->id}", '0', [...$isi, 'dasar_perubahan' => 'SK uji jadwal']);
+
+        foreach ([['status' => 'nonaktif'], ['hari' => 2], ['berlaku_sampai' => '2026-11-08'], ['berlaku_dari' => '2026-11-10']] as $isi) {
+            $r = $ubah($isi)->assertStatus(422)->assertJsonPath('error.kode', 'jadwal_sudah_terisi')->assertJsonPath('error.rincian.0.tanggal', '2026-11-09');
+            $this->assertSesuaiKontrak($r, 'PATCH', '/jadwal-praktik/{id}');
+        }
+        $cuti = ['jenis' => 'cuti', 'pegawai_id' => $jadwal->pegawai_id, 'dari_tanggal' => '2026-11-09', 'sampai_tanggal' => '2026-11-10', 'alasan' => 'Cuti tahunan'];
+        $r = $this->minta('POST', '/api/v1/jadwal-pengecualian', $cuti)->assertStatus(422)->assertJsonPath('error.kode', 'jadwal_sudah_terisi');
+        $this->assertSesuaiKontrak($r, 'POST', '/jadwal-pengecualian');
+        $this->minta('POST', '/api/v1/jadwal-pengecualian', ['jenis' => 'libur', 'dari_tanggal' => '2026-11-09', 'sampai_tanggal' => '2026-11-09', 'alasan' => 'Libur uji'])
+            ->assertStatus(422)->assertJsonPath('error.kode', 'jadwal_sudah_terisi');
+        $awal = $this->minta('POST', '/api/v1/jadwal-pengecualian', [...$cuti, 'dari_tanggal' => '2026-11-10'])->assertCreated();
+        $this->mintaDenganVersi('PATCH', '/api/v1/jadwal-pengecualian/'.$awal->json('data.id'), '0', ['dari_tanggal' => '2026-11-09'])
+            ->assertStatus(422)->assertJsonPath('error.kode', 'jadwal_sudah_terisi');
+
+        $this->minta('POST', "/api/v1/kunjungan/$kunjungan/batal", ['alasan_batal' => 'Pasien minta pindah jadwal'])->assertOk();
+        $ubah(['status' => 'nonaktif'])->assertOk();
+    }
+
+    public function test_jenis_penjamin_tidak_bisa_diubah_sesudah_dipakai_kunjungan(): void
+    {
+        $bpjs = $this->penjamin('bpjs');
+        $petugas = $this->petugasPendaftaran();
+        $this->tugaskan($petugas, $this->buatPeran(['master_data.penjamin']));
+        $this->masukSebagai($petugas);
+        $ubah = fn (string $versi, array $isi) => $this->mintaDenganVersi('PATCH', "/api/v1/data-induk/penjamin/{$bpjs->id}", $versi, [...$isi, 'dasar_perubahan' => 'SK uji penjamin']);
+        $ubah('0', ['nama' => 'BPJS Kesehatan'])->assertOk();
+        $this->daftarKunjungan($this->pasien(), $this->jadwal($this->dokter()), ['cara_bayar' => 'jkn', 'penjamin_id' => $bpjs->id])->assertCreated();
+
+        $r = $ubah('1', ['jenis' => 'asuransi'])->assertStatus(422)->assertJsonPath('error.kode', 'validasi_gagal')->assertJsonPath('error.rincian.0.kolom', 'jenis');
+        $this->assertSesuaiKontrak($r, 'PATCH', '/data-induk/penjamin/{id}');
+        $this->assertSame('bpjs', $bpjs->refresh()->jenis);
+        $ubah('1', ['nama' => 'BPJS Kesehatan Pusat'])->assertOk();
+    }
 }

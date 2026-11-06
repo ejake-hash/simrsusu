@@ -3,12 +3,14 @@
 namespace Tests\Feature\MasterData;
 
 use App\Modules\Akses\Domain\Cakupan;
+use App\Modules\MasterData\Models\JadwalPengecualian;
 use App\Modules\MasterData\Models\JadwalPraktik;
 use App\Modules\MasterData\Models\Lokasi;
 use App\Modules\MasterData\Models\Poliklinik;
 use App\Modules\MasterData\Models\UnitOrganisasi;
 use App\Modules\Sdm\Models\IzinPraktik;
 use App\Modules\Sdm\Models\Pegawai;
+use Illuminate\Support\Carbon;
 use Tests\Support\AksesUji;
 use Tests\Support\KlienSpa;
 use Tests\Support\KontrakApi;
@@ -174,6 +176,18 @@ class JadwalPraktikTest extends TestCase
         $ubah = $this->mintaDenganVersi('PATCH', '/api/v1/jadwal-pengecualian/'.$cuti->json('data.id'), '0', ['sampai_tanggal' => self::SENIN])->assertOk();
         $this->assertSesuaiKontrak($ubah, 'PATCH', '/jadwal-pengecualian/{id}');
         $ubah->assertJsonPath('data.sampai_tanggal', self::SENIN);
+    }
+
+    public function test_tanggal_lampau_yang_libur_tetap_tampil_tidak_tersedia(): void
+    {
+        // Senin 2 Nov 2026 libur; "hari ini" dipatok sesudahnya agar tanggal itu lampau.
+        $this->travelTo(Carbon::parse('2026-11-20 08:00', (string) config('instalasi.zona_waktu')));
+        $this->admin();
+        $this->minta('POST', '/api/v1/jadwal-praktik', $this->isi($this->dokter()))->assertCreated();
+        JadwalPengecualian::query()->create(['jenis' => 'libur', 'dari_tanggal' => '2026-11-02', 'sampai_tanggal' => '2026-11-02', 'alasan' => 'Libur uji', 'status' => 'aktif']);
+
+        $this->minta('GET', '/api/v1/jadwal-praktik?tanggal=2026-11-02&poli_id='.$this->poli->id)->assertOk()
+            ->assertJsonPath('data.0.pada_tanggal.tersedia', false)->assertJsonPath('data.0.pada_tanggal.alasan_tidak_tersedia', 'libur');
     }
 
     public function test_validasi_pengecualian(): void
