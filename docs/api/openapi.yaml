@@ -2248,7 +2248,7 @@ paths:
   # Pegawai, izin praktik, kewenangan klinis, akun dari pegawai (tiket 1.8d; PRD 11.2 sdm, 9.2.6, 14.2; K5).
   # Izin: `sdm.pegawai.*` (data pegawai), `sdm.kredensial.*` (izin praktik dan RKK), `pengaturan.akun.*` (akun),
   # semuanya dengan cakupan `rs`. NIK disimpan terenkripsi dan ditampilkan tersamar (PRD 11.1): `nik_samaran`
-  # (`1271 •••• •••• 0042`) di semua respons. NIK utuh hanya lewat GET /pegawai/{id}?tampilkan_nik=true oleh akun berizin
+  # (`•••• •••• •••• 0042`) di semua respons. NIK utuh hanya lewat GET /pegawai/{id}?tampilkan_nik=true oleh akun berizin
   # bagian `sdm.pegawai.identitas.lihat` (sensitif: diberikan lewat persetujuan pemilik data, K3), dan setiap pembacaan
   # itu diaudit. NIK tidak pernah ada di URL, query string, log, atau audit.
   # Satu akun = satu pegawai (K5). `tanggal_keluar` = hari pertama pegawai tidak lagi bekerja: mulai tanggal itu akunnya
@@ -4639,7 +4639,7 @@ paths:
   # Pasien: cari satu kolom dan pasien baru (tiket 2.5; PRD FR-01-01, FR-01-04, FR-01-05, 11.2 skema `pasien`, 14.2).
   # Izin: `pendaftaran.pasien.lihat|input|perbaiki`, cakupan `rs`. Bagian baru `pendaftaran.pasien.identitas` (aksi
   # `lihat`, sensitif seperti `sdm.pegawai.identitas`): tanpa izin itu server tidak mengirim `nik` dan `no_paspor`, hanya
-  # `nik_samaran` dan `no_paspor_samaran` (4 karakter awal dan akhir). Data pasien (NIK, No. RM, nama, tanggal lahir,
+  # `nik_samaran` (4 digit akhir saja: digit 5–12 NIK = kecamatan + tanggal lahir, bisa direkonstruksi) dan `no_paspor_samaran` (3 awal + 2 akhir). Data pasien (NIK, No. RM, nama, tanggal lahir,
   # No. kartu) tidak pernah ada di URL, query string, log, audit, atau pesan error; karena itu kata cari dikirim di header,
   # bukan `?q=`. Semua respons pasien `Cache-Control: no-store`.
   # No. RM dibuat server di transaksi yang sama dengan pasien: angka berurutan tanpa celah, tidak dipakai ulang, tidak
@@ -5907,7 +5907,7 @@ components:
         id: { type: string, format: uuid }
         nip: { type: [string, 'null'] }
         nama: { type: string }
-        nik_samaran: { type: [string, 'null'], examples: ['1271 •••• •••• 0042'], description: "4 digit awal dan akhir; null = NIK belum diisi" }
+        nik_samaran: { type: [string, 'null'], examples: ['•••• •••• •••• 0042'], description: "4 digit akhir saja; null = NIK belum diisi" }
         profesi: { $ref: '#/components/schemas/Profesi' }
         jabatan: { type: [string, 'null'] }
         unit: { $ref: '#/components/schemas/RingkasUnitPegawai' }
@@ -7188,7 +7188,7 @@ components:
         no_rm: { type: string, pattern: '^[0-9]{1,12}$', examples: ['00000127'], description: "Seumur hidup; panjang tetap dari konfigurasi server (nol di depan), tampilan berpemisah urusan klien" }
         nama: { type: string }
         nik: { type: [string, 'null'], description: "Hanya dikirim kepada akun berizin `pendaftaran.pasien.identitas.lihat`; selain itu field tidak ada" }
-        nik_samaran: { type: [string, 'null'], examples: ['1271 •••• •••• 0042'], description: "Selalu dikirim; null = NIK belum diisi" }
+        nik_samaran: { type: [string, 'null'], examples: ['•••• •••• •••• 0042'], description: "Selalu dikirim; null = NIK belum diisi" }
         no_paspor: { type: [string, 'null'], description: "Sama seperti `nik`: hanya dengan izin bagian identitas" }
         no_paspor_samaran: { type: [string, 'null'], examples: ['A12••••89'] }
         no_kartu_bpjs: { type: [string, 'null'] }
@@ -7334,7 +7334,7 @@ components:
         no_kartu: { type: string, pattern: '^[0-9]{13}$' }
         nama: { type: string }
         nik: { type: [string, 'null'], description: "Hanya dikirim kepada akun berizin `pendaftaran.pasien.identitas.lihat`; selain itu field tidak ada" }
-        nik_samaran: { type: [string, 'null'], examples: ['1271 •••• •••• 0042'] }
+        nik_samaran: { type: [string, 'null'], examples: ['•••• •••• •••• 0042'] }
         tanggal_lahir: { type: [string, 'null'], format: date }
         jenis_kelamin: { $ref: '#/components/schemas/JenisKelaminPasien' }
         status:

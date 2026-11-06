@@ -41,7 +41,7 @@ class PegawaiTest extends TestCase
         $identitas = $this->petugasSdm(identitas: true);
         $this->masukSebagai($identitas);
         $ubah = $this->mintaDenganVersi('PATCH', "/api/v1/pegawai/$id", $dibuat->json('data.versi'), ['nik' => self::NIK, 'dasar_perubahan' => self::DASAR])
-            ->assertOk()->assertJsonMissingPath('data.nik')->assertJsonPath('data.nik_samaran', '1271 •••• •••• 0042')->assertJsonPath('data.nik_dapat_dilihat', true);
+            ->assertOk()->assertJsonMissingPath('data.nik')->assertJsonPath('data.nik_samaran', '•••• •••• •••• 0042')->assertJsonPath('data.nik_dapat_dilihat', true);
         $this->assertSesuaiKontrak($ubah, 'PATCH', '/pegawai/{id}');
         $this->assertFalse(DB::table('audit.log_aktivitas')->where('aksi', 'sdm.nik_dilihat')->exists());
         $this->assertSesuaiKontrak($this->minta('GET', "/api/v1/pegawai/$id?tampilkan_nik=true")->assertOk()->assertJsonPath('data.nik', self::NIK),
@@ -54,7 +54,7 @@ class PegawaiTest extends TestCase
         $this->masukSebagai($sdm);
         $this->minta('GET', "/api/v1/pegawai/$id?tampilkan_nik=true")->assertForbidden();
         $this->assertSesuaiKontrak($this->minta('GET', "/api/v1/pegawai/$id")->assertOk()->assertJsonMissingPath('data.nik')
-            ->assertJsonPath('data.nik_samaran', '1271 •••• •••• 0042')->assertJsonPath('data.nik_dapat_dilihat', false), 'GET', '/pegawai/{id}');
+            ->assertJsonPath('data.nik_samaran', '•••• •••• •••• 0042')->assertJsonPath('data.nik_dapat_dilihat', false), 'GET', '/pegawai/{id}');
         $this->assertSesuaiKontrak($this->minta('GET', '/api/v1/pegawai?cari=siti')->assertOk()->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.punya_akun', false), 'GET', '/pegawai');
         $this->assertSame(0, DB::table('audit.log_aktivitas')->whereRaw('sesudah::text LIKE ? OR sebelum::text LIKE ?', ['%'.self::NIK.'%', '%'.self::NIK.'%'])->count());

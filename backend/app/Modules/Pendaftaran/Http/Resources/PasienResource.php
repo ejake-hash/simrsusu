@@ -64,7 +64,7 @@ final class PasienResource
                 'no_rm' => $p->no_rm,
                 'nama' => $p->nama,
                 ...($boleh ? ['nik' => $nik] : []),
-                'nik_samaran' => $nik === null ? null : substr($nik, 0, 4).' •••• •••• '.substr($nik, -4),
+                'nik_samaran' => $nik === null ? null : '•••• •••• •••• '.substr($nik, -4),
                 ...($boleh ? ['no_paspor' => $paspor] : []),
                 'no_paspor_samaran' => $paspor === null ? null : self::samaranPaspor($paspor),
                 'no_kartu_bpjs' => $p->nilaiIdentitas('no_kartu_bpjs'),
