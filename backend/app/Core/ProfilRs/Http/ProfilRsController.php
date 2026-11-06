@@ -34,7 +34,6 @@ final class ProfilRsController
 
     public function update(Request $request): JsonResponse
     {
-        abort_unless(Gate::allows('pengaturan.profil_rs.perbaiki', Cakupan::rs()), 403);
         if ($request->has('halaman_masuk')) {
             $request->merge(['halaman_masuk' => TeksHalamanMasuk::bersihkan($request->input('halaman_masuk'))]);
         }
@@ -77,7 +76,6 @@ final class ProfilRsController
 
     public function gantiBerkas(Request $request, string $jenis): JsonResponse
     {
-        abort_unless(Gate::allows('pengaturan.profil_rs.perbaiki', Cakupan::rs()), 403);
         $request->validate(['berkas' => ['required', 'file']]);
         $versi = self::versiDiminta($request);
 

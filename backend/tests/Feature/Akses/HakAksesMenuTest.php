@@ -3,9 +3,11 @@
 namespace Tests\Feature\Akses;
 
 use App\Modules\Akses\Application\AccessEvaluator;
+use App\Modules\Akses\Application\CacheHakAkses;
 use App\Modules\Akses\Application\KebijakanMfa;
 use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Domain\Cakupan;
+use App\Modules\Akses\Domain\HakAkses;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
@@ -309,6 +311,34 @@ class HakAksesMenuTest extends TestCase
 
         $this->assertSame($jumlah, [Menu::query()->count(), Izin::query()->count(), PeranIzin::query()->count()]);
         $this->assertFalse(Menu::query()->where('kode', 'igd.triase')->value('aktif'));
+    }
+
+    public function test_hak_yang_dihitung_sebelum_pencabutan_tidak_tersimpan_sebagai_hak_terkini(): void
+    {
+        $cache = app(CacheHakAkses::class);
+        $id = (string) Str::uuid7();
+        $lama = new HakAkses(menu: ['kasir.tagihan' => true]);
+        $baru = new HakAkses;
+
+        // Permintaan A cache-miss dan menghitung dari data lama; selagi itu pencabutan commit (lupakan) lalu A menyimpan.
+        $cache->ambil($id, function () use ($cache, $id, $lama) {
+            $cache->lupakan($id);
+
+            return [$lama, 900];
+        });
+
+        $this->assertSame([], $cache->ambil($id, fn () => [$baru, 900])->menu, 'Hasil usang A tidak boleh dibaca permintaan berikutnya.');
+    }
+
+    public function test_menu_bawaan_dipasang_mengganti_cache_hak_akses(): void
+    {
+        $cache = app(CacheHakAkses::class);
+        $id = (string) Str::uuid7();
+        $cache->ambil($id, fn () => [new HakAkses(menu: ['kasir.tagihan' => true]), 900]);
+
+        MenuBawaan::pasang();
+
+        $this->assertSame([], $cache->ambil($id, fn () => [new HakAkses, 900])->menu);
     }
 
     private function buatPengguna(): Pengguna

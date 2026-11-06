@@ -75,7 +75,7 @@ final class KsmController
 
     private function izin(string $aksi): void
     {
-        abort_unless(Gate::allows("master_data.organisasi.$aksi", Cakupan::rs()), 403);
+        Gate::authorize("master_data.organisasi.$aksi", Cakupan::rs());
     }
 
     private function satu(Ksm $ksm, int $status = 200): JsonResponse

@@ -14,7 +14,7 @@ final class PaketReferensiController
 {
     public function muat(Request $request, PemuatReferensi $pemuat, string $sistem): JsonResponse
     {
-        abort_unless(Gate::allows('master_data.katalog.input', Cakupan::rs()), 403);
+        Gate::authorize('master_data.katalog.input', Cakupan::rs());
         $isi = $request->validate([
             'berkas' => ['required', 'file', 'max:10240'],
             'mode' => ['required', Rule::in(['pratinjau', 'terapkan'])],

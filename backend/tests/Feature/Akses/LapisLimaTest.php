@@ -120,6 +120,23 @@ class LapisLimaTest extends TestCase
         $this->minta('POST', '/api/v1/uji-lapis-lima/mfa')->assertOk();
     }
 
+    /** Pemeriksaan izin di controller (Gate::authorize, cakupan rs) membawa kode lapis 5 yang sama dengan middleware. */
+    public function test_izin_butuh_mfa_yang_diperiksa_di_controller_minta_mfa_ulang(): void
+    {
+        Izin::query()->where('kode', 'master_data.tarif.lihat')->update(['butuh_mfa' => true]);
+        $rahasia = Totp::rahasiaBaru();
+        $pengguna = $this->buatPengguna();
+        $pengguna->forceFill(['mfa_rahasia_enkripsi' => $rahasia, 'mfa_aktif_pada' => now(), 'wajib_mfa' => true])->save();
+        $this->tugaskan($pengguna, $this->buatPeran(['master_data.tarif']));
+        $this->masukSebagai($pengguna, $rahasia);
+
+        $this->minta('GET', '/api/v1/data-induk/tarif')->assertOk();
+        $this->travel(10)->minutes();
+        $this->minta('GET', '/api/v1/data-induk/tarif')->assertOk();
+        $this->travel(10)->minutes();
+        $this->minta('GET', '/api/v1/data-induk/tarif')->assertForbidden()->assertJsonPath('error.kode', 'mfa_ulang_diperlukan');
+    }
+
     public function test_verifikasi_mfa_akun_sebelumnya_tidak_diwarisi_akun_yang_masuk_berikutnya(): void
     {
         $rahasia = Totp::rahasiaBaru();

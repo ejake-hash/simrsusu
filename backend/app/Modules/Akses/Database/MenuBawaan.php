@@ -2,6 +2,7 @@
 
 namespace App\Modules\Akses\Database;
 
+use App\Modules\Akses\Application\CacheHakAkses;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -300,6 +301,8 @@ final class MenuBawaan
         self::pasangSuperadmin();
         self::pasangPenyetujuBawaan();
         self::pasangPenyiap();
+        // Menu/izin/peran baru ditulis lewat DB::table (tanpa event model), jadi cache hak akses diganti di sini.
+        app(CacheHakAkses::class)->lupakanSemua();
     }
 
     private static function pasangPenyiap(): void

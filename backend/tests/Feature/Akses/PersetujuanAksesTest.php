@@ -4,15 +4,20 @@ namespace Tests\Feature\Akses;
 
 use App\Modules\Akses\Application\AccessEvaluator;
 use App\Modules\Akses\Application\AlurPersetujuan;
+use App\Modules\Akses\Application\KelolaPermintaanAkses;
 use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Izin;
+use App\Modules\Akses\Models\LabelSensitivitas;
 use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\PenggunaIzinKhusus;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\Peran;
 use App\Modules\Akses\Models\PermintaanAkses;
 use App\Modules\Akses\Models\PersetujuanAkses;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\Events\TransactionCommitted;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Tests\Support\AksesUji;
 use Tests\Support\KlienSpa;
 use Tests\Support\KontrakApi;
@@ -368,6 +373,60 @@ class PersetujuanAksesTest extends TestCase
             ->assertJsonPath('data.status', 'ditolak');
         $this->assertSesuaiKontrak($ditolak, 'POST', '/permintaan-akses/{id}/tolak');
         $this->minta('POST', "/api/v1/permintaan-akses/$kedua/tolak", ['alasan' => 'Bukan tugas unitnya'])->assertStatus(409)->assertJsonPath('error.kode', 'sudah_diputuskan');
+    }
+
+    /** ADR 0003: catat() terakhir di transaksi, agar kunci rantai audit tidak dipegang selama tulisan lain. */
+    public function test_tidak_ada_tulisan_sesudah_audit_di_transaksi_pemberian_dan_persetujuan(): void
+    {
+        $pemohon = $this->buatPengguna();
+        $permintaan = app(KelolaPermintaanAkses::class)->buat($pemohon, 'menu', 'kasir.tagihan', 'Butuh untuk tugas jaga');
+        $this->masukSebagai($this->pengelola());
+        $this->assertSame([], $this->tulisanSesudahAudit(fn () => $this->minta('POST', "/api/v1/akun/{$pemohon->id}/penugasan", [
+            'peran_id' => $this->buatPeran(['kasir.tagihan'])->id, 'cakupan_jenis' => 'rs', 'dasar_pemberian' => $permintaan->nomor,
+            'permintaan_akses_id' => $permintaan->id,
+        ])->assertCreated()));
+        $this->assertAuditTerakhir('akses.permintaan_ditindaklanjuti', $permintaan->id);
+
+        // Izin label: baris pengguna_label ditulis sebelum audit pengajuan; diterapkan_pada sebelum audit penerapan.
+        $pdp = $this->buatPeran(['beranda']);
+        LabelSensitivitas::query()->where('kode', 'psikiatri')->update(['peran_penyetuju_id' => $pdp->id]);
+        $pejabat = $this->buatPengguna();
+        $this->tugaskan($pejabat, $pdp);
+        $id = null;
+        $this->assertSame([], $this->tulisanSesudahAudit(function () use ($pemohon, &$id) {
+            $id = $this->minta('POST', "/api/v1/akun/{$pemohon->id}/label", [
+                'label_kode' => 'psikiatri', 'berlaku_sampai' => now()->addDays(30)->toIso8601String(),
+                'dasar_pemberian' => self::DASAR, 'alasan' => 'Tugas di poli jiwa',
+            ])->assertStatus(202)->json('data.id');
+        }));
+        $this->masukSebagai($pejabat);
+        $this->assertSame([], $this->tulisanSesudahAudit(fn () => $this->minta('POST', "/api/v1/persetujuan-akses/$id/setujui")
+            ->assertOk()->assertJsonPath('data.diterapkan', true)));
+    }
+
+    /**
+     * INSERT/UPDATE/DELETE di luar tabel audit yang terjadi sesudah catat() sebelum transaksinya commit.
+     *
+     * @return list<string>
+     */
+    private function tulisanSesudahAudit(callable $aksi): array
+    {
+        $sesudah = [];
+        $audit = false;
+        DB::listen(function (QueryExecuted $q) use (&$sesudah, &$audit) {
+            $sql = strtolower(ltrim($q->sql));
+            if (str_contains($sql, '"audit"."log_aktivitas"')) {
+                $audit = $audit || str_starts_with($sql, 'insert');
+            } elseif ($audit && preg_match('/^(insert|update|delete)\b/', $sql)) {
+                $sesudah[] = $q->sql;
+            }
+        });
+        Event::listen(TransactionCommitted::class, function () use (&$audit) {
+            $audit = false;
+        });
+        $aksi();
+
+        return $sesudah;
     }
 
     public function test_saran_peran_dari_pengecualian_yang_dipakai_lima_akun(): void
