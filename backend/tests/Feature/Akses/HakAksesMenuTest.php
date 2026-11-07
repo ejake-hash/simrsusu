@@ -66,6 +66,18 @@ class HakAksesMenuTest extends TestCase
         $this->assertSame('aktif', $this->item($menu, 'pendaftaran')['status']);
     }
 
+    public function test_sub_menu_penjamin_tarif_jadwal_praktik_tersedia_di_menu(): void
+    {
+        $pengguna = $this->buatPengguna();
+        $this->tugaskan($pengguna, $this->buatPeran(['master_data.penjamin', 'master_data.tarif', 'master_data.jadwal_praktik']));
+
+        $menu = $this->masukLaluMenu($pengguna)->assertOk();
+
+        foreach (['master_data.penjamin', 'master_data.tarif', 'master_data.jadwal_praktik'] as $kode) {
+            $this->assertSame('aktif', $this->item($menu, $kode)['status'], $kode);
+        }
+    }
+
     public function test_peran_memberi_sub_menu_dan_izin_dengan_status_dari_modul_aktif(): void
     {
         $pengguna = $this->buatPengguna();
