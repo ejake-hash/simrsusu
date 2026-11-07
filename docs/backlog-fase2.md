@@ -28,7 +28,7 @@ Format dan aturan agen ada di skill `kerja-tiket` § 1–2 dan § 5. Ringkas: sa
 | 2.5 | Cari pasien satu kolom + pasien baru | BE+FE | M | 2.3 · **Selesai** (BE PR #127, FE PR #128 dengan data tiruan v0.19.0; integrasi FE menyusul) |
 | 2.6 | Kunjungan poli + episode + relasi perawatan | BE+FE | M | 2.4, 2.5 · **FE selesai** (PR #130, layar pendaftaran kunjungan poli, data tiruan v0.20.0); **BE selesai** (PR #129: kunjungan, episode, relasi perawatan lapis 4, batal otomatis; merge setelah pemilik memeriksa lapis 4); integrasi FE menyusul |
 | 2.7 | Kepesertaan, rujukan, dan SEP (simulator VClaim) | BE+FE | M | 2.6 · **BE selesai** (PR #138: peserta/rujukan via X-Nomor, `integrasi.sep` lewat outbox + simulator insert SEP, tugas SEP_TERTUNDA) |
-| 2.8 | Antrean loket dan poli + display | BE+FE | M | 2.6 |
+| 2.8 | Antrean loket dan poli + display | BE+FE | M | 2.6 · **BE selesai** (PR #140: antrean poli dari `KunjunganDibuat`, panggil/lewati/sisip/batal dari `aturan_antrean`, display token perangkat `display_antrean` + ETag, `GET /antrean` ditambah ke kontrak) |
 | 2.9 | Duplikat pasien + usulan gabung RM | BE+FE | M | 2.5 · **Selesai** (satu PR BE+FE, kontrak v0.21.0; usulan dua tahap meniru pola 1.8c, tabel sendiri `pasien.usulan_gabung`; unmerge = utang) |
 
 Urutan paralel (dua agen hanya bila kuota cukup; satu agen = kolom BE lalu FE berurutan):
@@ -157,6 +157,8 @@ Uji    :
 - Setiap transisi status menyimpan jam server.
 - Panggil ulang/lewati/sisip mengikuti nilai di data induk, bukan konstanta.
 Di luar: task ID Antrean Online BPJS (Tahap B), APM/anjungan (Tahap B), TTS dengan suara penyedia luar.
+
+Utang 2.8 (PR #140): label `privasi_tinggi` per pasien belum ada, jadi inisial display baru disembunyikan untuk pasien tanpa identitas; antrean dibuat pelanggan sinkron sesudah commit kunjungan (gagal → kunjungan tanpa antrean, tanpa ulang); layar data induk `aturan_antrean` dan kolom antrean poli (prefiks, area, nama netral) belum ada; event `AntreanBerubah` belum punya pelanggan.
 
 ### 2.9 · Duplikat pasien + usulan gabung RM
 Tujuan : duplikat terdeteksi saat input dan digabung lewat usulan berjenjang yang diverifikasi Rekam Medis.
