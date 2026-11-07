@@ -84,6 +84,12 @@ class SepTest extends TestCase
         $this->baca('/api/v1/bpjs/rujukan', 'SIM/../1')->assertStatus(422)->assertJsonPath('error.kode', 'nomor_tidak_dikenali');
     }
 
+    public function test_rujukan_simulator_relatif_hari_ini_hampir_habis_dan_kedaluwarsa(): void
+    {
+        $this->baca('/api/v1/bpjs/rujukan', 'SIMHABIS001')->assertOk()->assertJsonPath('data.sisa_hari', 5)->assertJsonPath('data.status_masa_berlaku', 'hampir_habis');
+        $this->baca('/api/v1/bpjs/rujukan', 'SIMLEWAT001')->assertOk()->assertJsonPath('data.sisa_hari', -3)->assertJsonPath('data.status_masa_berlaku', 'kedaluwarsa');
+    }
+
     public function test_rujukan_kedaluwarsa_ditolak_dan_hampir_habis_terbit_dengan_peringatan(): void
     {
         $kunjungan = $this->kunjunganJkn();
