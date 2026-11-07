@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type APIRequestContext, type Browser, type BrowserContext, type Page } from '@playwright/test'
-import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
+import { masukLewatApi, SANDI, tanpaGulirSamping, tungguJatahPenuh } from './bantu'
 
 /**
  * Tiket 1.12-fe: e2e menyeluruh semua layar fase 1 di 1440/1024/768/390 px + axe (tanpa pelanggaran serius/kritis,
@@ -103,19 +103,6 @@ async function konteks(browser: Browser, asal: string, akun: Akun, lebar: number
   }
   // Tanpa animasi: axe memeriksa keadaan akhir, bukan toast/transisi yang masih memudar (color-contrast palsu).
   return browser.newContext({ baseURL: asal, storageState: sesi.get(akun.nama), viewport: { width: lebar, height: 900 }, reducedMotion: 'reduce' })
-}
-
-/**
- * Spec sebelumnya (mis. pengaturan) bisa sudah memakai sebagian besar jatah rate limit akun yang sama dalam menit
- * terakhir; SPA menganggap 429 di /saya sebagai belum masuk. Bila sisa jatah kurang dari separuh, tunggu satu jendela.
- */
-async function tungguJatahPenuh(request: APIRequestContext, asal: string) {
-  const r = await request.get('/api/v1/saya', { headers: { Accept: 'application/json', Origin: asal, Referer: `${asal}/` } })
-  const sisa = Number(r.headers()['x-ratelimit-remaining'] ?? 0)
-  const batas = Number(r.headers()['x-ratelimit-limit'] ?? 120)
-  if (r.status() !== 429 && sisa >= batas / 2) return
-  test.info().setTimeout(test.info().timeout + 62_000)
-  await new Promise((selesai) => setTimeout(selesai, 61_000))
 }
 
 // Rate limit API 120/menit per akun: setiap layar memuat beberapa permintaan; jeda bila satu menit terakhir mendekati batas.
