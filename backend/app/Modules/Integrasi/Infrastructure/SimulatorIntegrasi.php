@@ -4,6 +4,7 @@ namespace App\Modules\Integrasi\Infrastructure;
 
 use App\Modules\Integrasi\Application\KelolaKredensial;
 use App\Modules\Integrasi\Domain\SistemIntegrasi;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
@@ -255,7 +256,7 @@ final class SimulatorIntegrasi
 
     /**
      * VClaim baca dengan `response` terenkripsi memakai kredensial tersimpan dan X-timestamp permintaan (catatan §1.3).
-     * Data sintetis: peserta 9990000000001 / NIK 9900000000000001; rujukan SIMFKTP001 (FKTP) dan SIMRS001 (hanya di RS,
+     * Data sintetis: peserta 9990000000001 / NIK 9900000000000001; rujukan SIMFKTP001 (FKTP), SIMHABIS001/SIMLEWAT001 (FKTP, masa berlaku relatif hari ini) dan SIMRS001 (hanya di RS,
      * dibungkus array). Kode untuk data tidak ditemukan ("201") adalah asumsi simulator, perlu verifikasi.
      *
      * @param  array<string, string>  $header
@@ -265,13 +266,16 @@ final class SimulatorIntegrasi
         $peserta = ['noKartu' => '9990000000001', 'nik' => '9900000000000001', 'nama' => 'PESERTA SINTETIS', 'sex' => 'P', 'tglLahir' => '1990-01-01',
             'hakKelas' => ['kode' => '3', 'keterangan' => 'KELAS III'], 'jenisPeserta' => ['kode' => '0', 'keterangan' => 'SINTETIS'],
             'statusPeserta' => ['kode' => '0', 'keterangan' => 'AKTIF']];
-        $rujukan = fn (string $no) => ['noKunjungan' => $no, 'tglKunjungan' => '2026-10-01', 'provPerujuk' => ['kode' => 'SIM0001', 'nama' => 'FASKES SINTETIS'],
+        $rujukan = fn (string $no, string $tgl = '2026-10-01') => ['noKunjungan' => $no, 'tglKunjungan' => $tgl, 'provPerujuk' => ['kode' => 'SIM0001', 'nama' => 'FASKES SINTETIS'],
             'peserta' => $peserta, 'diagnosa' => ['kode' => 'Z00.0', 'nama' => 'SINTETIS'], 'poliRujukan' => ['kode' => 'INT', 'nama' => 'PENYAKIT DALAM']];
         $isi = match (true) {
             $path === '/referensi/propinsi' => ['list' => [['kode' => '99', 'nama' => 'PROVINSI SINTETIS']]],
             preg_match('#^/referensi/#', $path) === 1 => ['list' => []],
             preg_match('#^/Peserta/(nik/9900000000000001|nokartu/9990000000001)/tglSEP/#', $path) === 1 => ['peserta' => $peserta],
             $path === '/Rujukan/SIMFKTP001' => ['rujukan' => $rujukan('SIMFKTP001')],
+            // Tanggal relatif hari ini supaya e2e tidak basi: berlaku_sampai = hari ini + 5 (hampir habis) / − 3 (kedaluwarsa).
+            in_array($path, ['/Rujukan/SIMHABIS001', '/Rujukan/SIMLEWAT001'], true) => ['rujukan' => $rujukan(substr($path, 9),
+                Carbon::now((string) config('instalasi.zona_waktu'))->subDays((int) config('integrasi.vclaim_masa_berlaku_rujukan_hari') + ($path === '/Rujukan/SIMHABIS001' ? -5 : 3))->toDateString())],
             $path === '/Rujukan/RS/SIMRS001' => ['rujukan' => [$rujukan('SIMRS001')]],
             default => null,
         };

@@ -2,7 +2,11 @@
 
 namespace App\Core\Lokal\Console;
 
+use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Integrasi\Application\KelolaKredensial;
+use App\Modules\Integrasi\Domain\SistemIntegrasi;
 use App\Modules\MasterData\Models\JadwalPraktik;
+use App\Modules\MasterData\Models\Penjamin;
 use App\Modules\MasterData\Models\Poliklinik;
 use App\Modules\MasterData\Models\UnitOrganisasi;
 use App\Modules\Sdm\Models\IzinPraktik;
@@ -12,7 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * `php artisan lokal:kunjungan-contoh` (e2e pendaftaran): poli (prefiks antrean `PD`, area display `poli-pd`), dokter ber-SIP, dan jadwal praktik sintetis setiap hari
+ * `php artisan lokal:kunjungan-contoh` (e2e pendaftaran): poli (berkode poli BPJS, prefiks antrean `PD`, area display `poli-pd`), penjamin BPJS, kredensial VClaim dan kode PPK sintetis (SEP, tiket 2.7), dokter ber-SIP, dan jadwal praktik sintetis setiap hari
  * 00.00–23.59, lalu instalasi ditandai siap melayani. Penanda itu biasanya terkunci lewat wizard penyiapan langkah 1–6,
  * yang tidak bisa dilengkapi data sintetis; `--batal` mengosongkannya lagi agar spec penyiapan tetap bisa diulang.
  * Hanya APP_ENV=local.
@@ -64,12 +68,22 @@ final class KunjunganContoh extends Command
                 ]);
             }
 
+            // SEP (2.7): pemetaan BPJS, kode PPK sintetis, penjamin BPJS, dan kredensial VClaim sintetis (dijawab simulator).
+            $poli->forceFill(['kode_poli_bpjs' => 'INT'])->save();
+            Penjamin::query()->updateOrCreate(['kode' => 'CONTOH-BPJS'], ['nama' => 'BPJS Kesehatan (contoh)', 'jenis' => 'bpjs', 'status' => 'aktif']);
+            $oleh = Pengguna::query()->orderBy('id')->value('id');
+            if ($oleh !== null && ! DB::table('integrasi.kredensial_api')->where('tujuan', 'bpjs_vclaim')->exists()) {
+                app(KelolaKredensial::class)->simpan(SistemIntegrasi::BpjsVclaim, 'sandbox',
+                    ['cons_id' => '1234', 'secret_key' => 'rahasia-sintetis', 'user_key' => 'kunci-sintetis'], true, false, $oleh);
+            }
+
             $profil = DB::table('inti.profil_rs')->first(['id', 'siap_melayani_sejak']);
             if ($profil === null) {
                 DB::table('inti.profil_rs')->insert(['id' => (string) Str::uuid7(), 'paket_identitas' => '{}', 'siap_melayani_sejak' => now()]);
             } elseif ($profil->siap_melayani_sejak === null) {
                 DB::table('inti.profil_rs')->update(['siap_melayani_sejak' => now()]);
             }
+            DB::table('inti.profil_rs')->whereNull('kode_ppk_bpjs')->update(['kode_ppk_bpjs' => 'SIM0RS01']);
         });
         $this->info('Poli, dokter, dan jadwal contoh siap; instalasi ditandai siap melayani.');
 
