@@ -11,6 +11,7 @@ use App\Modules\MasterData\Models\Lokasi;
 use App\Modules\MasterData\Models\Poliklinik;
 use App\Modules\Pendaftaran\Events\KunjunganDibatalkan;
 use App\Modules\Pendaftaran\Events\KunjunganDibuat;
+use App\Modules\RekamMedis\Events\AsesmenPerawatSelesai;
 use App\Modules\Pendaftaran\Models\Kunjungan;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -79,6 +80,16 @@ final class KelolaAntrean
     }
 
     /** Panggil (menunggu → dipanggil) atau panggil ulang (dipanggil → dipanggil) sampai batas data induk. */
+    /** Asesmen awal perawat selesai (tiket 2.13): nomor poli yang sama kembali menunggu, kini untuk dokter. */
+    public function keTahapDokter(AsesmenPerawatSelesai $kejadian): void
+    {
+        $antrean = Antrean::query()->where('kunjungan_id', $kejadian->kunjunganId)->where('titik', 'poli')->lockForUpdate()->first();
+        if ($antrean === null || in_array($antrean->status, ['batal', 'selesai'], true) || $antrean->tahap === 'dokter') {
+            return;
+        }
+        $this->ubah($antrean, $kejadian->olehId, ['tahap' => 'dokter', 'status' => 'menunggu', 'panggilan_ke' => 0]);
+    }
+
     public function panggil(Pengguna $petugas, string $id, ?string $lokasiId): Antrean
     {
         return DB::transaction(function () use ($petugas, $id, $lokasiId) {
