@@ -5,6 +5,9 @@ import { defineConfig, devices } from '@playwright/test'
  * terpisah dan sudah di-seed AkunSintetisSeeder dengan AKUN_SINTETIS_SANDI = E2E_SANDI;
  * Vite dev server di bawah memproksi /api dan /sanctum ke SIMRS_API_URL.
  */
+const LAYAR_FASE2 = /(penjamin|buku-tarif|jadwal-praktik|gabung-rm)\.spec\.ts/
+/** Spec yang punya proyek berurutan sendiri; desktop/seluler mengabaikannya. */
+const LAYAR_FASE2_ATAU_BERURUTAN = [/(pengaturan|fase1|pendaftaran|antrean)\.spec\.ts/, LAYAR_FASE2]
 const port = Number(process.env.E2E_PORT ?? 5173)
 const baseURL = `http://localhost:${port}`
 
@@ -22,11 +25,11 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'desktop', testIgnore: /(pengaturan|fase1|pendaftaran|antrean)\.spec\.ts/, use: { ...devices['Desktop Chrome'] } },
+    { name: 'desktop', testIgnore: LAYAR_FASE2_ATAU_BERURUTAN, use: { ...devices['Desktop Chrome'] } },
     // Lebar 390 px (PRD: tanpa scroll samping).
     {
       name: 'seluler',
-      testIgnore: /(pengaturan|fase1|pendaftaran|antrean)\.spec\.ts/,
+      testIgnore: LAYAR_FASE2_ATAU_BERURUTAN,
       use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
     },
     // Mengubah akses contoh.admisi dan mereset MFA contoh.mfa yang dipakai spec lain, jadi berjalan paling akhir.
@@ -37,6 +40,9 @@ export default defineConfig({
     { name: 'pendaftaran', testMatch: /pendaftaran\.spec\.ts/, dependencies: ['fase1'], use: { ...devices['Desktop Chrome'] } },
     // 2.8-fe: keluar Tahap A (pendaftaran → SEP → antrean → display); memakai data contoh pendaftaran, jadi sesudahnya.
     { name: 'antrean', testMatch: /antrean\.spec\.ts/, dependencies: ['pendaftaran'], use: { ...devices['Desktop Chrome'] } },
+    // Layar Fase 2 ke backend asli @1440 px + axe. Mengubah penjamin/tarif (syarat langkah 6 penyiapan) dan menandai siap
+    // melayani, jadi paling akhir dan satu berkas sekali jalan.
+    { name: 'fase2', testMatch: LAYAR_FASE2, dependencies: ['antrean'], workers: 1, use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
     command: `npm run dev -- --port ${port} --strictPort`,

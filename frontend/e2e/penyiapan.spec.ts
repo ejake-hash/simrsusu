@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test'
-import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
+import { headerTulis, masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
 
 /**
  * Pengaturan → Penyiapan instalasi (tiket 1.8f) ke backend asli dengan contoh.superadmin (penyiapan bawaan superadmin).
@@ -68,6 +68,22 @@ test('Beranda menandai instalasi belum siap; penyiapan menampilkan 9 langkah dan
 
   const hasil = await new AxeBuilder({ page }).analyze()
   expect(hasil.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)).toEqual([])
+  await page.context().close()
+})
+
+test('langkah 6 penjamin & tarif aktif (bukan menunggu fase 2): syarat dari backend, konfirmasi menunggu urutan', async ({ browser }, info) => {
+  const asal = asalDari(info.project.use.baseURL)
+  const page = await halaman(browser, asal)
+  await page.goto('/pengaturan/penyiapan')
+  const l6 = langkah(page, 'penjamin_tarif')
+  await expect(l6.locator('.pil')).not.toHaveText('Menunggu fase 2')
+  const syarat = l6.getByRole('list', { name: 'Syarat langkah 6' })
+  await expect(syarat).toContainText('Penjamin aktif')
+  await expect(syarat).toContainText('Tarif untuk setiap kelas rawat aktif')
+  // Langkah 2–5 instalasi e2e belum selesai (logo, paket referensi), jadi server menolak karena urutan, bukan karena fase 2.
+  const r = await page.request.post('/api/v1/penyiapan/penjamin_tarif/selesai', { headers: await headerTulis(page, asal), data: {} })
+  expect(r.status()).toBe(409)
+  expect(((await r.json()) as { error: { kode: string } }).error.kode).toBe('langkah_sebelumnya_belum_selesai')
   await page.context().close()
 })
 

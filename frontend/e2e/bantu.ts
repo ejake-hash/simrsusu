@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { expect, type APIRequestContext, type Browser, type Page } from '@playwright/test'
@@ -96,4 +97,29 @@ export async function daftarkanKunjunganJkn(page: Page, nama: string, kartu: str
   const panel = page.getByRole('region', { name: 'Terbitkan SEP' })
   await expect(panel).toContainText(nama)
   return panel
+}
+
+/** Konteks 1440 px per akun sintetis tanpa MFA; satu kali masuk per akun per berkas (rate limit masuk 10/menit per nama pengguna). */
+const sesiAkun = new Map<string, Awaited<ReturnType<APIRequestContext['storageState']>>>()
+export async function halamanAkun(browser: Browser, asal: string, nama: string): Promise<Page> {
+  if (!sesiAkun.has(nama)) {
+    const masuk = await browser.newContext({ baseURL: asal, storageState: { cookies: [], origins: [] } })
+    await masukLewatApi(masuk.request, asal, nama)
+    sesiAkun.set(nama, await masuk.storageState())
+    await masuk.close()
+  }
+  const konteks = await browser.newContext({ baseURL: asal, storageState: sesiAkun.get(nama), viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
+  return konteks.newPage()
+}
+
+/** Header tulis API (cookie Sanctum stateful + XSRF) dari konteks halaman yang sudah masuk. */
+export async function headerTulis(page: Page, asal: string) {
+  const token = decodeURIComponent((await page.context().cookies()).find((c) => c.name === 'XSRF-TOKEN')?.value ?? '')
+  return { 'X-XSRF-TOKEN': token, Accept: 'application/json', Origin: asal, Referer: `${asal}/` }
+}
+
+/** Pelanggaran axe berdampak serius/kritis pada keadaan halaman saat ini. */
+export async function pelanggaranAxe(page: Page): Promise<string[]> {
+  const hasil = await new AxeBuilder({ page }).analyze()
+  return hasil.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').flatMap((v) => v.nodes.map((n) => `${v.id}: ${n.target.join(' ')}`))
 }
