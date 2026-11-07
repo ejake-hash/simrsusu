@@ -366,7 +366,8 @@ Di luar: penerimaan, sampling, hasil, hasil kritis, antrean `L-`/`R-` (Tahap C),
 ### 2.17 · E-resep rawat jalan → antrean farmasi
 Tujuan : dokter menulis dan mengesahkan resep; pasien otomatis masuk satu antrean farmasi hari itu.
 FR     : FR-07-06 (bagian jumlah otomatis untuk n hari), FR-07-07 (alergi, duplikasi, di luar formularium), FR-02-10, FR-22-01 (tampilan antrean)
-Akses  : bagian baru `rawat_jalan.pemeriksaan.resep` input/sahkan/batal; `farmasi.resep` lihat (antrean depo)
+Akses  : bagian baru `rawat_jalan.pemeriksaan.resep` input/sahkan/batal; `farmasi.resep` lihat (antrean depo); `GET /pasien/{id}/alergi`
+         ikut menerima `farmasi.resep.lihat` (kontrak v0.23.0 menyerahkan jalur baca farmasi ke tiket ini)
 Tabel  : `farmasi.resep`, `farmasi.resep_item`, `farmasi.peringatan_resep`; `kunjungan.antrean` titik `farmasi`
 API    : `POST /api/v1/kunjungan/{id}/resep`, `PATCH /api/v1/resep/{id}` (draf, If-Match), `POST /api/v1/resep/{id}/sahkan` (PIN T1),
          `POST /api/v1/resep/{id}/batal`, `GET /api/v1/resep?depo_id=&tanggal=`
