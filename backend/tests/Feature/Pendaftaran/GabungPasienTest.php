@@ -182,6 +182,9 @@ class GabungPasienTest extends TestCase
         $this->assertSame(['kartu_bpjs' => null, 'nik' => null], $nilai($lama));
         $versi = DB::table('pasien.pasien_versi')->where('pasien_id', $lama->id)->value('isi_enkripsi');
         $this->assertEquals(['nik' => '9999010101800001', 'no_kartu_bpjs' => '9999000000001'], json_decode(Crypt::decryptString((string) $versi), true));
+        $versiTujuan = DB::table('pasien.pasien_versi')->where('pasien_id', $baru->id)->sole();
+        $this->assertSame([$baru->revisi, $baru->revisi + 1], [$versiTujuan->revisi, $baru->fresh()->revisi]);
+        $this->assertEquals(['nik' => '9999010101800002'], json_decode(Crypt::decryptString($versiTujuan->isi_enkripsi), true));
         $audit = $this->assertAuditTerakhir('pasien.gabung_diterapkan', $id);
         foreach (['9999010101800001', '9999000000001', $lama->no_rm] as $rahasia) {
             $this->assertStringNotContainsString($rahasia, (string) $audit->sesudah);

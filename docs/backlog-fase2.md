@@ -198,13 +198,8 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
   XSS se-origin → CSP untuk SPA perlu ditetapkan (belum ada kebijakan CSP di PRD/deploy).
 
 **Utang teknis (tiket kecil / disisipkan ke tiket terkait)**
-- Gabung RM: revisi tujuan naik tanpa baris `pasien_versi` tujuan (jejak hanya di versi sumber).
-- POST cuti/libur tidak mengunci jadwal; berbarengan dengan pendaftaran bisa lolos keduanya (dampak kecil).
-- `lokal:kunjungan-contoh --batal` mengosongkan `siap_melayani_sejak` tanpa syarat dan tidak membersihkan poli `POLI-PD`.
-- `Penandatangan::status` satu query `kunci_publik` per tanda tangan (verifikasi ≤ 100 query).
+- Libur RS mengunci semua baris `jadwal_praktik` (termasuk nonaktif) sampai commit (PR #146); bila jadwal ribuan, batasi ke yang aktif agar pendaftaran tak mendekati `statement_timeout`.
 - `PanelSep.vue` menolak terbit untuk rujukan kedaluwarsa tanpa melihat IGD (backend mengizinkan IGD); perlu disesuaikan saat layar IGD.
-- `SuntinganBerversi` (MasterData) kini dipakai Akses dan Sdm (PR #143); pindah ke `Core\Http` bersama `IfMatch` bila ada pemakai ketiga.
-  `KelolaKsm`/`KelolaUnit` masih menyalin pola `naikkan`.
 - Lapisan tiruan FE (`*/tiruan/`, ±5.500 baris) masih tulang punggung 31 spec unit; layar Fase 2 butuh e2e terhadap backend asli per layar.
 
 ## Kerangka tahap berikutnya (dirinci kemudian)

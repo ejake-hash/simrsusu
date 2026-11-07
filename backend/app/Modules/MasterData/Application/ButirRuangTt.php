@@ -3,6 +3,7 @@
 namespace App\Modules\MasterData\Application;
 
 use App\Core\Http\ApiError;
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\MasterData\Models\Bangsal;
 use App\Modules\MasterData\Models\Kamar;

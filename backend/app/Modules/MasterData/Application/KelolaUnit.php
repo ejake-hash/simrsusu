@@ -4,7 +4,7 @@ namespace App\Modules\MasterData\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
-use App\Core\Http\IfMatch;
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\Akses\Application\PemakaianCakupan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\MasterData\Models\UnitOrganisasi;
@@ -64,12 +64,7 @@ final class KelolaUnit
             if ($pindah && ! $this->lingkup->bolehDi($penyunting, self::IZIN_PERBAIKI, $isi['induk_id'])) {
                 throw new ApiError(403, 'akses_ditolak', 'Anda tidak punya izin memindahkan unit ke induk itu.');
             }
-            $revisi = IfMatch::revisi($versi);
-            $naik = $revisi !== null && UnitOrganisasi::query()->whereKey($unit->id)->where('revisi', $revisi)
-                ->update(['revisi' => DB::raw('revisi + 1'), 'diubah_oleh' => $penyunting->id]) === 1;
-            if (! $naik) {
-                throw new ApiError(412, 'versi_berubah', 'Unit ini diubah orang lain sejak Anda membukanya. Muat ulang untuk melihat perubahan terbaru.');
-            }
+            SuntinganBerversi::naikkan(UnitOrganisasi::class, $unit->id, $versi, $penyunting->id, 'Unit');
             $unit->refresh();
             $sebelum = $this->isiAudit($unit);
 

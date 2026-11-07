@@ -3,6 +3,7 @@
 namespace App\Modules\MasterData\Application;
 
 use App\Core\Audit\CatatAktivitas;
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\MasterData\Models\Penjamin;
 use Illuminate\Database\QueryException;

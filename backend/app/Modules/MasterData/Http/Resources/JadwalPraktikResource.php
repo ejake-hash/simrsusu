@@ -2,7 +2,7 @@
 
 namespace App\Modules\MasterData\Http\Resources;
 
-use App\Modules\MasterData\Application\SuntinganBerversi;
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\MasterData\Models\JadwalPengecualian;
 use App\Modules\MasterData\Models\JadwalPraktik;
 use App\Modules\MasterData\Models\Lokasi;

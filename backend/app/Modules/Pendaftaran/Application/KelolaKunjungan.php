@@ -4,10 +4,10 @@ namespace App\Modules\Pendaftaran\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
+use App\Core\Http\SuntinganBerversi;
 use App\Core\Instalasi\StatusInstalasi;
 use App\Modules\Akses\Application\KelolaRelasiPerawatan;
 use App\Modules\Akses\Models\Pengguna;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Models\JadwalPengecualian;
 use App\Modules\MasterData\Models\JadwalPraktik;
 use App\Modules\MasterData\Models\Penjamin;

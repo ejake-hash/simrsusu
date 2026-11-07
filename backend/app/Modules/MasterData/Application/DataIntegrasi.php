@@ -2,6 +2,7 @@
 
 namespace App\Modules\MasterData\Application;
 
+use App\Core\Http\SuntinganBerversi;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 

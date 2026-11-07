@@ -4,10 +4,10 @@ namespace App\Modules\Sdm\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\Akses\Application\AkunPegawai;
 use App\Modules\Akses\Application\DataUnit;
 use App\Modules\Akses\Models\Pengguna;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\Sdm\Events\PegawaiKeluar;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Database\QueryException;

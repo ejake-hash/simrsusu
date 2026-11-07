@@ -3,9 +3,9 @@
 namespace App\Modules\MasterData\Http\Controllers;
 
 use App\Core\Http\Paginasi;
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\MasterData\Application\BukuTarif;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Http\Resources\UsulanPresenter;
 use App\Modules\MasterData\Models\Tarif;
 use App\Modules\MasterData\Models\TarifVersi;

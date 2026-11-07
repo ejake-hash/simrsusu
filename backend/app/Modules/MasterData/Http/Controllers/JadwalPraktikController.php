@@ -4,9 +4,9 @@ namespace App\Modules\MasterData\Http\Controllers;
 
 use App\Core\Http\IfMatch;
 use App\Core\Http\Paginasi;
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\MasterData\Application\KelolaJadwalPraktik;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Http\Resources\JadwalPraktikResource;
 use App\Modules\MasterData\Models\JadwalPraktik;
 use Illuminate\Http\JsonResponse;

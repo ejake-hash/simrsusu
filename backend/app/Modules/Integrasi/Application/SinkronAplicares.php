@@ -2,9 +2,9 @@
 
 namespace App\Modules\Integrasi\Application;
 
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\Integrasi\Domain\SistemIntegrasi;
 use App\Modules\MasterData\Application\DataIntegrasi;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Events\KapasitasTempatTidurBerubah;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;

@@ -3,8 +3,8 @@
 namespace App\Modules\MasterData\Http\Controllers;
 
 use App\Core\Http\Paginasi;
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\MasterData\Application\KapasitasTempatTidur;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Http\Resources\LokasiResource;
 use App\Modules\MasterData\Models\Bangsal;
 use Illuminate\Http\JsonResponse;

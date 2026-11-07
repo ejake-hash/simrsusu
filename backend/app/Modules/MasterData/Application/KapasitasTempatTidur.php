@@ -2,6 +2,7 @@
 
 namespace App\Modules\MasterData\Application;
 
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\MasterData\Events\KapasitasTempatTidurBerubah;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
