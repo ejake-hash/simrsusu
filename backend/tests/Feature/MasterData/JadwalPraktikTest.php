@@ -200,6 +200,24 @@ class JadwalPraktikTest extends TestCase
         $this->assertLessThan($periksa, $kunci);
     }
 
+    public function test_libur_rs_hanya_mengunci_jadwal_aktif_sebelum_memeriksa_kunjungan(): void
+    {
+        $this->admin();
+        $this->minta('POST', '/api/v1/jadwal-praktik', $this->isi($this->dokter()))->assertCreated();
+        $sql = [];
+        DB::listen(function (QueryExecuted $q) use (&$sql) {
+            $sql[] = strtolower($q->sql);
+        });
+
+        $this->minta('POST', '/api/v1/jadwal-pengecualian', ['jenis' => 'libur', 'dari_tanggal' => self::SENIN, 'sampai_tanggal' => self::SENIN, 'alasan' => 'Libur nasional'])->assertCreated();
+
+        $kunci = collect($sql)->search(fn ($s) => str_contains($s, '"kunjungan"."jadwal_praktik"') && str_ends_with($s, 'for update'));
+        $periksa = collect($sql)->search(fn ($s) => str_contains($s, '"kunjungan"."kunjungan"'));
+        $this->assertIsInt($kunci);
+        $this->assertStringContainsString('"status" = ?', $sql[$kunci]);
+        $this->assertLessThan($periksa, $kunci);
+    }
+
     public function test_tanggal_lampau_yang_libur_tetap_tampil_tidak_tersedia(): void
     {
         // Senin 2 Nov 2026 libur; "hari ini" dipatok sesudahnya agar tanggal itu lampau.
