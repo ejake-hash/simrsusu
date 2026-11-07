@@ -44,6 +44,8 @@ export const router = createRouter({
         { path: 'pendaftaran/pasien', name: 'pendaftaran-pasien', component: () => import('@/modules/pendaftaran/pages/PasienPage.vue'), meta: { judul: 'Pendaftaran pasien' } },
         { path: 'pendaftaran/master-pasien', name: 'pendaftaran-master-pasien', component: () => import('@/modules/pendaftaran/pages/MasterPasienPage.vue'), meta: { judul: 'Master pasien' } },
         { path: 'pendaftaran/antrean', name: 'pendaftaran-antrean', component: () => import('@/modules/antrean/pages/AntreanPage.vue'), meta: { judul: 'Antrean & display' } },
+        { path: 'rawat-jalan/worklist', name: 'rawat-jalan-worklist', component: () => import('@/modules/rawat-jalan/pages/WorklistPage.vue'), props: { mode: 'worklist' }, meta: { judul: 'Worklist poliklinik' } },
+        { path: 'rawat-jalan/asesmen-perawat', name: 'rawat-jalan-asesmen-perawat', component: () => import('@/modules/rawat-jalan/pages/WorklistPage.vue'), props: { mode: 'asesmen' }, meta: { judul: 'Asesmen perawat' } },
         { path: 'pendaftaran/kunjungan', name: 'pendaftaran-kunjungan', component: () => import('@/modules/pendaftaran/pages/KunjunganPage.vue'), meta: { judul: 'Pendaftaran kunjungan poli' } },
         // Gerbang izin di HalamanModul (tanpa <menu>.<sub>.lihat → Akses ditolak + Minta akses, tiket 1.2d).
         { path: 'pengaturan/peran', name: 'pengaturan-peran', component: () => import('@/modules/akses/pages/PeranPage.vue'), meta: { judul: 'Peran & izin' } },

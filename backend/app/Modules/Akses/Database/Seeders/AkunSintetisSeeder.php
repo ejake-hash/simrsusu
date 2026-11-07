@@ -97,6 +97,11 @@ final class AkunSintetisSeeder extends Seeder
     private const IZIN_TAMBAHAN_CONTOH = [
         'contoh_admisi' => ['master_data.organisasi.lihat', 'master_data.jadwal_praktik.lihat', 'master_data.penjamin.lihat'],
         'contoh_data_induk' => ['sdm.pegawai.lihat', 'farmasi.formularium.lihat', 'farmasi.formularium.input', 'farmasi.formularium.perbaiki'],
+        // Tiket 2.13: perawat poli melihat worklist, mengisi asesmen awal dan alergi, dan memanggil nomor antrean (poli dipilih dari data induk).
+        'contoh_perawat' => [
+            'rawat_jalan.worklist.lihat', 'rawat_jalan.asesmen_perawat.lihat', 'rawat_jalan.asesmen_perawat.input', 'rawat_jalan.asesmen_perawat.perbaiki',
+            'pendaftaran.antrean.lihat', 'pendaftaran.antrean.perbaiki', 'master_data.organisasi.lihat',
+        ],
     ];
 
     /**
