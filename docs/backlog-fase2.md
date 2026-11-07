@@ -205,7 +205,7 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
   (2.9 + peringatan duplikat); `penyiapan.spec` kini menguji langkah 6 aktif (409 urutan, bukan fase 2). Sisa: konfirmasi langkah 6
   sampai siap melayani belum di e2e (butuh langkah 2–5 lengkap: logo, paket referensi). Lapisan tiruan (`*/tiruan/`) tetap untuk spec unit.
 - Sub-menu `master_data.penjamin`, `master_data.tarif`, `master_data.jadwal_praktik` belum masuk `MenuBawaan::TERSEDIA`: layar sudah
-  tersambung ke backend asli tetapi tidak tampil di menu (hanya lewat tautan penyiapan/URL). → **tiket 2.10**.
+  tersambung ke backend asli tetapi tidak tampil di menu (hanya lewat tautan penyiapan/URL). → **Selesai** (tiket 2.10).
 - Pemilih dokter di layar Jadwal praktik memakai `GET /pegawai` (`sdm.pegawai.lihat`), jadi admin jadwal butuh izin itu juga
   (data contoh: diberikan ke `contoh_data_induk`). Endpoint lookup dokter ber-SIP untuk `master_data.jadwal_praktik.input`? Keputusan pemilik.
 
@@ -229,7 +229,7 @@ Kolom tabel = PRD 11.2; kolom yang belum perlu boleh ditunda, kolom baru di luar
 
 | No | Tiket | Jalur | Ukuran | Prasyarat · Status |
 |---|---|---|---|---|
-| 2.10 | Sub-menu penjamin, tarif, jadwal praktik tampil di menu | BE | S | — · Siap |
+| 2.10 | Sub-menu penjamin, tarif, jadwal praktik tampil di menu | BE | S | — · **Selesai** (PR 2.10: TERSEDIA + migrasi `pasang()`, ketiga layar masuk `LAYAR` `fase1.spec`) |
 | 2.11 | Katalog obat + formularium (penyiapan) | BE+FE | M | — · Siap |
 | 2.12 | Wizard langkah 7 + usulan formularium | BE+FE | S | 2.11 · Siap |
 | 2.13 | Worklist poli + asesmen awal perawat | BE+FE | M | — · Siap |

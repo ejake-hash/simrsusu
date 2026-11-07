@@ -63,6 +63,9 @@ const LAYAR: Layar[] = [
   { kode: 'organisasi-poli', jalur: '/master-data/organisasi?tab=poli', akun: 'dataInduk', judul: /Organisasi/ },
   { kode: 'jenis-tugas', jalur: '/master-data/jenis-tugas', akun: 'dataInduk', judul: 'Jenis Tugas, Tenggat & Eskalasi' },
   { kode: 'usulan', jalur: '/master-data/usulan', akun: 'pengusul', judul: 'Usulan perubahan' },
+  { kode: 'penjamin', jalur: '/master-data/penjamin', akun: 'dataInduk', judul: 'Penjamin' },
+  { kode: 'buku-tarif', jalur: '/master-data/tarif', akun: 'dataInduk', judul: 'Buku tarif' },
+  { kode: 'jadwal-praktik', jalur: '/master-data/jadwal-praktik', akun: 'dataInduk', judul: 'Jadwal praktik dan kuota poli' },
   { kode: 'pegawai', jalur: '/sdm/pegawai', akun: 'sdm', judul: 'Data pegawai' },
   { kode: 'tanda-tangan', jalur: '/tanda-tangan', akun: 'ttd', judul: 'Tanda tangan elektronik' },
 ]
