@@ -208,6 +208,18 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
   tersambung ke backend asli tetapi tidak tampil di menu (hanya lewat tautan penyiapan/URL). → **Selesai** (tiket 2.10).
 - Pemilih dokter di layar Jadwal praktik memakai `GET /pegawai` (`sdm.pegawai.lihat`), jadi admin jadwal butuh izin itu juga
   (data contoh: diberikan ke `contoh_data_induk`). Endpoint lookup dokter ber-SIP untuk `master_data.jadwal_praktik.input`? Keputusan pemilik.
+- Tinjauan 2.11/2.13 (8 Nov 2026), saran yang belum dikerjakan:
+  - 2.11-be: dua impor CSV barang serentak dengan kode sama → 500 (kunci unik), bukan 422 `impor_tidak_valid`. Jarang (hanya penyiapan).
+  - 2.11-fe: `DialogFormularium.vue` — akun tanpa `master_data.penjamin.lihat` mendapat banner 403 saat memilih jenis penjamin (beri
+    pesan jelas); `DialogItem.vue` — hasil pencarian barang tanpa penjaga respons usang; `formularium.spec` menulis formularium langsung
+    (gagal bila instalasi e2e sudah siap melayani) dan datanya menumpuk antarjalan.
+  - 2.13-fe: `DialogAsesmen.vue` — sesudah 409 `asesmen_sudah_ada`/412, versi baru menimpa ketikan tanpa pemberitahuan; peran contoh
+    `contoh_perawat` memegang `pendaftaran.antrean.perbaiki` yang juga membuka lewati/batal nomor (beri komentar di seeder atau pecah aksi
+    panggil); filter tahap saat pindah sub-menu diperbaiki tanpa uji navigasi.
+- E2E `rawat-jalan.spec` (proyek sesudah `fase2`) pernah gagal karena sesi hilang/429 akun admisi yang dipakai beruntun, lulus saat rerun
+  (PR #156). Rerun dulu; perbaikan: tunggu jatah batas laju penuh di awal spec (pola `tungguJatahPenuh` di `fase1.spec`).
+- Lokal: `php artisan test` penuh (±453 uji) melebihi `memory_limit` 128M bawaan PHP Homebrew; CI hijau. Jalankan lokal dengan
+  `php -d memory_limit=512M artisan test` atau setel `memory_limit` di php.ini pengembang.
 
 ## Tahap B — tiket (rawat jalan + RME)
 
