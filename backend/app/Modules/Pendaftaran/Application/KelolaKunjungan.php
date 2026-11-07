@@ -11,6 +11,7 @@ use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Models\JadwalPengecualian;
 use App\Modules\MasterData\Models\JadwalPraktik;
 use App\Modules\MasterData\Models\Penjamin;
+use App\Modules\Pendaftaran\Events\KunjunganDibatalkan;
 use App\Modules\Pendaftaran\Events\KunjunganDibuat;
 use App\Modules\Pendaftaran\Models\Episode;
 use App\Modules\Pendaftaran\Models\Kunjungan;
@@ -168,6 +169,7 @@ final class KelolaKunjungan
             'diubah_oleh' => $olehId, 'revisi' => $kunjungan->revisi + 1,
         ])->save();
         $this->relasi->akhiri('kunjungan', $kunjungan->id, 'Kunjungan dibatalkan', $olehId);
+        KunjunganDibatalkan::dispatch($kunjungan->id, $olehId);
 
         // Episode tanpa kunjungan aktif ikut batal; kunjungan berikutnya di hari itu membentuk episode baru.
         $sisa = Kunjungan::query()->where('episode_id', $kunjungan->episode_id)->where('status', '<>', 'batal')->exists();

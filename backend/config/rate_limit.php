@@ -14,6 +14,12 @@ return [
         'per_pengguna_per_menit' => (int) env('RATE_LIMIT_LAYAR_KERJA_PER_PENGGUNA_PER_MENIT', 600),
     ],
 
+    // GET /api/v1/display/{area}: polling 5–10 detik per perangkat display (tiket 2.8).
+    'display' => [
+        'per_perangkat_per_menit' => (int) env('RATE_LIMIT_DISPLAY_PER_PERANGKAT_PER_MENIT', 30),
+        'per_ip_per_menit' => (int) env('RATE_LIMIT_DISPLAY_PER_IP_PER_MENIT', 600),
+    ],
+
     // GET /api/v1/siap untuk penyeimbang beban dan pemantau.
     'siap' => [
         'per_ip_per_menit' => (int) env('RATE_LIMIT_SIAP_PER_IP_PER_MENIT', 60),
