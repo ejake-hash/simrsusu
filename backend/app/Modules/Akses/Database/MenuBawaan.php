@@ -43,6 +43,8 @@ final class MenuBawaan
         'pendaftaran.master_pasien' => ['usul', 'verifikasi'],
         // Tiket 2.7: "hapus" SEP (FR-01-10) = pembatalan beralasan (B-10, JenisAksi `batal`); endpointnya menyusul.
         'pendaftaran.sep' => ['batal'],
+        // Tiket 2.14: pengesahan CPPT dengan PIN T1 (FR-07-13, FR-26-18).
+        'rawat_jalan.cppt' => ['sahkan'],
     ];
 
     /** Superadmin mengelola peran, akun, dan profil RS (wizard langkah 2); tidak membuka rekam medis, rupiah, atau data induk milik unit (PRD 9.2.4, FR-54-01). */

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
 /**
- * Catatan klinis (PRD 11.2 `klinis.catatan_klinis`). Tiket 2.13: asesmen awal perawat RJ. `isi` data klinis: jangan dilog.
+ * Catatan klinis (PRD 11.2 `klinis.catatan_klinis`). Tiket 2.13: asesmen awal perawat RJ; 2.14: CPPT (jenis soap), label, adendum. `isi` data klinis: jangan dilog.
  *
  * @property string $id
  * @property string $episode_id
@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property string $tatanan
  * @property string $jenis
  * @property array<string, mixed> $isi
+ * @property string|null $label
  * @property string $status
  * @property Carbon|null $selesai_pada
  * @property Carbon|null $batas_perbaikan_pada
