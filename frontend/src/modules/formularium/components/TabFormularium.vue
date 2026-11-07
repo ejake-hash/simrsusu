@@ -7,6 +7,7 @@ import { tampilkanToast } from '@/design-system/components/toast'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import { pesanError } from '@/modules/akses/pengaturan'
 import type { Berversi } from '@/modules/organisasi/api'
+import type { IsianButir } from '@/modules/usulan/tipe'
 import { refDebounced } from '@/shared/composables/refDebounced'
 import { boleh } from '@/shared/composables/usePermission'
 import { ambilFormularium, daftarFormularium, daftarItem, imporItem, ubahItem } from '../api'
@@ -19,7 +20,7 @@ import DialogStatus from './DialogStatus.vue'
 
 /**
  * Formularium (Fornas, RS, penjamin) dan itemnya. Sebelum siap melayani ditulis langsung; sesudahnya server menjawab
- * 409 `harus_lewat_usulan` dan dialog mengarahkan ke Usulan perubahan (tiket 2.12).
+ * 409 `harus_lewat_usulan` dan dialog yang sama mengajukan perubahannya sebagai usulan (tiket 2.12). Impor item tetap langsung saja.
  */
 const qc = useQueryClient()
 const kueriF = useInfiniteQuery({
@@ -94,6 +95,9 @@ function bukaItem(i: ItemFormularium | null, aksi: 'ubah' | 'status' = 'ubah') {
   else dialogStatus.value = true
 }
 const selesai = () => void qc.invalidateQueries({ queryKey: KUNCI_FORMULARIUM.semua })
+// Sesudah siap melayani hanya penonaktifan item yang bisa diusulkan (kontrak v0.24.0: formularium_item `tutup`).
+const butirStatus = (s: StatusAktif, alasan: string): IsianButir | null =>
+  s === 'nonaktif' && targetI.value ? { objek_jenis: 'formularium_item', aksi: 'tutup', objek_id: targetI.value.data.id, nilai_baru: { alasan } } : null
 const simpanStatus = (s: StatusAktif, dasar: string) => ubahItem(terpilihId.value!, targetI.value!.data.id, targetI.value!.etag, { status: s, dasar_perubahan: dasar })
 const imporKeFormularium = (berkas: File, mode: 'pratinjau' | 'terapkan', dasar: string) => imporItem(terpilihId.value!, berkas, mode, dasar)
 </script>
@@ -195,6 +199,7 @@ const imporKeFormularium = (berkas: File, mode: 'pratinjau' | 'terapkan', dasar:
       :status="targetI?.data.status ?? 'aktif'"
       dampak-nonaktif="tidak lagi dihitung sebagai item aktif formularium ini. Barangnya tetap ada di katalog."
       :simpan="simpanStatus"
+      :butir-usulan="butirStatus"
       @selesai="selesai"
       @muat-ulang="selesai"
     />

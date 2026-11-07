@@ -285,18 +285,28 @@ describe('Layar formularium', () => {
     expect(dialog()?.textContent).toContain('tumpang tindih')
   })
 
-  it('sesudah siap melayani: 409 harus_lewat_usulan tampil sebagai pesan dengan tautan ke Usulan perubahan', async () => {
+  it('sesudah siap melayani: 409 harus_lewat_usulan memindahkan dialog ke mode usulan dan mengajukan perubahan yang sama', async () => {
     gabungan.formularium.aturSiapMelayani(true)
+    aturIzin([...IZIN_PENUH, 'master_data.usulan.lihat', 'master_data.usulan.input'])
     const w = await pasang()
     await bukaTabFormularium(w)
     await pilihFormularium('FRM-RS-2026')
     await klik(tombolLabel('Ubah item Amoksisilin 500 mg'))
     await isi('Maksimum per resep', '7')
-    await isi('Dasar perubahan', 'Uji 409')
+    await isi('Dasar perubahan', 'Rapat KFT 3/2026')
     await kirimForm('form-item-formularium')
-    expect(dialog()?.textContent).toContain('lewat Usulan perubahan')
-    expect(dialog()?.querySelector('a')?.getAttribute('href')).toBe('/master-data/usulan')
-    expect(dialog()?.querySelector('[role="alert"]')).toBeTruthy()
+    expect(dialog()?.textContent).toContain('diajukan sebagai usulan')
+    expect(dialog()?.querySelector('[role="alert"]')).toBeNull()
+    // Tanggal dan alasan wajib di mode usulan.
+    await kirimForm('form-item-formularium')
+    expect(dialog()?.textContent).toContain('Pilih tanggal berlaku.')
+    await isi('Berlaku mulai', '2030-01-01')
+    await isi('Alasan usulan', 'Batas resep disesuaikan KFT')
+    await kirimForm('form-item-formularium')
+    expect(dialog()).toBeNull()
+    const kirim = permintaan.find((r) => r.metode === 'post' && r.jalur === '/usulan-data-induk')
+    expect(kirim?.isi).toMatchObject({ jenis_data: 'formularium', berlaku_dari: '2030-01-01', alasan: 'Batas resep disesuaikan KFT', dasar: 'Rapat KFT 3/2026' })
+    expect((kirim?.isi as { perubahan: unknown[] }).perubahan).toEqual([expect.objectContaining({ objek_jenis: 'formularium_item', aksi: 'ubah', nilai_baru: { maks_per_resep: 7 } })])
   })
 
   it('barang tetap bisa ditulis langsung sesudah siap melayani', async () => {

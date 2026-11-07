@@ -81,11 +81,13 @@ async function muatSemuaPaketWajib() {
 }
 
 describe('Halaman penyiapan', () => {
-  it('sembilan langkah berurutan; konfirmasi mengikuti dapat_dikonfirmasi; langkah 7 menunggu fase 2', async () => {
+  it('sembilan langkah berurutan; konfirmasi mengikuti dapat_dikonfirmasi; langkah 7 aktif dengan tautan Formularium', async () => {
     await pasang(DaftarLangkah)
     expect(document.querySelectorAll('ol[aria-label="Langkah penyiapan"] > li')).toHaveLength(9)
     expect(langkah('penjamin_tarif').textContent).not.toContain('Menunggu fase 2')
-    expect(langkah('formularium').textContent).toContain('Menunggu fase 2')
+    expect(langkah('formularium').textContent).not.toContain('Menunggu fase 2')
+    expect(langkah('formularium').textContent).toContain('Formularium RS berlaku hari ini dengan item aktif')
+    expect([...langkah('formularium').querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual(['/farmasi/formularium'])
     expect([...langkah('penjamin_tarif').querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual(['/master-data/penjamin', '/master-data/tarif'])
     expect(document.body.textContent).toContain('Instalasi belum bisa melayani pasien')
     // Urutan: langkah 2 belum bisa dikonfirmasi sebelum langkah 1.
@@ -144,9 +146,9 @@ describe('Halaman penyiapan', () => {
     expect(tombol('Terapkan', d)?.disabled).toBe(true)
   })
 
-  it('langkah 8 dilewati dengan alasan wajib sesudah langkah 1–6 selesai', async () => {
+  it('langkah 8 dilewati dengan alasan wajib sesudah langkah 1–7 selesai', async () => {
     await muatSemuaPaketWajib()
-    for (const k of ['superadmin', 'profil_rs', 'organisasi', 'paket_referensi', 'pegawai', 'penjamin_tarif'] as const) await konfirmasiLangkah(k)
+    for (const k of ['superadmin', 'profil_rs', 'organisasi', 'paket_referensi', 'pegawai', 'penjamin_tarif', 'formularium'] as const) await konfirmasiLangkah(k)
     await pasang(DaftarLangkah)
     await klik(tombol('Lewati', langkah('kredensial_integrasi')))
     const d = dialog()!

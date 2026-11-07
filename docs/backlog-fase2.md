@@ -243,7 +243,7 @@ Kolom tabel = PRD 11.2; kolom yang belum perlu boleh ditunda, kolom baru di luar
 |---|---|---|---|---|
 | 2.10 | Sub-menu penjamin, tarif, jadwal praktik tampil di menu | BE | S | — · **Selesai** (PR 2.10: TERSEDIA + migrasi `pasang()`, ketiga layar masuk `LAYAR` `fase1.spec`) |
 | 2.11 | Katalog obat + formularium (penyiapan) | BE+FE | M | — · **Selesai** (PR #153 BE: `logistik.barang`, `farmasi.formularium(_item)`, impor CSV, kontrak v0.23.0; PR FE: layar `/farmasi/formularium`, TERSEDIA + migrasi `pasang()`, `fase1` LAYAR) |
-| 2.12 | Wizard langkah 7 + usulan formularium | BE+FE | S | 2.11 · Siap |
+| 2.12 | Wizard langkah 7 + usulan formularium | BE+FE | S | 2.11 · **Selesai** (kontrak #159 v0.24.0; BE #160: syarat `formularium_rs`, jenis usulan `formularium`; PR FE: dialog formularium berganti mode usulan sesudah 409 `harus_lewat_usulan`, tautan langkah 7) |
 | 2.13 | Worklist poli + asesmen awal perawat | BE+FE | M | — · **Selesai** (PR BE #154: modul `RekamMedis` — `klinis.catatan_klinis(_versi)`, `klinis.observasi` berpartisi, `klinis.alergi`; worklist + tahap perawat→dokter di `Antrean`. PR FE: modul `rawat-jalan` — worklist, asesmen awal, alergi; `rawat_jalan.worklist` dan `.asesmen_perawat` TERSEDIA di menu; e2e `rawat-jalan.spec.ts`) |
 | 2.14 | CPPT episode (`CpptLinimasa`) + pengesahan PIN | BE+FE | M | 2.13 · Siap |
 | 2.15 | Pemeriksaan dokter: diagnosis ICD-10 + selesai kunjungan | BE+FE | M | 2.14 · Siap |
@@ -308,6 +308,10 @@ Uji    :
 - Usulan tambah/hapus item disahkan dengan tanggal berlaku besok → hari ini formularium lama, besok baru (jam beku); pengusul ≠ verifikator.
 Di luar: syarat langkah 8–9.
 Asumsi perencana: syarat langkah 7 di atas (PRD 7.54 menulis "belum ada syarat"); dimasukkan ke PRD saat penyelarasan Tahap B.
+Utang 2.12: usulan formularium tidak bisa diperbaiki-lalu-kirim-ulang dari layar (pengusul mengajukan usulan baru; usulan dikembalikan tidak
+mengunci objek); satu perubahan = satu usulan dari dialog (mesin menerima 50 butir); impor item CSV dan mengaktifkan kembali item tidak lewat
+usulan; formularium tidak tercatat di `inti.data_induk_versi` (jejak di audit + usulan); belum ada uji jalur `gagal_diterapkan` formularium.
+Langkah 8–9 kini menunggu langkah 7 (urutan FR-54-08): RS sebaiknya mengisi formularium sebelum konfirmasi langkah 6.
 
 ### 2.13 · Worklist poli + asesmen awal perawat
 Tujuan : perawat poli melihat pasien yang menunggu, memanggil, dan mengisi asesmen awal; pasien lalu menunggu dokter.
