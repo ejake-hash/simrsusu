@@ -34,6 +34,7 @@ final class KelolaCppt
         private readonly CatatAktivitas $audit,
         private readonly StatusInstalasi $instalasi,
         private readonly Penandatangan $ttd,
+        private readonly AksesCatatan $akses,
     ) {}
 
     /**
@@ -210,7 +211,8 @@ final class KelolaCppt
 
     private function pastikanPenulis(Pengguna $penulis, CatatanKlinis $c): void
     {
-        if ($c->penulis_id !== $penulis->id) {
+        // Aturan baca yang sama dengan penandatanganan (IsiCatatanKlinis), diperiksa sebelum PIN dibuka agar percobaan tidak terbuang.
+        if ($c->penulis_id !== $penulis->id || ! $this->akses->terlihat($penulis, $c)) {
             throw new ApiError(403, 'akses_ditolak', 'Hanya penulis yang dapat mengubah atau mengesahkan CPPT ini.');
         }
     }
