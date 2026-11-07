@@ -123,9 +123,17 @@ async function kirim() {
   } catch (err) {
     if (tangkap(err)) {
       if (!props.formularium && dari.value) berlaku.value = dari.value
+      // Tanggal mulai formularium yang ada tidak bisa diusulkan berubah (kontrak: ubah hanya nama dan tanggal akhir).
+      if (props.formularium) dari.value = props.formularium.data.berlaku_dari
       return
     }
-    const kolom = modeUsulan.value ? galatUsulan(err) : errorKolom(err, KOLOM)
+    if (modeUsulan.value) {
+      const [kolom, sisa] = galatUsulan(err, KOLOM)
+      kesalahan.value = kolom
+      galat.value = sisa ?? (Object.keys(kolom).length ? null : err)
+      return
+    }
+    const kolom = errorKolom(err, KOLOM)
     if (Object.keys(kolom).length) kesalahan.value = kolom
     else galat.value = err
   } finally {
@@ -161,7 +169,7 @@ async function kirim() {
       </KolomIsian>
       <div class="dua-kolom">
         <KolomIsian v-if="!modeUsulan || formularium" v-slot="a" label="Berlaku dari" :error="modeUsulan ? undefined : kesalahan.berlaku_dari" wajib>
-          <input v-bind="a" v-model="dari" type="date" class="isian" />
+          <input v-bind="a" v-model="dari" type="date" class="isian" :disabled="modeUsulan" />
         </KolomIsian>
         <KolomIsian v-slot="a" label="Berlaku sampai" :error="kesalahan.berlaku_sampai" petunjuk="Kosong = tanpa batas akhir.">
           <input v-bind="a" v-model="sampai" type="date" class="isian" />

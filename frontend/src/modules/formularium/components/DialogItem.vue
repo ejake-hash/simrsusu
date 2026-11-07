@@ -99,7 +99,13 @@ async function kirim() {
     emit('selesai')
   } catch (err) {
     if (tangkap(err)) return
-    const kolom = modeUsulan.value ? galatUsulan(err) : errorKolom(err, KOLOM)
+    if (modeUsulan.value) {
+      const [kolom, sisa] = galatUsulan(err, KOLOM)
+      kesalahan.value = kolom
+      galat.value = sisa ?? (Object.keys(kolom).length ? null : err)
+      return
+    }
+    const kolom = errorKolom(err, KOLOM)
     if (Object.keys(kolom).length) kesalahan.value = kolom
     else galat.value = err
   } finally {

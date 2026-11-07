@@ -5,6 +5,7 @@ import Tombol from '@/design-system/components/Tombol.vue'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import type { IsianButir } from '@/modules/usulan/tipe'
 import type { StatusAktif } from '../tipe'
+import { harusLewatUsulan } from '../formularium'
 import { galatUsulan, useModeUsulan } from '../usulanFormularium'
 import GalatForm from './GalatForm.vue'
 import KolomUsulan from './KolomUsulan.vue'
@@ -67,10 +68,16 @@ async function kirim() {
     buka.value = false
     emit('selesai')
   } catch (e) {
-    if (props.butirUsulan && tangkap(e)) return
-    const kolom = modeUsulan.value ? galatUsulan(e) : {}
-    if (Object.keys(kolom).length) kesalahan.value = kolom
-    else galat.value = e
+    // Hanya perubahan yang punya butir usulan yang dipindah ke mode usulan; selainnya galat 409 tampil apa adanya.
+    if (props.butirUsulan && harusLewatUsulan(e) && props.butirUsulan(baru.value, '') !== null) {
+      tangkap(e)
+      return
+    }
+    if (modeUsulan.value) {
+      const [kolom, sisa] = galatUsulan(e, [])
+      kesalahan.value = kolom
+      galat.value = sisa ?? (Object.keys(kolom).length ? null : e)
+    } else galat.value = e
   } finally {
     sibuk.value = false
   }

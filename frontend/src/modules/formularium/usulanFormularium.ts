@@ -46,13 +46,19 @@ export function hariIni(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-/** Galat 422 usulan → kolom dialog: `perubahan.0.nilai_baru.<isian>` → `<isian>`, `dasar` → `dasar_perubahan`. Kosong = bukan galat kolom. */
-export function galatUsulan(e: unknown): Record<string, string> {
-  if (!(e instanceof ApiError) || e.status !== 422) return {}
+/**
+ * Galat 422 usulan → kolom dialog (`perubahan.0.nilai_baru.<isian>` → `<isian>`, `dasar` → `dasar_perubahan`). Galat yang
+ * tidak punya kolom di dialog dikembalikan sebagai teks agar tetap tampil; [{}, null] = bukan galat 422.
+ */
+export function galatUsulan(e: unknown, kolomDialog: readonly string[]): [Record<string, string>, string | null] {
+  if (!(e instanceof ApiError) || e.status !== 422) return [{}, null]
   const kolom: Record<string, string> = {}
+  const sisa: string[] = []
   for (const r of e.rincian) {
     const k = String(r.kolom ?? '').replace(/^perubahan\.0\.nilai_baru\./, '').replace(/^dasar$/, 'dasar_perubahan')
-    if (k && !k.startsWith('perubahan')) kolom[k] = String(r.pesan ?? r.kode ?? 'Tidak valid.')
+    const pesan = String(r.pesan ?? r.kode ?? 'Tidak valid.')
+    if ([...kolomDialog, 'berlaku_dari', 'alasan'].includes(k)) kolom[k] = pesan
+    else sisa.push(pesan)
   }
-  return kolom
+  return [kolom, sisa.length ? sisa.join(' ') : Object.keys(kolom).length ? null : e.message]
 }
