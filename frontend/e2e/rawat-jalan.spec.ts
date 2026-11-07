@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { artisan, bersihkanPesertaSintetis, daftarkanKunjunganJkn, halamanAdmisi, halamanAkun, pastikanPasienBpjs, pelanggaranAxe, SANDI } from './bantu'
+import { artisan, bersihkanPesertaSintetis, daftarkanKunjunganJkn, halamanAdmisi, halamanAkun, pastikanPasienBpjs, pelanggaranAxe, SANDI, tungguJatahPenuh } from './bantu'
 
 /**
  * Tiket 2.13-fe: pasien terdaftar (admisi) → muncul di worklist tahap perawat → perawat memanggil → asesmen draf dengan
@@ -29,6 +29,8 @@ test('pasien terdaftar masuk worklist, dipanggil, asesmen draf + alergi, selesai
   test.setTimeout(150_000)
   const asal = new URL(info.project.use.baseURL ?? '').origin
   const { konteks, page: admisi } = await halamanAdmisi(browser, asal)
+  // contoh.admisi baru dipakai beruntun oleh proyek sebelumnya; 429 di /saya membuat SPA kembali ke halaman masuk.
+  await tungguJatahPenuh(konteks.request, asal)
   await pastikanPasienBpjs(admisi, nama, kartu)
   await daftarkanKunjunganJkn(admisi, nama, kartu)
   await konteks.close()

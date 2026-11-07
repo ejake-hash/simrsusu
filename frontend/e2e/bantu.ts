@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { expect, type APIRequestContext, type Browser, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test'
 import { kodeTotp } from './totp'
 
 /** Bantuan e2e bersama: akun sintetis AkunSintetisSeeder dengan sandi E2E_SANDI. */
@@ -110,6 +110,20 @@ export async function halamanAkun(browser: Browser, asal: string, nama: string):
   }
   const konteks = await browser.newContext({ baseURL: asal, storageState: sesiAkun.get(nama), viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
   return konteks.newPage()
+}
+
+/**
+ * Spec sebelumnya (mis. pengaturan, fase2) bisa sudah memakai sebagian besar jatah rate limit akun yang sama dalam menit
+ * terakhir; SPA menganggap 429 di /saya sebagai belum masuk. Bila sisa jatah kurang dari separuh, tunggu satu jendela.
+ * Panggil di awal uji, bukan di helper bersama: penantian ±61 dtk merusak spec yang peka waktu (jeda panggilan antrean).
+ */
+export async function tungguJatahPenuh(request: APIRequestContext, asal: string) {
+  const r = await request.get('/api/v1/saya', { headers: { Accept: 'application/json', Origin: asal, Referer: `${asal}/` } })
+  const sisa = Number(r.headers()['x-ratelimit-remaining'] ?? 0)
+  const batas = Number(r.headers()['x-ratelimit-limit'] ?? 120)
+  if (r.status() !== 429 && sisa >= batas / 2) return
+  test.info().setTimeout(test.info().timeout + 62_000)
+  await new Promise((selesai) => setTimeout(selesai, 61_000))
 }
 
 /** Header tulis API (cookie Sanctum stateful + XSRF) dari konteks halaman yang sudah masuk. */
