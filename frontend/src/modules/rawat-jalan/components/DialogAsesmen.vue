@@ -137,6 +137,7 @@ const uraian = computed(() => `${props.baris.pasien.nama} · No. RM ${formatNoRm
         Asesmen sudah selesai. Perbaikan masih bisa dalam {{ sisa }}; tiap perbaikan butuh alasan dan isi lama tersimpan sebagai versi{{ asesmen!.jumlah_versi ? ` (sudah ${asesmen!.jumlah_versi} kali diperbaiki)` : '' }}.
       </Pesan>
       <Pesan v-else-if="terkunci" jenis="peringatan">Batas perbaikan 2 × 24 jam sudah lewat. Asesmen tidak bisa diubah; koreksi dicatat lewat adendum pada CPPT.</Pesan>
+      <Pesan v-else-if="status !== 'baru' && !bisaPerbaiki" jenis="info">Mengubah asesmen yang sudah dimulai butuh izin perbaiki asesmen perawat. Minta admin peran bila Anda perlu melanjutkannya.</Pesan>
       <Pesan v-else-if="status === 'baru'" jenis="info">Isian boleh dikosongkan saat draf. Untuk menyelesaikan, keluhan utama serta tekanan darah, nadi, napas, dan suhu wajib terisi.</Pesan>
 
       <form id="form-asesmen" class="isi-form" @submit.prevent>

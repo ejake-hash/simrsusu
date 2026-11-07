@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import DataTable, { type KolomTabel } from '@/design-system/components/DataTable.vue'
 import KeadaanKosong from '@/design-system/components/KeadaanKosong.vue'
 import Lencana from '@/design-system/components/Lencana.vue'
@@ -31,7 +31,10 @@ const props = defineProps<{ mode: 'worklist' | 'asesmen' }>()
 const qc = useQueryClient()
 const tanggal = ref(hariIniLokal())
 const poliId = ref('')
-const tahap = ref<TahapWorklist | ''>(props.mode === 'asesmen' ? 'perawat' : '')
+const tahapAwal = () => (props.mode === 'asesmen' ? 'perawat' : '')
+const tahap = ref<TahapWorklist | ''>(tahapAwal())
+// Kedua sub-menu memakai instans halaman yang sama (RouterView tanpa key): pindah menu menyetel ulang tahap awalnya.
+watch(() => props.mode, () => (tahap.value = tahapAwal()))
 
 const poli = useQuery({ queryKey: ['rawat-jalan', 'poli'], queryFn: async () => (await daftarPoliklinik({ status: 'aktif' }, null, 200)).data, staleTime: 60_000 })
 const filter = computed(() => ({ tanggal: tanggal.value, poli_id: poliId.value, tahap: tahap.value || undefined }))
