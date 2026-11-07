@@ -5948,6 +5948,8 @@ paths:
         Izin: rawat_jalan.cppt.lihat atau rawat_jalan.pemeriksaan.lihat, cakupan unit salah satu kunjungan episode ini
         (selain itu 403). Episode tidak ada → 404. Urut `(dibuat_pada, id)` terbaru dulu; entri `sah` semua penulis +
         draf milik akun ini. Kunjungan dua poli hari yang sama (satu episode harian, 7.00.2) tampil dalam satu linimasa.
+        Dengan filter `profesi` atau `tatanan`, entri yang bagi akun ini `CpptTerbatas` tidak dikirim sama sekali (agar
+        filter tidak membuka profesi/pos entri berlabel); tanpa filter, entri itu tampil sebagai `CpptTerbatas`.
       parameters:
         - { in: query, name: profesi, schema: { $ref: '#/components/schemas/ProfesiCatatan' } }
         - { in: query, name: tatanan, schema: { $ref: '#/components/schemas/TatananCatatan' }, description: "Filter pos" }
