@@ -230,7 +230,7 @@ Kolom tabel = PRD 11.2; kolom yang belum perlu boleh ditunda, kolom baru di luar
 | No | Tiket | Jalur | Ukuran | Prasyarat · Status |
 |---|---|---|---|---|
 | 2.10 | Sub-menu penjamin, tarif, jadwal praktik tampil di menu | BE | S | — · **Selesai** (PR 2.10: TERSEDIA + migrasi `pasang()`, ketiga layar masuk `LAYAR` `fase1.spec`) |
-| 2.11 | Katalog obat + formularium (penyiapan) | BE+FE | M | — · Siap |
+| 2.11 | Katalog obat + formularium (penyiapan) | BE+FE | M | — · **BE selesai** (PR 2.11-be: `logistik.barang`, `farmasi.formularium(_item)`, impor CSV, kontrak v0.23.0) · FE Siap |
 | 2.12 | Wizard langkah 7 + usulan formularium | BE+FE | S | 2.11 · Siap |
 | 2.13 | Worklist poli + asesmen awal perawat | BE+FE | M | — · Siap |
 | 2.14 | CPPT episode (`CpptLinimasa`) + pengesahan PIN | BE+FE | M | 2.13 · Siap |
@@ -274,10 +274,11 @@ Akses  : `farmasi.formularium` lihat/input/perbaiki (daftarkan di `MenuBawaan`, 
 Tabel  : `logistik.barang` (kolom 11.2; `kode_kfa` boleh kosong, diisi manual sampai 2.22), `farmasi.formularium` (jenis fornas/rs/penjamin,
          penjamin_id, versi, berlaku_dari), `farmasi.formularium_item` (restriksi, maks_per_resep, kronis)
 API    : `GET/POST/PATCH /api/v1/data-induk/barang` (keyset, If-Match), `GET/POST /api/v1/data-induk/formularium`,
-         `GET/POST/PATCH /api/v1/data-induk/formularium/{id}/item`, `POST /api/v1/data-induk/barang/impor` (CSV, lewat `JenisQueue`)
+         `GET/POST/PATCH /api/v1/data-induk/formularium/{id}/item`, `POST /api/v1/data-induk/barang/impor` (CSV sinkron, pola `/lokasi/impor`)
 Uji    :
 - Given barang generik dan paten zat yang sama, When disimpan, Then dua kode terpisah (FR-22-06); kode RS ganda → 422 `validasi_gagal`.
-- Impor CSV menolak baris tanpa satuan terkecil atau jenis tidak dikenal dan melaporkan nomor baris; baris sah tetap masuk.
+- Impor CSV menolak baris tanpa satuan terkecil atau jenis tidak dikenal dan melaporkan nomor baris; satu baris salah = tidak ada yang
+  disimpan (pola `/lokasi/impor`, kontrak v0.23.0).
 - Sesudah siap melayani: tulis langsung ke formularium/item → 409 `harus_lewat_usulan` (FR-54-02; jalur usulan di 2.12). Barang tetap langsung.
 - Akun tanpa `farmasi.formularium.input` → tombol tidak dirender dan API 403.
 Di luar: stok/batch/harga beli (Fase 3 logistik), interaksi obat dan dosis (data induk belum ada), KFA otomatis (2.22), formularium penjamin
