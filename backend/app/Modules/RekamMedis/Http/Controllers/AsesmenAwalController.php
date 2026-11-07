@@ -122,6 +122,8 @@ final class AsesmenAwalController
             'penulis' => $penulis === null ? null : ['id' => $penulis->id, 'nama' => $nama ?? $penulis->nama_pengguna],
             'dibuat_pada' => $c->dibuat_pada->toIso8601String(), 'selesai_pada' => $c->selesai_pada?->toIso8601String(),
             'batas_perbaikan_pada' => $c->batas_perbaikan_pada?->toIso8601String(), 'jumlah_versi' => $c->jumlah_versi,
+            // Kontrak v0.24.0: label dan TTE asesmen diisi tiket 2.14-be.
+            'label' => null, 'ditandatangani_pada' => null,
             'versi' => (string) $c->revisi, 'diubah_pada' => $c->diubah_pada->toIso8601String(),
         ]], $status))->setEtag((string) $c->revisi)->setPrivate()->header('Cache-Control', 'no-store, private');
     }

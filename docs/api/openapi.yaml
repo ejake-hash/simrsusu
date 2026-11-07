@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.23.0
+  version: 0.24.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -116,6 +116,15 @@ info:
     berversi), POST /asesmen-awal/{id}/selesai (pasien pindah ke tahap dokter), GET|POST /pasien/{id}/alergi, POST
     /alergi/{id}/batal. Cakupan worklist dokter/perawat dipaksa server dari jadwal praktik. Error baru: 409 `asesmen_sudah_ada`, `batas_perbaikan_lewat`, `alergi_sudah_tercatat`. Hanya
     kontrak; kode menyusul di tiket BE.
+    v0.24.0: Wizard langkah 7 + usulan formularium (tiket 2.12; FR-54-08, FR-54-02): langkah 7 `formularium` punya syarat
+    `formularium_rs` dan bisa dikonfirmasi (tidak wajib untuk melayani); `jenis_data` usulan baru `formularium` dengan objek
+    `formularium` dan `formularium_item`. CPPT episode (tiket 2.14; FR-07-04, FR-07-19, FR-26-02, FR-26-06, FR-26-18,
+    FR-26-23): GET /episode/{id}/cppt, GET /pasien/{id}/cppt (linimasa, entri berlabel → CpptTerbatas), POST
+    /kunjungan/{id}/cppt, GET|PATCH /cppt/{id}, POST /cppt/{id}/sahkan (PIN T1 penulis), POST /cppt/{id}/adendum.
+    Label sensitivitas catatan klinis (`label`, kode /label-sensitivitas) di CPPT dan asesmen awal; asesmen awal
+    ditandatangani lewat POST /ttd/tandatangani objek `catatan_klinis` (AsesmenAwal.ditandatangani_pada). Error baru:
+    409 `sudah_disahkan`, `belum_disahkan`, `masih_bisa_diperbaiki`; 403 `profesi_tidak_dikenali`. Hanya kontrak; kode
+    menyusul di tiket BE.
 servers:
   - url: /api/v1
 security:
@@ -3328,7 +3337,11 @@ paths:
         objek berubah (mis. usulan dikirim ulang), tanda tangan baru dibuat; yang lama tetap ada (verifikasi: `isi_berubah`).
         Siapa yang boleh: `persetujuan_akses` hanya akun pemutusnya sesudah diputuskan; `usulan_data_induk` (1.8c) pengusul,
         pemverifikasi, atau penyetuju putaran itu sesudah tindakannya (`bukan_pemutus` = bukan pelaku usulan itu;
-        `belum_diputuskan` = pelaku yang tindakannya di putaran ini belum dilakukan).
+        `belum_diputuskan` = pelaku yang tindakannya di putaran ini belum dilakukan); `catatan_klinis` (2.14) hanya asesmen
+        awal berstatus `selesai`, oleh penulisnya sendiri (`bukan_pemutus` = bukan penulis; `belum_diputuskan` = masih draf
+        atau bukan asesmen awal: CPPT disahkan lewat POST /cppt/{id}/sahkan). Asesmen yang diperbaiki sesudah ditandatangani
+        perlu ditandatangani lagi (AsesmenAwal.ditandatangani_pada kembali null). Isi kanonik catatan klinis hanya di-hash,
+        tidak pernah masuk log/audit.
         - 422 `pin_salah` (kolom `pin`, `sisa_percobaan`); 403 `ttd_terkunci` (Retry-After); 409 `ttd_belum_aktif`;
           422 `validasi_gagal` bila `pernyataan_disetujui` bukan true.
         Audit `ttd.ditandatangani` per objek baru (hash isi, sidik kunci; tanpa isi).
@@ -3348,7 +3361,7 @@ paths:
                     type: object
                     required: [jenis, id]
                     properties:
-                      jenis: { type: string, enum: [persetujuan_akses, usulan_data_induk] }
+                      jenis: { type: string, enum: [persetujuan_akses, usulan_data_induk, catatan_klinis] }
                       id: { type: string, format: uuid }
                 pin: { type: [string, 'null'], maxLength: 20 }
                 pernyataan_disetujui:
@@ -3386,14 +3399,15 @@ paths:
         '503': { $ref: '#/components/responses/Error' }
   /ttd/verifikasi/{objek_jenis}/{objek_id}:
     parameters:
-      - { in: path, name: objek_jenis, required: true, schema: { type: string, enum: [persetujuan_akses, usulan_data_induk] } }
+      - { in: path, name: objek_jenis, required: true, schema: { type: string, enum: [persetujuan_akses, usulan_data_induk, catatan_klinis, catatan_klinis_adendum] } }
       - { in: path, name: objek_id, required: true, schema: { type: string, format: uuid } }
     get:
       operationId: verifikasiTtd
       summary: Verifikasi ulang semua tanda tangan sebuah objek (integritas isi + keaslian tanda tangan)
       description: |
         Hanya akun yang boleh melihat objek itu (persetujuan_akses: aturan /persetujuan-akses/{id}; usulan_data_induk: izin
-        master_data.usulan.lihat atau pelaku usulan itu); selain itu 404.
+        master_data.usulan.lihat atau pelaku usulan itu; catatan_klinis dan catatan_klinis_adendum: aturan baca catatannya,
+        termasuk lapis 4 — catatan yang bagi akun itu `terbatas` → 404); selain itu 404.
         Urutan pemeriksaan: keaslian dulu (`tanda_tangan_tidak_sah` bila tanda tangan tidak cocok dengan hash tersimpan dan
         kunci publik yang dipakai, mis. baris palsu), lalu isi (`isi_berubah` bila hash isi kanonik objek saat ini berbeda
         dari saat ditandatangani). Waktu di isi kanonik selalu UTC dengan presisi mikrodetik (tidak bergantung zona waktu
@@ -3417,8 +3431,8 @@ paths:
         '429': { $ref: '#/components/responses/Error' }
   # ---------------------------------------------------------------------------
   # Usulan perubahan data induk berjenjang (tiket 1.8c; PRD FR-54-01, FR-54-02, FR-08-16; prototipe masterdata.html "Usulan").
-  # - Mesin generik per `jenis_data`: `ruang_tt` (ruang, kamar, tempat tidur dari 1.8b) dan `tarif` (tiket 2.2). Formularium
-  #   memakai mesin yang sama di fase 3. Daftar jenis data bukan literal: dari `inti.alur_usulan`.
+  # - Mesin generik per `jenis_data`: `ruang_tt` (ruang, kamar, tempat tidur dari 1.8b) dan `tarif` (tiket 2.2), `formularium`
+  #   (formularium dan itemnya, tiket 2.12). Daftar jenis data bukan literal: dari `inti.alur_usulan`.
   # - Tahap: diusulkan → diverifikasi → disetujui (terjadwal) → berlaku. Pemverifikasi/penyetuju bisa mengembalikan
   #   (catatan wajib) → `dikembalikan` → pengusul memperbaiki dan kirim ulang (kembali ke `diusulkan`, putaran +1).
   #   Gagal saat diterapkan (objek berubah sejak diusulkan, atau aturan 1.8b tidak terpenuhi lagi) → `gagal_diterapkan`
@@ -3768,7 +3782,8 @@ paths:
   #   - `selesai`: semua syarat terpenuhi dan sudah dikonfirmasi. Bila sesudahnya syarat tidak lagi terpenuhi (mis.
   #     superadmin dinonaktifkan), status kembali `sebagian` dan konfirmasi terakhir tetap tampil;
   #   - `dilewati`: hanya langkah 8, dikonfirmasi dengan `dilewati` + alasan;
-  #   - `menunggu_fase_2`: langkah 6–7 (K6), kerangka saja, tidak bisa dikonfirmasi.
+  #   - `menunggu_fase_2`: sejak v0.24.0 tidak dipakai langkah mana pun (langkah 6 aktif di 2.3, langkah 7 di 2.12); nilai
+  #     tetap di enum untuk klien lama.
   # - Urutan wajib (FR-54-08): langkah n hanya bisa dikonfirmasi bila semua langkah sebelumnya `selesai`, `dilewati`, atau
   #   `menunggu_fase_2`. Mengisi data tidak dibatasi urutan.
   # - Langkah yang mundur tidak mengubah status langkah sesudahnya; urutan hanya membatasi konfirmasi berikutnya.
@@ -3794,7 +3809,11 @@ paths:
   #     `paket` dengan `wajib` false.
   #   5 `pegawai`: `pegawai` (≥ 1 pegawai aktif yang belum keluar), `izin_praktik` (≥ 1 izin praktik berstatus aktif milik
   #     pegawai itu, `berlaku_sampai` kosong atau ≥ hari ini zona RS).
-  #   6 `penjamin_tarif`, 7 `formularium`: tanpa syarat di fase 1 (`menunggu_fase_2`).
+  #   6 `penjamin_tarif`: `penjamin` (≥ 1 penjamin aktif), `tarif_per_kelas` (tarif untuk setiap kelas rawat aktif).
+  #   7 `formularium` (tiket 2.12): `formularium_rs` (≥ 1 formularium jenis `rs` yang berlaku hari ini zona RS dengan
+  #     ≥ 1 item aktif yang barangnya aktif; `keterangan` mis. "0 item" atau "Belum ada formularium RS yang berlaku").
+  #     `wajib_untuk_melayani` false: langkah 7 bukan syarat siap melayani (FR-54-08: langkah 1–6) dan siap melayani
+  #     tidak menunggu konfirmasinya.
   #   8 `kredensial_integrasi`: `kredensial` (kredensial tersimpan dan uji koneksi berhasil; dibangun di tiket 1.9, sampai
   #     itu belum pernah terpenuhi). Boleh dilewati dengan alasan ("belum ada kredensial") selama belum `selesai`;
   #     sesudah dilewati statusnya `dilewati` sampai dikonfirmasi selesai (syarat terpenuhi) atau dilewati ulang.
@@ -3829,7 +3848,7 @@ paths:
         Urutan pemeriksaan (error pertama yang dikembalikan):
         - 422 `validasi_gagal` kolom `alasan`: wajib (5–500 karakter) bila `dilewati` true.
         - 422 `tidak_bisa_dilewati`: `dilewati` true selain langkah 8, atau langkah 8 yang sudah `selesai`.
-        - 409 `langkah_menunggu_fase_2`: langkah 6–7.
+        - 409 `langkah_menunggu_fase_2`: tidak dipakai lagi sejak v0.24.0 (langkah 6–7 aktif).
         - 409 `langkah_sebelumnya_belum_selesai`: `rincian` = `{langkah, status}` (`langkah` = KodeLangkahPenyiapan) untuk
           setiap langkah sebelumnya yang belum selesai/dilewati/menunggu fase 2.
         - 409 `syarat_belum_lengkap`: `rincian` = syarat yang belum terpenuhi `{kode, label, keterangan}`. Melewati langkah 8
@@ -5788,7 +5807,8 @@ paths:
       description: |
         Izin: rawat_jalan.asesmen_perawat.lihat atau rawat_jalan.pemeriksaan.lihat (dokter membaca asesmen perawat);
         kunjungan di luar cakupan → 403. 404 `tidak_ditemukan` bila belum ada asesmen. ETag = `versi`. Asesmen berlabel
-        sensitif bagi akun yang bukan penulisnya dan tidak lolos lapis 4 → `{"data": {"terbatas": true}}` (9.2.5).
+        sensitif (`label`, v0.24.0) bagi akun yang bukan penulisnya dan tidak lolos lapis 4 → `{"data": {"terbatas": true}}`
+        (9.2.5), aturan sama dengan CPPT.
       responses:
         '200':
           description: Asesmen awal
@@ -5893,6 +5913,256 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AsesmenAwal' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # CPPT episode (tiket 2.14; PRD 7.26.1, FR-07-04, FR-07-19, FR-26-02, FR-26-06, FR-26-18, FR-26-23; Permenkes 24/2022
+  # Ps. 16 ayat 2 dan 4, Ps. 30 ayat 5–7).
+  # - Satu entri = `klinis.catatan_klinis` jenis `soap`, tatanan `rj` (fase 2), profesi dari pegawai penulis (ProfesiCatatan),
+  #   unit = unit kunjungan. Draf hanya terlihat oleh penulisnya; entri masuk linimasa orang lain sesudah `sah`.
+  # - Pengesahan = TTE T1 PIN milik penulis sendiri (aturan UX 5.1: TTE hanya pemilik akun): POST /cppt/{id}/sahkan.
+  #   Penanda tangan selalu penulis; akun lain → 403 `akses_ditolak`. PIN salah tidak mengubah status (422 `pin_salah`).
+  # - Perbaikan entri `sah` ≤ 2 × 24 jam sejak disahkan oleh penulisnya: PATCH dengan `alasan_perubahan` + PIN; isi lama
+  #   tersimpan di `klinis.catatan_klinis_versi`, isi baru ditandatangani ulang dalam transaksi yang sama (entri sah selalu
+  #   bertanda tangan atas isinya). Sesudah batas → 409 `batas_perbaikan_lewat`; koreksi klinis lewat adendum bertanda tangan.
+  # - Label sensitivitas (`label`) dan lapis 4: entri berlabel dikirim `CpptTerbatas` kepada akun yang bukan penulisnya dan
+  #   tidak lolos `PemeriksaLabel` (izin label berlaku + relasi perawatan). Isi catatan tidak pernah masuk log/audit (audit
+  #   hanya kode aksi + id).
+  # - Cakupan: izin `rawat_jalan.cppt.<aksi>` dengan cakupan unit kunjungan (menulis), atau unit salah satu kunjungan
+  #   episode/pasien itu (membaca linimasa lintas pos). Layar kerja: `api-layar-kerja`, `Cache-Control: no-store`.
+  # - Di luar: verifikasi DPJP dan TBaK (FR-26-03/04), supervisi PPDS, ADIME/asuhan, templat SOAP per poli (data induk
+  #   templat belum ada), persetujuan PMIK untuk perbaikan administratif > 2 × 24 jam.
+  # ---------------------------------------------------------------------------
+  /episode/{id}/cppt:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: linimasaCpptEpisode
+      summary: Linimasa CPPT satu episode (semua pos dan kunjungan, terbaru dulu)
+      description: |
+        Izin: rawat_jalan.cppt.lihat atau rawat_jalan.pemeriksaan.lihat, cakupan unit salah satu kunjungan episode ini
+        (selain itu 403). Episode tidak ada → 404. Urut `(dibuat_pada, id)` terbaru dulu; entri `sah` semua penulis +
+        draf milik akun ini. Kunjungan dua poli hari yang sama (satu episode harian, 7.00.2) tampil dalam satu linimasa.
+      parameters:
+        - { in: query, name: profesi, schema: { $ref: '#/components/schemas/ProfesiCatatan' } }
+        - { in: query, name: tatanan, schema: { $ref: '#/components/schemas/TatananCatatan' }, description: "Filter pos" }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman linimasa (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { oneOf: [{ $ref: '#/components/schemas/Cppt' }, { $ref: '#/components/schemas/CpptTerbatas' }] } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /pasien/{id}/cppt:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: linimasaCpptPasien
+      summary: Linimasa CPPT lintas episode pasien (riwayat kunjungan sebelumnya, terbaru dulu)
+      description: |
+        Aturan sama dengan GET /episode/{id}/cppt, untuk semua episode pasien itu (7.26.1 butir 5: dokter membaca CPPT
+        lintas kunjungan). Cakupan: unit salah satu kunjungan pasien itu. Pasien digabung (2.9) → entri RM lama ikut.
+      parameters:
+        - { in: query, name: profesi, schema: { $ref: '#/components/schemas/ProfesiCatatan' } }
+        - { in: query, name: tatanan, schema: { $ref: '#/components/schemas/TatananCatatan' }, description: "Filter pos" }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman linimasa (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { oneOf: [{ $ref: '#/components/schemas/Cppt' }, { $ref: '#/components/schemas/CpptTerbatas' }] } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/cppt:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: tulisCppt
+      summary: Tulis entri CPPT (draf) di kunjungan ini
+      description: |
+        Izin: rawat_jalan.cppt.input, cakupan unit kunjungan (selain itu 403). Kunjungan `batal` → 409 `status_tidak_sesuai`;
+        instalasi belum siap melayani → 409 `instalasi_belum_siap`. Akun tanpa pegawai → 403 `akses_ditolak`; profesi pegawai
+        tidak dikenali → 403 `profesi_tidak_dikenali`. Banyak entri per kunjungan boleh (tiap PPA, tiap waktu). Minimal satu
+        bagian SOAP terisi (422 `validasi_gagal`). Menulis tidak memberi relasi perawatan (lapis 4). Audit `klinis.cppt_dibuat` + id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/IsiSoap'
+                - type: object
+                  properties:
+                    label: { $ref: '#/components/schemas/LabelCatatan' }
+      responses:
+        '201':
+          description: Entri CPPT (draf)
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Cppt' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /cppt/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciCppt
+      summary: Satu entri CPPT
+      description: |
+        Aturan baca linimasa (cakupan, draf hanya penulis → selain penulis 404). Berlabel dan tidak lolos lapis 4 →
+        `{"data": {"terbatas": true}}` (Terbatas, tanpa ETag). ETag = `versi`.
+      responses:
+        '200':
+          description: Entri CPPT
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { oneOf: [{ $ref: '#/components/schemas/Cppt' }, { $ref: '#/components/schemas/Terbatas' }] } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: ubahCppt
+      summary: Ubah draf, atau perbaiki entri sah dalam 2 × 24 jam (versi + tanda tangan ulang)
+      description: |
+        Izin: rawat_jalan.cppt.perbaiki. Wajib If-Match (412/428). Hanya penulisnya (selain itu 403 `akses_ditolak`).
+        Minimal satu bagian SOAP atau `label` (422 `validasi_gagal`).
+        - Draf: bebas diubah, tanpa versi; `alasan_perubahan` dan `pin` diabaikan.
+        - Sah, ≤ `batas_perbaikan_pada`: `alasan_perubahan` dan `pernyataan_disetujui` wajib, `pin` aturan sesi tanda tangan;
+          isi lama → versi, `jumlah_versi` + 1, isi baru ditandatangani ulang. `batas_perbaikan_pada` tidak bergeser.
+          Kesalahan TTE sama dengan POST /cppt/{id}/sahkan; gagal → tidak ada yang berubah.
+        - Sah, lewat batas → 409 `batas_perbaikan_lewat` (layar menawarkan adendum, B-14).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/IsiSoap'
+                - type: object
+                  minProperties: 1
+                  properties:
+                    label: { $ref: '#/components/schemas/LabelCatatan' }
+                    alasan_perubahan: { type: string, minLength: 5, maxLength: 500 }
+                    pin: { type: [string, 'null'], maxLength: 20 }
+                    pernyataan_disetujui: { type: boolean, const: true }
+      responses:
+        '200':
+          description: Entri sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Cppt' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /cppt/{id}/sahkan:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: sahkanCppt
+      summary: Sahkan entri CPPT dengan PIN T1 penulis (catatan terkunci, perbaikan ≤ 2 × 24 jam)
+      description: |
+        Izin: rawat_jalan.cppt.sahkan. Wajib If-Match. Hanya penulisnya (403 `akses_ditolak`). Sudah sah → 409
+        `sudah_disahkan`. Isi SOAP kosong semua → 422 `validasi_gagal`. TTE (objek `catatan_klinis`, isi kanonik = isi + label +
+        penulis + kunjungan, hanya di-hash): 422 `pin_wajib`/`pin_salah` (status tetap draf), 403 `ttd_terkunci`, 409
+        `ttd_belum_aktif`, 422 `validasi_gagal` bila `pernyataan_disetujui` bukan true. Berhasil: `status` sah,
+        `disahkan_pada` = jam server, `batas_perbaikan_pada` = + 2 × 24 jam. Audit `klinis.cppt_disahkan` + id.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pernyataan_disetujui]
+              properties:
+                pin: { type: [string, 'null'], maxLength: 20, description: "Boleh null selama sesi tanda tangan berlaku (aturan /ttd/tandatangani)" }
+                pernyataan_disetujui: { type: boolean, const: true }
+      responses:
+        '200':
+          description: Entri sah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Cppt' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /cppt/{id}/adendum:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: adendumCppt
+      summary: Tambah adendum bertanda tangan pada entri CPPT sah (FR-26-06)
+      description: |
+        Izin: rawat_jalan.cppt.input, cakupan unit entri. Hanya penulis entri itu (403 `akses_ditolak`; adendum oleh PPA lain
+        = entri CPPT baru). Entri draf → 409 `belum_disahkan`; masih ≤ `batas_perbaikan_pada` → 409 `masih_bisa_diperbaiki`
+        (pakai PATCH). Adendum ditandatangani T1 saat dibuat (objek `catatan_klinis_adendum`; kesalahan TTE sama dengan
+        sahkan; gagal → adendum tidak tersimpan). Adendum tidak bisa diubah. Isi entri asal tidak berubah (ETag entri berubah
+        karena daftar adendum). Audit `klinis.cppt_adendum` + id.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isi, alasan, pernyataan_disetujui]
+              properties:
+                isi: { type: string, minLength: 1, maxLength: 4000 }
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+                pin: { type: [string, 'null'], maxLength: 20, description: "Boleh null selama sesi tanda tangan berlaku (aturan /ttd/tandatangani)" }
+                pernyataan_disetujui: { type: boolean, const: true }
+      responses:
+        '201':
+          description: Entri dengan adendum baru
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Cppt' } } }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
@@ -6855,7 +7125,7 @@ components:
       required: [id, objek_jenis, objek_id, penanda_tangan, tingkat, metode, hash_isi, sidik_kunci, kredensial_dicabut, ditandatangani_pada, verifikasi]
       properties:
         id: { type: string, format: uuid }
-        objek_jenis: { type: string, enum: [persetujuan_akses, usulan_data_induk] }
+        objek_jenis: { type: string, enum: [persetujuan_akses, usulan_data_induk, catatan_klinis, catatan_klinis_adendum] }
         objek_id: { type: string, format: uuid }
         penanda_tangan:
           type: object
@@ -6881,12 +7151,12 @@ components:
             diperiksa_pada: { type: string, format: date-time }
     JenisDataInduk:
       type: string
-      enum: [ruang_tt, tarif]
-      description: "Kelompok data induk dengan satu alur usulan (pemilik/pemverifikasi/penyetuju): ruang_tt = ruang & TT (FR-08-16); tarif = buku tarif (FR-28-12, 2.2)"
+      enum: [ruang_tt, tarif, formularium]
+      description: "Kelompok data induk dengan satu alur usulan (pemilik/pemverifikasi/penyetuju): ruang_tt = ruang & TT (FR-08-16); tarif = buku tarif (FR-28-12, 2.2); formularium = formularium dan itemnya (FR-54-02, 2.12)"
     ObjekDataInduk:
       type: string
-      enum: [ruang, kamar, tempat_tidur, tarif]
-      description: "ruang = lokasi jenis ruang (1.8b); tarif = satu butir buku tarif (2.2, jenis_data `tarif`)"
+      enum: [ruang, kamar, tempat_tidur, tarif, formularium, formularium_item]
+      description: "ruang = lokasi jenis ruang (1.8b); tarif = satu butir buku tarif (2.2, jenis_data `tarif`); formularium dan formularium_item = jenis_data `formularium` (2.12)"
     TahapUsulan:
       type: string
       enum: [diusulkan, diverifikasi, disetujui, berlaku, dikembalikan, gagal_diterapkan]
@@ -6918,7 +7188,15 @@ components:
           minimal satu);
         - tarif `tambah` (objek_id null): kode, nama, kelompok, harga (IsianHargaTarif[]);
         - tarif `ubah`: nama, kelompok, status, harga (minimal satu; `harga` mengganti seluruh daftar harga per kelas);
-        - tarif `tutup`: alasan (butir tidak berlaku mulai `berlaku_dari`, permanen; riwayat harga tetap terbaca).
+        - tarif `tutup`: alasan (butir tidak berlaku mulai `berlaku_dari`, permanen; riwayat harga tetap terbaca);
+        - formularium `tambah` (objek_id null): kode, nama, jenis, penjamin_id, berlaku_sampai (aturan POST
+          /data-induk/formularium; `berlaku_dari` formularium = tanggal efektif usulan);
+        - formularium `ubah`: nama, berlaku_sampai (minimal satu);
+        - formularium_item `tambah` (objek_id null): formularium_id (formularium yang sudah ada, bukan yang ditambah di usulan
+          yang sama), barang_id, restriksi, maks_per_resep, kronis (aturan POST /data-induk/formularium/{id}/item);
+        - formularium_item `ubah`: restriksi, maks_per_resep, kronis (minimal satu);
+        - formularium_item `tutup`: alasan (item `nonaktif` mulai `berlaku_dari`; tidak dihapus).
+        Sampai tanggal efektif, resep dan layar memakai formularium/item lama (penerapan 00.00 zona RS).
         Satu usulan hanya memuat objek dari satu `jenis_data` (422 `perubahan_tidak_valid`, kode `jenis_campur`).
       items:
         type: object
@@ -8417,11 +8695,12 @@ components:
             gizi_berisiko: { type: [boolean, 'null'] }
             catatan: { type: [string, 'null'], maxLength: 1000 }
         catatan: { type: [string, 'null'], maxLength: 4000 }
+        label: { $ref: '#/components/schemas/LabelCatatan' }
     AsesmenAwal:
       type: object
       required: [id, kunjungan_id, episode_id, status, keluhan_utama, riwayat_penyakit_sekarang, riwayat_penyakit_dahulu,
-        tanda_vital, imt, skrining, catatan, penulis, dibuat_pada, selesai_pada, batas_perbaikan_pada, jumlah_versi, versi,
-        diubah_pada]
+        tanda_vital, imt, skrining, catatan, label, penulis, dibuat_pada, selesai_pada, batas_perbaikan_pada, jumlah_versi,
+        ditandatangani_pada, versi, diubah_pada]
       properties:
         id: { type: string, format: uuid }
         kunjungan_id: { type: string, format: uuid }
@@ -8447,8 +8726,99 @@ components:
         selesai_pada: { type: [string, 'null'], format: date-time }
         batas_perbaikan_pada: { type: [string, 'null'], format: date-time, description: "selesai_pada + 2 × 24 jam; layar menampilkan sisa waktu (B-14)" }
         jumlah_versi: { type: integer, minimum: 0, description: "Jumlah perbaikan sesudah selesai" }
+        label: { $ref: '#/components/schemas/LabelCatatan' }
+        ditandatangani_pada:
+          type: [string, 'null']
+          format: date-time
+          description: "Tanda tangan T1 penulis atas isi saat ini (POST /ttd/tandatangani objek `catatan_klinis`); null = belum, atau isi diperbaiki sesudahnya (FR-26-18: belum dihitung lengkap)"
         versi: { type: string }
         diubah_pada: { type: string, format: date-time }
+    LabelCatatan:
+      type: [string, 'null']
+      pattern: '^[a-z][a-z0-9_]{1,39}$'
+      examples: [psikiatri]
+      description: |
+        Kode label sensitivitas catatan klinis (GET /label-sensitivitas, label aktif; tidak dikenal/nonaktif → 422
+        `validasi_gagal`), dipilih penulis; null = tidak berlabel. Hanya dikirim kepada akun yang lolos lapis 4 atau penulisnya;
+        akun lain menerima `Terbatas`/`CpptTerbatas`. Memberi label tidak butuh izin label (mempersempit akses, bukan membuka).
+    ProfesiCatatan:
+      type: string
+      enum: [dokter, perawat, bidan, apoteker]
+      description: |
+        Profesi penulis, diturunkan server dari `sdm.pegawai.profesi` akun itu (bukan isian klien): dokter dan dokter_gigi →
+        dokter; perawat; bidan; apoteker. Profesi lain/kosong → 403 `profesi_tidak_dikenali` saat menulis (gizi dan
+        fisioterapis menunggu rincian profesi pegawai). Nilai kolom `klinis.catatan_klinis.profesi` lain (gizi, ppds, …)
+        menyusul tanpa memecah klien.
+    TatananCatatan:
+      type: string
+      enum: [rj, igd, ri, ok, icu, hd]
+      description: "Pos tempat catatan ditulis (7.26.1); fase 2 hanya `rj` yang ditulis"
+    IsiSoap:
+      type: object
+      description: "SOAP terstruktur (FR-07-04); teks bebas per bagian. Templat per poli menunggu data induk templat RS: tanpa templat → formulir SOAP polos"
+      properties:
+        subjektif: { type: [string, 'null'], maxLength: 4000 }
+        objektif: { type: [string, 'null'], maxLength: 4000 }
+        asesmen: { type: [string, 'null'], maxLength: 4000 }
+        plan: { type: [string, 'null'], maxLength: 4000 }
+    AdendumCppt:
+      type: object
+      required: [id, penulis, isi, alasan, disahkan_pada]
+      properties:
+        id: { type: string, format: uuid }
+        penulis: { $ref: '#/components/schemas/Pelaku' }
+        isi: { type: string }
+        alasan: { type: string }
+        disahkan_pada: { type: string, format: date-time, description: "Adendum selalu bertanda tangan T1 saat dibuat" }
+    Cppt:
+      type: object
+      required: [id, episode_id, kunjungan_id, unit, tatanan, profesi, jenis, isi, label, status, penulis, dibuat_pada,
+        disahkan_pada, batas_perbaikan_pada, jumlah_versi, adendum, dapat, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        episode_id: { type: string, format: uuid }
+        kunjungan_id: { type: string, format: uuid }
+        unit: { $ref: '#/components/schemas/RingkasUnit' }
+        tatanan: { $ref: '#/components/schemas/TatananCatatan' }
+        profesi: { $ref: '#/components/schemas/ProfesiCatatan' }
+        jenis: { type: string, enum: [soap] }
+        isi:
+          type: object
+          required: [subjektif, objektif, asesmen, plan]
+          properties:
+            subjektif: { type: [string, 'null'] }
+            objektif: { type: [string, 'null'] }
+            asesmen: { type: [string, 'null'] }
+            plan: { type: [string, 'null'] }
+        label: { $ref: '#/components/schemas/LabelCatatan' }
+        status: { type: string, enum: [draf, sah] }
+        penulis: { $ref: '#/components/schemas/Pelaku' }
+        dibuat_pada: { type: string, format: date-time, description: "Jam server saat ditulis; dasar urutan linimasa" }
+        disahkan_pada: { type: [string, 'null'], format: date-time }
+        batas_perbaikan_pada: { type: [string, 'null'], format: date-time, description: "disahkan_pada + 2 × 24 jam; layar menampilkan sisa waktu (B-14)" }
+        jumlah_versi: { type: integer, minimum: 0, description: "Jumlah perbaikan sesudah sah" }
+        adendum: { type: array, maxItems: 50, items: { $ref: '#/components/schemas/AdendumCppt' }, description: "Urut disahkan_pada" }
+        dapat:
+          type: object
+          required: [ubah, sahkan, adendum]
+          description: "Aksi yang boleh akun ini sekarang (izin + penulis + status + batas waktu), dihitung server"
+          properties:
+            ubah: { type: boolean }
+            sahkan: { type: boolean }
+            adendum: { type: boolean }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    CpptTerbatas:
+      type: object
+      required: [id, terbatas, dibuat_pada]
+      description: |
+        Entri linimasa berlabel bagi akun yang bukan penulisnya dan tidak lolos lapis 4 (9.2.5): hanya id (untuk akses
+        darurat, 2.21) dan waktu (posisi di linimasa). Tanpa isi, penulis, profesi, unit, atau kode label. Layar menampilkan
+        "Terbatas".
+      properties:
+        id: { type: string, format: uuid }
+        terbatas: { type: boolean, const: true }
+        dibuat_pada: { type: string, format: date-time }
     JenisAlergi:
       type: string
       enum: [obat, makanan, lingkungan, lainnya]
