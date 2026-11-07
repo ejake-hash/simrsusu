@@ -6,6 +6,8 @@ declare module 'vue-router' {
   interface RouteMeta {
     /** Bisa dibuka tanpa sesi. Hanya /masuk; rute lain wajib sesi. */
     publik?: boolean
+    /** Layar perangkat (display antrean): tanpa cek sesi sama sekali, supaya 401 /saya tidak mengalihkan ke /masuk. */
+    tanpaSesi?: boolean
     judul?: string
   }
 }
@@ -19,6 +21,7 @@ export const router = createRouter({
   history: createWebHistory(),
   routes: [
     ...ruteDev,
+    { path: '/display/:area', name: 'display-antrean', component: () => import('@/modules/antrean/pages/DisplayPage.vue'), meta: { publik: true, tanpaSesi: true, judul: 'Display antrean' } },
     {
       path: '/masuk',
       component: () => import('@/layouts/AuthLayout.vue'),
@@ -40,6 +43,7 @@ export const router = createRouter({
         { path: '', name: 'beranda', component: () => import('@/modules/beranda/pages/BerandaPage.vue'), meta: { judul: 'Beranda' } },
         { path: 'pendaftaran/pasien', name: 'pendaftaran-pasien', component: () => import('@/modules/pendaftaran/pages/PasienPage.vue'), meta: { judul: 'Pendaftaran pasien' } },
         { path: 'pendaftaran/master-pasien', name: 'pendaftaran-master-pasien', component: () => import('@/modules/pendaftaran/pages/MasterPasienPage.vue'), meta: { judul: 'Master pasien' } },
+        { path: 'pendaftaran/antrean', name: 'pendaftaran-antrean', component: () => import('@/modules/antrean/pages/AntreanPage.vue'), meta: { judul: 'Antrean & display' } },
         { path: 'pendaftaran/kunjungan', name: 'pendaftaran-kunjungan', component: () => import('@/modules/pendaftaran/pages/KunjunganPage.vue'), meta: { judul: 'Pendaftaran kunjungan poli' } },
         // Gerbang izin di HalamanModul (tanpa <menu>.<sub>.lihat → Akses ditolak + Minta akses, tiket 1.2d).
         { path: 'pengaturan/peran', name: 'pengaturan-peran', component: () => import('@/modules/akses/pages/PeranPage.vue'), meta: { judul: 'Peran & izin' } },
@@ -81,6 +85,7 @@ export const router = createRouter({
 })
 
 router.beforeEach(async (ke) => {
+  if (ke.meta.tanpaSesi) return true
   const sesi = useSesiStore()
   await sesi.pastikan()
 
