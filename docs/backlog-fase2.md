@@ -200,7 +200,14 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
 **Utang teknis (tiket kecil / disisipkan ke tiket terkait)**
 - ~~Libur RS mengunci semua baris `jadwal_praktik` (termasuk nonaktif) sampai commit (PR #146)~~ — **Selesai**: hanya baris aktif yang dikunci (PR utang kunci libur RS).
 - `PanelSep.vue` menolak terbit untuk rujukan kedaluwarsa tanpa melihat IGD (backend mengizinkan IGD); perlu disesuaikan saat layar IGD.
-- Lapisan tiruan FE (`*/tiruan/`, ±5.500 baris) masih tulang punggung 31 spec unit; layar Fase 2 butuh e2e terhadap backend asli per layar.
+- ~~Layar Fase 2 butuh e2e terhadap backend asli per layar~~ (PR e2e-fase2-backend-asli): proyek Playwright `fase2` @1440 px + axe —
+  `penjamin.spec` (2.1), `buku-tarif.spec` (2.2 + usulan tarif tiga orang), `jadwal-praktik.spec` (2.4 + cuti), `gabung-rm.spec`
+  (2.9 + peringatan duplikat); `penyiapan.spec` kini menguji langkah 6 aktif (409 urutan, bukan fase 2). Sisa: konfirmasi langkah 6
+  sampai siap melayani belum di e2e (butuh langkah 2–5 lengkap: logo, paket referensi). Lapisan tiruan (`*/tiruan/`) tetap untuk spec unit.
+- Sub-menu `master_data.penjamin`, `master_data.tarif`, `master_data.jadwal_praktik` belum masuk `MenuBawaan::TERSEDIA`: layar sudah
+  tersambung ke backend asli tetapi tidak tampil di menu (hanya lewat tautan penyiapan/URL). Perlu migrasi `pasang()` (tiket BE kecil).
+- Pemilih dokter di layar Jadwal praktik memakai `GET /pegawai` (`sdm.pegawai.lihat`), jadi admin jadwal butuh izin itu juga
+  (data contoh: diberikan ke `contoh_data_induk`). Endpoint lookup dokter ber-SIP untuk `master_data.jadwal_praktik.input`? Keputusan pemilik.
 
 ## Kerangka tahap berikutnya (dirinci kemudian)
 - **B — Rawat jalan + RME**: formularium (wizard langkah 7, KFA via simulator), CPPT lintas pos (`CpptLinimasa`), asesmen RJ, order penunjang bersama (7.00.5), e-resep → antrean farmasi, Antrean Online BPJS task ID 1–7, APM, akses darurat (K12).

@@ -59,6 +59,8 @@ final class AkunSintetisSeeder extends Seeder
         'contoh.usulan.pengusul' => 'Contoh Pengusul Usulan',
         'contoh.usulan.verifikator' => 'Contoh Verifikator Usulan',
         'contoh.usulan.penyetuju' => 'Contoh Penyetuju Usulan',
+        // Verifikator gabung RM (tiket 2.9): pengusul (contoh.admisi) ≠ pemverifikasi, dijaga server.
+        'contoh.rekam.medis' => 'Contoh Petugas Rekam Medis',
     ];
 
     /**
@@ -90,9 +92,11 @@ final class AkunSintetisSeeder extends Seeder
     /**
      * Izin tambahan per peran contoh di atas. Layar Pendaftaran kunjungan poli memuat pilihan poli, jadwal praktik, dan
      * penjamin dari endpoint data induk, jadi petugas admisi butuh izin lihat ketiganya (RS nyata memberinya lewat Peran & izin).
+     * Pemilih dokter di layar Jadwal praktik memakai GET /pegawai (sdm.pegawai.lihat).
      */
     private const IZIN_TAMBAHAN_CONTOH = [
         'contoh_admisi' => ['master_data.organisasi.lihat', 'master_data.jadwal_praktik.lihat', 'master_data.penjamin.lihat'],
+        'contoh_data_induk' => ['sdm.pegawai.lihat'],
     ];
 
     /**
@@ -112,6 +116,7 @@ final class AkunSintetisSeeder extends Seeder
         'contoh_usulan_pengusul' => ['Contoh Pengusul Usulan', 'contoh.usulan.pengusul', self::IZIN_USULAN],
         'contoh_usulan_verifikator' => ['Contoh Verifikator Usulan', 'contoh.usulan.verifikator', self::IZIN_USULAN],
         'contoh_usulan_penyetuju' => ['Contoh Penyetuju Usulan', 'contoh.usulan.penyetuju', self::IZIN_USULAN],
+        'contoh_rekam_medis' => ['Contoh Petugas Rekam Medis', 'contoh.rekam.medis', ['pendaftaran.master_pasien.lihat', 'pendaftaran.master_pasien.verifikasi']],
     ];
 
     /** Semua aksi usulan data induk + lihat organisasi (pemilih objek); pemisahan tugas dijaga server (1.8c). */
