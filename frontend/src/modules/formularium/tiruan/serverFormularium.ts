@@ -233,7 +233,7 @@ export function buatServerFormularium(opsi: OpsiServerFormularium) {
   }
 
   function tangani(r: PermintaanTiruan): ResponsTiruan | Promise<ResponsTiruan> | null {
-    const [a0, a1, a2, a3, a4] = r.jalur.replace(/\/+$/, '').split('/').filter(Boolean)
+    const [a0, a1, a2, a3, , a5] = r.jalur.replace(/\/+$/, '').split('/').filter(Boolean)
     if (a0 !== 'data-induk' || (a1 !== 'barang' && a1 !== 'formularium')) return null
     const m = r.metode.toUpperCase()
     const isi = (r.isi ?? {}) as Isi
@@ -283,7 +283,7 @@ export function buatServerFormularium(opsi: OpsiServerFormularium) {
     }
 
     // /data-induk/formularium[/{id}[/item[/{itemId}|/impor]]]
-    if (a4 || (a3 && a3 !== 'item')) return null
+    if (a5 || (a3 && a3 !== 'item')) return null
     if (!a2 && m === 'GET') {
       if (!izin('lihat')) return tolak()
       const daftar = [...formularium.values()]

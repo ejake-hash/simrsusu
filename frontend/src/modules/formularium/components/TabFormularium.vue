@@ -212,6 +212,9 @@ const imporKeFormularium = (berkas: File, mode: 'pratinjau' | 'terapkan', dasar:
 </template>
 
 <style scoped>
+.kartu + .kartu {
+  margin-top: var(--space-4);
+}
 .filter {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 160px;
