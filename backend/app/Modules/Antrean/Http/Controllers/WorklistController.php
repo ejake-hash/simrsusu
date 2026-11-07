@@ -20,7 +20,7 @@ use Illuminate\Validation\Rule;
 /**
  * GET /api/v1/rawat-jalan/worklist (tiket 2.13, kontrak v0.23.0; FR-07-01, 7.07.1). Cakupan baris dipaksa server dari
  * profesi pegawai akun: dokter/dokter gigi hanya pasien dengan dokter jadwal = dirinya (juga bila tidak berjadwal hari itu);
- * profesi lain (perawat poli) seluruh poli. Akun tanpa pegawai tidak melihat baris apa pun.
+ * perawat/bidan seluruh poli; profesi lain dan akun tanpa pegawai tidak melihat baris apa pun.
  */
 final class WorklistController
 {
@@ -43,10 +43,10 @@ final class WorklistController
         $query = Antrean::query()->where('titik', 'poli')->where('poli_id', $filter['poli_id'])->where('tanggal', $filter['tanggal'])
             ->where('status', '<>', 'batal');
         $profesi = empty($pengguna->pegawai_id) ? null : DB::table('sdm.pegawai')->where('id', $pengguna->pegawai_id)->value('profesi');
-        if ($profesi === null) {
-            $query->whereRaw('false');
-        } elseif (in_array($profesi, ['dokter', 'dokter_gigi'], true)) {
+        if (in_array($profesi, ['dokter', 'dokter_gigi'], true)) {
             $query->where('pegawai_id', $pengguna->pegawai_id);
+        } elseif (! in_array($profesi, ['perawat', 'bidan'], true)) {
+            $query->whereRaw('false');
         }
         $selesai = fn (Builder $q) => $q->whereIn('kunjungan_id', DB::table('kunjungan.kunjungan')->where('status', 'selesai')->select('id'));
         match ($filter['tahap'] ?? null) {
