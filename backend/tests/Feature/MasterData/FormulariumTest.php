@@ -114,6 +114,10 @@ class FormulariumTest extends TestCase
         $nonaktif = $this->mintaDenganVersi('PATCH', "/api/v1/data-induk/formularium/$fid/item/$itemId", '0', ['status' => 'nonaktif', 'dasar_perubahan' => self::DASAR])
             ->assertOk()->assertJsonPath('data.status', 'nonaktif');
         $this->assertSesuaiKontrak($nonaktif, 'PATCH', '/data-induk/formularium/{id}/item/{itemId}');
+        $lain = $this->minta('POST', '/api/v1/data-induk/formularium', ['kode' => 'FORNAS', 'nama' => 'Fornas', 'jenis' => 'fornas',
+            'berlaku_dari' => '2026-01-01', 'dasar_perubahan' => self::DASAR])->assertCreated()->json('data.id');
+        $this->mintaDenganVersi('PATCH', "/api/v1/data-induk/formularium/$lain/item/$itemId", '1', ['kronis' => false, 'dasar_perubahan' => self::DASAR])
+            ->assertNotFound();
         $this->mintaDenganVersi('PATCH', "/api/v1/data-induk/barang/$barang", '0', ['jenis' => 'bmhp', 'dasar_perubahan' => self::DASAR])
             ->assertUnprocessable()->assertJsonPath('error.rincian.0.kolom', 'jenis');
     }

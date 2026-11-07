@@ -108,7 +108,9 @@ final class ImporKatalogObat
             } elseif (isset($sudahAda[$b['kode']])) {
                 $salah('kode', 'kode_sudah_dipakai', 'Kode sudah dipakai barang lain.');
             }
-            $kodeBerkas[$b['kode']] ??= $n;
+            if ($b['kode'] !== '') {
+                $kodeBerkas[$b['kode']] ??= $n;
+            }
             if ($b['jenis'] !== '' && ! in_array($b['jenis'], Barang::JENIS, true)) {
                 $salah('jenis', 'jenis_tidak_dikenal', 'Jenis harus salah satu: '.implode(', ', Barang::JENIS).'.');
             }
@@ -171,7 +173,9 @@ final class ImporKatalogObat
             } elseif (isset($sudahAda[$brg->id])) {
                 $salah('kode_barang', 'sudah_di_formularium', 'Barang sudah ada di formularium ini.');
             }
-            $kodeBerkas[$b['kode_barang']] ??= $n;
+            if ($b['kode_barang'] !== '') {
+                $kodeBerkas[$b['kode_barang']] ??= $n;
+            }
             $maks = $b['maks_per_resep'] === '' ? null : (ctype_digit($b['maks_per_resep']) && (int) $b['maks_per_resep'] >= 1 ? (int) $b['maks_per_resep'] : false);
             if ($maks === false) {
                 $salah('maks_per_resep', 'nilai_tidak_valid', 'Isi bilangan bulat ≥ 1 atau kosongkan.');
