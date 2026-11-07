@@ -49,6 +49,8 @@ const asesmen = computed(() => (kueri.data.value?.data && !adalahTerbatas(kueri.
 const terbatas = computed(() => Boolean(kueri.data.value?.data && adalahTerbatas(kueri.data.value.data)))
 const etag = computed(() => kueri.data.value?.etag ?? null)
 
+// Jam layar menyusul saat dialog dibuka dan saat asesmen berubah, bukan menunggu ketukan 30 detik berikutnya.
+watch([buka, () => asesmen.value?.versi], () => (sekarang.value = Date.now()))
 const status = computed<'baru' | 'draf' | 'selesai'>(() => (asesmen.value ? asesmen.value.status : 'baru'))
 const sisa = computed(() => sisaPerbaikan(asesmen.value?.batas_perbaikan_pada ?? null, sekarang.value))
 const terkunci = computed(() => status.value === 'selesai' && sisa.value === null)
@@ -61,8 +63,11 @@ const f = reactive({
   alasan: '',
 })
 const str = (v: unknown) => (v == null ? '' : String(v))
+// Isi formulir hanya saat versi dari server berubah: muat ulang tanpa perubahan (mis. sesudah galat) tidak menimpa ketikan.
+let versiDimuat = ''
 watch(asesmen, (a) => {
-  if (!a) return
+  if (!a || a.versi === versiDimuat) return
+  versiDimuat = a.versi
   Object.assign(f, {
     keluhan: str(a.keluhan_utama), rps: str(a.riwayat_penyakit_sekarang), rpd: str(a.riwayat_penyakit_dahulu), catatan: str(a.catatan),
     sistolik: str(a.tanda_vital.sistolik), diastolik: str(a.tanda_vital.diastolik), nadi: str(a.tanda_vital.nadi), napas: str(a.tanda_vital.napas),
@@ -73,7 +78,8 @@ watch(asesmen, (a) => {
 }, { immediate: true })
 
 const teks = (v: string) => v.trim() || null
-const angka = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')))
+// v-model pada input number memberi number (atau '' bila kosong), bukan string.
+const angka = (v: unknown) => (v === '' || v == null ? null : Number(String(v).replace(',', '.')))
 function isian(): IsianAsesmenAwal {
   return {
     keluhan_utama: teks(f.keluhan), riwayat_penyakit_sekarang: teks(f.rps), riwayat_penyakit_dahulu: teks(f.rpd), catatan: teks(f.catatan),
@@ -90,13 +96,17 @@ const kerjakan = useMutation({
   mutationFn: async (selesai: boolean) => {
     let a = asesmen.value
     let tag = etag.value
-    if (!a) ({ data: a, etag: tag } = await mulaiAsesmen(props.baris.kunjungan_id, isian()))
-    else ({ data: a, etag: tag } = await ubahAsesmen(a.id, tag!, { ...isian(), ...(a.status === 'selesai' ? { alasan_perubahan: f.alasan.trim() } : {}) }))
-    if (selesai) ({ data: a, etag: tag } = await selesaikanAsesmen(a.id, tag!))
-    return { selesai, data: a, etag: tag }
+    // Tiap langkah yang berhasil langsung masuk cache: bila langkah berikutnya gagal (mis. 422 syarat selesai), draf sudah tampil.
+    const simpan = (h: { data: AsesmenAwal; etag: string }) => {
+      qc.setQueryData<Hasil>(KUNCI_WORKLIST.asesmen(props.baris.kunjungan_id), h)
+      ;({ data: a, etag: tag } = h)
+    }
+    if (!a) simpan(await mulaiAsesmen(props.baris.kunjungan_id, isian()))
+    else simpan(await ubahAsesmen(a.id, tag!, { ...isian(), ...(a.status === 'selesai' ? { alasan_perubahan: f.alasan.trim() } : {}) }))
+    if (selesai) simpan(await selesaikanAsesmen(a!.id, tag!))
+    return { selesai, data: a!, etag: tag! }
   },
   onSuccess: (h) => {
-    qc.setQueryData<Hasil>(KUNCI_WORKLIST.asesmen(props.baris.kunjungan_id), { data: h.data, etag: h.etag })
     tampilkanToast(h.selesai ? 'Asesmen selesai. Pasien menunggu dokter.' : 'Asesmen disimpan.', 'ok')
     void qc.invalidateQueries({ queryKey: KUNCI_WORKLIST.semua })
     if (h.selesai) buka.value = false
