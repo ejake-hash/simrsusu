@@ -331,6 +331,8 @@ Uji    :
 - Linimasa menampilkan seluruh episode berurutan waktu dengan filter profesi/pos; kunjungan dua poli hari yang sama tampil dalam satu linimasa.
 - Catatan berlabel sensitif dikirim `{"terbatas": true}` ke akun tanpa relasi/izin label (9.2.5); isi catatan tidak ada di log/audit.
 - Template SOAP per poli dari data induk; tanpa template → formulir SOAP polos.
+Bawaan dari 2.13: kolom/jalur label sensitivitas catatan klinis dibuat di sini, dan asesmen awal perawat ikut memakainya ("Terbatas" bagi
+bukan penulis yang tidak lolos lapis 4); TTE asesmen perawat ikut pengesahan PIN tiket ini.
 Di luar: verifikasi DPJP atas PPA lain dan TBaK (FR-26-03, 26-04), supervisi PPDS (FR-07-14, kunjungan belum punya `pemeriksa_id`),
 entri otomatis kamar operasi (Tahap C), persetujuan PMIK untuk perbaikan > 2 × 24 jam data administratif.
 

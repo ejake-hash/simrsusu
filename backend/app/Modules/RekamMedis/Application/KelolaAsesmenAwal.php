@@ -87,6 +87,10 @@ final class KelolaAsesmenAwal
 
         return DB::transaction(function () use ($penulis, $catatan, $versi, $isian, $alasan) {
             $catatan = $this->kunciMilik($penulis, $catatan->id, $versi);
+            // Kunjungan batal tidak menerima perbaikan; kunjungan selesai tetap boleh dalam 2 × 24 jam (FR-26-06).
+            if (DB::table('kunjungan.kunjungan')->where('id', $catatan->kunjungan_id)->value('status') === 'batal') {
+                throw new ApiError(409, 'status_tidak_sesuai', 'Kunjungan sudah batal.', [['status' => 'batal']]);
+            }
             $selesai = $catatan->status !== 'draf';
             if ($selesai) {
                 if ($alasan === null) {

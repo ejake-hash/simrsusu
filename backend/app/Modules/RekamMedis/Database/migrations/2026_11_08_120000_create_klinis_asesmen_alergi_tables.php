@@ -34,6 +34,7 @@ return new class extends Migration
             $table->foreign('episode_id')->references('id')->on('kunjungan.episode')->restrictOnDelete();
             $table->foreign('kunjungan_id')->references('id')->on('kunjungan.kunjungan')->restrictOnDelete();
             $table->foreign('pasien_id')->references('id')->on('pasien.pasien')->restrictOnDelete();
+            $table->foreign('unit_id')->references('id')->on('inti.unit_organisasi')->restrictOnDelete();
             $table->foreign('penulis_id')->references('id')->on('akses.pengguna')->restrictOnDelete();
             $table->index(['episode_id', 'dibuat_pada', 'id']);
             $table->index(['pasien_id', 'dibuat_pada']);
@@ -49,7 +50,7 @@ return new class extends Migration
             $table->integer('versi');
             $table->jsonb('isi')->comment('KLINIS');
             $table->text('alasan')->comment('KLINIS: tidak pernah ke log/audit');
-            $table->uuid('diubah_oleh');
+            $table->foreignUuid('diubah_oleh')->constrained('akses.pengguna')->restrictOnDelete();
             $table->timestampTz('diubah_pada')->useCurrent();
 
             $table->unique(['catatan_klinis_id', 'versi']);
@@ -58,16 +59,16 @@ return new class extends Migration
         DB::unprepared(<<<'SQL'
 CREATE TABLE klinis.observasi (
     id                 uuid        NOT NULL,
-    kunjungan_id       uuid        NOT NULL,
-    pasien_id          uuid        NOT NULL,
-    catatan_klinis_id  uuid,
+    kunjungan_id       uuid        NOT NULL REFERENCES kunjungan.kunjungan (id) ON DELETE RESTRICT,
+    pasien_id          uuid        NOT NULL REFERENCES pasien.pasien (id) ON DELETE RESTRICT,
+    catatan_klinis_id  uuid        REFERENCES klinis.catatan_klinis (id) ON DELETE RESTRICT,
     kode_loinc         text        NOT NULL,
     nilai_angka        numeric,
     nilai_teks         text,
     satuan             text,
     waktu              timestamptz NOT NULL,
     sumber             text        NOT NULL DEFAULT 'manual' CHECK (sumber IN ('manual', 'alat')),
-    petugas_id         uuid,
+    petugas_id         uuid        REFERENCES akses.pengguna (id) ON DELETE RESTRICT,
     dibatalkan_pada    timestamptz,
     dibuat_pada        timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (id, waktu)

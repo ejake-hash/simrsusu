@@ -18,8 +18,9 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 /**
- * GET /api/v1/rawat-jalan/worklist (tiket 2.13, kontrak v0.23.0; FR-07-01, 7.07.1). Cakupan baris dipaksa server: akun
- * yang pegawainya berjadwal praktik di poli itu pada hari itu hanya melihat pasiennya; selain itu seluruh poli (perawat).
+ * GET /api/v1/rawat-jalan/worklist (tiket 2.13, kontrak v0.23.0; FR-07-01, 7.07.1). Cakupan baris dipaksa server dari
+ * profesi pegawai akun: dokter/dokter gigi hanya pasien dengan dokter jadwal = dirinya (juga bila tidak berjadwal hari itu);
+ * profesi lain (perawat poli) seluruh poli. Akun tanpa pegawai tidak melihat baris apa pun.
  */
 final class WorklistController
 {
@@ -41,7 +42,10 @@ final class WorklistController
         $pengguna = $request->user();
         $query = Antrean::query()->where('titik', 'poli')->where('poli_id', $filter['poli_id'])->where('tanggal', $filter['tanggal'])
             ->where('status', '<>', 'batal');
-        if ($this->dokterBerjadwal($pengguna->pegawai_id, $filter['poli_id'], $filter['tanggal'])) {
+        $profesi = empty($pengguna->pegawai_id) ? null : DB::table('sdm.pegawai')->where('id', $pengguna->pegawai_id)->value('profesi');
+        if ($profesi === null) {
+            $query->whereRaw('false');
+        } elseif (in_array($profesi, ['dokter', 'dokter_gigi'], true)) {
             $query->where('pegawai_id', $pengguna->pegawai_id);
         }
         $selesai = fn (Builder $q) => $q->whereIn('kunjungan_id', DB::table('kunjungan.kunjungan')->where('status', 'selesai')->select('id'));
@@ -53,13 +57,6 @@ final class WorklistController
 
         return Paginasi::respons($query, $request, 'urutan', arah: 'asc', bentuk: fn ($baris) => $this->bentuk($baris))
             ->header('Cache-Control', 'no-store');
-    }
-
-    private function dokterBerjadwal(?string $pegawaiId, string $poliId, string $tanggal): bool
-    {
-        return $pegawaiId !== null && DB::table('kunjungan.jadwal_praktik')->where('pegawai_id', $pegawaiId)->where('poli_id', $poliId)
-            ->where('status', 'aktif')->where('hari', Carbon::parse($tanggal)->dayOfWeekIso)->where('berlaku_dari', '<=', $tanggal)
-            ->where(fn ($q) => $q->whereNull('berlaku_sampai')->orWhere('berlaku_sampai', '>=', $tanggal))->exists();
     }
 
     /**

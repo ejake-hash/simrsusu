@@ -79,7 +79,6 @@ final class KelolaAntrean
         }
     }
 
-    /** Panggil (menunggu → dipanggil) atau panggil ulang (dipanggil → dipanggil) sampai batas data induk. */
     /** Asesmen awal perawat selesai (tiket 2.13): nomor poli yang sama kembali menunggu, kini untuk dokter. */
     public function keTahapDokter(AsesmenPerawatSelesai $kejadian): void
     {
@@ -87,9 +86,12 @@ final class KelolaAntrean
         if ($antrean === null || in_array($antrean->status, ['batal', 'selesai'], true) || $antrean->tahap === 'dokter') {
             return;
         }
-        $this->ubah($antrean, $kejadian->olehId, ['tahap' => 'dokter', 'status' => 'menunggu', 'panggilan_ke' => 0]);
+        // Nomor yang dilewati/belum check-in tidak hidup lagi tanpa petugas: hanya tahapnya yang berpindah.
+        $this->ubah($antrean, $kejadian->olehId, in_array($antrean->status, ['menunggu', 'dipanggil', 'dilayani'], true)
+            ? ['tahap' => 'dokter', 'status' => 'menunggu', 'panggilan_ke' => 0] : ['tahap' => 'dokter']);
     }
 
+    /** Panggil (menunggu → dipanggil) atau panggil ulang (dipanggil → dipanggil) sampai batas data induk. */
     public function panggil(Pengguna $petugas, string $id, ?string $lokasiId): Antrean
     {
         return DB::transaction(function () use ($petugas, $id, $lokasiId) {

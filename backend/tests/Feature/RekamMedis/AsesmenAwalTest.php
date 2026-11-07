@@ -145,6 +145,12 @@ class AsesmenAwalTest extends TestCase
         $this->minta('GET', "/api/v1/rawat-jalan/worklist$q")->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.antrean_id', $a2->id);
         // Dokter membaca asesmen perawat lewat izin pemeriksaan.
         $this->minta('GET', "/api/v1/kunjungan/{$a1->kunjungan_id}/asesmen-awal")->assertOk();
+
+        // Dokter tanpa jadwal hari itu (mis. pengganti) tetap tidak melihat pasien dokter lain.
+        $akunC = $this->akunDokter($this->dokter());
+        $this->tugaskan($akunC, $this->buatPeran(['rawat_jalan.worklist']));
+        $this->masukSebagai($akunC);
+        $this->minta('GET', "/api/v1/rawat-jalan/worklist$q")->assertOk()->assertJsonCount(0, 'data');
     }
 
     public function test_alergi_dicatat_sekali_dibaca_dokter_dan_dibatalkan_tanpa_isi_di_audit(): void
@@ -191,9 +197,16 @@ class AsesmenAwalTest extends TestCase
         $this->asesmen($a, ['keluhan_utama' => 'x'])->assertForbidden();
         $this->minta('GET', '/api/v1/rawat-jalan/worklist?tanggal='.self::SENIN.'&poli_id='.$this->poli->id)->assertForbidden();
 
+        $this->masukSebagai($this->perawat);
+        $draf = $this->asesmen($a, ['keluhan_utama' => 'x'])->assertCreated()->json('data.id');
         $this->masukSebagai($this->petugasPendaftaran());
         $this->minta('POST', "/api/v1/kunjungan/{$a->kunjungan_id}/batal", ['alasan_batal' => 'Pasien pulang'])->assertOk();
         $this->masukSebagai($this->perawat);
-        $this->asesmen($a, ['keluhan_utama' => 'x'])->assertStatus(409)->assertJsonPath('error.kode', 'status_tidak_sesuai');
+        $this->mintaDenganVersi('PATCH', "/api/v1/asesmen-awal/$draf", '0', ['catatan' => 'y'])->assertStatus(409)->assertJsonPath('error.kode', 'status_tidak_sesuai');
+        $b = $this->kunjungan();
+        $this->masukSebagai($this->petugasPendaftaran());
+        $this->minta('POST', "/api/v1/kunjungan/{$b->kunjungan_id}/batal", ['alasan_batal' => 'Pasien pulang'])->assertOk();
+        $this->masukSebagai($this->perawat);
+        $this->asesmen($b, ['keluhan_utama' => 'x'])->assertStatus(409)->assertJsonPath('error.kode', 'status_tidak_sesuai');
     }
 }
