@@ -361,5 +361,3 @@ export function buatServerOrganisasi(opsi: OpsiServerOrganisasi = {}) {
 
   return { tangani, labelUnit, unitAktif, ringkasUnit, akar: { irna, irja, yanmed, bpd } }
 }
-
-export type ServerOrganisasi = ReturnType<typeof buatServerOrganisasi>

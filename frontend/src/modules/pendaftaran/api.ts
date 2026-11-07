@@ -1,5 +1,4 @@
-import type { AxiosResponse } from 'axios'
-import type { Berversi } from '@/modules/organisasi/api'
+import { berversi } from '@/modules/organisasi/api'
 import { klien } from '@/shared/api/klien'
 import type { HalamanGabung, HalamanPasien, IsianPasien, Pasien, TahapGabung, UbahPasien, UsulanGabung } from './tipe'
 
@@ -9,10 +8,6 @@ import type { HalamanGabung, HalamanPasien, IsianPasien, Pasien, TahapGabung, Ub
  */
 const JALUR = '/pasien'
 
-function berversi(r: AxiosResponse<{ data: Pasien }>): Berversi<Pasien> {
-  const etag = r.headers.etag
-  return { data: r.data.data, etag: typeof etag === 'string' && etag ? etag : `"${r.data.data.versi}"` }
-}
 
 /** Nilai `X-Cari`: di-encode persen UTF-8 (encodeURIComponent) seperti contoh kontrak. */
 export async function cariPasien(kata: string, kursor: string | null = null, batas = 50): Promise<HalamanPasien> {
@@ -23,9 +18,9 @@ export async function cariPasien(kata: string, kursor: string | null = null, bat
   return data
 }
 
-export const buatPasien = async (isian: IsianPasien) => berversi(await klien.post(JALUR, isian))
+export const buatPasien = async (isian: IsianPasien) => berversi<Pasien>(await klien.post(JALUR, isian))
 export const ubahPasien = async (id: string, etag: string, isian: UbahPasien) =>
-  berversi(await klien.patch(`${JALUR}/${id}`, isian, { headers: { 'If-Match': etag } }))
+  berversi<Pasien>(await klien.patch(`${JALUR}/${id}`, isian, { headers: { 'If-Match': etag } }))
 
 /** Peringatan sebelum simpan (kontrak v0.22.0): pasien berlaku, tanggal lahir sama, nama mirip. Nama di badan, bukan URL. */
 export async function cekDuplikatPasien(nama: string, tanggalLahir: string): Promise<Pasien[]> {

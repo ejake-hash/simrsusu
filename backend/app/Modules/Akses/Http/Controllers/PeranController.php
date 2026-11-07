@@ -3,9 +3,9 @@
 namespace App\Modules\Akses\Http\Controllers;
 
 use App\Core\Database\Like;
+use App\Core\Http\IfMatch;
 use App\Core\Http\Paginasi;
 use App\Modules\Akses\Application\KelolaPeran;
-use App\Modules\Akses\Application\PenjagaPenyunting;
 use App\Modules\Akses\Http\Resources\PeranResource;
 use App\Modules\Akses\Http\Resources\PeranRinciResource;
 use App\Modules\Akses\Http\Resources\PersetujuanPresenter;
@@ -80,7 +80,7 @@ final class PeranController
         if (count($isi) < 2) {
             throw ValidationException::withMessages(['nama' => 'Isi minimal satu perubahan (nama, uraian, wajib MFA, status, atau masa percaya).']);
         }
-        $versi = PenjagaPenyunting::versiDiminta($request);
+        $versi = IfMatch::versi($request);
 
         return $this->rinci($request, $this->kelola->ubah($request->user(), $peran, $versi, $isi));
     }
@@ -93,7 +93,7 @@ final class PeranController
             'dasar_perubahan' => self::DASAR,
             'alasan' => ['nullable', 'string', 'max:500'],
         ]);
-        $versi = PenjagaPenyunting::versiDiminta($request);
+        $versi = IfMatch::versi($request);
 
         $hasil = $this->kelola->gantiIzin($request->user(), $peran, $versi, array_values($isi['izin']), $isi['dasar_perubahan'], $isi['alasan'] ?? null);
 

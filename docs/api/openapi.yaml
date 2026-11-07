@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.22.0
+  version: 0.22.1
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -101,11 +101,13 @@ info:
     `rujukan_tidak_sesuai`, `rujukan_kedaluwarsa`; 409 `sep_sudah_terbit`, `sep_sedang_diproses`, `status_tidak_sesuai`,
     `jeda_panggilan_belum_lewat`, `batas_panggilan_tercapai`, `sesi_berakhir`; 503 `integrasi_tidak_tersedia`. Hanya
     kontrak; kode (`integrasi.sep`, `kunjungan.antrean`, `kunjungan.antrean_jejak`, simulator VClaim) menyusul di tiket BE.
-    v0.21.0: Duplikat pasien dan usulan gabung RM (tiket 2.9; FR-01-02): POST /pasien/cek-duplikat (peringatan sebelum
+    v0.22.0: Duplikat pasien dan usulan gabung RM (tiket 2.9; FR-01-02): POST /pasien/cek-duplikat (peringatan sebelum
     simpan), GET|POST /gabung-pasien, POST /gabung-pasien/{id}/verifikasi. Aksi baru `usul` (JenisAksi) dan
     `pendaftaran.master_pasien.usul|verifikasi`. Pasien.digabung_ke dan digabung_dari (jejak RM lama). Error baru:
     409 `usulan_gabung_terbuka`, `pasien_sudah_digabung`, `gabung_bentrok`, `pasien_digabung`, `tahap_tidak_sesuai`;
     403 `bukan_pemverifikasi`.
+    v0.22.1: JadwalPengecualian.pegawai merujuk RingkasPegawai langsung (sudah nullable); `oneOf` dengan null menolak libur
+    tanpa pegawai karena null cocok di kedua cabang.
 servers:
   - url: /api/v1
 security:
@@ -6706,7 +6708,7 @@ components:
         jenis: { $ref: '#/components/schemas/JenisPengecualian' }
         pegawai:
           description: "null = berlaku untuk semua dokter (libur)"
-          oneOf: [{ $ref: '#/components/schemas/RingkasPegawai' }, { type: 'null' }]
+          $ref: '#/components/schemas/RingkasPegawai'
         dari_tanggal: { type: string, format: date }
         sampai_tanggal: { type: string, format: date }
         alasan: { type: string }

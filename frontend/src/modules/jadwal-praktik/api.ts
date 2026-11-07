@@ -1,14 +1,9 @@
-import type { AxiosResponse } from 'axios'
 import { klien } from '@/shared/api/klien'
 import type { Halaman } from '@/modules/akses/tipePengaturan'
-import type { Berversi } from '@/modules/organisasi/api'
+import { berversi } from '@/modules/organisasi/api'
 import type { FilterJadwal, IsianJadwal, IsianPengecualian, JadwalPengecualian, JadwalPraktik, UbahJadwal } from './tipe'
 
 /** Klien jadwal praktik dan pengecualian (kontrak v0.17.0, tiket 2.4). */
-function berversi<T extends { versi: string }>(r: AxiosResponse<{ data: T }>): Berversi<T> {
-  const etag = r.headers.etag
-  return { data: r.data.data, etag: typeof etag === 'string' && etag ? etag : `"${r.data.data.versi}"` }
-}
 const ifMatch = (etag: string) => ({ headers: { 'If-Match': etag } })
 
 export async function daftarJadwal(filter: FilterJadwal, kursor: string | null = null, batas = 50): Promise<Halaman<JadwalPraktik>> {

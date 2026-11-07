@@ -1,5 +1,4 @@
-import type { AxiosResponse } from 'axios'
-import type { Berversi } from '@/modules/organisasi/api'
+import { berversi } from '@/modules/organisasi/api'
 import { klien } from '@/shared/api/klien'
 import type { FilterKunjungan, HalamanKunjungan, IsianKunjungan, Kunjungan } from './tipeKunjungan'
 
@@ -9,10 +8,6 @@ import type { FilterKunjungan, HalamanKunjungan, IsianKunjungan, Kunjungan } fro
  */
 const JALUR = '/kunjungan'
 
-function berversi(r: AxiosResponse<{ data: Kunjungan }>): Berversi<Kunjungan> {
-  const etag = r.headers.etag
-  return { data: r.data.data, etag: typeof etag === 'string' && etag ? etag : `"${r.data.data.versi}"` }
-}
 
 export async function daftarKunjungan(filter: FilterKunjungan, kursor: string | null = null, batas = 50): Promise<HalamanKunjungan> {
   const { data } = await klien.get<HalamanKunjungan>(JALUR, {
@@ -21,6 +16,6 @@ export async function daftarKunjungan(filter: FilterKunjungan, kursor: string | 
   return data
 }
 
-export const buatKunjungan = async (isian: IsianKunjungan) => berversi(await klien.post(JALUR, isian))
+export const buatKunjungan = async (isian: IsianKunjungan) => berversi<Kunjungan>(await klien.post(JALUR, isian))
 export const batalkanKunjungan = async (id: string, alasanBatal: string) =>
-  berversi(await klien.post(`${JALUR}/${id}/batal`, { alasan_batal: alasanBatal }))
+  berversi<Kunjungan>(await klien.post(`${JALUR}/${id}/batal`, { alasan_batal: alasanBatal }))

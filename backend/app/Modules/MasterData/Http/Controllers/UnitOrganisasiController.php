@@ -48,7 +48,7 @@ final class UnitOrganisasiController
             // Pemilih unit kerja: hanya unit penugasan akun ini, tanpa izin data induk.
             $query->whereIn('id', $pemakaian->unitBerlaku($request->user()));
         } else {
-            abort_unless(Gate::any(self::IZIN_LIHAT), 403);
+            self::bolehLihat();
             $akar = $this->lingkup->akarTerjangkau($request->user(), self::IZIN_LIHAT);
             if ($akar !== null) {
                 $query->whereIn('id', $pohon->subpohon($akar));
@@ -69,7 +69,7 @@ final class UnitOrganisasiController
 
     public function show(Request $request, UnitOrganisasi $unit): JsonResponse
     {
-        abort_unless(Gate::any(self::IZIN_LIHAT), 403);
+        self::bolehLihat();
         if (! $this->lingkup->memuat($this->lingkup->akarTerjangkau($request->user(), self::IZIN_LIHAT), $unit->id)) {
             throw new ApiError(404, 'tidak_ditemukan', 'Data tidak ditemukan.');
         }
@@ -109,6 +109,14 @@ final class UnitOrganisasiController
         $versi = IfMatch::versi($request);
 
         return $this->satu($kelola->ubah($request->user(), $unit, $versi, $isi));
+    }
+
+    /** Salah satu IZIN_LIHAT, cakupan mana pun; penolakan lewat authorize agar kode lapis 5 tidak tertelan. */
+    private static function bolehLihat(): void
+    {
+        if (! Gate::allows(self::IZIN_LIHAT[0])) {
+            Gate::authorize(self::IZIN_LIHAT[1]);
+        }
     }
 
     private function satu(UnitOrganisasi $unit, int $status = 200): JsonResponse

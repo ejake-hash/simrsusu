@@ -191,18 +191,10 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
 - `AlurPersetujuan::alasanTidakBoleh`: satu orang dengan dua peran penyetuju bisa menyetujui dua baris dalam satu grup. PRD belum mengatur.
 
 **Utang teknis (tiket kecil / disisipkan ke tiket terkait)**
-- Lean: hapus skeleton Laravel di backend (`welcome.blade.php`, `resources/js|css`, `package.json`, `vite.config.js`, rute `/`,
-  ExampleTest, `inspire`, `laravel/sail`; skrip `composer setup` migrasi tanpa `pgsql_migrator`), helper `berversi()` FE disalin
-  9×, wrapper penerus (`PenjagaPenyunting::versiDiminta`, `AkunPegawai::sandiAwal`, forwarder `AlurPersetujuan`,
-  `KelolaPeran::naikkanVersi`), antarmuka `PendaftaranPerangkat` satu implementasi, `KelolaPegawai` menyalin
-  `SuntinganBerversi::naikkan`, ekspor FE tak terpakai, modul kosong `Igd` + folder FE `igd`/`rawat-inap`/`rawat-jalan`. ±500 baris.
-- Sisa 3 `abort_unless(Gate::any(...))` (`MenuController:16`, `UnitOrganisasiController:51,72`) → jalur `Gate`/middleware.
-- Kontrak: `JadwalPengecualian.pegawai` `oneOf [RingkasPegawai, null]` padahal `RingkasPegawai` sudah nullable → libur tanpa pegawai gagal validasi kontrak.
 - Gabung RM: revisi tujuan naik tanpa baris `pasien_versi` tujuan (jejak hanya di versi sumber).
 - POST cuti/libur tidak mengunci jadwal; berbarengan dengan pendaftaran bisa lolos keduanya (dampak kecil).
 - `lokal:kunjungan-contoh --batal` mengosongkan `siap_melayani_sejak` tanpa syarat dan tidak membersihkan poli `POLI-PD`.
 - `Penandatangan::status` satu query `kunci_publik` per tanda tangan (verifikasi ≤ 100 query).
-- CI: `e2e-nightly.yml` tanpa `permissions: {contents: read}`; `docker-compose.yml` mem-publish Postgres/Valkey di 0.0.0.0 (pakai `127.0.0.1:`).
 - Lapisan tiruan FE (`*/tiruan/`, ±5.500 baris) masih tulang punggung 31 spec unit; layar Fase 2 butuh e2e terhadap backend asli per layar.
 
 ## Kerangka tahap berikutnya (dirinci kemudian)

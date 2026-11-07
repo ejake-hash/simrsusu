@@ -429,5 +429,3 @@ export function buatServerSdm(opsi: OpsiServerSdm) {
     [...izin.values()].some((x) => x.pegawai_id === pegawaiId && x.jenis === 'sip' && !x.dibatalkan_pada && x.terbit <= tanggal && (x.berlaku_sampai === null || x.berlaku_sampai >= tanggal))
   return { tangani, pegawaiKeluar, ringkasPegawai, sipAktif, contoh: { superadmin: sa.id, dokter: dokter.id, perawat: perawat.id, apoteker: apoteker.id, bidan: bidan.id, keluar: keluar.id } }
 }
-
-export type ServerSdm = ReturnType<typeof buatServerSdm>

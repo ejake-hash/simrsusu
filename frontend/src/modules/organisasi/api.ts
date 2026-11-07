@@ -10,7 +10,8 @@ export interface Berversi<T> {
   etag: string
 }
 
-function berversi<T extends { versi: string }>(r: AxiosResponse<{ data: T }>): Berversi<T> {
+/** ETag respons; tanpa header (mis. data tiruan) → dari `versi`. */
+export function berversi<T extends { versi: string }>(r: AxiosResponse<{ data: T }>): Berversi<T> {
   const etag = r.headers.etag
   return { data: r.data.data, etag: typeof etag === 'string' && etag ? etag : `"${r.data.data.versi}"` }
 }

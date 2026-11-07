@@ -3,11 +3,9 @@
 namespace App\Modules\Akses\Application;
 
 use App\Core\Http\ApiError;
-use App\Core\Http\IfMatch;
 use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaPeran;
-use Illuminate\Http\Request;
 
 /**
  * Batas penyunting akses yang tidak bisa diberikan lewat izin (PRD 9.2.4, 9.3): tidak mengubah akun
@@ -49,11 +47,5 @@ final class PenjagaPenyunting
         if ($this->memegangPeran($penyunting, $peranId)) {
             throw new ApiError(403, 'peran_sendiri', 'Peran yang sedang Anda pegang diubah oleh superadmin lain.');
         }
-    }
-
-    /** Nilai If-Match tanpa tanda kutip dan awalan W/; tidak ada → 428 if_match_wajib. */
-    public static function versiDiminta(Request $request): string
-    {
-        return IfMatch::versi($request);
     }
 }
