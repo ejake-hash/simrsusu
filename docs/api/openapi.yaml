@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.22.1
+  version: 0.23.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -108,6 +108,14 @@ info:
     403 `bukan_pemverifikasi`.
     v0.22.1: JadwalPengecualian.pegawai merujuk RingkasPegawai langsung (sudah nullable); `oneOf` dengan null menolak libur
     tanpa pegawai karena null cocok di kedua cabang.
+    v0.23.0: Katalog obat + formularium (tiket 2.11; FR-22-06, FR-22-17): /data-induk/barang (+ impor CSV), /data-induk/formularium,
+    /data-induk/formularium/{id}/item (+ impor CSV); izin `farmasi.formularium.*`; formularium dan itemnya 409
+    `harus_lewat_usulan` sesudah siap melayani (usulan di 2.12), barang tetap langsung. Skema umum PermintaanImporCsv dan
+    HasilImpor. Worklist poli + asesmen awal perawat (tiket 2.13; FR-07-01, FR-07-02, FR-07-21, FR-02-09): GET
+    /rawat-jalan/worklist, GET|POST /kunjungan/{id}/asesmen-awal, PATCH /asesmen-awal/{id} (perbaikan ≤ 2 × 24 jam
+    berversi), POST /asesmen-awal/{id}/selesai (pasien pindah ke tahap dokter), GET|POST /pasien/{id}/alergi, POST
+    /alergi/{id}/batal. Error baru: 409 `asesmen_sudah_ada`, `batas_perbaikan_lewat`, `alergi_sudah_tercatat`. Hanya
+    kontrak; kode menyusul di tiket BE.
 servers:
   - url: /api/v1
 security:
@@ -4451,6 +4459,368 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /data-induk/barang:
+    get:
+      operationId: daftarBarang
+      summary: Katalog obat dan BMHP (paginasi kursor)
+      description: |
+        Izin: farmasi.formularium.lihat, cakupan `rs`. Urut: nama, id. `tanpa_kfa=true` = barang aktif yang `kode_kfa`-nya
+        kosong (pengganti laporan "barang tanpa KFA" sampai pencarian KFA, tiket 2.22).
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: cari, schema: { type: string, maxLength: 100 }, description: "Cocok sebagian pada kode, nama, atau zat aktif" }
+        - { in: query, name: jenis, schema: { $ref: '#/components/schemas/JenisBarang' } }
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
+        - { in: query, name: tanpa_kfa, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Satu halaman barang
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Barang' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatBarang
+      summary: Tambah barang
+      description: |
+        Izin: farmasi.formularium.input. Generik dan paten dari zat yang sama adalah dua barang dengan dua kode (FR-22-06).
+        422 `validasi_gagal` bila `kode` sudah dipakai barang lain. Barang tetap diisi langsung sesudah siap melayani (bukan
+        lewat usulan); yang lewat usulan hanya formularium (FR-54-02).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianBarang' }
+      responses:
+        '201':
+          description: Barang dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Barang' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /data-induk/barang/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciBarang
+      summary: Rincian barang
+      description: "Izin: farmasi.formularium.lihat. ETag = `versi`."
+      responses:
+        '200':
+          description: Rincian barang
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Barang' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: ubahBarang
+      summary: Ubah atau nonaktifkan barang
+      description: |
+        Izin: farmasi.formularium.perbaiki. Wajib If-Match (412 `versi_berubah`, 428 `if_match_wajib`). Barang tidak dihapus:
+        nonaktifkan lewat `status`. Barang nonaktif tidak bisa ditambahkan ke formularium (422) dan tidak muncul di pilihan
+        resep, tetapi tetap terbaca di riwayat.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianBarangUbah' }
+      responses:
+        '200':
+          description: Barang sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Barang' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /data-induk/barang/impor:
+    post:
+      operationId: imporBarang
+      summary: Impor katalog barang dari CSV (pratinjau dulu, lalu terapkan)
+      description: |
+        Izin: farmasi.formularium.input. Aturan berkas, mode `pratinjau`/`terapkan`, batas (2 MB, 5.000 baris, sinkron), BOM,
+        pemisah `;`, 422 `impor_tidak_valid` dan `berkas_tidak_valid` sama dengan POST /lokasi/impor. Impor hanya menambah.
+        Judul kolom persis:
+        `kode,nama,jenis,generik_paten,zat_aktif,kekuatan,sediaan,satuan_terkecil,kode_kfa,kewaspadaan_tinggi,narkotika,lasa`
+        - wajib: `kode`, `nama`, `jenis` (JenisBarang), `satuan_terkecil`; `generik_paten` wajib untuk `obat`.
+        - `kewaspadaan_tinggi`, `narkotika`, `lasa`: `ya` | `tidak` (kosong = tidak).
+        Kode salah per baris: `kolom_wajib`, `jenis_tidak_dikenal`, `kode_tidak_valid`, `kode_ganda` (sama di berkas),
+        `kode_sudah_dipakai`, `nilai_tidak_valid`. Audit `master_data.barang_diimpor`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/PermintaanImporCsv' }
+      responses:
+        '200':
+          description: Hasil pratinjau atau penerapan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/HasilImpor' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '413': { description: "Berkas melebihi batas unggah server web" }
+        '422': { $ref: '#/components/responses/Error' }
+  /data-induk/formularium:
+    get:
+      operationId: daftarFormularium
+      summary: Daftar formularium (Fornas, RS, penjamin)
+      description: |
+        Izin: farmasi.formularium.lihat. Urut: berlaku_dari terbaru dulu, id. `berlaku_pada` = formularium yang berlaku pada
+        tanggal itu (zona RS).
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: jenis, schema: { $ref: '#/components/schemas/JenisFormularium' } }
+        - { in: query, name: penjamin_id, schema: { type: string, format: uuid } }
+        - { in: query, name: berlaku_pada, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Satu halaman formularium
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Formularium' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatFormularium
+      summary: Tambah formularium
+      description: |
+        Izin: farmasi.formularium.input. Hanya sebelum siap melayani; sesudahnya 409 `harus_lewat_usulan` (FR-54-02; jalur
+        usulan di tiket 2.12). `penjamin_id` wajib untuk jenis `penjamin` dan harus penjamin aktif; dilarang untuk jenis lain
+        (422 `validasi_gagal`). Satu formularium per (jenis, penjamin) yang berlaku pada tanggal yang sama: rentang
+        `berlaku_dari`–`berlaku_sampai` yang tumpang tindih → 422 `validasi_gagal` (field `berlaku_dari`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kode, nama, jenis, berlaku_dari, dasar_perubahan]
+              properties:
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 2, maxLength: 150, examples: ['Formularium RS 2026'] }
+                jenis: { $ref: '#/components/schemas/JenisFormularium' }
+                penjamin_id: { type: [string, 'null'], format: uuid }
+                berlaku_dari: { type: string, format: date }
+                berlaku_sampai: { type: [string, 'null'], format: date }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '201':
+          description: Formularium dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Formularium' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /data-induk/formularium/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: rinciFormularium
+      summary: Rincian formularium
+      description: "Izin: farmasi.formularium.lihat. ETag = `versi`."
+      responses:
+        '200':
+          description: Rincian formularium
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Formularium' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: ubahFormularium
+      summary: Ubah nama atau masa berlaku formularium
+      description: |
+        Izin: farmasi.formularium.perbaiki. Wajib If-Match. Hanya sebelum siap melayani; sesudahnya 409 `harus_lewat_usulan`.
+        Aturan tumpang tindih sama dengan POST. `jenis` dan `penjamin_id` tidak dapat diubah.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              properties:
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 2, maxLength: 150 }
+                berlaku_dari: { type: string, format: date }
+                berlaku_sampai: { type: [string, 'null'], format: date }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Formularium sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Formularium' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /data-induk/formularium/{id}/item:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: daftarItemFormularium
+      summary: Item satu formularium (paginasi kursor)
+      description: "Izin: farmasi.formularium.lihat. Urut: nama barang, id."
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: cari, schema: { type: string, maxLength: 100 }, description: "Cocok sebagian pada kode, nama, atau zat aktif barang" }
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
+      responses:
+        '200':
+          description: Satu halaman item
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/ItemFormularium' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: tambahItemFormularium
+      summary: Tambah barang ke formularium
+      description: |
+        Izin: farmasi.formularium.input. Hanya sebelum siap melayani; sesudahnya 409 `harus_lewat_usulan`. Barang harus aktif;
+        barang yang sudah ada di formularium ini → 422 `validasi_gagal` (field `barang_id`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [barang_id, dasar_perubahan]
+              properties:
+                barang_id: { type: string, format: uuid }
+                restriksi: { type: [string, 'null'], maxLength: 1000, description: "Restriksi penggunaan (mis. dari Fornas), teks" }
+                maks_per_resep: { type: [integer, 'null'], minimum: 1, description: "Jumlah maksimum per resep dalam satuan terkecil; null = tidak dibatasi" }
+                kronis: { type: boolean, default: false, description: "Obat kronis (dipakai pemisahan JKN, tiket depo Tahap C)" }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '201':
+          description: Item dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/ItemFormularium' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /data-induk/formularium/{id}/item/{itemId}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - { in: path, name: itemId, required: true, schema: { type: string, format: uuid } }
+    patch:
+      operationId: ubahItemFormularium
+      summary: Ubah atau nonaktifkan item formularium
+      description: |
+        Izin: farmasi.formularium.perbaiki. Wajib If-Match. Hanya sebelum siap melayani; sesudahnya 409 `harus_lewat_usulan`.
+        Item tidak dihapus: nonaktifkan lewat `status`. `barang_id` tidak dapat diubah. Item milik formularium lain → 404.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              properties:
+                restriksi: { type: [string, 'null'], maxLength: 1000 }
+                maks_per_resep: { type: [integer, 'null'], minimum: 1 }
+                kronis: { type: boolean }
+                status: { type: string, enum: [aktif, nonaktif] }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Item sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/ItemFormularium' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /data-induk/formularium/{id}/item/impor:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: imporItemFormularium
+      summary: Impor item formularium dari CSV (pratinjau dulu, lalu terapkan)
+      description: |
+        Izin: farmasi.formularium.input. Hanya sebelum siap melayani; sesudahnya 409 `harus_lewat_usulan`. Aturan berkas dan
+        mode sama dengan POST /data-induk/barang/impor. Judul kolom persis: `kode_barang,restriksi,maks_per_resep,kronis`
+        (`kronis`: `ya` | `tidak`, kosong = tidak). Kode salah per baris: `kolom_wajib`, `barang_tidak_ditemukan`,
+        `barang_tidak_aktif`, `kode_ganda`, `sudah_di_formularium`, `nilai_tidak_valid`. Audit `master_data.formularium_diimpor`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/PermintaanImporCsv' }
+      responses:
+        '200':
+          description: Hasil pratinjau atau penerapan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/HasilImpor' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '413': { description: "Berkas melebihi batas unggah server web" }
+        '422': { $ref: '#/components/responses/Error' }
   /jadwal-praktik:
     get:
       operationId: daftarJadwalPraktik
@@ -5371,6 +5741,246 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+  /rawat-jalan/worklist:
+    get:
+      operationId: worklistPoli
+      summary: Worklist poli untuk perawat atau dokter (paginasi kursor)
+      description: |
+        Izin: rawat_jalan.worklist.lihat; poli di luar cakupan izin → 403 `akses_ditolak` (filter cakupan dipaksa server).
+        Sumber: antrean titik `poli` (2.8) tanggal itu, urut urutan tunggu `(urutan, id)`, tanpa yang `batal`.
+        - `untuk=perawat` (bawaan): seluruh antrean poli itu.
+        - `untuk=dokter`: hanya kunjungan yang dokter jadwalnya pegawai akun ini (7.07.1); akun tanpa pegawai → daftar kosong.
+        `tahap` menunjukkan siapa yang ditunggu; asesmen awal disimpan `selesai` memindahkan pasien ke tahap `dokter` dan
+        antreannya kembali `menunggu` untuk dipanggil dokter. Memanggil memakai POST /antrean/{id}/panggil (2.8).
+        Layar kerja: rate limit `api-layar-kerja`, `Cache-Control: no-store`.
+      parameters:
+        - { in: query, name: tanggal, required: true, schema: { type: string, format: date } }
+        - { in: query, name: poli_id, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: untuk, schema: { type: string, enum: [perawat, dokter], default: perawat } }
+        - { in: query, name: tahap, schema: { $ref: '#/components/schemas/TahapWorklist' } }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman worklist (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/BarisWorklist' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/asesmen-awal:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: asesmenAwalKunjungan
+      summary: Asesmen awal keperawatan kunjungan ini
+      description: |
+        Izin: rawat_jalan.asesmen_perawat.lihat; kunjungan di luar cakupan → 403. 404 `tidak_ditemukan` bila belum ada
+        asesmen. ETag = `versi`. Pasien berlabel sensitif tanpa relasi/izin label → `{"data": {"terbatas": true}}` (9.2.5).
+      responses:
+        '200':
+          description: Asesmen awal
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { oneOf: [{ $ref: '#/components/schemas/AsesmenAwal' }, { $ref: '#/components/schemas/Terbatas' }] }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatAsesmenAwal
+      summary: Mulai asesmen awal keperawatan (draf)
+      description: |
+        Izin: rawat_jalan.asesmen_perawat.input. Satu asesmen awal per kunjungan: sudah ada → 409 `asesmen_sudah_ada`
+        (`rincian: [{id}]`). Kunjungan `batal`/`selesai` → 409 `status_tidak_sesuai`. Instalasi belum siap melayani → 409
+        `instalasi_belum_siap`. Pegawai akun ini mendapat relasi perawatan `perawat_asesmen` atas pasien untuk hari kunjungan
+        (lapis 4, `KelolaRelasiPerawatan`); akun tanpa pegawai → 403 `akses_ditolak`. Semua isian opsional saat draf.
+        IMT dihitung server dari berat dan tinggi badan. Isi klinis tidak masuk log/audit (audit hanya `klinis.asesmen_dibuat`
+        + id).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianAsesmenAwal' }
+      responses:
+        '201':
+          description: Asesmen awal (draf) dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AsesmenAwal' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /asesmen-awal/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      operationId: ubahAsesmenAwal
+      summary: Ubah asesmen awal (draf, atau perbaikan dalam 2 × 24 jam)
+      description: |
+        Izin: rawat_jalan.asesmen_perawat.perbaiki. Wajib If-Match (412/428). Hanya penulisnya.
+        - Draf: isian bebas diubah, tanpa versi.
+        - Sesudah `selesai`: `alasan_perubahan` wajib; diterima ≤ 2 × 24 jam sejak diselesaikan, isi lama tersimpan sebagai
+          versi (FR-26-06, Permenkes 24/2022 Ps. 30 ayat 6). Lewat batas → 409 `batas_perbaikan_lewat` (koreksi klinis
+          lewat adendum CPPT, tiket 2.14).
+        Bukan penulis → 403 `akses_ditolak`.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/IsianAsesmenAwal'
+                - type: object
+                  minProperties: 1
+                  properties:
+                    alasan_perubahan: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200':
+          description: Asesmen sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AsesmenAwal' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /asesmen-awal/{id}/selesai:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: selesaikanAsesmenAwal
+      summary: Selesaikan asesmen awal → pasien menunggu dokter
+      description: |
+        Izin: rawat_jalan.asesmen_perawat.input. Wajib If-Match. Hanya penulisnya. Syarat minimal: `keluhan_utama` dan tanda
+        vital `sistolik`, `diastolik`, `nadi`, `napas`, `suhu` terisi; kurang → 422 `validasi_gagal` dengan rincian field.
+        Sudah `selesai` → 409 `status_tidak_sesuai`. Menyimpan penulis dan jam server, tanda vital menjadi observasi berkode
+        LOINC, antrean poli kembali `menunggu` dengan tahap `dokter` (tercatat di jejak), event `AsesmenPerawatSelesai`.
+        Tanda tangan elektronik asesmen menyusul bersama pengesahan CPPT (tiket 2.14).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: Asesmen selesai
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AsesmenAwal' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /pasien/{id}/alergi:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: daftarAlergiPasien
+      summary: Daftar alergi pasien (semua kunjungan)
+      description: |
+        Izin: rawat_jalan.asesmen_perawat.lihat. Urut: dicatat_pada terbaru dulu, id. Bawaan hanya `aktif`. Pasien berlabel
+        sensitif tanpa relasi/izin label → 403 `akses_ditolak` tanpa menyebut label.
+      parameters:
+        - { in: query, name: status, schema: { type: string, enum: [aktif, batal] } }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman alergi
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Alergi' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: catatAlergi
+      summary: Catat alergi pasien
+      description: |
+        Izin: rawat_jalan.asesmen_perawat.input. Alergi aktif dengan `zat` sama (tanpa beda huruf besar/kecil dan spasi) →
+        409 `alergi_sudah_tercatat`. `barang_id` opsional (barang aktif katalog 2.11) untuk alergi obat; pemeriksaan resep
+        (2.17) mencocokkan `zat` dengan zat aktif barang.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [zat, jenis]
+              properties:
+                zat: { type: string, minLength: 2, maxLength: 150 }
+                jenis: { $ref: '#/components/schemas/JenisAlergi' }
+                barang_id: { type: [string, 'null'], format: uuid }
+                reaksi: { type: [string, 'null'], maxLength: 500 }
+                tingkat: { type: [string, 'null'], enum: [ringan, sedang, berat, null] }
+      responses:
+        '201':
+          description: Alergi tercatat
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Alergi' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /alergi/{id}/batal:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: batalkanAlergi
+      summary: Batalkan catatan alergi (salah catat atau terbukti tidak alergi)
+      description: |
+        Izin: rawat_jalan.asesmen_perawat.perbaiki. Baris tidak dihapus: status `batal` + alasan + pelaku + jam.
+        Sudah batal → 409 `sudah_batal`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alasan]
+              properties:
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200':
+          description: Alergi sesudah dibatalkan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Alergi' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -7597,3 +8207,265 @@ components:
               inisial: { type: [string, 'null'] }
         interval_detik: { type: integer, minimum: 5, maximum: 10, description: "Jeda polling yang diminta server" }
         waktu_server: { type: string, format: date-time }
+    PermintaanImporCsv:
+      type: object
+      required: [berkas, mode, dasar_perubahan]
+      properties:
+        berkas: { type: string, contentMediaType: text/csv }
+        mode: { type: string, enum: [pratinjau, terapkan] }
+        dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+    HasilImpor:
+      type: object
+      required: [mode, diterapkan, jumlah_baris, jumlah_salah, kesalahan, kesalahan_terpotong]
+      description: "Hasil impor CSV umum (sejak v0.23.0); impor lokasi tetap memakai HasilImporLokasi"
+      properties:
+        mode: { type: string, enum: [pratinjau, terapkan] }
+        diterapkan: { type: boolean }
+        jumlah_baris: { type: integer, minimum: 0 }
+        jumlah_salah: { type: integer, minimum: 0 }
+        kesalahan:
+          type: array
+          maxItems: 500
+          items: { $ref: '#/components/schemas/KesalahanBarisImpor' }
+        kesalahan_terpotong: { type: boolean }
+    JenisBarang:
+      type: string
+      enum: [obat, bmhp, reagen, gizi, umum, implan]
+      description: "PRD 11.2 logistik.barang.jenis"
+    IsianBarang:
+      type: object
+      required: [kode, nama, jenis, satuan_terkecil, dasar_perubahan]
+      description: "`generik_paten` wajib untuk jenis `obat` (422 `validasi_gagal`)"
+      properties:
+        kode: { $ref: '#/components/schemas/KodeData' }
+        nama: { type: string, minLength: 2, maxLength: 200 }
+        jenis: { $ref: '#/components/schemas/JenisBarang' }
+        generik_paten: { type: [string, 'null'], enum: [generik, paten, null] }
+        zat_aktif: { type: [string, 'null'], maxLength: 300, description: "Pisahkan beberapa zat dengan `+`" }
+        kekuatan: { type: [string, 'null'], maxLength: 100, examples: ['500 mg'] }
+        sediaan: { type: [string, 'null'], maxLength: 100, examples: ['tablet'] }
+        satuan_terkecil: { type: string, minLength: 1, maxLength: 30, examples: ['tablet'] }
+        kode_kfa: { type: [string, 'null'], maxLength: 20, description: "Diisi manual sampai pencarian KFA (2.22)" }
+        kewaspadaan_tinggi: { type: boolean, default: false }
+        narkotika: { type: boolean, default: false, description: "Narkotika atau psikotropika" }
+        lasa: { type: boolean, default: false, description: "Look-alike sound-alike" }
+        dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+    IsianBarangUbah:
+      type: object
+      required: [dasar_perubahan]
+      minProperties: 2
+      description: "Semua isian IsianBarang opsional, plus `status`. `jenis` tidak dapat diubah bila barang sudah di formularium"
+      properties:
+        kode: { $ref: '#/components/schemas/KodeData' }
+        nama: { type: string, minLength: 2, maxLength: 200 }
+        jenis: { $ref: '#/components/schemas/JenisBarang' }
+        generik_paten: { type: [string, 'null'], enum: [generik, paten, null] }
+        zat_aktif: { type: [string, 'null'], maxLength: 300 }
+        kekuatan: { type: [string, 'null'], maxLength: 100 }
+        sediaan: { type: [string, 'null'], maxLength: 100 }
+        satuan_terkecil: { type: string, minLength: 1, maxLength: 30 }
+        kode_kfa: { type: [string, 'null'], maxLength: 20 }
+        kewaspadaan_tinggi: { type: boolean }
+        narkotika: { type: boolean }
+        lasa: { type: boolean }
+        status: { type: string, enum: [aktif, nonaktif] }
+        dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+    Barang:
+      type: object
+      required: [id, kode, nama, jenis, generik_paten, zat_aktif, kekuatan, sediaan, satuan_terkecil, kode_kfa,
+        kewaspadaan_tinggi, narkotika, lasa, status, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+        jenis: { $ref: '#/components/schemas/JenisBarang' }
+        generik_paten: { type: [string, 'null'], enum: [generik, paten, null] }
+        zat_aktif: { type: [string, 'null'] }
+        kekuatan: { type: [string, 'null'] }
+        sediaan: { type: [string, 'null'] }
+        satuan_terkecil: { type: string }
+        kode_kfa: { type: [string, 'null'] }
+        kewaspadaan_tinggi: { type: boolean }
+        narkotika: { type: boolean }
+        lasa: { type: boolean }
+        status: { type: string, enum: [aktif, nonaktif] }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    JenisFormularium:
+      type: string
+      enum: [fornas, rs, penjamin]
+      description: "PRD 11.2 farmasi.formularium.jenis. Fornas diisi RS dari KMK yang berlaku (tidak dikemas produk)"
+    Formularium:
+      type: object
+      required: [id, kode, nama, jenis, penjamin, berlaku_dari, berlaku_sampai, jumlah_item_aktif, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+        jenis: { $ref: '#/components/schemas/JenisFormularium' }
+        penjamin:
+          description: "Hanya jenis `penjamin`"
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [id, kode, nama]
+              properties:
+                id: { type: string, format: uuid }
+                kode: { type: string }
+                nama: { type: string }
+        berlaku_dari: { type: string, format: date }
+        berlaku_sampai: { type: [string, 'null'], format: date, description: "null = tanpa batas akhir" }
+        jumlah_item_aktif: { type: integer, minimum: 0 }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    ItemFormularium:
+      type: object
+      required: [id, formularium_id, barang, restriksi, maks_per_resep, kronis, status, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        formularium_id: { type: string, format: uuid }
+        barang:
+          type: object
+          required: [id, kode, nama, generik_paten, zat_aktif, kekuatan, sediaan, satuan_terkecil, status]
+          properties:
+            id: { type: string, format: uuid }
+            kode: { type: string }
+            nama: { type: string }
+            generik_paten: { type: [string, 'null'], enum: [generik, paten, null] }
+            zat_aktif: { type: [string, 'null'] }
+            kekuatan: { type: [string, 'null'] }
+            sediaan: { type: [string, 'null'] }
+            satuan_terkecil: { type: string }
+            status: { type: string, enum: [aktif, nonaktif] }
+        restriksi: { type: [string, 'null'] }
+        maks_per_resep: { type: [integer, 'null'] }
+        kronis: { type: boolean }
+        status: { type: string, enum: [aktif, nonaktif] }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    TahapWorklist:
+      type: string
+      enum: [perawat, dokter, selesai]
+      description: "`perawat` = belum ada asesmen awal selesai; `dokter` = asesmen selesai, menunggu/diperiksa dokter; `selesai` = kunjungan selesai (2.15)"
+    BarisWorklist:
+      type: object
+      required: [antrean_id, kunjungan_id, nomor_tampil, pasien, dokter, status_antrean, tahap, asesmen_awal, ada_alergi,
+        terdaftar_pada, menunggu_sejak]
+      properties:
+        antrean_id: { type: string, format: uuid }
+        kunjungan_id: { type: string, format: uuid }
+        nomor_tampil: { type: string, examples: ['PD-023'] }
+        pasien: { $ref: '#/components/schemas/RingkasPasienKunjungan' }
+        dokter: { $ref: '#/components/schemas/RingkasPegawai' }
+        status_antrean: { $ref: '#/components/schemas/StatusAntrean' }
+        tahap: { $ref: '#/components/schemas/TahapWorklist' }
+        asesmen_awal:
+          description: "null = belum dimulai"
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [id, status]
+              properties:
+                id: { type: string, format: uuid }
+                status: { $ref: '#/components/schemas/StatusAsesmen' }
+        ada_alergi:
+          type: [boolean, 'null']
+          description: "true bila pasien punya alergi aktif; null bila pasien berlabel dan akun tidak lolos lapis 4"
+        terdaftar_pada: { type: string, format: date-time, description: "Antrean poli dibuat" }
+        menunggu_sejak: { type: string, format: date-time, description: "Masuk status menunggu terakhir (dasar lama tunggu di layar)" }
+    StatusAsesmen:
+      type: string
+      enum: [draf, selesai]
+    TandaVital:
+      type: object
+      description: |
+        Angka mentah tanpa penanda ambang (ambang klinis menunggu data induk RS). Batas di bawah hanya kewajaran input;
+        di luar batas → 422 `validasi_gagal`.
+      properties:
+        sistolik: { type: [integer, 'null'], minimum: 30, maximum: 300, description: "mmHg" }
+        diastolik: { type: [integer, 'null'], minimum: 10, maximum: 200, description: "mmHg" }
+        nadi: { type: [integer, 'null'], minimum: 10, maximum: 300, description: "kali/menit" }
+        napas: { type: [integer, 'null'], minimum: 2, maximum: 100, description: "kali/menit" }
+        suhu: { type: [number, 'null'], minimum: 25, maximum: 45, description: "°C, satu desimal" }
+        spo2: { type: [integer, 'null'], minimum: 30, maximum: 100, description: "%" }
+        berat_badan: { type: [number, 'null'], minimum: 0.3, maximum: 400, description: "kg, satu desimal" }
+        tinggi_badan: { type: [number, 'null'], minimum: 20, maximum: 250, description: "cm, satu desimal" }
+    IsianAsesmenAwal:
+      type: object
+      description: "Asesmen awal keperawatan rawat jalan (FR-07-02, FR-07-21, RM-24). Semua opsional saat draf; syarat selesai lihat POST /asesmen-awal/{id}/selesai"
+      properties:
+        keluhan_utama: { type: [string, 'null'], maxLength: 2000 }
+        riwayat_penyakit_sekarang: { type: [string, 'null'], maxLength: 4000 }
+        riwayat_penyakit_dahulu: { type: [string, 'null'], maxLength: 4000 }
+        tanda_vital: { $ref: '#/components/schemas/TandaVital' }
+        skrining:
+          type: object
+          description: "Isian kategori oleh perawat; skor otomatis menunggu templat data induk RS"
+          properties:
+            skala_nyeri: { type: [integer, 'null'], minimum: 0, maximum: 10 }
+            lokasi_nyeri: { type: [string, 'null'], maxLength: 200 }
+            risiko_jatuh: { type: [string, 'null'], enum: [rendah, sedang, tinggi, null] }
+            gizi_berisiko: { type: [boolean, 'null'] }
+            catatan: { type: [string, 'null'], maxLength: 1000 }
+        catatan: { type: [string, 'null'], maxLength: 4000 }
+    AsesmenAwal:
+      type: object
+      required: [id, kunjungan_id, episode_id, status, keluhan_utama, riwayat_penyakit_sekarang, riwayat_penyakit_dahulu,
+        tanda_vital, imt, skrining, catatan, penulis, dibuat_pada, selesai_pada, batas_perbaikan_pada, jumlah_versi, versi,
+        diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        kunjungan_id: { type: string, format: uuid }
+        episode_id: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/StatusAsesmen' }
+        keluhan_utama: { type: [string, 'null'] }
+        riwayat_penyakit_sekarang: { type: [string, 'null'] }
+        riwayat_penyakit_dahulu: { type: [string, 'null'] }
+        tanda_vital: { $ref: '#/components/schemas/TandaVital' }
+        imt: { type: [number, 'null'], description: "Dihitung server dari berat dan tinggi badan, dua desimal" }
+        skrining:
+          type: object
+          required: [skala_nyeri, lokasi_nyeri, risiko_jatuh, gizi_berisiko, catatan]
+          properties:
+            skala_nyeri: { type: [integer, 'null'] }
+            lokasi_nyeri: { type: [string, 'null'] }
+            risiko_jatuh: { type: [string, 'null'], enum: [rendah, sedang, tinggi, null] }
+            gizi_berisiko: { type: [boolean, 'null'] }
+            catatan: { type: [string, 'null'] }
+        catatan: { type: [string, 'null'] }
+        penulis: { $ref: '#/components/schemas/Pelaku' }
+        dibuat_pada: { type: string, format: date-time }
+        selesai_pada: { type: [string, 'null'], format: date-time }
+        batas_perbaikan_pada: { type: [string, 'null'], format: date-time, description: "selesai_pada + 2 × 24 jam; layar menampilkan sisa waktu (B-14)" }
+        jumlah_versi: { type: integer, minimum: 0, description: "Jumlah perbaikan sesudah selesai" }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    JenisAlergi:
+      type: string
+      enum: [obat, makanan, lingkungan, lainnya]
+    Alergi:
+      type: object
+      required: [id, pasien_id, zat, jenis, barang, reaksi, tingkat, status, dicatat_oleh, dicatat_pada, alasan_batal,
+        dibatalkan_oleh, dibatalkan_pada]
+      properties:
+        id: { type: string, format: uuid }
+        pasien_id: { type: string, format: uuid }
+        zat: { type: string }
+        jenis: { $ref: '#/components/schemas/JenisAlergi' }
+        barang:
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [id, kode, nama]
+              properties:
+                id: { type: string, format: uuid }
+                kode: { type: string }
+                nama: { type: string }
+        reaksi: { type: [string, 'null'] }
+        tingkat: { type: [string, 'null'], enum: [ringan, sedang, berat, null] }
+        status: { type: string, enum: [aktif, batal] }
+        dicatat_oleh: { $ref: '#/components/schemas/Pelaku' }
+        dicatat_pada: { type: string, format: date-time }
+        alasan_batal: { type: [string, 'null'] }
+        dibatalkan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        dibatalkan_pada: { type: [string, 'null'], format: date-time }
