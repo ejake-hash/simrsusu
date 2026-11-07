@@ -68,6 +68,7 @@ export const router = createRouter({
         { path: 'pengaturan/profil-rs', name: 'pengaturan-profil-rs', component: () => import('@/modules/organisasi/pages/ProfilRsPage.vue'), meta: { judul: 'Profil rumah sakit' } },
         { path: 'master-data/organisasi', name: 'master-data-organisasi', component: () => import('@/modules/organisasi/pages/OrganisasiPage.vue'), meta: { judul: 'Organisasi, Unit, Ruang & Tempat Tidur' } },
         { path: 'master-data/penjamin', name: 'master-data-penjamin', component: () => import('@/modules/penjamin/pages/PenjaminPage.vue'), meta: { judul: 'Penjamin' } },
+        { path: 'farmasi/formularium', name: 'farmasi-formularium', component: () => import('@/modules/formularium/pages/FormulariumPage.vue'), meta: { judul: 'Formularium' } },
         { path: 'master-data/jadwal-praktik', name: 'master-data-jadwal-praktik', component: () => import('@/modules/jadwal-praktik/pages/JadwalPraktikPage.vue'), meta: { judul: 'Jadwal praktik & kuota poli' } },
         { path: 'master-data/tarif', name: 'master-data-tarif', component: () => import('@/modules/tarif/pages/BukuTarifPage.vue'), meta: { judul: 'Buku tarif' } },
         { path: 'sdm/pegawai', name: 'sdm-pegawai', component: () => import('@/modules/sdm/pages/PegawaiPage.vue'), meta: { judul: 'Data pegawai' } },
