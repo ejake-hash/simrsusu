@@ -22,11 +22,11 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'desktop', testIgnore: /(pengaturan|fase1|pendaftaran)\.spec\.ts/, use: { ...devices['Desktop Chrome'] } },
+    { name: 'desktop', testIgnore: /(pengaturan|fase1|pendaftaran|antrean)\.spec\.ts/, use: { ...devices['Desktop Chrome'] } },
     // Lebar 390 px (PRD: tanpa scroll samping).
     {
       name: 'seluler',
-      testIgnore: /(pengaturan|fase1|pendaftaran)\.spec\.ts/,
+      testIgnore: /(pengaturan|fase1|pendaftaran|antrean)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
     },
     // Mengubah akses contoh.admisi dan mereset MFA contoh.mfa yang dipakai spec lain, jadi berjalan paling akhir.
@@ -35,6 +35,8 @@ export default defineConfig({
     { name: 'fase1', testMatch: /fase1\.spec\.ts/, dependencies: ['pengaturan'], use: { ...devices['Desktop Chrome'] } },
     // Menandai instalasi siap melayani selama uji (lokal:kunjungan-contoh), jadi berjalan sesudah semua spec lain.
     { name: 'pendaftaran', testMatch: /pendaftaran\.spec\.ts/, dependencies: ['fase1'], use: { ...devices['Desktop Chrome'] } },
+    // 2.8-fe: keluar Tahap A (pendaftaran → SEP → antrean → display); memakai data contoh pendaftaran, jadi sesudahnya.
+    { name: 'antrean', testMatch: /antrean\.spec\.ts/, dependencies: ['pendaftaran'], use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
     command: `npm run dev -- --port ${port} --strictPort`,

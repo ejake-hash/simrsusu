@@ -26,3 +26,11 @@ describe('Rute tautan tugas', () => {
     expect(jaga(router.resolve('/pengaturan/akun?akun=1') as RouteLocationNormalized)).toBe(true)
   })
 })
+
+describe('Rute display antrean', () => {
+  it('publik dan tanpa cek sesi (perangkat TV tidak punya sesi; 401 /saya akan mengalihkan ke /masuk)', () => {
+    const r = router.resolve('/display/poli-pd')
+    expect(r.name).toBe('display-antrean')
+    expect(r.meta).toMatchObject({ publik: true, tanpaSesi: true })
+  })
+})
