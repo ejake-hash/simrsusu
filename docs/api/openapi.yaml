@@ -5243,6 +5243,7 @@ paths:
         - 409 `status_tidak_sesuai`: status bukan `menunggu`/`dipanggil` (`rincian: [{status}]`).
         - 409 `jeda_panggilan_belum_lewat`: jeda dari panggilan sebelumnya belum lewat (`rincian: [{boleh_panggil_pada}]`).
         - 409 `batas_panggilan_tercapai`: jumlah panggilan sudah sama dengan batas data induk; lanjutkan dengan lewati.
+        - 409 `sesi_berakhir`: tanggal antrean sudah lewat (zona RS); pilihan petugas tinggal batal.
         - 422 `validasi_gagal`: `lokasi_id` bukan ruang aktif.
         Audit `antrean.dipanggil` (nomor tampil dan panggilan ke-; tanpa data pasien).
       requestBody:

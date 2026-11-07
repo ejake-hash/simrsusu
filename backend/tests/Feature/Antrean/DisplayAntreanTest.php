@@ -5,6 +5,7 @@ namespace Tests\Feature\Antrean;
 use App\Modules\Antrean\Models\Antrean;
 use App\Modules\Antrean\Models\DisplayAntrean;
 use App\Modules\MasterData\Models\JadwalPraktik;
+use App\Modules\MasterData\Models\Lokasi;
 use App\Modules\MasterData\Models\Poliklinik;
 use App\Modules\MasterData\Models\UnitOrganisasi;
 use App\Modules\Pendaftaran\Models\Pasien;
@@ -75,7 +76,9 @@ class DisplayAntreanTest extends TestCase
     {
         $unit = UnitOrganisasi::query()->create(['kode' => 'POLI-SENS', 'nama' => 'Poli Sensitif Uji', 'jenis' => 'poli', 'berlaku_dari' => '2026-01-01']);
         $sensitif = Poliklinik::query()->create(['kode' => 'JIWA', 'nama' => 'Poli Jiwa', 'unit_organisasi_id' => $unit->id]);
-        $sensitif->forceFill(['nama_netral' => 'Klinik 7', 'antrean_prefiks' => 'K7', 'antrean_area' => 'uji'])->save();
+        // Ruang poli sensitif bernama terang: tidak boleh tampil di layar maupun suara.
+        $ruangJiwa = Lokasi::query()->create(['jenis' => 'ruang', 'fungsi' => 'rawat_jalan', 'kode' => 'R7', 'kode_lengkap' => 'R7', 'nama' => 'Ruang Poli Jiwa', 'status' => 'aktif', 'status_berlaku_dari' => '2026-01-01']);
+        $sensitif->forceFill(['nama_netral' => 'Klinik 7', 'antrean_prefiks' => 'K7', 'antrean_area' => 'uji', 'lokasi_id' => $ruangJiwa->id])->save();
         $jadwalSensitif = $this->jadwal($this->dokter(), ['poli_id' => $sensitif->id]);
 
         $biasa = $this->antrean($this->jadwalPagi, ['nama' => 'Siti Wahyuni Lubis']);
@@ -98,7 +101,8 @@ class DisplayAntreanTest extends TestCase
 
         $isi = (string) $respons->getContent();
         $pasien = Pasien::query()->whereIn('nama', ['Siti Wahyuni Lubis', 'Budi Santoso', 'Mr. X'])->get();
-        foreach ([...$pasien->pluck('nama'), ...$pasien->pluck('no_rm'), ...$pasien->pluck('id'), $biasa->id, $biasa->kunjungan_id, 'Jiwa', 'JIWA', '1990-01-01', 'Wahyuni'] as $rahasia) {
+        $this->assertSame($ruangJiwa->id, $jiwa->refresh()->ruang_id);
+        foreach ([...$pasien->pluck('nama'), ...$pasien->pluck('no_rm'), ...$pasien->pluck('id'), $biasa->id, $biasa->kunjungan_id, 'Jiwa', 'JIWA', 'R7', '1990-01-01', 'Wahyuni'] as $rahasia) {
             $this->assertStringNotContainsString((string) $rahasia, $isi);
         }
         $this->assertSame($tanpaIdentitas->nomor_tampil, $respons->json('data.berikutnya.0.nomor_tampil'));
@@ -143,11 +147,18 @@ class DisplayAntreanTest extends TestCase
         $this->display('uji', $cabut)->assertUnauthorized();
         $this->assertAuditTerakhir('antrean.token_display_dicabut', DisplayAntrean::query()->where('kode', 'tv-cabut')->value('id'));
 
-        // Token baru mencabut token lama perangkat yang sama.
-        $lama = $this->token('tv-ulang');
-        $this->token('tv-ulang');
+        $this->assertSame('nonaktif', DisplayAntrean::query()->where('kode', 'tv-cabut')->value('status'));
+
+        // Token baru mencabut token lama perangkat yang sama; tanpa --area areanya tetap, --semua-area mengosongkannya.
+        $lama = $this->token('tv-ulang', ['uji']);
+        $baru = $this->token('tv-ulang');
         $this->display('uji', $lama)->assertUnauthorized();
-        $this->assertSame(1, DisplayAntrean::query()->where('kode', 'tv-ulang')->sole()->tokens()->count());
+        $perangkat = DisplayAntrean::query()->where('kode', 'tv-ulang')->sole();
+        $this->assertSame(1, $perangkat->tokens()->count());
+        $this->assertSame(['uji'], $perangkat->area);
+        $this->display('uji', $baru)->assertOk();
+        $this->artisan('antrean:token-display', ['kode' => 'tv-ulang', '--semua-area' => true])->assertSuccessful();
+        $this->assertSame([], $perangkat->refresh()->area);
     }
 
     public function test_batas_laju_per_perangkat(): void

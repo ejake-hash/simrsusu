@@ -2,14 +2,14 @@
 
 namespace App\Modules\Pendaftaran\Events;
 
-use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 use Illuminate\Foundation\Events\Dispatchable;
 
 /**
- * Kunjungan poli terdaftar (FR-00-04; tiket 2.6). Pelanggan: SEP (2.7), antrean (2.8). Hanya id dan kode, tanpa data
- * identitas pasien. Dikirim sesudah commit.
+ * Kunjungan poli terdaftar (FR-00-04; tiket 2.6). Hanya id dan kode, tanpa data identitas pasien. Dikirim di dalam
+ * transaksi pendaftaran: antrean poli (2.8) dibuat atomik bersama kunjungannya. Pelanggan yang butuh data sudah
+ * ter-commit (mis. kirim ke luar) memasang ShouldHandleEventsAfterCommit di listener-nya.
  */
-final class KunjunganDibuat implements ShouldDispatchAfterCommit
+final class KunjunganDibuat
 {
     use Dispatchable;
 

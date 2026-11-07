@@ -3,11 +3,13 @@
 namespace Tests\Feature\Antrean;
 
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Antrean\Application\KelolaAntrean;
 use App\Modules\Antrean\Models\Antrean;
 use App\Modules\MasterData\Models\JadwalPraktik;
 use App\Modules\Pendaftaran\Models\Pasien;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
+use RuntimeException;
 use Tests\Support\AksesUji;
 use Tests\Support\KlienSpa;
 use Tests\Support\KontrakApi;
@@ -68,6 +70,21 @@ class AntreanTest extends TestCase
         $this->aksi($kedua, 'batal', ['alasan_batal' => 'Ulang batal'])->assertStatus(409)->assertJsonPath('error.kode', 'sudah_batal');
         $audit = $this->assertAuditTerakhir('antrean.dibatalkan', $kedua->id);
         $this->assertStringContainsString('UJI-002', (string) $audit->sesudah);
+    }
+
+    public function test_antrean_gagal_dibuat_membatalkan_pendaftaran_kunjungan(): void
+    {
+        $this->app->bind(KelolaAntrean::class, fn () => throw new RuntimeException('uji: antrean gagal'));
+        $pasien = $this->pasien();
+        $this->daftarKunjungan($pasien, $this->jadwalPagi)->assertStatus(500);
+        $this->assertSame(0, DB::table('kunjungan.kunjungan')->where('pasien_id', $pasien->id)->count());
+    }
+
+    public function test_antrean_hari_lalu_tidak_bisa_dipanggil(): void
+    {
+        $antrean = $this->antreanBaru();
+        DB::table('kunjungan.antrean')->where('id', $antrean->id)->update(['tanggal' => '2026-11-01']);
+        $this->aksi($antrean, 'panggil')->assertStatus(409)->assertJsonPath('error.kode', 'sesi_berakhir');
     }
 
     public function test_setiap_transisi_menyimpan_jam_server_dan_pelaku(): void

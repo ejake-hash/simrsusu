@@ -158,7 +158,7 @@ Uji    :
 - Panggil ulang/lewati/sisip mengikuti nilai di data induk, bukan konstanta.
 Di luar: task ID Antrean Online BPJS (Tahap B), APM/anjungan (Tahap B), TTS dengan suara penyedia luar.
 
-Utang 2.8 (PR #140): label `privasi_tinggi` per pasien belum ada, jadi inisial display baru disembunyikan untuk pasien tanpa identitas; antrean dibuat pelanggan sinkron sesudah commit kunjungan (gagal → kunjungan tanpa antrean, tanpa ulang); layar data induk `aturan_antrean` dan kolom antrean poli (prefiks, area, nama netral) belum ada; event `AntreanBerubah` belum punya pelanggan.
+Utang 2.8 (PR #140): label `privasi_tinggi` per pasien belum ada, jadi inisial display baru disembunyikan untuk pasien tanpa identitas; layar data induk `aturan_antrean` dan kolom antrean poli (prefiks, area, nama netral) belum ada; event `AntreanBerubah` belum punya pelanggan. Sisip serentak di antrean dokter yang sama hanya mengunci barisnya sendiri, jadi dua sisip bisa mendapat `urutan` sama (seri dipecah nomor, urutan tetap sah); `urutan` `decimal(20,10)` kehabisan presisi setelah ±33 sisip beruntun di sela yang sama (kunci baris jadwal atau penomoran ulang bila terjadi).
 
 ### 2.9 · Duplikat pasien + usulan gabung RM
 Tujuan : duplikat terdeteksi saat input dan digabung lewat usulan berjenjang yang diverifikasi Rekam Medis.

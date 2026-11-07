@@ -85,6 +85,8 @@ return new class extends Migration
 
             $table->index(['antrean_id', 'terjadi_pada']);
         });
+        // Hanya ditambah: simrs_app tidak boleh mengubah jejak (pola ttd.tanda_tangan).
+        DB::statement('REVOKE UPDATE ON kunjungan.antrean_jejak FROM simrs_app');
 
         Schema::create('kunjungan.display_antrean', function (Blueprint $table) {
             $table->comment('Perangkat display antrean (PRD 11.2, 7.01.1): perangkat, bukan akun orang. Token di sistem.personal_access_tokens (hash).');

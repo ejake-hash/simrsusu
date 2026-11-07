@@ -27,6 +27,8 @@ final class DisplayController
             throw new ApiError(404, 'tidak_ditemukan', 'Area display tidak dikenal.');
         }
         $namaPoli = $poli->mapWithKeys(fn (Poliklinik $p) => [$p->id => $p->nama_netral ?? $p->nama]);
+        // Nama ruang poli sensitif bisa membuka poli aslinya (mis. "Ruang Poli Jiwa"): yang tampil hanya nama netral.
+        $sensitif = $poli->whereNotNull('nama_netral')->pluck('id')->flip();
         $hariIni = now((string) config('instalasi.zona_waktu'))->toDateString();
         $dasar = fn () => DB::table('kunjungan.antrean AS a')->leftJoin('kunjungan.kunjungan AS k', 'k.id', '=', 'a.kunjungan_id')
             ->leftJoin('pasien.pasien AS p', 'p.id', '=', 'k.pasien_id')->where('a.tanggal', $hariIni)->where('a.area', $area);
@@ -34,14 +36,15 @@ final class DisplayController
         $dipanggil = $dasar()->leftJoin('inti.lokasi AS l', 'l.id', '=', 'a.ruang_id')->where('a.status', 'dipanggil')
             ->orderByDesc('a.dipanggil_pada')->orderByDesc('a.id')->limit((int) config('antrean.display.jumlah_dipanggil'))
             ->get(['a.nomor_tampil', 'a.poli_id', 'a.panggilan_ke', 'a.dipanggil_pada', 'l.nama AS ruang', 'p.nama', 'p.tanpa_identitas'])
-            ->map(function ($b) use ($namaPoli) {
+            ->map(function ($b) use ($namaPoli, $sensitif) {
                 $poli = $b->poli_id === null ? null : ($namaPoli[$b->poli_id] ?? null);
-                $ke = $b->ruang ?? $poli ?? '';
+                $ruang = isset($sensitif[$b->poli_id]) ? null : $b->ruang;
+                $ke = $ruang ?? $poli ?? '';
 
                 return [
                     'nomor_tampil' => $b->nomor_tampil,
                     'inisial' => self::inisial($b),
-                    'tujuan' => implode(' · ', array_filter([$b->ruang, $poli])),
+                    'tujuan' => implode(' · ', array_filter([$ruang, $poli])),
                     'panggilan_ke' => (int) $b->panggilan_ke,
                     'dipanggil_pada' => Carbon::parse($b->dipanggil_pada)->toIso8601String(),
                     'teks_suara' => 'Nomor '.implode(' ', str_split(str_replace('-', '', $b->nomor_tampil))).($ke === '' ? '' : ', silakan ke '.$ke),

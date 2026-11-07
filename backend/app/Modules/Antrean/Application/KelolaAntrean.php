@@ -41,7 +41,7 @@ final class KelolaAntrean
         return $poli->antrean_area ?? str_replace('.', '-', strtolower($poli->kode));
     }
 
-    /** Pelanggan KunjunganDibuat (sesudah commit): nomor antrean poli `<prefiks>-<urut per hari>`. Aman diulang. */
+    /** Pelanggan KunjunganDibuat (di dalam transaksi pendaftaran): nomor antrean poli `<prefiks>-<urut per hari>`. Aman diulang. */
     public function buatPoli(KunjunganDibuat $kejadian): void
     {
         DB::transaction(function () use ($kejadian) {
@@ -84,6 +84,9 @@ final class KelolaAntrean
         return DB::transaction(function () use ($petugas, $id, $lokasiId) {
             $antrean = $this->kunci($id);
             self::pastikanStatus($antrean, ['menunggu', 'dipanggil']);
+            if ($antrean->tanggal->toDateString() < now((string) config('instalasi.zona_waktu'))->toDateString()) {
+                throw new ApiError(409, 'sesi_berakhir', 'Nomor antrean ini dari hari yang sudah lewat dan tidak bisa dipanggil lagi. Batalkan bila pasien tidak dilayani.');
+            }
             $aturan = self::aturan();
             if ($antrean->status === 'dipanggil') {
                 if ($antrean->panggilan_ke >= $aturan->batas_panggilan) {

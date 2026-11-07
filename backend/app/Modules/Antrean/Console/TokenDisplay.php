@@ -9,13 +9,15 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Token perangkat display antrean (tiket 2.8) sampai halaman Perangkat Anjungan & Display (FR-01-23) dibangun. Membuat
- * token baru mencabut token lama perangkat itu; nilai token hanya tampil sekali dan tersimpan sebagai hash.
+ * token baru mencabut token lama perangkat itu; nilai token hanya tampil sekali dan tersimpan sebagai hash. Token tidak
+ * kedaluwarsa (sanctum.expiration null): display menyala terus tanpa petugas, jadi pengakhiran lewat --cabut.
  */
 final class TokenDisplay extends Command
 {
     protected $signature = 'antrean:token-display {kode : Kode perangkat, mis. tv-poli-pd}
-        {--area=* : Kode area yang boleh dibaca (ulangi untuk beberapa area); kosong = semua area}
-        {--cabut : Cabut semua token perangkat ini tanpa membuat yang baru}';
+        {--area=* : Kode area yang boleh dibaca (ulangi untuk beberapa area); tanpa opsi ini perangkat lama tetap memakai areanya}
+        {--semua-area : Kosongkan daftar area perangkat (boleh membaca semua area)}
+        {--cabut : Cabut semua token perangkat ini dan nonaktifkan perangkatnya}';
 
     protected $description = 'Membuat atau mencabut token perangkat display antrean';
 
@@ -40,18 +42,27 @@ final class TokenDisplay extends Command
                 return self::FAILURE;
             }
             $jumlah = DB::transaction(function () use ($perangkat, $audit) {
+                $perangkat->forceFill(['status' => 'nonaktif'])->save();
                 $jumlah = $perangkat->tokens()->delete();
                 $audit->catat('antrean.token_display_dicabut', null, $perangkat->getTable(), $perangkat->id, ['kode' => $perangkat->kode, 'jumlah' => $jumlah]);
 
                 return $jumlah;
             });
-            $this->info("Token dicabut: {$jumlah}.");
+            $this->info("Token dicabut: {$jumlah}; perangkat dinonaktifkan.");
 
             return self::SUCCESS;
         }
 
-        $token = DB::transaction(function () use ($kode, $area, $audit) {
+        $semua = (bool) $this->option('semua-area');
+        if ($semua && $area !== []) {
+            $this->error('Pilih salah satu: --area atau --semua-area.');
+
+            return self::FAILURE;
+        }
+        $token = DB::transaction(function () use ($kode, $area, $semua, $audit) {
             $perangkat = DisplayAntrean::query()->where('kode', $kode)->first() ?? new DisplayAntrean;
+            // Tanpa --area perangkat lama tetap memakai areanya; mengosongkan area harus eksplisit (--semua-area).
+            $area = $area === [] && ! $semua && $perangkat->exists ? $perangkat->area : $area;
             $perangkat->forceFill(['kode' => $kode, 'area' => $area, 'status' => 'aktif'])->save();
             $perangkat->tokens()->delete();
             $token = $perangkat->createToken('display', [DisplayAntrean::KEMAMPUAN])->plainTextToken;
