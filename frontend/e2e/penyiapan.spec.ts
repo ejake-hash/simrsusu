@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test'
-import { headerTulis, masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
+import { headerTulis, masukLewatApi, pelanggaranAxe, SANDI, tanpaGulirSamping } from './bantu'
 
 /**
  * Pengaturan → Penyiapan instalasi (tiket 1.8f) ke backend asli dengan contoh.superadmin (penyiapan bawaan superadmin).
@@ -80,6 +80,7 @@ test('langkah 6 penjamin & tarif aktif (bukan menunggu fase 2): syarat dari back
   const syarat = l6.getByRole('list', { name: 'Syarat langkah 6' })
   await expect(syarat).toContainText('Penjamin aktif')
   await expect(syarat).toContainText('Tarif untuk setiap kelas rawat aktif')
+  expect(await pelanggaranAxe(page)).toEqual([])
   // Langkah 2–5 instalasi e2e belum selesai (logo, paket referensi), jadi server menolak karena urutan, bukan karena fase 2.
   const r = await page.request.post('/api/v1/penyiapan/penjamin_tarif/selesai', { headers: await headerTulis(page, asal), data: {} })
   expect(r.status()).toBe(409)

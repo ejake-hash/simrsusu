@@ -99,7 +99,7 @@ export async function daftarkanKunjunganJkn(page: Page, nama: string, kartu: str
   return panel
 }
 
-/** Konteks 1440 px per akun sintetis tanpa MFA; satu kali masuk per akun per berkas (rate limit masuk 10/menit per nama pengguna). */
+/** Konteks 1440 px per akun sintetis tanpa MFA; satu kali masuk per akun per worker (rate limit masuk 10/menit per nama pengguna). */
 const sesiAkun = new Map<string, Awaited<ReturnType<APIRequestContext['storageState']>>>()
 export async function halamanAkun(browser: Browser, asal: string, nama: string): Promise<Page> {
   if (!sesiAkun.has(nama)) {
