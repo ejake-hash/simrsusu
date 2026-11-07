@@ -6,6 +6,7 @@ use App\Core\Http\ApiError;
 use App\Modules\Akses\Application\ResetSandi;
 use App\Modules\Akses\Models\Pengguna;
 use Illuminate\Console\Command;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 /**
  * Konsol darurat (tiket 1.14): reset sandi bila tidak ada superadmin aktif lain yang bisa mereset lewat layar (ditolak
@@ -67,7 +68,8 @@ final class ResetSandiKonsol extends Command
         }
 
         $this->info("Sandi {$akun->nama_pengguna} direset. Semua sesinya diputus; akun wajib mengganti sandi saat masuk.");
-        $this->warn("Sandi sementara (hanya ditampilkan sekali, serahkan langsung ke pemilik akun): {$sandi}");
+        // Sandi memuat simbol; tanpa escape, formatter konsol menelan `\<`, `</>`, `<info>` sehingga yang tercetak salah.
+        $this->warn('Sandi sementara (hanya ditampilkan sekali, serahkan langsung ke pemilik akun): '.OutputFormatter::escape($sandi));
 
         return self::SUCCESS;
     }
