@@ -24,6 +24,7 @@ import { cariPasien } from '../api'
 import { KUNCI_KUNJUNGAN, LABEL_CARA_BAYAR, LABEL_STATUS, NADA_STATUS } from '../kunjungan'
 import { formatNoRm, formatTanggal } from '../pasien'
 import type { Pasien } from '../tipe'
+import PanelSep from '../components/PanelSep.vue'
 import { batalkanKunjungan, buatKunjungan, daftarKunjungan } from '../apiKunjungan'
 import type { CaraBayar, Kunjungan, SlotTerdekat } from '../tipeKunjungan'
 
@@ -119,6 +120,8 @@ const buat = useMutation({
     }),
   onSuccess: (hasil) => {
     tampilkanToast(`Kunjungan ${hasil.data.nomor} terdaftar untuk ${hasil.data.pasien.nama}.`, 'ok')
+    // JKN: lanjut ke SEP dengan No. kartu yang sudah tercatat di data pasien.
+    if (hasil.data.cara_bayar === 'jkn' && boleh('pendaftaran.sep.input')) bukaSep(hasil.data, pasienDipilih.value?.no_kartu_bpjs ?? null)
     keluhan.value = ''
     pasienDipilih.value = null
     void qc.invalidateQueries({ queryKey: KUNCI_KUNJUNGAN.semua })
@@ -154,8 +157,16 @@ const kolomPapan = computed<KolomTabel[]>(() => [
   { kunci: 'dokter', label: 'Dokter', prioritas: 2 },
   { kunci: 'cara_bayar', label: 'Cara bayar', prioritas: 3, lebar: '150px' },
   { kunci: 'status', label: 'Status', lebar: '130px' },
-  { kunci: 'aksi', label: 'Aksi', rata: 'kanan', lebar: '110px' },
+  { kunci: 'aksi', label: 'Aksi', rata: 'kanan', lebar: '170px' },
 ])
+
+// ── SEP (tiket 2.7) ──
+const sepKunjungan = ref<{ kunjungan: Kunjungan; noKartu: string | null } | null>(null)
+const bisaSep = (k: Kunjungan) => k.cara_bayar === 'jkn' && k.status !== 'batal' && boleh('pendaftaran.sep.input')
+const bisaBatal = (k: Kunjungan) => k.status === 'terdaftar' && boleh('pendaftaran.pasien.batal')
+function bukaSep(k: Kunjungan, noKartu: string | null = null) {
+  sepKunjungan.value = { kunjungan: k, noKartu }
+}
 
 // ── Pembatalan kunjungan ──
 const dialogBatal = ref(false)
@@ -318,6 +329,8 @@ const batal = useMutation({
       </div>
     </section>
 
+    <PanelSep v-if="sepKunjungan" :key="sepKunjungan.kunjungan.id" :kunjungan="sepKunjungan.kunjungan" :no-kartu="sepKunjungan.noKartu" @tutup="sepKunjungan = null" />
+
     <section class="kartu" aria-labelledby="judul-papan">
       <div class="kartu-kepala">
         <div>
@@ -357,8 +370,9 @@ const batal = useMutation({
           <span v-if="k.status === 'batal' && k.alasan_batal" class="ket">{{ k.alasan_batal }}</span>
         </template>
         <template #sel-aksi="{ baris: k }">
-          <Tombol v-if="k.status === 'terdaftar' && boleh('pendaftaran.pasien.batal')" varian="bahaya" :aria-label="`Batalkan kunjungan ${k.nomor}`" @click="bukaBatal(k)">Batal</Tombol>
-          <span v-else class="ket" aria-hidden="true">—</span>
+          <Tombol v-if="bisaSep(k)" :aria-label="`Terbitkan SEP kunjungan ${k.nomor}`" @click="bukaSep(k)">SEP</Tombol>
+          <Tombol v-if="bisaBatal(k)" varian="bahaya" :aria-label="`Batalkan kunjungan ${k.nomor}`" @click="bukaBatal(k)">Batal</Tombol>
+          <span v-if="!bisaSep(k) && !bisaBatal(k)" class="ket" aria-hidden="true">—</span>
         </template>
       </DataTable>
     </section>
