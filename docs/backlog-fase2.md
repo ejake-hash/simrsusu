@@ -307,7 +307,8 @@ API    : `GET /api/v1/rawat-jalan/worklist?poli_id=&tanggal=` (dari `kunjungan.a
 Uji    :
 - IMT dihitung dari BB/TB di server; TTV disimpan sebagai observasi berkode LOINC dengan jam server. Tanpa penanda ambang (data induk belum ada).
 - Asesmen disimpan → antrean pindah ke tahap dokter (event `AsesmenPerawatSelesai`); worklist dokter hanya pasien dokter itu, perawat seluruh poli (7.07.1).
-- Perawat yang memanggil mendapat relasi perawatan kunjungan itu (lapis 4); perawat poli lain melihat "Terbatas" untuk data berlabel.
+- Asesmen tidak memberi relasi perawatan (lapis 4; relasi perawat menunggu jadwal dinas Fase 4): asesmen berlabel tampil "Terbatas" bagi
+  akun yang bukan penulisnya dan tidak lolos lapis 4 (kontrak v0.23.0).
 - Alergi yang tercatat tampil di ringkasan pasien semua kunjungan berikutnya.
 - Akun tanpa `rawat_jalan.asesmen_perawat.input` → formulir tidak dirender dan API 403; IDOR kunjungan poli lain → 403.
 Di luar: skor skrining otomatis (Morse, nyeri, gizi — data induk templat belum ada; isian kategori oleh perawat), form builder (FR-26-07),
@@ -365,7 +366,8 @@ Di luar: penerimaan, sampling, hasil, hasil kritis, antrean `L-`/`R-` (Tahap C),
 ### 2.17 · E-resep rawat jalan → antrean farmasi
 Tujuan : dokter menulis dan mengesahkan resep; pasien otomatis masuk satu antrean farmasi hari itu.
 FR     : FR-07-06 (bagian jumlah otomatis untuk n hari), FR-07-07 (alergi, duplikasi, di luar formularium), FR-02-10, FR-22-01 (tampilan antrean)
-Akses  : bagian baru `rawat_jalan.pemeriksaan.resep` input/sahkan/batal; `farmasi.resep` lihat (antrean depo)
+Akses  : bagian baru `rawat_jalan.pemeriksaan.resep` input/sahkan/batal; `farmasi.resep` lihat (antrean depo); `GET /pasien/{id}/alergi`
+         ikut menerima `farmasi.resep.lihat` (kontrak v0.23.0 menyerahkan jalur baca farmasi ke tiket ini)
 Tabel  : `farmasi.resep`, `farmasi.resep_item`, `farmasi.peringatan_resep`; `kunjungan.antrean` titik `farmasi`
 API    : `POST /api/v1/kunjungan/{id}/resep`, `PATCH /api/v1/resep/{id}` (draf, If-Match), `POST /api/v1/resep/{id}/sahkan` (PIN T1),
          `POST /api/v1/resep/{id}/batal`, `GET /api/v1/resep?depo_id=&tanggal=`
