@@ -50,6 +50,9 @@ test('petugas admisi mencari pasien, mendaftarkan pasien baru, lalu mendaftarkan
   const noRm = (await toastPasien.textContent())!.match(/\d+/)![0]
   await expect(page.getByRole('region', { name: 'Hasil pencarian pasien' })).toContainText(nama)
 
+  const hasilPasien = await new AxeBuilder({ page }).analyze()
+  expect(hasilPasien.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)).toEqual([])
+
   await page.getByRole('link', { name: 'Pendaftaran kunjungan poli' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Pendaftaran kunjungan poli' })).toBeVisible()
   await page.getByRole('combobox', { name: 'Poliklinik' }).selectOption({ label: 'Poli Penyakit Dalam (contoh)' })

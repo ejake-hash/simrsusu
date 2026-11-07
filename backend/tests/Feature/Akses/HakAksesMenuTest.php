@@ -17,6 +17,7 @@ use App\Modules\Akses\Models\Peran;
 use App\Modules\Akses\Models\PeranIzin;
 use App\Modules\Akses\Models\PeranMenu;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
@@ -51,6 +52,18 @@ class HakAksesMenuTest extends TestCase
         $this->assertSame(['beranda'], $this->kodeMenu($menu));
         $this->assertSame([], $menu->json('data.izin'));
         $this->minta('GET', '/api/v1/peran')->assertForbidden()->assertJsonPath('error.kode', 'akses_ditolak');
+    }
+
+    public function test_menu_induk_pendaftaran_aktif_bagi_peran_yang_hanya_memegang_pendaftaran_pasien(): void
+    {
+        DB::table('inti.modul_aktif')->insert(['id' => (string) Str::uuid7(), 'modul_no' => 1]);
+        $pengguna = $this->buatPengguna();
+        $this->tugaskan($pengguna, $this->buatPeran(['pendaftaran.pasien']));
+
+        $menu = $this->masukLaluMenu($pengguna)->assertOk();
+
+        $this->assertSame('aktif', $this->item($menu, 'pendaftaran.pasien')['status']);
+        $this->assertSame('aktif', $this->item($menu, 'pendaftaran')['status']);
     }
 
     public function test_peran_memberi_sub_menu_dan_izin_dengan_status_dari_modul_aktif(): void
