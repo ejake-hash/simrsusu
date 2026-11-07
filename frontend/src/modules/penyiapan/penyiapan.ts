@@ -31,7 +31,7 @@ export const TAUTAN_LANGKAH: Record<KodeLangkah, { rute: string; label: string }
     { rute: '/master-data/penjamin', label: 'Buka Penjamin' },
     { rute: '/master-data/tarif', label: 'Buka Buku tarif' },
   ],
-  formularium: null,
+  formularium: [{ rute: '/farmasi/formularium', label: 'Buka Formularium' }],
   kredensial_integrasi: null,
   modul_aktif: null,
 }
@@ -39,7 +39,6 @@ export const TAUTAN_LANGKAH: Record<KodeLangkah, { rute: string; label: string }
 export const KET_LANGKAH: Partial<Record<KodeLangkah, string>> = {
   superadmin: 'Superadmin kedua dibuat dari konsol server (akses:superadmin-pertama) atau dari akun pegawai; keduanya wajib MFA.',
   penjamin_tarif: 'Isi penjamin dan tarif di dua layar di bawah.',
-  formularium: 'Diisi bersama modul farmasi.',
   kredensial_integrasi: 'Kredensial BPJS/SATUSEHAT disimpan dan diuji di layar Konfigurasi integrasi (tiket 1.9). Sampai itu, langkah ini boleh dilewati dengan alasan.',
   modul_aktif: 'Modul inti fase 1 sudah aktif sejak pemasangan; layar pengaturan modul aktif menyusul.',
 }

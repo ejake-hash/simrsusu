@@ -20,10 +20,9 @@ const LANGKAH: [KodeLangkah, string][] = [
   ['kredensial_integrasi', 'Kredensial integrasi'],
   ['modul_aktif', 'Modul aktif'],
 ]
-const FASE_2: KodeLangkah[] = ['formularium']
 const PAKET: [SistemReferensi, boolean][] = [['wilayah', true], ['referensi', true], ['icd10', false], ['icd9cm', false], ['loinc', true], ['ucum', true]]
 const LABEL_PAKET: Partial<Record<SistemReferensi, string>> = { wilayah: 'Wilayah', referensi: 'Kode variabel RME', loinc: 'LOINC', ucum: 'UCUM' }
-const TUNTAS: StatusLangkah[] = ['selesai', 'dilewati', 'menunggu_fase_2']
+const TUNTAS: StatusLangkah[] = ['selesai', 'dilewati']
 
 export interface OpsiServerPenyiapan {
   boleh: (kode: string) => boolean
@@ -34,7 +33,7 @@ export interface OpsiServerPenyiapan {
 export function buatServerPenyiapan(opsi: OpsiServerPenyiapan) {
   const iso = () => (opsi.sekarang?.() ?? new Date()).toISOString()
   /** Keadaan data contoh; uji unit boleh mengubahnya. */
-  const keadaan = { superadmin: 2, logo: true, organisasiLengkap: true, pegawai: 3, penjaminAktif: 1, kelasTanpaTarif: 0 }
+  const keadaan = { superadmin: 2, logo: true, organisasiLengkap: true, pegawai: 3, penjaminAktif: 1, kelasTanpaTarif: 0, itemFormulariumRs: 12 }
   const paket = new Map<SistemReferensi, { versi: string; sumber: string; dimuat_pada: string; jumlah: number; isi: string }[]>()
   const konfirmasi = new Map<KodeLangkah, NonNullable<LangkahPenyiapan['konfirmasi_terakhir']>>()
   let siapSejak: string | null = null
@@ -62,6 +61,9 @@ export function buatServerPenyiapan(opsi: OpsiServerPenyiapan) {
           s('penjamin', 'Penjamin aktif', keadaan.penjaminAktif > 0, keadaan.penjaminAktif ? `${keadaan.penjaminAktif} penjamin` : 'Belum ada'),
           s('tarif_per_kelas', 'Tarif untuk setiap kelas rawat aktif', keadaan.kelasTanpaTarif === 0, keadaan.kelasTanpaTarif ? `${keadaan.kelasTanpaTarif} kelas belum bertarif` : 'Semua kelas bertarif'),
         ]
+      // Kode syarat `formularium_rs` mengikuti BE 2.12 (Penyiapan::syaratFormularium).
+      case 'formularium':
+        return [s('formularium_rs', 'Formularium RS berlaku hari ini dengan item aktif', keadaan.itemFormulariumRs > 0, `${keadaan.itemFormulariumRs} item`)]
       case 'kredensial_integrasi':
         return [s('kredensial', 'Kredensial tersimpan dan uji koneksi berhasil', false, 'Dibangun di tiket 1.9')]
       case 'modul_aktif':
@@ -74,7 +76,6 @@ export function buatServerPenyiapan(opsi: OpsiServerPenyiapan) {
   function statusLangkah(kode: KodeLangkah): StatusLangkah {
     const sy = syarat(kode)
     const k = konfirmasi.get(kode)
-    if (FASE_2.includes(kode)) return 'menunggu_fase_2'
     if (k?.dilewati) return 'dilewati'
     if (k && semua(sy)) return 'selesai'
     if (k || sy.some((y) => y.terpenuhi)) return 'sebagian'
@@ -94,7 +95,7 @@ export function buatServerPenyiapan(opsi: OpsiServerPenyiapan) {
       const sy = syarat(kode)
       const l: LangkahPenyiapan = {
         no: i + 1, kode, judul, status: st, wajib_untuk_melayani: i < 6, syarat: sy,
-        dapat_dikonfirmasi: bolehUbah && urutan && !FASE_2.includes(kode) && semua(sy),
+        dapat_dikonfirmasi: bolehUbah && urutan && semua(sy),
         dapat_dilewati: bolehUbah && urutan && kode === 'kredensial_integrasi' && st !== 'selesai',
         konfirmasi_terakhir: konfirmasi.get(kode) ?? null,
         paket: kode === 'paket_referensi' ? daftarPaket() : null,
@@ -112,7 +113,6 @@ export function buatServerPenyiapan(opsi: OpsiServerPenyiapan) {
     const alasan = (isi.alasan ?? '').trim()
     if (dilewati && (alasan.length < 5 || alasan.length > 500)) return error(422, 'validasi_gagal', 'Data tidak valid.', [{ kolom: 'alasan', pesan: 'Alasan wajib, 5–500 karakter.' }])
     if (dilewati && (kode !== 'kredensial_integrasi' || statusLangkah(kode) === 'selesai')) return error(422, 'tidak_bisa_dilewati', 'Hanya langkah kredensial integrasi yang belum selesai yang bisa dilewati.')
-    if (FASE_2.includes(kode)) return error(409, 'langkah_menunggu_fase_2', 'Langkah ini diisi di fase 2 (penjamin, tarif, formularium).')
     const sebelum = LANGKAH.slice(0, LANGKAH.findIndex(([k]) => k === kode)).map(([k]) => ({ langkah: k, status: statusLangkah(k) })).filter((x) => !TUNTAS.includes(x.status))
     if (sebelum.length) return error(409, 'langkah_sebelumnya_belum_selesai', 'Selesaikan langkah sebelumnya lebih dulu.', sebelum)
     const kurang = syarat(kode).filter((y) => !y.terpenuhi).map(({ kode: k, label, keterangan }) => ({ kode: k, label, keterangan }))

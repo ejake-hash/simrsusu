@@ -90,7 +90,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     penggunaSaatIni: akses.penggunaSaatIni,
     namaAkun: akses.namaAkunUntukTtd,
     boleh: akses.bolehSaya,
-    potret: (jenis, id) => (jenis === 'tarif' ? tarif.potret(id) : lokasi.potretObjek(jenis, id)),
+    potret: (jenis, id) => (jenis === 'tarif' ? tarif.potret(id) : jenis === 'formularium' || jenis === 'formularium_item' ? null : lokasi.potretObjek(jenis, id)),
     labelNilai: lokasi.labelNilai,
     sudahTtd: (objekId, akunId) => ttd.sudahTtd(objekId, akunId),
     contoh: { kamarA: lokasi.contoh.km101.id, kamarB: lokasi.contoh.km102.id, ruangB: lokasi.contoh.r102.id, kelas: lokasi.contoh.k1.id },

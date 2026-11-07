@@ -1,6 +1,6 @@
 import type { PermintaanTiruan, ResponsTiruan } from '../../akses/tiruan/serverTiruan'
 import type { ServerTarif } from '../../tarif/tiruan/serverTarif'
-import type { ButirUsulan, IsianButir, ObjekDataInduk, TahapUsulan, TampilanIsian, UsulanDataInduk, VersiDataInduk } from '../tipe'
+import type { ButirUsulan, IsianButir, JenisDataInduk, ObjekDataInduk, TahapUsulan, TampilanIsian, UsulanDataInduk, VersiDataInduk } from '../tipe'
 
 /**
  * Server tiruan kontrak v0.9.0 (tiket 1.8c): /usulan-data-induk (+ verifikasi, setujui, kembalikan, kirim-ulang) dan
@@ -62,6 +62,8 @@ interface UsulanT {
   riwayat: UsulanDataInduk['riwayat']
 }
 
+const jenisData = (o: ObjekDataInduk | undefined): JenisDataInduk => (o === 'tarif' ? 'tarif' : o === 'formularium' || o === 'formularium_item' ? 'formularium' : 'ruang_tt')
+
 export function buatServerUsulan(opsi: OpsiServerUsulan) {
   const sekarang = opsi.sekarang ?? (() => new Date())
   const iso = () => sekarang().toISOString()
@@ -72,6 +74,13 @@ export function buatServerUsulan(opsi: OpsiServerUsulan) {
   const pelaku = (akunId: string | null): Pelaku => (akunId ? { id: akunId, nama: opsi.namaAkun(akunId) ?? 'Akun' } : null)
 
   function bentukButir(b: IsianButir): ButirUsulan | { salah: { kode: string; pesan: string } } {
+    // Formularium (2.12): bentuk sederhana; aturan isian diperiksa server sungguhan (ButirFormularium).
+    if (jenisData(b.objek_jenis) === 'formularium') {
+      const tampilan: TampilanIsian[] =
+        b.aksi === 'tutup' ? [{ isian: 'status', label_isian: 'Status', lama: 'Aktif', baru: 'Nonaktif' }] : Object.entries(b.nilai_baru ?? {}).map(([k, v]) => ({ isian: k, label_isian: k, lama: null, baru: v === null ? null : String(v) }))
+      const label = b.aksi === 'tambah' ? (b.objek_jenis === 'formularium' ? 'Formularium baru' : 'Item formularium baru') : `${b.objek_jenis === 'formularium' ? 'Formularium' : 'Item formularium'} ${b.objek_id ?? ''}`
+      return { ...b, objek_label: label, objek_berubah: false, nilai_lama: null, tampilan }
+    }
     if (b.objek_jenis === 'tarif') return opsi.tarif ? opsi.tarif.bentukButir(b) : { salah: { kode: 'aksi_tidak_dikenal', pesan: 'Jenis data tarif tidak tersedia.' } }
     const kunci = `${b.objek_jenis}.${b.aksi}`
     const boleh = ISIAN_BOLEH[kunci]
@@ -99,7 +108,7 @@ export function buatServerUsulan(opsi: OpsiServerUsulan) {
     const saya = opsi.penggunaSaatIni()
     const pihak = [u.pengusul, u.pemverifikasi, u.penyetuju].filter(Boolean) as string[]
     return {
-      id: u.id, nomor: u.nomor, jenis_data: u.perubahan[0]?.objek_jenis === 'tarif' ? 'tarif' : 'ruang_tt', ringkasan: u.ringkasan, perubahan: u.perubahan, berlaku_dari: u.berlaku_dari, alasan: u.alasan, dasar: u.dasar,
+      id: u.id, nomor: u.nomor, jenis_data: jenisData(u.perubahan[0]?.objek_jenis), ringkasan: u.ringkasan, perubahan: u.perubahan, berlaku_dari: u.berlaku_dari, alasan: u.alasan, dasar: u.dasar,
       tahap: u.tahap, putaran: u.putaran, diusulkan_oleh: pelaku(u.pengusul), diusulkan_pada: u.diusulkan_pada, diverifikasi_oleh: pelaku(u.pemverifikasi),
       disetujui_oleh: pelaku(u.penyetuju), gagal_alasan: u.gagal_alasan, riwayat: u.riwayat,
       dapat: {
@@ -140,7 +149,7 @@ export function buatServerUsulan(opsi: OpsiServerUsulan) {
       else butir.push(h)
     })
     if (salah.length) return error(422, 'perubahan_tidak_valid', 'Ada perubahan yang tidak valid.', salah)
-    if (new Set(butir.map((b) => (b.objek_jenis === 'tarif' ? 'tarif' : 'ruang_tt'))).size > 1) return error(422, 'perubahan_tidak_valid', 'Satu usulan hanya memuat satu jenis data.', [{ kolom: 'perubahan', kode: 'jenis_campur', pesan: 'Pisahkan perubahan tarif dari ruang dan tempat tidur.' }])
+    if (new Set(butir.map((b) => jenisData(b.objek_jenis))).size > 1) return error(422, 'perubahan_tidak_valid', 'Satu usulan hanya memuat satu jenis data.', [{ kolom: 'perubahan', kode: 'jenis_campur', pesan: 'Pisahkan perubahan tarif dari ruang dan tempat tidur.' }])
     const bentrok = butir.flatMap((b, i) => {
       const lain = usulan.find((u) => u.id !== kecuali && ['diusulkan', 'diverifikasi', 'disetujui'].includes(u.tahap) && u.perubahan.some((x) => x.objek_id && x.objek_id === b.objek_id))
       return lain ? [{ kolom: `perubahan.${i}`, kode: 'objek_sedang_diusulkan', pesan: `${b.objek_label} sedang diusulkan di ${lain.nomor}.`, usulan: { id: lain.id, nomor: lain.nomor } }] : []

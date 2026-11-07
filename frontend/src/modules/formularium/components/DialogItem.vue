@@ -9,11 +9,13 @@ import { refDebounced } from '@/shared/composables/refDebounced'
 import { daftarBarang, tambahItem, ubahItem } from '../api'
 import { ringkasObat } from '../formularium'
 import type { Barang, ItemFormularium, UbahItem } from '../tipe'
+import { galatUsulan, useModeUsulan } from '../usulanFormularium'
 import GalatForm from './GalatForm.vue'
+import KolomUsulan from './KolomUsulan.vue'
 
 /**
  * Tambah barang aktif ke formularium, atau ubah restriksi, batas per resep, dan tanda kronis satu item. Barang tidak dapat
- * diganti pada item yang ada. Status lewat DialogStatus.
+ * diganti pada item yang ada. Status lewat DialogStatus. Sesudah siap melayani, perubahan yang sama diajukan sebagai usulan (2.12).
  */
 const props = defineProps<{ formulariumId: string; item: Berversi<ItemFormularium> | null }>()
 const buka = defineModel<boolean>('open', { required: true })
@@ -31,6 +33,7 @@ const dasar = ref('')
 const kesalahan = ref<Record<string, string>>({})
 const galat = ref<unknown>(null)
 const sibuk = ref(false)
+const { aktif: modeUsulan, berlaku, alasan, reset: resetUsulan, tangkap, periksa: periksaUsulan, ajukan } = useModeUsulan()
 
 watch(buka, (b) => {
   if (!b) return
@@ -44,6 +47,7 @@ watch(buka, (b) => {
   dasar.value = ''
   kesalahan.value = {}
   galat.value = null
+  resetUsulan()
 })
 // Pemilih hanya menampilkan barang aktif (barang nonaktif ditolak server, 422).
 watch(cariTunda, async (t) => {
@@ -66,6 +70,7 @@ async function kirim() {
   if (maksAngka !== null && !(Number.isInteger(maksAngka) && maksAngka >= 1)) e.maks_per_resep = 'Isi bilangan bulat minimal 1, atau kosongkan.'
   if (restriksi.value.length > 1000) e.restriksi = 'Restriksi maksimal 1000 karakter.'
   if (dasar.value.trim().length < 3) e.dasar_perubahan = 'Isi dasar perubahan, minimal 3 karakter.'
+  if (modeUsulan.value) Object.assign(e, periksaUsulan())
   kesalahan.value = e
   if (Object.keys(e).length) return
   sibuk.value = true
@@ -82,13 +87,24 @@ async function kirim() {
         galat.value = 'Belum ada perubahan untuk disimpan.'
         return
       }
-      await ubahItem(props.formulariumId, i.id, props.item.etag, ubah)
+      const { dasar_perubahan, ...nilai } = ubah
+      if (modeUsulan.value) await ajukan({ objek_jenis: 'formularium_item', aksi: 'ubah', objek_id: i.id, nilai_baru: nilai }, dasar_perubahan)
+      else await ubahItem(props.formulariumId, i.id, props.item.etag, ubah)
     } else {
-      await tambahItem(props.formulariumId, { barang_id: dipilih.value!.id, restriksi: rs, maks_per_resep: maksAngka, kronis: kronis.value, dasar_perubahan: dasar.value.trim() })
+      const isi = { barang_id: dipilih.value!.id, restriksi: rs, maks_per_resep: maksAngka, kronis: kronis.value }
+      if (modeUsulan.value) await ajukan({ objek_jenis: 'formularium_item', aksi: 'tambah', objek_id: null, nilai_baru: { formularium_id: props.formulariumId, ...isi } }, dasar.value.trim())
+      else await tambahItem(props.formulariumId, { ...isi, dasar_perubahan: dasar.value.trim() })
     }
     buka.value = false
     emit('selesai')
   } catch (err) {
+    if (tangkap(err)) return
+    if (modeUsulan.value) {
+      const [kolom, sisa] = galatUsulan(err, KOLOM)
+      kesalahan.value = kolom
+      galat.value = sisa ?? (Object.keys(kolom).length ? null : err)
+      return
+    }
     const kolom = errorKolom(err, KOLOM)
     if (Object.keys(kolom).length) kesalahan.value = kolom
     else galat.value = err
@@ -126,11 +142,12 @@ async function kirim() {
       <KolomIsian v-slot="a" label="Dasar perubahan" :error="kesalahan.dasar_perubahan" petunjuk="Nomor SK, memo, atau persetujuan." wajib>
         <input v-bind="a" v-model="dasar" class="isian" autocomplete="off" />
       </KolomIsian>
+      <KolomUsulan v-if="modeUsulan" v-model:berlaku="berlaku" v-model:alasan="alasan" :kesalahan="kesalahan" />
       <GalatForm :galat="galat" @muat-ulang="((buka = false), emit('muatUlang'))" />
     </form>
     <template #aksi>
       <button type="button" class="tombol" :disabled="sibuk" @click="buka = false">Batal</button>
-      <Tombol type="submit" form="form-item-formularium" varian="utama" :sibuk="sibuk">{{ sibuk ? 'Menyimpan…' : item ? 'Simpan' : 'Tambah ke formularium' }}</Tombol>
+      <Tombol type="submit" form="form-item-formularium" varian="utama" :sibuk="sibuk">{{ sibuk ? 'Menyimpan…' : modeUsulan ? 'Ajukan usulan' : item ? 'Simpan' : 'Tambah ke formularium' }}</Tombol>
     </template>
   </Dialog>
 </template>

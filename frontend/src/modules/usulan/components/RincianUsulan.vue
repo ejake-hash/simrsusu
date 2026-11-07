@@ -183,7 +183,8 @@ const handlerTtd = computed(() =>
           <button v-if="u.dapat.kembalikan" type="button" class="tombol" @click="buka('kembalikan')">Kembalikan</button>
           <button v-if="u.dapat.verifikasi" type="button" class="tombol tombol-utama" @click="buka('verifikasi')">Verifikasi</button>
           <button v-if="u.dapat.setujui" type="button" class="tombol tombol-utama" @click="buka('setujui')">Setujui</button>
-          <button v-if="u.dapat.kirim_ulang" type="button" class="tombol tombol-utama" @click="dialogKirimUlang = true">Perbaiki dan kirim ulang</button>
+          <button v-if="u.dapat.kirim_ulang && u.jenis_data !== 'formularium'" type="button" class="tombol tombol-utama" @click="dialogKirimUlang = true">Perbaiki dan kirim ulang</button>
+          <p v-else-if="u.dapat.kirim_ulang" class="ket">Usulan formularium diperbaiki dengan mengajukan usulan baru dari layar <RouterLink to="/farmasi/formularium">Formularium</RouterLink>.</p>
         </div>
         <p v-else-if="['diusulkan', 'diverifikasi'].includes(u.tahap)" class="ket">
           Pengusul, pemverifikasi, dan penyetuju harus tiga orang berbeda; tindakan tahap ini dilakukan pemegang izin lain.
