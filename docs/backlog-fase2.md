@@ -230,7 +230,7 @@ Kolom tabel = PRD 11.2; kolom yang belum perlu boleh ditunda, kolom baru di luar
 | No | Tiket | Jalur | Ukuran | Prasyarat · Status |
 |---|---|---|---|---|
 | 2.10 | Sub-menu penjamin, tarif, jadwal praktik tampil di menu | BE | S | — · **Selesai** (PR 2.10: TERSEDIA + migrasi `pasang()`, ketiga layar masuk `LAYAR` `fase1.spec`) |
-| 2.11 | Katalog obat + formularium (penyiapan) | BE+FE | M | — · **BE selesai** (PR 2.11-be: `logistik.barang`, `farmasi.formularium(_item)`, impor CSV, kontrak v0.23.0) · FE Siap |
+| 2.11 | Katalog obat + formularium (penyiapan) | BE+FE | M | — · **Selesai** (PR #153 BE: `logistik.barang`, `farmasi.formularium(_item)`, impor CSV, kontrak v0.23.0; PR FE: layar `/farmasi/formularium`, TERSEDIA + migrasi `pasang()`, `fase1` LAYAR) |
 | 2.12 | Wizard langkah 7 + usulan formularium | BE+FE | S | 2.11 · Siap |
 | 2.13 | Worklist poli + asesmen awal perawat | BE+FE | M | — · **Selesai** (PR BE #154: modul `RekamMedis` — `klinis.catatan_klinis(_versi)`, `klinis.observasi` berpartisi, `klinis.alergi`; worklist + tahap perawat→dokter di `Antrean`. PR FE: modul `rawat-jalan` — worklist, asesmen awal, alergi; `rawat_jalan.worklist` dan `.asesmen_perawat` TERSEDIA di menu; e2e `rawat-jalan.spec.ts`) |
 | 2.14 | CPPT episode (`CpptLinimasa`) + pengesahan PIN | BE+FE | M | 2.13 · Siap |

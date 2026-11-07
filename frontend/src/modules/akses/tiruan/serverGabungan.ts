@@ -1,6 +1,7 @@
 import { buatServerNotifikasi } from '../../notifikasi/tiruan/serverNotifikasi'
 import { buatServerKunjungan } from '../../pendaftaran/tiruan/serverKunjungan'
 import { buatServerPasien } from '../../pendaftaran/tiruan/serverPasien'
+import { buatServerFormularium } from '../../formularium/tiruan/serverFormularium'
 import { buatServerRawatJalan } from '../../rawat-jalan/tiruan/serverRawatJalan'
 import { buatServerPenjamin } from '../../penjamin/tiruan/serverPenjamin'
 import { buatServerLokasi } from '../../organisasi/tiruan/serverLokasi'
@@ -99,6 +100,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
   usulanTerbuka = usulan.usulanTerbuka
   const penyiapan = buatServerPenyiapan({ boleh: akses.bolehSaya, pelaku: () => ({ id: opsi.penggunaId ?? ID_SUPERADMIN, nama: 'Contoh Superadmin' }), sekarang: opsi.sekarang })
   const penjamin = buatServerPenjamin({ boleh: akses.bolehSaya, sekarang: opsi.sekarang })
+  const formularium = buatServerFormularium({ boleh: akses.bolehSaya, penjamin: penjamin.ringkas, sekarang: opsi.sekarang })
   const pasien = buatServerPasien({ boleh: akses.bolehSaya, penggunaId: () => akses.penggunaSaatIni(), sekarang: opsi.sekarang })
   const kunjungan = buatServerKunjungan({
     boleh: akses.bolehSaya,
@@ -147,6 +149,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     penyiapan,
     integrasi,
     penjamin,
+    formularium,
     pasien,
     kunjungan,
     rawatJalan,
@@ -154,7 +157,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
       if (akses.wajibGantiSandi() && !bebasGantiSandi(r)) {
         return { status: 403, isi: { error: { kode: 'wajib_ganti_sandi', pesan: 'Ganti sandi awal Anda lebih dulu.', rincian: [] } } }
       }
-      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r) ?? pasien.tangani(r) ?? kunjungan.tangani(r) ?? rawatJalan.tangani(r)
+      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r) ?? formularium.tangani(r) ?? pasien.tangani(r) ?? kunjungan.tangani(r) ?? rawatJalan.tangani(r)
     },
   }
 }
