@@ -173,7 +173,9 @@ Utang 2.9: pemisahan RM (unmerge) belum ada; notifikasi kotak kerja ke Rekam Med
 
 ### Keluar Tahap A (di staging, data sintetis)
 - [x] e2e: pasien baru BPJS → kunjungan poli → SEP (simulator) → antrean → dipanggil → display (PR #144, `frontend/e2e/antrean.spec.ts`).
-- Penjaga siap melayani terbukti menolak pendaftaran di instalasi yang belum lengkap.
+- [x] Penjaga siap melayani terbukti menolak pendaftaran di instalasi yang belum lengkap (PR #135,
+  `KunjunganTest::test_instalasi_belum_siap_menolak_pasien_baru_dan_kunjungan_tanpa_memakai_no_rm`).
+- Kedua butir di atas baru terbukti di CI (data sintetis), belum di staging: staging belum ada.
 - Backlog Tahap B ditulis rinci (oleh perencana), PRD diselaraskan sekali.
 
 ## Utang dan keputusan tertunda (audit repo 6 Nov 2026)
@@ -189,12 +191,21 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
 - Endpoint lookup (`/poliklinik`, `/jadwal-praktik`, `/data-induk/penjamin`) hanya menerima izin `master_data.*.lihat`; layar
   kunjungan admisi butuh ketiganya. Saat ini diatasi lewat peran (data contoh #137). Terima juga izin `pendaftaran.pasien.input`?
 - `AlurPersetujuan::alasanTidakBoleh`: satu orang dengan dua peran penyetuju bisa menyetujui dua baris dalam satu grup. PRD belum mengatur.
+- `throttle:api` (120/menit per akun dan IP) membuat spec e2e pendaftaran/antrean yang diulang cepat gagal "Terlalu banyak
+  permintaan" (sekali jalan di CI aman). Pindahkan endpoint SEP/antrean petugas ke `throttle:api-layar-kerja`? Pelonggaran
+  rate limit = keputusan pemilik.
+- Token perangkat display disimpan di `localStorage` (PR #144; token mesin berlingkup `display`, bisa dicabut). Sisa risiko
+  XSS se-origin → CSP untuk SPA perlu ditetapkan (belum ada kebijakan CSP di PRD/deploy).
 
 **Utang teknis (tiket kecil / disisipkan ke tiket terkait)**
 - Gabung RM: revisi tujuan naik tanpa baris `pasien_versi` tujuan (jejak hanya di versi sumber).
 - POST cuti/libur tidak mengunci jadwal; berbarengan dengan pendaftaran bisa lolos keduanya (dampak kecil).
 - `lokal:kunjungan-contoh --batal` mengosongkan `siap_melayani_sejak` tanpa syarat dan tidak membersihkan poli `POLI-PD`.
 - `Penandatangan::status` satu query `kunci_publik` per tanda tangan (verifikasi ≤ 100 query).
+- Sidebar: menu induk "Pendaftaran" masih berlabel "Segera" walau sub-menu (kunjungan, antrean) sudah tersedia.
+- `PanelSep.vue` menolak terbit untuk rujukan kedaluwarsa tanpa melihat IGD (backend mengizinkan IGD); perlu disesuaikan saat layar IGD.
+- `SuntinganBerversi` (MasterData) kini dipakai Akses dan Sdm (PR #143); pindah ke `Core\Http` bersama `IfMatch` bila ada pemakai ketiga.
+  `KelolaKsm`/`KelolaUnit` masih menyalin pola `naikkan`.
 - Lapisan tiruan FE (`*/tiruan/`, ±5.500 baris) masih tulang punggung 31 spec unit; layar Fase 2 butuh e2e terhadap backend asli per layar.
 
 ## Kerangka tahap berikutnya (dirinci kemudian)
