@@ -23,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property string $sumber
  * @property bool $prioritas
  * @property string $status
+ * @property string $tahap perawat | dokter (titik poli, tiket 2.13)
  * @property string $urutan numeric, dibiarkan string agar presisi tidak hilang
  * @property int $panggilan_ke
  * @property Carbon|null $dipanggil_pada
