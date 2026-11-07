@@ -52,7 +52,9 @@ test('Beranda menandai instalasi belum siap; penyiapan menampilkan 9 langkah dan
   await expect(langkah(page, 'penjamin_tarif').getByRole('link', { name: 'Buka Penjamin' })).toHaveAttribute('href', '/master-data/penjamin')
   await expect(langkah(page, 'penjamin_tarif').getByRole('link', { name: 'Buka Buku tarif' })).toHaveAttribute('href', '/master-data/tarif')
   await expect(langkah(page, 'penjamin_tarif')).toContainText('Belum')
-  await expect(langkah(page, 'formularium')).toContainText('Menunggu fase 2')
+  // Langkah 7 aktif sejak 2.12: syarat formularium RS dari backend, bukan menunggu fase 2.
+  await expect(langkah(page, 'formularium')).not.toContainText('Menunggu fase 2')
+  await expect(langkah(page, 'formularium')).toContainText('Formularium RS berlaku hari ini dengan item aktif')
   await expect(langkah(page, 'superadmin')).toContainText('Dua superadmin dengan MFA')
   await expect(langkah(page, 'profil_rs').getByRole('link', { name: 'Buka Profil rumah sakit' })).toHaveAttribute('href', '/pengaturan/profil-rs')
   // Superadmin tidak memegang katalog (data induk): tidak ada tombol muat paket.
