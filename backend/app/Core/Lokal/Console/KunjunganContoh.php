@@ -18,12 +18,17 @@ use Illuminate\Support\Str;
 /**
  * `php artisan lokal:kunjungan-contoh` (e2e pendaftaran): poli (berkode poli BPJS, prefiks antrean `PD`, area display `poli-pd`), penjamin BPJS, kredensial VClaim dan kode PPK sintetis (SEP, tiket 2.7), dokter ber-SIP, dan jadwal praktik sintetis setiap hari
  * 00.00–23.59, lalu instalasi ditandai siap melayani. Penanda itu biasanya terkunci lewat wizard penyiapan langkah 1–6,
- * yang tidak bisa dilengkapi data sintetis; `--batal` mengosongkannya lagi agar spec penyiapan tetap bisa diulang.
+ * yang tidak bisa dilengkapi data sintetis, jadi perintah ini memasang nilai tetap `SEJAK`. `--batal` mengosongkannya lagi
+ * (hanya bila nilainya masih `SEJAK`, bukan hasil wizard) agar spec penyiapan tetap bisa diulang, dan menonaktifkan poli
+ * `POLI-PD` beserta jadwalnya (data induk dirujuk kunjungan: tidak dihapus).
  * Hanya APP_ENV=local.
  */
 final class KunjunganContoh extends Command
 {
-    protected $signature = 'lokal:kunjungan-contoh {--batal : Kosongkan lagi penanda siap melayani}';
+    /** Penanda siap melayani yang dipasang perintah ini; wizard memasang waktu selesai sebenarnya. */
+    public const SEJAK = '2026-01-01 00:00:00+00';
+
+    protected $signature = 'lokal:kunjungan-contoh {--batal : Kosongkan lagi penanda siap melayani dan nonaktifkan poli contoh}';
 
     protected $description = 'Menyiapkan poli, dokter, dan jadwal sintetis lalu menandai instalasi siap melayani (hanya lokal)';
 
@@ -36,8 +41,13 @@ final class KunjunganContoh extends Command
         }
 
         if ($this->option('batal')) {
-            DB::table('inti.profil_rs')->update(['siap_melayani_sejak' => null]);
-            $this->info('Instalasi tidak lagi ditandai siap melayani.');
+            DB::transaction(function () {
+                DB::table('inti.profil_rs')->where('siap_melayani_sejak', self::SEJAK)->update(['siap_melayani_sejak' => null]);
+                $poliId = Poliklinik::query()->where('kode', 'POLI-PD')->value('id');
+                JadwalPraktik::query()->where('poli_id', $poliId)->update(['status' => 'nonaktif']);
+                Poliklinik::query()->whereKey($poliId)->update(['status' => 'nonaktif']);
+            });
+            $this->info('Penanda siap melayani dari perintah ini dikosongkan; poli contoh dinonaktifkan.');
 
             return self::SUCCESS;
         }
@@ -79,9 +89,9 @@ final class KunjunganContoh extends Command
 
             $profil = DB::table('inti.profil_rs')->first(['id', 'siap_melayani_sejak']);
             if ($profil === null) {
-                DB::table('inti.profil_rs')->insert(['id' => (string) Str::uuid7(), 'paket_identitas' => '{}', 'siap_melayani_sejak' => now()]);
+                DB::table('inti.profil_rs')->insert(['id' => (string) Str::uuid7(), 'paket_identitas' => '{}', 'siap_melayani_sejak' => self::SEJAK]);
             } elseif ($profil->siap_melayani_sejak === null) {
-                DB::table('inti.profil_rs')->update(['siap_melayani_sejak' => now()]);
+                DB::table('inti.profil_rs')->update(['siap_melayani_sejak' => self::SEJAK]);
             }
             DB::table('inti.profil_rs')->whereNull('kode_ppk_bpjs')->update(['kode_ppk_bpjs' => 'SIM0RS01']);
         });

@@ -3,12 +3,12 @@
 namespace Tests\Feature\MasterData;
 
 use App\Core\Http\ApiError;
+use App\Core\Http\SuntinganBerversi;
 use App\Core\Instalasi\StatusInstalasi;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\Peran;
 use App\Modules\MasterData\Application\KelolaTempatTidur;
 use App\Modules\MasterData\Application\MesinUsulan;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Models\TempatTidur;
 use App\Modules\MasterData\Models\UnitOrganisasi;
 use App\Modules\MasterData\Models\UsulanDataInduk;

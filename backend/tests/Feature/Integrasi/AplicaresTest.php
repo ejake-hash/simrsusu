@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Integrasi;
 
+use App\Core\Http\SuntinganBerversi;
 use App\Core\ProfilRs\ProfilRs;
 use App\Modules\Integrasi\Application\KelolaKredensial;
 use App\Modules\Integrasi\Application\PengirimKiriman;
@@ -10,7 +11,6 @@ use App\Modules\Integrasi\Domain\SistemIntegrasi;
 use App\Modules\Integrasi\Infrastructure\SimulatorIntegrasi;
 use App\Modules\Integrasi\Jobs\KirimKiriman;
 use App\Modules\Integrasi\Jobs\ProsesKotakKeluar;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Models\UnitOrganisasi;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;

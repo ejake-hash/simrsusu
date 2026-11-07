@@ -10,6 +10,7 @@ use App\Modules\Pendaftaran\Models\IdentitasPasien;
 use App\Modules\Pendaftaran\Models\Pasien;
 use App\Modules\Pendaftaran\Models\UsulanGabung;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -153,14 +154,9 @@ final class GabungPasien
         if ($identitas->isEmpty()) {
             return;
         }
-        $dimiliki = IdentitasPasien::query()->where('pasien_id', $tujuan->id)->whereNotNull('sidik')->pluck('jenis')->all();
-        $lama = array_flip(IdentitasPasien::JENIS);
-        DB::table('pasien.pasien_versi')->insert([
-            'id' => (string) Str::uuid7(), 'pasien_id' => $sumber->id, 'revisi' => $sumber->revisi,
-            'isi_enkripsi' => Crypt::encryptString((string) json_encode($identitas->mapWithKeys(fn (IdentitasPasien $i) => [$lama[$i->jenis] => $i->nilai_enkripsi])->all())),
-            'alasan_perubahan' => 'Digabung ke RM '.$tujuan->no_rm.': nomor identitas dipindah atau dikosongkan',
-            'dibuat_pada' => now(), 'dibuat_oleh' => $olehId,
-        ]);
+        $milikTujuan = IdentitasPasien::query()->where('pasien_id', $tujuan->id)->whereNotNull('sidik')->orderBy('jenis')->get();
+        $dimiliki = $milikTujuan->pluck('jenis')->all();
+        $this->simpanVersiIdentitas($sumber, $identitas, 'Digabung ke RM '.$tujuan->no_rm.': nomor identitas dipindah atau dikosongkan', $olehId);
         $dipindah = false;
         foreach ($identitas as $baris) {
             $nilai = $baris->nilai_enkripsi;
@@ -176,8 +172,24 @@ final class GabungPasien
             $dipindah = true;
         }
         if ($dipindah) {
+            $this->simpanVersiIdentitas($tujuan, $milikTujuan, 'Menerima nomor identitas dari RM '.$sumber->no_rm.' (gabung RM)', $olehId);
             $tujuan->forceFill(['revisi' => $tujuan->revisi + 1, 'diubah_oleh' => $olehId])->save();
         }
+    }
+
+    /**
+     * Jejak pasien_versi untuk revisi yang digantikan: nomor identitas (nama field kontrak) sebelum gabung, terenkripsi.
+     *
+     * @param  Collection<int, IdentitasPasien>  $identitas
+     */
+    private function simpanVersiIdentitas(Pasien $pasien, Collection $identitas, string $alasan, string $olehId): void
+    {
+        $field = array_flip(IdentitasPasien::JENIS);
+        DB::table('pasien.pasien_versi')->insert([
+            'id' => (string) Str::uuid7(), 'pasien_id' => $pasien->id, 'revisi' => $pasien->revisi,
+            'isi_enkripsi' => Crypt::encryptString((string) json_encode($identitas->mapWithKeys(fn (IdentitasPasien $i) => [$field[$i->jenis] => $i->nilai_enkripsi])->all())),
+            'alasan_perubahan' => $alasan, 'dibuat_pada' => now(), 'dibuat_oleh' => $olehId,
+        ]);
     }
 
     private static function validasi(string $kolom, string $pesan): ApiError

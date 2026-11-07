@@ -4,7 +4,7 @@ namespace App\Modules\MasterData\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
-use App\Core\Http\IfMatch;
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\Akses\Application\PemakaianCakupan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\MasterData\Models\Ksm;
@@ -36,12 +36,7 @@ final class KelolaKsm
     public function ubah(Pengguna $penyunting, Ksm $ksm, string $versi, array $isi): Ksm
     {
         return $this->tangkapKodeGanda(fn () => DB::transaction(function () use ($penyunting, $ksm, $versi, $isi) {
-            $revisi = IfMatch::revisi($versi);
-            $naik = $revisi !== null && Ksm::query()->whereKey($ksm->id)->where('revisi', $revisi)
-                ->update(['revisi' => DB::raw('revisi + 1'), 'diubah_oleh' => $penyunting->id]) === 1;
-            if (! $naik) {
-                throw new ApiError(412, 'versi_berubah', 'KSM ini diubah orang lain sejak Anda membukanya. Muat ulang untuk melihat perubahan terbaru.');
-            }
+            SuntinganBerversi::naikkan(Ksm::class, $ksm->id, $versi, $penyunting->id, 'KSM');
             $ksm->refresh();
             $sebelum = $ksm->only(['kode', 'nama', 'status', 'ketua_pegawai_id']);
 

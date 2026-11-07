@@ -66,7 +66,7 @@ final class Penandatangan
                         ->where('hash_isi', $hash)->first();
                     if ($lama !== null) {
                         // Tanda tangan lama diverifikasi ulang (isi objek bisa sudah berubah sejak ditandatangani).
-                        $hasil[] = ['tanda_tangan' => $lama, 'baru' => false, 'status' => $this->status($lama, $hash)];
+                        $hasil[] = ['tanda_tangan' => $lama, 'baru' => false, 'status' => $this->status($lama, (string) Kredensial::query()->whereKey($lama->kredensial_id)->value('kunci_publik'), $hash)];
 
                         continue;
                     }
@@ -112,14 +112,14 @@ final class Penandatangan
         // Fase 1 hanya T1 yang diverifikasi di sini; T2 (PSrE) diverifikasi lewat sertifikat penyedia saat PSrE dipilih.
         $daftar = TandaTangan::query()->where('objek_jenis', $jenis)->where('objek_id', $id)->where('tingkat', 'T1')->orderBy('ditandatangani_pada')->orderBy('id')->limit(100)->get();
 
-        return $daftar->toBase()->map(fn (TandaTangan $t) => ['tanda_tangan' => $t, 'status' => $this->status($t, $hashSekarang)])->values();
+        $kunci = Kredensial::query()->whereIn('id', $daftar->pluck('kredensial_id')->unique()->all())->pluck('kunci_publik', 'id');
+
+        return $daftar->toBase()->map(fn (TandaTangan $t) => ['tanda_tangan' => $t, 'status' => $this->status($t, (string) $kunci->get($t->kredensial_id), $hashSekarang)])->values();
     }
 
     /** Keaslian dulu (baris palsu → tanda_tangan_tidak_sah), lalu isi (kontrak v0.8.0). */
-    private function status(TandaTangan $t, ?string $hashSekarang): string
+    private function status(TandaTangan $t, string $publik, ?string $hashSekarang): string
     {
-        $publik = (string) Kredensial::query()->whereKey($t->kredensial_id)->value('kunci_publik');
-
         return match (true) {
             ! KunciTtd::cocok($publik, IsiKanonik::pesan($t->objek_jenis, $t->objek_id, $t->hash_isi, $t->cap_waktu, (string) $t->pengguna_id), $t->nilai_tanda_tangan) => 'tanda_tangan_tidak_sah',
             $hashSekarang === null || ! hash_equals($t->hash_isi, $hashSekarang) => 'isi_berubah',

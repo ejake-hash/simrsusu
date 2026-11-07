@@ -1,9 +1,7 @@
 <?php
 
-namespace App\Modules\MasterData\Application;
+namespace App\Core\Http;
 
-use App\Core\Http\ApiError;
-use App\Core\Http\IfMatch;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;

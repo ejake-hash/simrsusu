@@ -10,7 +10,9 @@ use App\Modules\MasterData\Models\Poliklinik;
 use App\Modules\MasterData\Models\UnitOrganisasi;
 use App\Modules\Sdm\Models\IzinPraktik;
 use App\Modules\Sdm\Models\Pegawai;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\Support\AksesUji;
 use Tests\Support\KlienSpa;
 use Tests\Support\KontrakApi;
@@ -177,6 +179,25 @@ class JadwalPraktikTest extends TestCase
         $ubah = $this->mintaDenganVersi('PATCH', '/api/v1/jadwal-pengecualian/'.$cuti->json('data.id'), '0', ['sampai_tanggal' => self::SENIN])->assertOk();
         $this->assertSesuaiKontrak($ubah, 'PATCH', '/jadwal-pengecualian/{id}');
         $ubah->assertJsonPath('data.sampai_tanggal', self::SENIN);
+    }
+
+    public function test_cuti_mengunci_jadwal_dokter_sebelum_memeriksa_kunjungan(): void
+    {
+        // Pendaftaran mengunci baris jadwal yang sama; tanpa kunci ini cuti dan pendaftaran berbarengan bisa lolos keduanya.
+        $this->admin();
+        $dokter = $this->dokter();
+        $this->minta('POST', '/api/v1/jadwal-praktik', $this->isi($dokter))->assertCreated();
+        $sql = [];
+        DB::listen(function (QueryExecuted $q) use (&$sql) {
+            $sql[] = strtolower($q->sql);
+        });
+
+        $this->minta('POST', '/api/v1/jadwal-pengecualian', ['jenis' => 'cuti', 'pegawai_id' => $dokter->id, 'dari_tanggal' => self::SENIN, 'sampai_tanggal' => self::SENIN, 'alasan' => 'Cuti tahunan'])->assertCreated();
+
+        $kunci = collect($sql)->search(fn ($s) => str_contains($s, '"kunjungan"."jadwal_praktik"') && str_ends_with($s, 'for update'));
+        $periksa = collect($sql)->search(fn ($s) => str_contains($s, '"kunjungan"."kunjungan"'));
+        $this->assertIsInt($kunci);
+        $this->assertLessThan($periksa, $kunci);
     }
 
     public function test_tanggal_lampau_yang_libur_tetap_tampil_tidak_tersedia(): void

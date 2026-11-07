@@ -4,6 +4,7 @@ namespace App\Modules\Akses\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\Akses\Database\MenuBawaan;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Menu;
@@ -11,7 +12,6 @@ use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\Peran;
 use App\Modules\Akses\Models\PersetujuanAkses;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;

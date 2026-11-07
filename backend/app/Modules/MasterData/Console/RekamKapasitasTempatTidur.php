@@ -2,8 +2,8 @@
 
 namespace App\Modules\MasterData\Console;
 
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\MasterData\Application\KapasitasTempatTidur;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use Illuminate\Console\Command;
 
 /** Tugas harian (tiket 1.8b, FR-08-18): rekam kapasitas TT hari ini per bangsal dan kelas. Aman diulang. */

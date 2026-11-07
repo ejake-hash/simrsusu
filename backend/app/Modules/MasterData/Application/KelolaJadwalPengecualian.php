@@ -4,8 +4,10 @@ namespace App\Modules\MasterData\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\MasterData\Models\JadwalPengecualian;
+use App\Modules\MasterData\Models\JadwalPraktik;
 use App\Modules\Pendaftaran\Application\KeterisianKunjungan;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +33,7 @@ final class KelolaJadwalPengecualian
         }
 
         return DB::transaction(function () use ($penyunting, $isi) {
+            $this->kunciJadwal($isi['pegawai_id'] ?? null);
             $this->periksaKunjungan($isi['pegawai_id'] ?? null, $isi['dari_tanggal'], $isi['sampai_tanggal']);
             $p = new JadwalPengecualian(['jenis' => $isi['jenis'], 'pegawai_id' => $isi['pegawai_id'] ?? null, 'dari_tanggal' => $isi['dari_tanggal'],
                 'sampai_tanggal' => $isi['sampai_tanggal'], 'alasan' => $isi['alasan'], 'status' => 'aktif']);
@@ -56,6 +59,7 @@ final class KelolaJadwalPengecualian
                 throw ValidationException::withMessages(['sampai_tanggal' => 'Tanggal akhir tidak boleh sebelum tanggal mulai.']);
             }
             if (($isi['status'] ?? null) !== 'batal' && $p->isDirty(['dari_tanggal', 'sampai_tanggal'])) {
+                $this->kunciJadwal($p->pegawai_id);
                 // Hanya tanggal yang baru tertutup: kunjungan di rentang lama sudah ada sebelum pengecualian dicatat.
                 $baru = array_diff($this->tanggalTertutup($p->pegawai_id, $p->dari_tanggal->toDateString(), $p->sampai_tanggal->toDateString()),
                     $this->tanggalTertutup($p->pegawai_id, (string) $p->getOriginal('dari_tanggal')?->toDateString(), (string) $p->getOriginal('sampai_tanggal')?->toDateString()));
@@ -71,6 +75,15 @@ final class KelolaJadwalPengecualian
 
             return $p;
         });
+    }
+
+    /**
+     * Kunci baris jadwal yang sama dengan pendaftaran kunjungan (KelolaKunjungan::daftar) sebelum memeriksa kunjungan:
+     * yang datang belakangan menunggu, lalu ditolak oleh pemeriksaan masing-masing. Libur RS mengunci semua jadwal.
+     */
+    private function kunciJadwal(?string $pegawaiId): void
+    {
+        JadwalPraktik::query()->when($pegawaiId, fn ($q, $id) => $q->where('pegawai_id', $id))->orderBy('id')->lockForUpdate()->pluck('id');
     }
 
     /** Cuti/libur tidak boleh menutup tanggal yang sudah punya kunjungan terdaftar (batalkan atau pindahkan dulu). */

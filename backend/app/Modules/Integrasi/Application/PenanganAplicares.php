@@ -2,6 +2,7 @@
 
 namespace App\Modules\Integrasi\Application;
 
+use App\Core\Http\SuntinganBerversi;
 use App\Core\ProfilRs\ProfilRs;
 use App\Modules\Integrasi\Domain\HasilKirim;
 use App\Modules\Integrasi\Domain\Kiriman;
@@ -10,7 +11,6 @@ use App\Modules\Integrasi\Domain\SistemIntegrasi;
 use App\Modules\Integrasi\Infrastructure\KlienAplicares;
 use App\Modules\Integrasi\Infrastructure\PanggilanHttp;
 use App\Modules\MasterData\Application\DataIntegrasi;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 

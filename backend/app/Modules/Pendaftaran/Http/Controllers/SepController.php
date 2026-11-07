@@ -4,12 +4,12 @@ namespace App\Modules\Pendaftaran\Http\Controllers;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Integrasi\Application\KelolaKredensial;
 use App\Modules\Integrasi\Application\LayananVclaim;
 use App\Modules\Integrasi\Domain\SistemIntegrasi;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\Pendaftaran\Application\KelolaSep;
 use App\Modules\Pendaftaran\Http\Resources\PasienResource;
 use App\Modules\Pendaftaran\Models\IdentitasPasien;

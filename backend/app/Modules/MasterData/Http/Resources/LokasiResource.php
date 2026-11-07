@@ -2,8 +2,8 @@
 
 namespace App\Modules\MasterData\Http\Resources;
 
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\MasterData\Application\PohonLokasi;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Models\Bangsal;
 use App\Modules\MasterData\Models\Kamar;
 use App\Modules\MasterData\Models\KelasRawat;

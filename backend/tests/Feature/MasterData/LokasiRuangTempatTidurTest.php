@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\MasterData;
 
+use App\Core\Http\SuntinganBerversi;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Models\Pengguna;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Models\UnitOrganisasi;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;

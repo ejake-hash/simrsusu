@@ -3,10 +3,10 @@
 namespace Tests\Feature\MasterData;
 
 use App\Core\Http\ApiError;
+use App\Core\Http\SuntinganBerversi;
 use App\Core\Instalasi\StatusInstalasi;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\MasterData\Application\KelolaTarif;
-use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\MasterData\Models\KelasRawat;
 use App\Modules\MasterData\Models\Tarif;
 use App\Modules\MasterData\Models\UsulanDataInduk;

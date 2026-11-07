@@ -14,6 +14,7 @@ use App\Modules\Ttd\Domain\KunciTtd;
 use App\Modules\Ttd\Infrastructure\SimulatorTte;
 use App\Modules\Ttd\Models\Kredensial;
 use App\Modules\Ttd\Models\TandaTangan;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -291,8 +292,14 @@ class TtdTest extends TestCase
         PersetujuanAkses::query()->whereKey($id)->update(['catatan_keputusan' => 'Diubah sesudah ditandatangani']);
         $this->minta('POST', '/api/v1/ttd/tandatangani', ['objek' => $objek, 'pernyataan_disetujui' => true])
             ->assertOk()->assertJsonPath('data.0.baru', true)->assertJsonPath('data.0.verifikasi.status', 'sah');
+        $kueriKunci = 0;
+        DB::listen(function (QueryExecuted $q) use (&$kueriKunci) {
+            $kueriKunci += (int) str_contains($q->sql, '"kunci_publik"');
+        });
         $status = array_column(array_column($this->minta('GET', "/api/v1/ttd/verifikasi/persetujuan_akses/{$id}")->assertOk()->json('data'), 'verifikasi'), 'status');
         $this->assertSame(['isi_berubah', 'sah'], $status);
+        // Satu query di verifikasi + satu di TandaTanganResource, tidak per tanda tangan (dua tanda tangan di sini).
+        $this->assertSame(2, $kueriKunci);
         // Huruf besar id ganda tetap dianggap ganda.
         $this->minta('POST', '/api/v1/ttd/tandatangani', ['pernyataan_disetujui' => true, 'objek' => [
             ['jenis' => 'persetujuan_akses', 'id' => $id], ['jenis' => 'persetujuan_akses', 'id' => strtoupper($id)],
