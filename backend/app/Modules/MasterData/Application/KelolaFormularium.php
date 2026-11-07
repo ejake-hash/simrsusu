@@ -12,17 +12,17 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Formularium dan itemnya (tiket 2.11, kontrak v0.23.0). Hanya sebelum siap melayani (sesudahnya 409
- * `harus_lewat_usulan`, jalur usulan di 2.12). Satu formularium per (jenis, penjamin) pada satu tanggal.
+ * Formularium dan itemnya (tiket 2.11, kontrak v0.23.0). Dipanggil langsung oleh FormulariumController (hanya sebelum siap
+ * melayani, penjaga di controller) dan oleh ButirFormularium saat usulan diterapkan (2.12). Satu formularium per (jenis,
+ * penjamin) pada satu tanggal.
  */
 final class KelolaFormularium
 {
-    public function __construct(private readonly CatatAktivitas $audit, private readonly PenjagaUsulan $penjaga) {}
+    public function __construct(private readonly CatatAktivitas $audit) {}
 
     /** @param  array<string, mixed>  $isi */
     public function buat(Pengguna $penyunting, array $isi): Formularium
     {
-        $this->penjaga->pastikanBolehLangsung('formularium');
         $this->periksaPenjamin($isi['jenis'], $isi['penjamin_id'] ?? null);
 
         return KelolaBarang::tangkapKodeGanda(fn () => DB::transaction(function () use ($penyunting, $isi) {
@@ -40,7 +40,6 @@ final class KelolaFormularium
     /** @param  array<string, mixed>  $isi */
     public function ubah(Pengguna $penyunting, Formularium $f, string $versi, array $isi): Formularium
     {
-        $this->penjaga->pastikanBolehLangsung('formularium');
 
         return DB::transaction(function () use ($penyunting, $f, $versi, $isi) {
             SuntinganBerversi::naikkan(Formularium::class, $f->id, $versi, $penyunting->id, 'Formularium');
@@ -62,7 +61,6 @@ final class KelolaFormularium
     /** @param  array<string, mixed>  $isi */
     public function tambahItem(Pengguna $penyunting, Formularium $f, array $isi): ItemFormularium
     {
-        $this->penjaga->pastikanBolehLangsung('formularium');
 
         return DB::transaction(function () use ($penyunting, $f, $isi) {
             $barang = Barang::query()->whereKey($isi['barang_id'])->sharedLock()->first();
@@ -84,7 +82,6 @@ final class KelolaFormularium
     /** @param  array<string, mixed>  $isi */
     public function ubahItem(Pengguna $penyunting, ItemFormularium $item, string $versi, array $isi): ItemFormularium
     {
-        $this->penjaga->pastikanBolehLangsung('formularium');
 
         return DB::transaction(function () use ($penyunting, $item, $versi, $isi) {
             SuntinganBerversi::naikkan(ItemFormularium::class, $item->id, $versi, $penyunting->id, 'Item formularium');

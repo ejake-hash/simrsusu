@@ -27,12 +27,13 @@ use Illuminate\Support\Str;
 final class MesinUsulan
 {
     /** Objek yang boleh ada di satu usulan per jenis data (dua jenis tidak boleh bercampur). */
-    private const OBJEK_PER_JENIS = ['ruang_tt' => ['ruang', 'kamar', 'tempat_tidur'], 'tarif' => ['tarif']];
+    private const OBJEK_PER_JENIS = ['ruang_tt' => ['ruang', 'kamar', 'tempat_tidur'], 'tarif' => ['tarif'], 'formularium' => ['formularium', 'formularium_item']];
 
     public function __construct(
         private readonly CatatAktivitas $audit,
         private readonly ButirRuangTt $butir,
         private readonly ButirTarif $butirTarif,
+        private readonly ButirFormularium $butirFormularium,
         private readonly CatatVersi $versi,
     ) {}
 
@@ -397,7 +398,8 @@ final class MesinUsulan
 
             return "{$nama}: {$sebelum} → ".($sebelum + $tambah - (count($butir) - $tambah)).' TT';
         }
-        $label = ['tempat_tidur' => 'TT', 'kamar' => 'kamar', 'ruang' => 'ruang', 'tarif' => 'tarif'];
+        $label = ['tempat_tidur' => 'TT', 'kamar' => 'kamar', 'ruang' => 'ruang', 'tarif' => 'tarif', 'formularium' => 'formularium',
+            'formularium_item' => 'item formularium'];
         $hitung = [];
         foreach ($butir as $b) {
             $kunci = ucfirst($b['aksi']).' '.$label[$b['objek_jenis']];
@@ -408,9 +410,13 @@ final class MesinUsulan
     }
 
     /** @param  array<string, mixed>  $butir */
-    private function pilih(array $butir): ButirRuangTt|ButirTarif
+    public function pilih(array $butir): ButirRuangTt|ButirTarif|ButirFormularium
     {
-        return ($butir['objek_jenis'] ?? null) === 'tarif' ? $this->butirTarif : $this->butir;
+        return match ($butir['objek_jenis'] ?? null) {
+            'tarif' => $this->butirTarif,
+            'formularium', 'formularium_item' => $this->butirFormularium,
+            default => $this->butir,
+        };
     }
 
     /** Jenis objek yang dikenal usulan (gabungan semua jenis data). @return list<string> */

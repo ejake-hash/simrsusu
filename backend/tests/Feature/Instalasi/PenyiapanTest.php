@@ -50,7 +50,9 @@ class PenyiapanTest extends TestCase
         $status = array_column($data['langkah'], 'status', 'kode');
         $this->assertNotContains('selesai', $status);
         $this->assertSame('belum', $status['penjamin_tarif']);
-        $this->assertSame('menunggu_fase_2', $status['formularium']);
+        $this->assertSame('belum', $status['formularium']);
+        $this->assertSame([['kode' => 'formularium_rs', 'label' => 'Formularium RS berlaku hari ini dengan item aktif', 'terpenuhi' => false,
+            'keterangan' => 'Belum ada formularium RS yang berlaku']], $data['langkah'][6]['syarat']);
         // Satu superadmin (pemanggil) dari dua; jaringan RS terisi di phpunit.xml.
         $this->assertSame('sebagian', $status['superadmin']);
         $this->assertSame('1 dari 2', $data['langkah'][0]['syarat'][0]['keterangan']);
@@ -64,19 +66,20 @@ class PenyiapanTest extends TestCase
         $this->assertTrue($data['langkah'][8]['syarat'][0]['terpenuhi']);
     }
 
-    public function test_alur_lengkap_langkah_1_6_8_9_menjadikan_instalasi_siap_melayani(): void
+    public function test_alur_lengkap_langkah_1_9_menjadikan_instalasi_siap_melayani(): void
     {
         $this->isiDataSintetis();
         $this->isiPenjaminTarif();
+        $this->isiFormularium();
 
-        foreach (['superadmin', 'profil_rs', 'organisasi', 'paket_referensi', 'pegawai', 'penjamin_tarif'] as $langkah) {
+        foreach (['superadmin', 'profil_rs', 'organisasi', 'paket_referensi', 'pegawai', 'penjamin_tarif', 'formularium'] as $langkah) {
             $this->konfirmasi($langkah)->assertOk();
         }
         $this->konfirmasi('kredensial_integrasi', ['dilewati' => true, 'alasan' => 'Belum ada kredensial dari RS'])->assertOk();
         $data = $this->konfirmasi('modul_aktif')->assertOk()->json('data');
 
         $this->assertSame(
-            ['selesai', 'selesai', 'selesai', 'selesai', 'selesai', 'selesai', 'menunggu_fase_2', 'dilewati', 'selesai'],
+            ['selesai', 'selesai', 'selesai', 'selesai', 'selesai', 'selesai', 'selesai', 'dilewati', 'selesai'],
             array_column($data['langkah'], 'status'),
         );
         $this->assertSame('selesai', $data['status']);
@@ -89,7 +92,7 @@ class PenyiapanTest extends TestCase
         $this->assertSame(1, (int) DB::table('inti.profil_rs')->value('revisi'));
         $wilayah = collect($data['langkah'][3]['paket'])->firstWhere('sistem', 'wilayah');
         $this->assertSame(['2025.1', 'Kemendagri uji', 2], [$wilayah['versi'], $wilayah['sumber'], $wilayah['jumlah_kode_aktif']]);
-        $this->assertSame(8, DB::table('audit.log_aktivitas')->where('aksi', 'pengaturan.penyiapan_dikonfirmasi')->count());
+        $this->assertSame(9, DB::table('audit.log_aktivitas')->where('aksi', 'pengaturan.penyiapan_dikonfirmasi')->count());
         $audit = DB::table('audit.log_aktivitas')->where('aksi', 'pengaturan.penyiapan_dikonfirmasi')->orderByDesc('urutan')->skip(1)->first();
         $this->assertEquals(['langkah' => 'kredensial_integrasi', 'dilewati' => true, 'alasan' => 'Belum ada kredensial dari RS', 'siap_melayani_terkunci' => false], json_decode($audit->sesudah, true));
 
@@ -167,7 +170,6 @@ class PenyiapanTest extends TestCase
             ->assertJsonPath('error.rincian.0', ['langkah' => 'superadmin', 'status' => 'sebagian']);
         $this->konfirmasi('superadmin')->assertStatus(409)->assertJsonPath('error.kode', 'syarat_belum_lengkap')
             ->assertJsonPath('error.rincian.0.kode', 'superadmin_mfa')->assertJsonPath('error.rincian.0.keterangan', '1 dari 2');
-        $this->konfirmasi('formularium')->assertStatus(409)->assertJsonPath('error.kode', 'langkah_menunggu_fase_2');
         $this->konfirmasi('profil_rs', ['dilewati' => true, 'alasan' => 'Tidak perlu'])->assertStatus(422)->assertJsonPath('error.kode', 'tidak_bisa_dilewati');
         $this->konfirmasi('kredensial_integrasi', ['dilewati' => true])->assertStatus(422)->assertJsonPath('error.kode', 'validasi_gagal')
             ->assertJsonPath('error.rincian.0.kolom', 'alasan');
@@ -277,6 +279,43 @@ class PenyiapanTest extends TestCase
                 'paket_identitas' => json_encode(['warna' => ['brand' => '#0B5394', 'accent' => '#F1C232'], 'logo' => ['path' => 'identitas/logo.png', 'tipe' => 'image/png', 'ukuran' => 10]]),
             ]);
         }
+    }
+
+    public function test_langkah_7_butuh_item_aktif_dan_tidak_menahan_siap_melayani(): void
+    {
+        $this->isiDataSintetis();
+        $this->isiPenjaminTarif();
+        foreach (['superadmin', 'profil_rs', 'organisasi', 'paket_referensi', 'pegawai', 'penjamin_tarif'] as $langkah) {
+            $this->konfirmasi($langkah)->assertOk();
+        }
+        // Langkah 7 bukan syarat siap melayani (FR-54-08: langkah 1–6).
+        $this->assertTrue(app(StatusInstalasi::class)->siapMelayani());
+
+        $formularium = $this->isiFormularium('nonaktif');
+        $langkah7 = $this->muatStatus()->json('data.langkah.6');
+        $this->assertSame(['belum', false, '0 item'], [$langkah7['status'], $langkah7['syarat'][0]['terpenuhi'], $langkah7['syarat'][0]['keterangan']]);
+        $this->konfirmasi('formularium')->assertStatus(409)->assertJsonPath('error.kode', 'syarat_belum_lengkap')
+            ->assertJsonPath('error.rincian.0.keterangan', '0 item');
+        // Langkah 8 menunggu langkah 7 (urutan wajib).
+        $this->konfirmasi('kredensial_integrasi', ['dilewati' => true, 'alasan' => 'Belum ada kredensial'])->assertStatus(409)
+            ->assertJsonPath('error.rincian.0.langkah', 'formularium');
+
+        DB::table('farmasi.formularium_item')->where('formularium_id', $formularium)->update(['status' => 'aktif']);
+        $this->konfirmasi('formularium')->assertOk()->assertJsonPath('data.langkah.6.status', 'selesai')
+            ->assertJsonPath('data.langkah.6.syarat.0.keterangan', '1 item');
+    }
+
+    /** Formularium RS berlaku sejak awal tahun dengan satu item; mengembalikan id formularium. */
+    private function isiFormularium(string $statusItem = 'aktif'): string
+    {
+        $id = fn () => (string) Str::uuid7();
+        $barang = $id();
+        $formularium = $id();
+        DB::table('logistik.barang')->insert(['id' => $barang, 'kode' => 'PCT-500', 'nama' => 'Parasetamol 500 mg', 'jenis' => 'obat', 'generik_paten' => 'generik', 'satuan_terkecil' => 'tablet']);
+        DB::table('farmasi.formularium')->insert(['id' => $formularium, 'kode' => 'FRS-2026', 'nama' => 'Formularium RS 2026', 'jenis' => 'rs', 'berlaku_dari' => '2026-01-01']);
+        DB::table('farmasi.formularium_item')->insert(['id' => $id(), 'formularium_id' => $formularium, 'barang_id' => $barang, 'status' => $statusItem]);
+
+        return $formularium;
     }
 
     private function isiPenjaminTarif(): void
