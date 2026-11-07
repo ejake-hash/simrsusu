@@ -155,14 +155,14 @@ final class UsulanPresenter
         $berubah = false;
         if ($b['aksi'] !== 'tambah' && in_array($u->tahap, [...UsulanDataInduk::BERJALAN, 'dikembalikan'], true)) {
             $objek = $b['objek_jenis'] === 'tarif' ? $this->butirTarif->objek((string) $b['objek_id'])
-                : $this->butir->objek($b['objek_jenis'], (string) $b['objek_id']);
+                : $this->mesin->pilih($b)->objek($b['objek_jenis'], (string) $b['objek_id']);
             $berubah = $objek === null || (int) $objek->getAttribute('revisi') !== (int) ($b['revisi_objek'] ?? -1);
         }
 
         return [
             'objek_jenis' => $b['objek_jenis'], 'aksi' => $b['aksi'], 'objek_id' => $b['objek_id'] ?? $b['objek_id_hasil'] ?? null,
             'objek_label' => $b['objek_label'] ?? '', 'objek_berubah' => $berubah, 'nilai_lama' => $b['nilai_lama'] ?? null,
-            'nilai_baru' => (object) ($b['nilai_baru'] ?? []), 'tampilan' => ($b['objek_jenis'] === 'tarif' ? $this->butirTarif : $this->butir)->tampilan($b, $u->berlaku_dari->toDateString()),
+            'nilai_baru' => (object) ($b['nilai_baru'] ?? []), 'tampilan' => $this->mesin->pilih($b)->tampilan($b, $u->berlaku_dari->toDateString()),
         ];
     }
 }

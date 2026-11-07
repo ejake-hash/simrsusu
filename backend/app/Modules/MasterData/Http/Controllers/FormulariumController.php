@@ -6,6 +6,7 @@ use App\Core\Http\IfMatch;
 use App\Core\Http\Paginasi;
 use App\Modules\MasterData\Application\ImporKatalogObat;
 use App\Modules\MasterData\Application\KelolaFormularium;
+use App\Modules\MasterData\Application\PenjagaUsulan;
 use App\Modules\MasterData\Models\Formularium;
 use App\Modules\MasterData\Models\ItemFormularium;
 use Illuminate\Http\JsonResponse;
@@ -55,6 +56,8 @@ final class FormulariumController
             'dasar_perubahan' => IsianOrganisasi::DASAR,
         ]);
 
+        app(PenjagaUsulan::class)->pastikanBolehLangsung('formularium');
+
         return $this->satu($kelola->buat($request->user(), $isi), 201);
     }
 
@@ -70,6 +73,8 @@ final class FormulariumController
         if (count($isi) < 2) {
             throw ValidationException::withMessages(['dasar_perubahan' => 'Isi minimal satu perubahan.']);
         }
+
+        app(PenjagaUsulan::class)->pastikanBolehLangsung('formularium');
 
         return $this->satu($kelola->ubah($request->user(), $formularium, IfMatch::versi($request), $isi));
     }
@@ -104,6 +109,8 @@ final class FormulariumController
             'dasar_perubahan' => IsianOrganisasi::DASAR,
         ]);
 
+        app(PenjagaUsulan::class)->pastikanBolehLangsung('formularium');
+
         return $this->satuItem($kelola->tambahItem($request->user(), $formularium, $isi), 201);
     }
 
@@ -121,6 +128,8 @@ final class FormulariumController
         if (count($isi) < 2) {
             throw ValidationException::withMessages(['dasar_perubahan' => 'Isi minimal satu perubahan.']);
         }
+
+        app(PenjagaUsulan::class)->pastikanBolehLangsung('formularium');
 
         return $this->satuItem($kelola->ubahItem($request->user(), $item, IfMatch::versi($request), $isi));
     }

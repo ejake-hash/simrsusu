@@ -35,9 +35,6 @@ final class Penyiapan
         'modul_aktif' => 'Modul aktif',
     ];
 
-    /** Langkah 7: kerangka saja sampai Tahap B (K6). */
-    private const FASE_2 = ['formularium'];
-
     private const BISA_DILEWATI = 'kredensial_integrasi';
 
     /** Langkah 1–6 wajib sebelum melayani pasien. */
@@ -48,7 +45,7 @@ final class Penyiapan
 
     private const LABEL_PAKET = ['wilayah' => 'Wilayah', 'referensi' => 'Kode variabel RME', 'loinc' => 'LOINC', 'ucum' => 'UCUM'];
 
-    private const SELESAI_URUTAN = ['selesai', 'dilewati', 'menunggu_fase_2'];
+    private const SELESAI_URUTAN = ['selesai', 'dilewati'];
 
     public function __construct(
         private readonly CatatAktivitas $audit,
@@ -72,7 +69,7 @@ final class Penyiapan
                 'status' => $l['status'],
                 'wajib_untuk_melayani' => $no <= self::JUMLAH_WAJIB_MELAYANI,
                 'syarat' => $l['syarat'],
-                'dapat_dikonfirmasi' => $bolehUbah && $urutanTerpenuhi && ! in_array($kode, self::FASE_2, true) && self::semuaTerpenuhi($l['syarat']),
+                'dapat_dikonfirmasi' => $bolehUbah && $urutanTerpenuhi && self::semuaTerpenuhi($l['syarat']),
                 'dapat_dilewati' => $bolehUbah && $urutanTerpenuhi && $kode === self::BISA_DILEWATI && $l['status'] !== 'selesai',
                 'konfirmasi_terakhir' => $l['konfirmasi'],
                 'paket' => $l['paket'],
@@ -104,9 +101,6 @@ final class Penyiapan
 
             if ($dilewati && ($kode !== self::BISA_DILEWATI || $ini['status'] === 'selesai')) {
                 throw new ApiError(422, 'tidak_bisa_dilewati', 'Hanya langkah kredensial integrasi yang belum selesai yang bisa dilewati.');
-            }
-            if (in_array($kode, self::FASE_2, true)) {
-                throw new ApiError(409, 'langkah_menunggu_fase_2', 'Langkah ini diisi di fase 2 (penjamin, tarif, formularium).');
             }
             $belum = [];
             foreach ($langkah as $k => $l) {
@@ -179,13 +173,12 @@ final class Penyiapan
                 'paket_referensi' => $this->syaratPaket($paket),
                 'pegawai' => $this->syaratPegawai(),
                 'penjamin_tarif' => $this->syaratPenjaminTarif(),
+                'formularium' => $this->syaratFormularium(),
                 'kredensial_integrasi' => [self::syarat('kredensial', 'Kredensial tersimpan dan uji koneksi berhasil', ...array_values($this->integrasi->periksa()))],
                 'modul_aktif' => $this->syaratModul(),
-                default => [],
             };
             $k = $konfirmasi[$kode] ?? null;
             $status = match (true) {
-                in_array($kode, self::FASE_2, true) => 'menunggu_fase_2',
                 $k !== null && $k['dilewati'] => 'dilewati',
                 $k !== null && self::semuaTerpenuhi($syarat) => 'selesai',
                 $k !== null => 'sebagian',
@@ -345,6 +338,23 @@ final class Penyiapan
             self::syarat('penjamin', 'Penjamin aktif', $penjamin > 0, $penjamin > 0 ? "{$penjamin} penjamin" : 'Belum ada yang aktif'),
             self::syarat('tarif_per_kelas', 'Tarif untuk setiap kelas rawat aktif', $tarifLengkap, $kelas === 0 ? 'Belum ada kelas rawat aktif' : "{$tertutup} dari {$kelas} kelas"),
         ];
+    }
+
+    /**
+     * Langkah 7 (tiket 2.12, asumsi perencana): formularium RS yang berlaku hari ini berisi ≥ 1 item aktif berbarang aktif.
+     *
+     * @return list<array{kode: string, label: string, terpenuhi: bool, keterangan: ?string}>
+     */
+    private function syaratFormularium(): array
+    {
+        $hariIni = self::hariIni();
+        $f = DB::table('farmasi.formularium')->where('jenis', 'rs')->where('berlaku_dari', '<=', $hariIni)
+            ->where(fn ($q) => $q->whereNull('berlaku_sampai')->orWhere('berlaku_sampai', '>=', $hariIni))->value('id');
+        $item = $f === null ? 0 : DB::table('farmasi.formularium_item as i')->join('logistik.barang as b', 'b.id', '=', 'i.barang_id')
+            ->where('i.formularium_id', $f)->where('i.status', 'aktif')->where('b.status', 'aktif')->count();
+
+        return [self::syarat('formularium_rs', 'Formularium RS berlaku hari ini dengan item aktif', $item > 0,
+            $f === null ? 'Belum ada formularium RS yang berlaku' : "{$item} item")];
     }
 
     /** @return list<array{kode: string, label: string, terpenuhi: bool, keterangan: ?string}> */
