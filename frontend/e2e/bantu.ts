@@ -61,7 +61,6 @@ export function bersihkanPesertaSintetis(): void {
 export async function halamanAdmisi(browser: Browser, asal: string) {
   const masuk = await browser.newContext({ baseURL: asal })
   await masukLewatApi(masuk.request, asal, 'contoh.admisi')
-  await tungguJatahPenuh(masuk.request, asal)
   const konteks = await browser.newContext({ baseURL: asal, storageState: await masuk.storageState(), viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
   await masuk.close()
   return { konteks, page: await konteks.newPage() }
@@ -110,13 +109,13 @@ export async function halamanAkun(browser: Browser, asal: string, nama: string):
     await masuk.close()
   }
   const konteks = await browser.newContext({ baseURL: asal, storageState: sesiAkun.get(nama), viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
-  await tungguJatahPenuh(konteks.request, asal)
   return konteks.newPage()
 }
 
 /**
  * Spec sebelumnya (mis. pengaturan, fase2) bisa sudah memakai sebagian besar jatah rate limit akun yang sama dalam menit
  * terakhir; SPA menganggap 429 di /saya sebagai belum masuk. Bila sisa jatah kurang dari separuh, tunggu satu jendela.
+ * Panggil di awal uji, bukan di helper bersama: penantian ±61 dtk merusak spec yang peka waktu (jeda panggilan antrean).
  */
 export async function tungguJatahPenuh(request: APIRequestContext, asal: string) {
   const r = await request.get('/api/v1/saya', { headers: { Accept: 'application/json', Origin: asal, Referer: `${asal}/` } })
