@@ -65,12 +65,12 @@ final class KelolaBarang
      * @param  callable(): T  $kerja
      * @return T
      */
-    public static function tangkapKodeGanda(callable $kerja, string $pesan = 'Kode sudah dipakai barang lain.'): mixed
+    public static function tangkapKodeGanda(callable $kerja, string $pesan = 'Kode sudah dipakai barang lain.', string $kolom = 'kode'): mixed
     {
         try {
             return $kerja();
         } catch (QueryException $e) {
-            throw $e->getCode() === '23505' ? ValidationException::withMessages(['kode' => $pesan]) : $e;
+            throw $e->getCode() === '23505' ? ValidationException::withMessages([$kolom => $pesan]) : $e;
         }
     }
 }

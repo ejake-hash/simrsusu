@@ -274,7 +274,7 @@ Akses  : `farmasi.formularium` lihat/input/perbaiki (daftarkan di `MenuBawaan`, 
 Tabel  : `logistik.barang` (kolom 11.2; `kode_kfa` boleh kosong, diisi manual sampai 2.22), `farmasi.formularium` (jenis fornas/rs/penjamin,
          penjamin_id, versi, berlaku_dari), `farmasi.formularium_item` (restriksi, maks_per_resep, kronis)
 API    : `GET/POST/PATCH /api/v1/data-induk/barang` (keyset, If-Match), `GET/POST /api/v1/data-induk/formularium`,
-         `GET/POST/PATCH /api/v1/data-induk/formularium/{id}/item`, `POST /api/v1/data-induk/barang/impor` (CSV, lewat `JenisQueue`)
+         `GET/POST/PATCH /api/v1/data-induk/formularium/{id}/item`, `POST /api/v1/data-induk/barang/impor` (CSV sinkron, pola `/lokasi/impor`)
 Uji    :
 - Given barang generik dan paten zat yang sama, When disimpan, Then dua kode terpisah (FR-22-06); kode RS ganda → 422 `validasi_gagal`.
 - Impor CSV menolak baris tanpa satuan terkecil atau jenis tidak dikenal dan melaporkan nomor baris; satu baris salah = tidak ada yang

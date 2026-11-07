@@ -72,7 +72,8 @@ final class KelolaFormularium
             if (ItemFormularium::query()->where('formularium_id', $f->id)->where('barang_id', $barang->id)->exists()) {
                 throw ValidationException::withMessages(['barang_id' => 'Barang sudah ada di formularium ini.']);
             }
-            $item = $this->simpanItem($penyunting, $f, $barang->id, $isi);
+            // Dua tambah serentak barang yang sama: kunci unik (formularium_id, barang_id) → 422, bukan 500.
+            $item = KelolaBarang::tangkapKodeGanda(fn () => $this->simpanItem($penyunting, $f, $barang->id, $isi), 'Barang sudah ada di formularium ini.', 'barang_id');
             $this->audit->catat('master_data.formularium_item_dibuat', $penyunting->id, $item->getTable(), $item->id,
                 [...$this->isiAudit($item), 'dasar_perubahan' => $isi['dasar_perubahan']]);
 
