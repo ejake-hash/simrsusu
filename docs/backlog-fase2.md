@@ -198,7 +198,7 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
   XSS se-origin → CSP untuk SPA perlu ditetapkan (belum ada kebijakan CSP di PRD/deploy).
 
 **Utang teknis (tiket kecil / disisipkan ke tiket terkait)**
-- Libur RS mengunci semua baris `jadwal_praktik` (termasuk nonaktif) sampai commit (PR #146); bila jadwal ribuan, batasi ke yang aktif agar pendaftaran tak mendekati `statement_timeout`.
+- ~~Libur RS mengunci semua baris `jadwal_praktik` (termasuk nonaktif) sampai commit (PR #146)~~ — **Selesai**: hanya baris aktif yang dikunci (PR utang kunci libur RS).
 - `PanelSep.vue` menolak terbit untuk rujukan kedaluwarsa tanpa melihat IGD (backend mengizinkan IGD); perlu disesuaikan saat layar IGD.
 - Lapisan tiruan FE (`*/tiruan/`, ±5.500 baris) masih tulang punggung 31 spec unit; layar Fase 2 butuh e2e terhadap backend asli per layar.
 

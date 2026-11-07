@@ -79,11 +79,13 @@ final class KelolaJadwalPengecualian
 
     /**
      * Kunci baris jadwal yang sama dengan pendaftaran kunjungan (KelolaKunjungan::daftar) sebelum memeriksa kunjungan:
-     * yang datang belakangan menunggu, lalu ditolak oleh pemeriksaan masing-masing. Libur RS mengunci semua jadwal.
+     * yang datang belakangan menunggu, lalu ditolak oleh pemeriksaan masing-masing. Libur RS mengunci semua jadwal aktif
+     * (pendaftaran menolak jadwal nonaktif, jadi baris nonaktif tak perlu dikunci).
      */
     private function kunciJadwal(?string $pegawaiId): void
     {
-        JadwalPraktik::query()->when($pegawaiId, fn ($q, $id) => $q->where('pegawai_id', $id))->orderBy('id')->lockForUpdate()->pluck('id');
+        JadwalPraktik::query()->when($pegawaiId, fn ($q, $id) => $q->where('pegawai_id', $id), fn ($q) => $q->where('status', 'aktif'))
+            ->orderBy('id')->lockForUpdate()->pluck('id');
     }
 
     /** Cuti/libur tidak boleh menutup tanggal yang sudah punya kunjungan terdaftar (batalkan atau pindahkan dulu). */
