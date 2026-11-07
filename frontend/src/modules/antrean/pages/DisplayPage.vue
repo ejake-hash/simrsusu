@@ -41,7 +41,7 @@ async function baca() {
   if (hasil.jenis === 'baru') {
     etag = hasil.etag
     data.value = hasil.data
-    jeda = hasil.data.interval_detik * 1000
+    jeda = Math.max(hasil.data.interval_detik, 5) * 1000
     for (const p of panggilanBaru(sudahDiputar, hasil.data.dipanggil)) {
       sudahDiputar.add(kunciPanggilan(p))
       if (!pembacaanPertama && suara.value) ucapkan(p.teks_suara)
@@ -92,18 +92,23 @@ const pesanDitolak = computed(() =>
       <h2>Display tidak dapat dibuka</h2>
       <p>{{ pesanDitolak }}</p>
     </div>
-    <div v-else-if="!data" class="tengah" role="status"><p>Memuat antrean…</p></div>
+    <div v-else-if="!data" class="tengah" role="status">
+      <p v-if="terputus">Koneksi ke server terputus. Mencoba lagi…</p>
+      <p v-else>Memuat antrean…</p>
+    </div>
     <template v-else>
       <p v-if="terputus" class="putus" role="status">Koneksi ke server terputus. Menampilkan data terakhir dan mencoba lagi.</p>
       <div class="isi">
-        <section class="panggilan" aria-labelledby="judul-dipanggil" aria-live="polite">
+        <section class="panggilan" aria-labelledby="judul-dipanggil">
           <h2 id="judul-dipanggil">Sedang dipanggil</h2>
-          <template v-if="utama">
+          <div aria-live="polite" aria-atomic="true">
+            <template v-if="utama">
             <p class="nomor" data-testid="nomor-utama">{{ utama.nomor_tampil }}</p>
             <p v-if="utama.inisial" class="inisial">{{ utama.inisial }}</p>
             <p class="tujuan">{{ utama.tujuan }}</p>
-          </template>
-          <p v-else class="kosong">Belum ada nomor yang dipanggil.</p>
+            </template>
+            <p v-else class="kosong">Belum ada nomor yang dipanggil.</p>
+          </div>
           <ul v-if="sebelumnya.length" class="sebelumnya" aria-label="Panggilan sebelumnya">
             <li v-for="p in sebelumnya" :key="kunciPanggilan(p)">
               <span class="nomor-kecil">{{ p.nomor_tampil }}</span>

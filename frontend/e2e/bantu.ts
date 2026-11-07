@@ -36,7 +36,13 @@ export async function tanpaGulirSamping(page: Page): Promise<void> {
 
 /** Perintah artisan backend lokal (hanya DB lokal/CI): data contoh, simulator VClaim, pembersihan. */
 const BACKEND = fileURLToPath(new URL('../../backend/', import.meta.url))
-export const php = (...arg: string[]) => execFileSync('php', ['artisan', ...arg], { cwd: BACKEND, stdio: 'pipe' }).toString()
+// Semua tinker e2e mengubah data: ditolak di sisi PHP bila APP_ENV bukan local/testing (jangan pernah ke staging/produksi).
+const hanyaLokal = "abort_unless(in_array(app()->environment(), ['local', 'testing'], true), 500, 'e2e hanya untuk lokal/CI'); "
+export const php = (...arg: string[]) => {
+  const i = arg.indexOf('--execute')
+  const argumen = arg[0] === 'tinker' && i >= 0 ? arg.map((a, j) => (j === i + 1 ? hanyaLokal + a : a)) : arg
+  return execFileSync('php', ['artisan', ...argumen], { cwd: BACKEND, stdio: 'pipe' }).toString()
+}
 export const artisan = (...arg: string[]) => php('lokal:kunjungan-contoh', ...arg)
 export const simulatorVclaim = (mode: 'normal' | 'tolak') => php('integrasi:simulator', 'bpjs_vclaim', mode)
 export const circuitBreaker = (status: 'terbuka' | 'tertutup') =>

@@ -1,7 +1,7 @@
 import { klien } from '@/shared/api/klien'
 import type { AksiAntrean, Antrean, FilterAntrean, HalamanAntrean } from './tipe'
 
-/** Klien /antrean (docs/api/openapi.yaml, tiket 2.8). Respons tidak di-cache (no-store). */
+/** Klien /antrean (docs/api/openapi.yaml, tiket 2.8). */
 export async function daftarAntrean(filter: FilterAntrean, kursor: string | null = null, batas = 50): Promise<HalamanAntrean> {
   const { data } = await klien.get<HalamanAntrean>('/antrean', {
     params: { ...Object.fromEntries(Object.entries(filter).filter(([, v]) => v)), kursor: kursor ?? undefined, batas },
