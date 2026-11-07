@@ -22,7 +22,7 @@ final class ImporLokasi
 {
     public const KOLOM = ['jenis', 'kode', 'induk', 'nama', 'fungsi', 'unit', 'bangsal', 'kelas_rawat', 'kapasitas_maksimum', 'ekstra'];
 
-    public const MAKS_BARIS = 5000;
+    public const MAKS_BARIS = BerkasCsv::MAKS_BARIS;
 
     private const MAKS_KESALAHAN = 500;
 
@@ -65,47 +65,10 @@ final class ImporLokasi
         });
     }
 
-    /**
-     * Baris data (nomor baris berkas => kolom). 422 berkas_tidak_valid bila bukan CSV UTF-8 berjudul kolom baku.
-     *
-     * @return array<int, array<string, string>>
-     */
+    /** @return array<int, array<string, string>> */
     private function baca(string $isi): array
     {
-        $isi = preg_replace('/^\xEF\xBB\xBF/', '', $isi) ?? '';
-        if (! mb_check_encoding($isi, 'UTF-8') || str_contains($isi, "\0")) {
-            throw $this->berkasTidakValid('Berkas harus CSV berenkode UTF-8.');
-        }
-        $aliran = fopen('php://memory', 'r+');
-        fwrite($aliran, $isi);
-        rewind($aliran);
-        // Excel ber-locale Indonesia menyimpan CSV dengan pemisah titik koma.
-        $barisPertama = strtok($isi, "\n");
-        $pemisah = is_string($barisPertama) && str_contains($barisPertama, ';') && ! str_contains($barisPertama, ',') ? ';' : ',';
-        $judul = fgetcsv($aliran, separator: $pemisah, escape: '');
-        if ($judul === false || array_map(fn ($k) => trim((string) $k), $judul) !== self::KOLOM) {
-            fclose($aliran);
-            throw $this->berkasTidakValid('Judul kolom harus: '.implode(',', self::KOLOM).'.');
-        }
-        $baris = [];
-        $nomor = 1;
-        while (($kolom = fgetcsv($aliran, separator: $pemisah, escape: '')) !== false) {
-            $nomor++;
-            if ($kolom === [null]) {
-                continue;
-            }
-            if (count($baris) >= self::MAKS_BARIS) {
-                fclose($aliran);
-                throw $this->berkasTidakValid('Paling banyak '.self::MAKS_BARIS.' baris data per berkas; pecah berkasnya.');
-            }
-            $baris[$nomor] = array_combine(self::KOLOM, array_map(fn ($n) => trim((string) $n), array_pad(array_slice($kolom, 0, count(self::KOLOM)), count(self::KOLOM), '')));
-        }
-        fclose($aliran);
-        if ($baris === []) {
-            throw $this->berkasTidakValid('Berkas tidak berisi baris data.');
-        }
-
-        return $baris;
+        return BerkasCsv::baca($isi, self::KOLOM);
     }
 
     /**
@@ -352,10 +315,5 @@ final class ImporLokasi
             'kesalahan' => array_slice($kesalahan, 0, self::MAKS_KESALAHAN),
             'kesalahan_terpotong' => count($kesalahan) > self::MAKS_KESALAHAN,
         ];
-    }
-
-    private function berkasTidakValid(string $pesan): ApiError
-    {
-        return new ApiError(422, 'berkas_tidak_valid', $pesan, [['kolom' => 'berkas', 'pesan' => $pesan]]);
     }
 }
