@@ -34,12 +34,28 @@ final class Penandatangan
      */
     public function tandatangani(Request $request, Pengguna $pengguna, array $objek, ?string $pin): array
     {
-        $kredensial = $this->penjaga->kredensialAktif($pengguna);
-        if ($kredensial->terkunci()) {
-            throw $this->penjaga->terkunci($kredensial);
-        }
+        $this->pastikanTidakTerkunci($pengguna);
         $this->periksaObjek($pengguna, $objek);
+        [$kredensial, $rahasia] = $this->buka($request, $pengguna, $pin);
+        try {
+            $hasil = $this->tandatanganiTerbuka($pengguna, $objek, $kredensial, $rahasia, $pin === null);
+        } finally {
+            sodium_memzero($rahasia);
+        }
 
+        return [$hasil, $this->sesi->berlakuSampai($request, $kredensial) ?? now()];
+    }
+
+    /**
+     * Buka kunci T1: PIN (lalu sesi tanda tangan dimulai) atau sesi yang berjalan; 422 pin_wajib bila keduanya tidak ada.
+     * Dipanggil di luar transaksi: hitungan PIN salah dan penguncian tersimpan walau transaksi pemanggil batal. Pemanggil
+     * wajib `sodium_memzero` rahasianya (pengesahan CPPT 2.14: status dan tanda tangan dalam satu transaksi pemanggil).
+     *
+     * @return array{0: Kredensial, 1: string}
+     */
+    public function buka(Request $request, Pengguna $pengguna, ?string $pin): array
+    {
+        $kredensial = $this->pastikanTidakTerkunci($pengguna);
         $rahasia = $pin === null ? $this->sesi->buka($request, $kredensial) : null;
         if ($pin === null && $rahasia === null) {
             throw new ApiError(422, 'pin_wajib', 'Masukkan PIN untuk menandatangani.', [['kolom' => 'pin', 'kode' => 'pin_wajib', 'pesan' => 'Masukkan PIN.']]);
@@ -49,52 +65,67 @@ final class Penandatangan
             $this->sesi->mulai($request, $kredensial, $rahasia);
         }
 
-        try {
-            $hasil = DB::transaction(function () use ($pengguna, $objek, $kredensial, $rahasia, $pin) {
-                // Kredensial yang sama masih aktif (tidak dicabut/terkunci di antara buka kunci dan simpan).
-                $k = Kredensial::query()->whereKey($kredensial->id)->where('status', 'aktif')->lockForUpdate()->first();
-                if ($k === null || $k->terkunci()) {
-                    throw new ApiError(409, 'ttd_belum_aktif', 'Tanda tangan elektronik sudah tidak aktif.');
-                }
-                $this->periksaObjek($pengguna, $objek);
-                $hasil = [];
-                $baru = [];
-                foreach ($objek as $o) {
-                    // Dedup per isi (kontrak v0.9.0): isi yang berubah (mis. usulan dikirim ulang) ditandatangani lagi.
-                    $hash = IsiKanonik::hash((array) $this->penyedia->untuk($o['jenis'])?->isi($o['id']));
-                    $lama = TandaTangan::query()->where('objek_jenis', $o['jenis'])->where('objek_id', $o['id'])->where('pengguna_id', $pengguna->id)
-                        ->where('hash_isi', $hash)->first();
-                    if ($lama !== null) {
-                        // Tanda tangan lama diverifikasi ulang (isi objek bisa sudah berubah sejak ditandatangani).
-                        $hasil[] = ['tanda_tangan' => $lama, 'baru' => false, 'status' => $this->status($lama, (string) Kredensial::query()->whereKey($lama->kredensial_id)->value('kunci_publik'), $hash)];
+        return [$kredensial, $rahasia];
+    }
 
-                        continue;
-                    }
-                    $cap = now();
-                    $t = new TandaTangan([
-                        'objek_jenis' => $o['jenis'], 'objek_id' => $o['id'], 'penanda_tangan_jenis' => 'pengguna', 'pengguna_id' => $pengguna->id,
-                        'kredensial_id' => $k->id, 'tingkat' => 'T1', 'metode' => 'pin', 'hash_isi' => $hash,
-                        'nilai_tanda_tangan' => KunciTtd::tandatangani($rahasia, IsiKanonik::pesan($o['jenis'], $o['id'], $hash, $cap, $pengguna->id)),
-                        'cap_waktu' => $cap, 'bukti' => ['buka_kunci' => $pin === null ? 'sesi' : 'pin'], 'ditandatangani_pada' => $cap,
-                    ]);
-                    $t->save();
-                    $hasil[] = ['tanda_tangan' => $t, 'baru' => true, 'status' => 'sah'];
-                    $baru[] = $t;
-                }
-                // Audit di akhir transaksi (kunci rantai dipegang sampai commit).
-                foreach ($baru as $t) {
-                    $this->audit->catat('ttd.ditandatangani', $pengguna->id, $t->objek_jenis, $t->objek_id, [
-                        'tanda_tangan_id' => $t->id, 'hash_isi' => $t->hash_isi, 'sidik_kunci' => KunciTtd::sidik((string) $k->kunci_publik),
-                    ]);
-                }
+    /**
+     * Tanda tangan dengan kunci yang sudah dibuka; transaksi bersarang bila pemanggil sedang di transaksi.
+     *
+     * @param  list<array{jenis: string, id: string}>  $objek
+     * @return list<array{tanda_tangan: TandaTangan, baru: bool, status: string}>
+     */
+    public function tandatanganiTerbuka(Pengguna $pengguna, array $objek, Kredensial $kredensial, string $rahasia, bool $lewatSesi): array
+    {
+        return DB::transaction(function () use ($pengguna, $objek, $kredensial, $rahasia, $lewatSesi) {
+            // Kredensial yang sama masih aktif (tidak dicabut/terkunci di antara buka kunci dan simpan).
+            $k = Kredensial::query()->whereKey($kredensial->id)->where('status', 'aktif')->lockForUpdate()->first();
+            if ($k === null || $k->terkunci()) {
+                throw new ApiError(409, 'ttd_belum_aktif', 'Tanda tangan elektronik sudah tidak aktif.');
+            }
+            $this->periksaObjek($pengguna, $objek);
+            $hasil = [];
+            $baru = [];
+            foreach ($objek as $o) {
+                // Dedup per isi (kontrak v0.9.0): isi yang berubah (mis. usulan dikirim ulang) ditandatangani lagi.
+                $hash = IsiKanonik::hash((array) $this->penyedia->untuk($o['jenis'])?->isi($o['id']));
+                $lama = TandaTangan::query()->where('objek_jenis', $o['jenis'])->where('objek_id', $o['id'])->where('pengguna_id', $pengguna->id)
+                    ->where('hash_isi', $hash)->first();
+                if ($lama !== null) {
+                    // Tanda tangan lama diverifikasi ulang (isi objek bisa sudah berubah sejak ditandatangani).
+                    $hasil[] = ['tanda_tangan' => $lama, 'baru' => false, 'status' => $this->status($lama, (string) Kredensial::query()->whereKey($lama->kredensial_id)->value('kunci_publik'), $hash)];
 
-                return $hasil;
-            });
-        } finally {
-            sodium_memzero($rahasia);
+                    continue;
+                }
+                $cap = now();
+                $t = new TandaTangan([
+                    'objek_jenis' => $o['jenis'], 'objek_id' => $o['id'], 'penanda_tangan_jenis' => 'pengguna', 'pengguna_id' => $pengguna->id,
+                    'kredensial_id' => $k->id, 'tingkat' => 'T1', 'metode' => 'pin', 'hash_isi' => $hash,
+                    'nilai_tanda_tangan' => KunciTtd::tandatangani($rahasia, IsiKanonik::pesan($o['jenis'], $o['id'], $hash, $cap, $pengguna->id)),
+                    'cap_waktu' => $cap, 'bukti' => ['buka_kunci' => $lewatSesi ? 'sesi' : 'pin'], 'ditandatangani_pada' => $cap,
+                ]);
+                $t->save();
+                $hasil[] = ['tanda_tangan' => $t, 'baru' => true, 'status' => 'sah'];
+                $baru[] = $t;
+            }
+            // Audit di akhir transaksi (kunci rantai dipegang sampai commit).
+            foreach ($baru as $t) {
+                $this->audit->catat('ttd.ditandatangani', $pengguna->id, $t->objek_jenis, $t->objek_id, [
+                    'tanda_tangan_id' => $t->id, 'hash_isi' => $t->hash_isi, 'sidik_kunci' => KunciTtd::sidik((string) $k->kunci_publik),
+                ]);
+            }
+
+            return $hasil;
+        });
+    }
+
+    private function pastikanTidakTerkunci(Pengguna $pengguna): Kredensial
+    {
+        $kredensial = $this->penjaga->kredensialAktif($pengguna);
+        if ($kredensial->terkunci()) {
+            throw $this->penjaga->terkunci($kredensial);
         }
 
-        return [$hasil, $this->sesi->berlakuSampai($request, $kredensial) ?? now()];
+        return $kredensial;
     }
 
     /**

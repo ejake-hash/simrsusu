@@ -4,9 +4,13 @@ namespace App\Modules\RekamMedis\Http\Controllers;
 
 use App\Core\Http\ApiError;
 use App\Core\Http\IfMatch;
+use App\Modules\Akses\Application\PemeriksaLabel;
 use App\Modules\Akses\Domain\Cakupan;
+use App\Modules\Akses\Models\LabelSensitivitas;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\RekamMedis\Application\AksesCatatan;
 use App\Modules\RekamMedis\Application\KelolaAsesmenAwal;
+use App\Modules\RekamMedis\Infrastructure\IsiCatatanKlinis;
 use App\Modules\RekamMedis\Models\CatatanKlinis;
 use App\Modules\Sdm\Application\RingkasanPegawai;
 use Illuminate\Http\JsonResponse;
@@ -23,13 +27,20 @@ final class AsesmenAwalController
 {
     private const LIHAT = ['rawat_jalan.asesmen_perawat.lihat', 'rawat_jalan.pemeriksaan.lihat'];
 
-    public function __construct(private readonly KelolaAsesmenAwal $kelola, private readonly RingkasanPegawai $pegawai) {}
+    public function __construct(
+        private readonly KelolaAsesmenAwal $kelola,
+        private readonly RingkasanPegawai $pegawai,
+        private readonly AksesCatatan $akses,
+    ) {}
 
     public function show(string $kunjungan): JsonResponse
     {
         $k = self::kunjungan(self::LIHAT, $kunjungan);
         $catatan = CatatanKlinis::query()->where('kunjungan_id', $k->id)->where('jenis', 'asesmen')->where('profesi', 'perawat')->first()
             ?? throw new ApiError(404, 'tidak_ditemukan', 'Kunjungan ini belum punya asesmen awal.');
+        if (! $this->akses->terbuka(request()->user(), $catatan)) {
+            return (new JsonResponse(['data' => PemeriksaLabel::TERBATAS]))->setPrivate()->header('Cache-Control', 'no-store, private');
+        }
 
         return $this->satu($catatan);
     }
@@ -74,6 +85,7 @@ final class AsesmenAwalController
             'skrining.skala_nyeri' => $angka('integer', 0, 10), 'skrining.lokasi_nyeri' => $teks(200),
             'skrining.risiko_jatuh' => ['sometimes', 'nullable', Rule::in(['rendah', 'sedang', 'tinggi'])],
             'skrining.gizi_berisiko' => ['sometimes', 'nullable', 'boolean'], 'skrining.catatan' => $teks(1000),
+            'label' => ['sometimes', 'nullable', 'string', Rule::exists(LabelSensitivitas::class, 'kode')->where('aktif', true)],
         ];
     }
 
@@ -122,8 +134,7 @@ final class AsesmenAwalController
             'penulis' => $penulis === null ? null : ['id' => $penulis->id, 'nama' => $nama ?? $penulis->nama_pengguna],
             'dibuat_pada' => $c->dibuat_pada->toIso8601String(), 'selesai_pada' => $c->selesai_pada?->toIso8601String(),
             'batas_perbaikan_pada' => $c->batas_perbaikan_pada?->toIso8601String(), 'jumlah_versi' => $c->jumlah_versi,
-            // Kontrak v0.24.0: label dan TTE asesmen diisi tiket 2.14-be.
-            'label' => null, 'ditandatangani_pada' => null,
+            'label' => $c->label, 'ditandatangani_pada' => IsiCatatanKlinis::ditandatanganiPada($c),
             'versi' => (string) $c->revisi, 'diubah_pada' => $c->diubah_pada->toIso8601String(),
         ]], $status))->setEtag((string) $c->revisi)->setPrivate()->header('Cache-Control', 'no-store, private');
     }

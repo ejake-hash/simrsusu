@@ -62,7 +62,8 @@ final class KelolaAsesmenAwal
             $catatan = new CatatanKlinis([
                 'episode_id' => $kunjungan->episode_id, 'kunjungan_id' => $kunjungan->id, 'unit_id' => $unitId,
                 'pasien_id' => $kunjungan->pasien_id, 'penulis_id' => $penulis->id, 'profesi' => 'perawat', 'tatanan' => 'rj',
-                'jenis' => 'asesmen', 'isi' => self::gabung([], $isian), 'dibuat_oleh' => $penulis->id, 'diubah_oleh' => $penulis->id,
+                'jenis' => 'asesmen', 'isi' => self::gabung([], $isian), 'label' => $isian['label'] ?? null,
+                'dibuat_oleh' => $penulis->id, 'diubah_oleh' => $penulis->id,
             ]);
             try {
                 $catatan->save();
@@ -106,6 +107,7 @@ final class KelolaAsesmenAwal
             }
             $catatan->forceFill([
                 'isi' => self::gabung($catatan->isi, $isian), 'diubah_oleh' => $penulis->id,
+                'label' => array_key_exists('label', $isian) ? $isian['label'] : $catatan->label,
                 'jumlah_versi' => $catatan->jumlah_versi + ($selesai ? 1 : 0),
             ])->save();
             if ($selesai) {
