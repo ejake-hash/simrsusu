@@ -35,8 +35,10 @@ describe('klien kepesertaan, rujukan, SEP (2.7)', () => {
 
   it('terbitkan SEP: POST ke kunjungan dengan Idempotency-Key', async () => {
     const dicatat = rekam()
-    await terbitkanSep('k-1', { no_rujukan: 'SIMFKTP001', tunda: true })
+    await terbitkanSep('k-1', { no_rujukan: 'SIMFKTP001', tunda: true }, 'kunci-1')
+    await terbitkanSep('k-1', { no_rujukan: 'SIMFKTP001', tunda: true }, 'kunci-1')
     expect(dicatat[0]!.url).toBe('/kunjungan/k-1/sep')
-    expect(dicatat[0]!.headers.get('Idempotency-Key')).toBeTruthy()
+    // Percobaan ulang memakai kunci yang sama.
+    expect(dicatat.map((c) => c.headers.get('Idempotency-Key'))).toEqual(['kunci-1', 'kunci-1'])
   })
 })

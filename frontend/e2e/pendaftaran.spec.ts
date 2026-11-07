@@ -167,7 +167,7 @@ test('SEP: rujukan kedaluwarsa ditolak, hampir habis ditandai, galat BPJS tampil
   await page.getByRole('dialog', { name: 'Terbitkan SEP' }).getByRole('button', { name: 'Terbitkan SEP' }).click()
   await panel.getByRole('button', { name: 'Simpan, terbitkan SEP nanti' }).click()
   await expect(panel.getByText('SEP tersimpan dan menunggu dikirim ke BPJS', { exact: false })).toBeVisible()
-  expect(php('tinker', '--execute', "echo DB::table('inti.tugas')->where('status', 'terbuka')->where('judul', 'like', '%SEP%')->count();")).toMatch(/[1-9]/)
+  expect(php('tinker', '--execute', `echo DB::table('inti.tugas')->where('status', 'terbuka')->whereIn('objek_id', DB::table('integrasi.sep')->whereIn('pasien_id', DB::table('pasien.pasien')->where('nama', '${namaLain}')->pluck('id'))->pluck('id'))->count();`)).toMatch(/[1-9]/)
   circuitBreaker('tertutup')
 
   await konteks.close()

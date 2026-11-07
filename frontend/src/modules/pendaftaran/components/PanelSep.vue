@@ -28,13 +28,16 @@ const noRujukan = ref('')
 const asal = ref<'' | AsalRujukan>('')
 const konfirmasi = ref(false)
 const hasil = ref<Sep | null>(null)
+/** Satu kunci per niat terbit; baru setelah berhasil atau input berubah. Mode tunda punya kunci sendiri. */
+let kunciTerbit = crypto.randomUUID()
 
 const peserta = useMutation({ mutationFn: () => bacaPeserta(nomorKartu.value.trim(), props.kunjungan.tanggal) })
 const rujukan = useMutation({ mutationFn: () => bacaRujukan(noRujukan.value.trim(), props.kunjungan.tanggal, asal.value || null) })
 const terbit = useMutation({
-  mutationFn: (tunda: boolean) => terbitkanSep(props.kunjungan.id, { no_rujukan: noRujukan.value.trim(), asal_rujukan: asal.value || null, tunda }),
+  mutationFn: (tunda: boolean) => terbitkanSep(props.kunjungan.id, { no_rujukan: noRujukan.value.trim(), asal_rujukan: asal.value || null, tunda }, `${kunciTerbit}-${tunda}`),
   onSuccess: (sep) => {
     hasil.value = sep
+    kunciTerbit = crypto.randomUUID()
     konfirmasi.value = false
     tampilkanToast(sep.status === 'terbit' ? `SEP terbit untuk ${props.kunjungan.pasien.nama}.` : 'SEP tersimpan, menunggu dikirim ke BPJS.', 'ok')
   },
@@ -44,6 +47,7 @@ const terbit = useMutation({
 })
 
 watch([noRujukan, asal], () => {
+  kunciTerbit = crypto.randomUUID()
   rujukan.reset()
   terbit.reset()
 })
@@ -59,13 +63,13 @@ const beda = computed(() => {
 
 /** Galat per langkah; `bpjs_menolak` membawa kode dan pesan BPJS apa adanya di `rincian`. */
 const galat = computed(() => {
-  const hasil: { langkah: string; e: ApiError; bpjs: { kode: string; pesan: string }[] }[] = []
+  const baris: { langkah: string; e: ApiError; bpjs: { kode: string; pesan: string }[] }[] = []
   for (const [langkah, e] of [['Kepesertaan', peserta.error.value], ['Rujukan', rujukan.error.value], ['SEP', terbit.error.value]] as [string, unknown][]) {
     if (!(e instanceof ApiError)) continue
     const bpjs = e.kode === 'bpjs_menolak' ? e.rincian.map((r) => ({ kode: String(r.kode_bpjs ?? ''), pesan: String(r.pesan_bpjs ?? '') })) : []
-    hasil.push({ langkah, e, bpjs })
+    baris.push({ langkah, e, bpjs })
   }
-  return hasil
+  return baris
 })
 const bpjsTakTerjangkau = computed(() => galat.value.some((g) => g.e.status === 503 && g.e.kode === 'integrasi_tidak_tersedia'))
 const peringatanHasil = computed(() => hasil.value?.peringatan ?? [])

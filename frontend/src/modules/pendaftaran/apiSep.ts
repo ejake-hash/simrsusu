@@ -18,8 +18,8 @@ export async function bacaRujukan(nomor: string, tanggal: string, asal: AsalRuju
   return data.data
 }
 
-/** 201 = terbit, 202 = tersimpan menunggu (ditunda atau BPJS tidak menjawab); keduanya mengembalikan Sep. */
-export async function terbitkanSep(kunjunganId: string, isian: IsianSep): Promise<Sep> {
-  const { data } = await klien.post<{ data: Sep }>(`/kunjungan/${kunjunganId}/sep`, isian, { headers: { 'Idempotency-Key': crypto.randomUUID() } })
+/** `kunci` = Idempotency-Key satu niat terbit: dipakai ulang saat percobaan ulang (timeout, jaringan). 201 = terbit, 202 = tersimpan menunggu (ditunda atau BPJS tidak menjawab); keduanya mengembalikan Sep. */
+export async function terbitkanSep(kunjunganId: string, isian: IsianSep, kunci: string): Promise<Sep> {
+  const { data } = await klien.post<{ data: Sep }>(`/kunjungan/${kunjunganId}/sep`, isian, { headers: { 'Idempotency-Key': kunci } })
   return data.data
 }
