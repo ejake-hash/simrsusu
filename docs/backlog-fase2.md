@@ -25,8 +25,8 @@ Format dan aturan agen ada di skill `kerja-tiket` § 1–2 dan § 5. Ringkas: sa
 | 2.2 | Buku tarif + usulan tarif berjenjang | BE+FE | M | 2.1 |
 | 2.3 | Wizard langkah 6 aktif → instalasi siap melayani | BE+FE | S | 2.2 |
 | 2.4 | Jadwal praktik dokter dan kuota poli | BE+FE | M | 2.0 |
-| 2.5 | Cari pasien satu kolom + pasien baru | BE+FE | M | 2.3 · **Selesai** (BE PR #127, FE PR #128 dengan data tiruan v0.19.0; integrasi FE menyusul) |
-| 2.6 | Kunjungan poli + episode + relasi perawatan | BE+FE | M | 2.4, 2.5 · **FE selesai** (PR #130, layar pendaftaran kunjungan poli, data tiruan v0.20.0); **BE selesai** (PR #129: kunjungan, episode, relasi perawatan lapis 4, batal otomatis; merge setelah pemilik memeriksa lapis 4); integrasi FE menyusul |
+| 2.5 | Cari pasien satu kolom + pasien baru | BE+FE | M | 2.3 · **Selesai** (BE PR #127, FE PR #128 dengan data tiruan v0.19.0; integrasi FE selesai: build produksi memanggil backend asli, tiruan hanya `vite` dev dengan `VITE_API_TIRUAN=true` dan unit test; bukti `e2e/pendaftaran.spec.ts` 1440 px + axe per layar, PR #137) |
+| 2.6 | Kunjungan poli + episode + relasi perawatan | BE+FE | M | 2.4, 2.5 · **FE selesai** (PR #130, layar pendaftaran kunjungan poli, data tiruan v0.20.0, integrasi FE selesai: backend asli, bukti `e2e/pendaftaran.spec.ts` 1440 px + axe, PR #137/#141); **BE selesai** (PR #129: kunjungan, episode, relasi perawatan lapis 4, batal otomatis; merge setelah pemilik memeriksa lapis 4) |
 | 2.7 | Kepesertaan, rujukan, dan SEP (simulator VClaim) | BE+FE | M | 2.6 · **BE selesai** (PR #138: peserta/rujukan via X-Nomor, `integrasi.sep` lewat outbox + simulator insert SEP, tugas SEP_TERTUNDA) · **FE selesai** (PR #141: panel SEP di Pendaftaran kunjungan poli, e2e 1440 px + axe) |
 | 2.8 | Antrean loket dan poli + display | BE+FE | M | 2.6 · **BE selesai** (PR #140: antrean poli dari `KunjunganDibuat`, panggil/lewati/sisip/batal dari `aturan_antrean`, display token perangkat `display_antrean` + ETag, `GET /antrean` ditambah ke kontrak) · **FE selesai** (PR #144: layar petugas, display TV dengan token lewat fragmen URL, e2e keluar Tahap A) |
 | 2.9 | Duplikat pasien + usulan gabung RM | BE+FE | M | 2.5 · **Selesai** (satu PR BE+FE, kontrak v0.21.0; usulan dua tahap meniru pola 1.8c, tabel sendiri `pasien.usulan_gabung`; unmerge = utang) |
@@ -202,7 +202,6 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
 - POST cuti/libur tidak mengunci jadwal; berbarengan dengan pendaftaran bisa lolos keduanya (dampak kecil).
 - `lokal:kunjungan-contoh --batal` mengosongkan `siap_melayani_sejak` tanpa syarat dan tidak membersihkan poli `POLI-PD`.
 - `Penandatangan::status` satu query `kunci_publik` per tanda tangan (verifikasi ≤ 100 query).
-- Sidebar: menu induk "Pendaftaran" masih berlabel "Segera" walau sub-menu (kunjungan, antrean) sudah tersedia.
 - `PanelSep.vue` menolak terbit untuk rujukan kedaluwarsa tanpa melihat IGD (backend mengizinkan IGD); perlu disesuaikan saat layar IGD.
 - `SuntinganBerversi` (MasterData) kini dipakai Akses dan Sdm (PR #143); pindah ke `Core\Http` bersama `IfMatch` bila ada pemakai ketiga.
   `KelolaKsm`/`KelolaUnit` masih menyalin pola `naikkan`.
