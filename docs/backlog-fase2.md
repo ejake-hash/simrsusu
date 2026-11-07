@@ -232,7 +232,7 @@ Kolom tabel = PRD 11.2; kolom yang belum perlu boleh ditunda, kolom baru di luar
 | 2.10 | Sub-menu penjamin, tarif, jadwal praktik tampil di menu | BE | S | — · **Selesai** (PR 2.10: TERSEDIA + migrasi `pasang()`, ketiga layar masuk `LAYAR` `fase1.spec`) |
 | 2.11 | Katalog obat + formularium (penyiapan) | BE+FE | M | — · **BE selesai** (PR 2.11-be: `logistik.barang`, `farmasi.formularium(_item)`, impor CSV, kontrak v0.23.0) · FE Siap |
 | 2.12 | Wizard langkah 7 + usulan formularium | BE+FE | S | 2.11 · Siap |
-| 2.13 | Worklist poli + asesmen awal perawat | BE+FE | M | — · Siap |
+| 2.13 | Worklist poli + asesmen awal perawat | BE+FE | M | — · **BE selesai** (PR 2.13-be: modul `RekamMedis` — `klinis.catatan_klinis(_versi)`, `klinis.observasi` berpartisi, `klinis.alergi`; worklist + tahap perawat→dokter di `Antrean`) · FE Siap |
 | 2.14 | CPPT episode (`CpptLinimasa`) + pengesahan PIN | BE+FE | M | 2.13 · Siap |
 | 2.15 | Pemeriksaan dokter: diagnosis ICD-10 + selesai kunjungan | BE+FE | M | 2.14 · Siap |
 | 2.16 | Order penunjang bersama (7.00.5) | BE+FE | M | 2.14 · Siap |
@@ -312,6 +312,8 @@ Uji    :
   akun yang bukan penulisnya dan tidak lolos lapis 4 (kontrak v0.23.0).
 - Alergi yang tercatat tampil di ringkasan pasien semua kunjungan berikutnya.
 - Akun tanpa `rawat_jalan.asesmen_perawat.input` → formulir tidak dirender dan API 403; IDOR kunjungan poli lain → 403.
+Utang 2.13-be: label sensitivitas pada catatan klinis belum punya jalur pemberian, jadi `Terbatas` belum pernah dikirim untuk asesmen
+(dibangun bersama CPPT 2.14); peran perawat poli perlu `pendaftaran.antrean.perbaiki` untuk memanggil; modul 07 wajib aktif di `inti.modul_aktif`.
 Di luar: skor skrining otomatis (Morse, nyeri, gizi — data induk templat belum ada; isian kategori oleh perawat), form builder (FR-26-07),
 draf resep perawat, poli khusus (FR-07-15).
 

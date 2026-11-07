@@ -46,7 +46,7 @@ final class KelolaAsesmenAwal
     public function buat(Pengguna $penulis, object $kunjungan, string $unitId, array $isian): CatatanKlinis
     {
         KelolaPasien::pastikanSiapMelayani($this->instalasi);
-        if ($penulis->pegawai_id === null) {
+        if (empty($penulis->pegawai_id)) {
             throw new ApiError(403, 'akses_ditolak', 'Asesmen hanya bisa ditulis akun pegawai.');
         }
 

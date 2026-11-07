@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $dibatalkan_oleh
  * @property Carbon|null $dibatalkan_pada
  * @property string|null $dibuat_oleh
+ * @property int $revisi
  * @property Carbon $dibuat_pada
  */
 final class Alergi extends Model

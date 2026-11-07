@@ -10,6 +10,7 @@ use App\Modules\MasterData\Models\UnitOrganisasi;
 use App\Modules\Pendaftaran\Models\Pasien;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\Support\AksesUji;
 use Tests\Support\KlienSpa;
@@ -32,9 +33,19 @@ class AsesmenAwalTest extends TestCase
     {
         parent::setUp();
         $this->siapkanKunjungan();
+        // Modul 07 Rawat Jalan dinyalakan RS (inti.modul_aktif); instalasi uji hanya memasang modul fase 1.
+        DB::table('inti.modul_aktif')->insert(['id' => (string) Str::uuid7(), 'modul_no' => 7]);
         $this->jadwalA = $this->jadwal($this->dokter());
-        $this->perawat = $this->buatPengguna(['pegawai_id' => Pegawai::factory()->create(['profesi' => 'perawat'])->id]);
+        $this->perawat = $this->akunPerawat();
         $this->tugaskan($this->perawat, $this->buatPeran(['rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat', 'pendaftaran.antrean']));
+    }
+
+    private function akunPerawat(): Pengguna
+    {
+        /** @var Pegawai $pegawai */
+        $pegawai = Pegawai::factory()->create(['profesi' => 'perawat']);
+
+        return $this->buatPengguna(['pegawai_id' => $pegawai->id]);
     }
 
     /** Kunjungan poli lewat petugas pendaftaran; antrean terbit dari KunjunganDibuat. */
@@ -98,13 +109,13 @@ class AsesmenAwalTest extends TestCase
         $this->assertSame(38.2, (float) DB::table('klinis.observasi')->where('catatan_klinis_id', $id)->where('kode_loinc', '8310-5')->whereNull('dibatalkan_pada')->value('nilai_angka'));
         $this->mintaDenganVersi('PATCH', "/api/v1/asesmen-awal/$id", '1', ['catatan' => 'x', 'alasan_perubahan' => 'Versi lama'])->assertStatus(412);
 
-        $lain = $this->buatPengguna(['pegawai_id' => Pegawai::factory()->create(['profesi' => 'perawat'])->id]);
+        $lain = $this->akunPerawat();
         $this->tugaskan($lain, $this->buatPeran(['rawat_jalan.asesmen_perawat']));
         $this->masukSebagai($lain);
         $this->mintaDenganVersi('PATCH', "/api/v1/asesmen-awal/$id", '2', ['catatan' => 'x', 'alasan_perubahan' => 'Bukan penulis'])->assertForbidden();
 
-        $this->masukSebagai($this->perawat);
         $this->travel(49)->hours();
+        $this->masukSebagai($this->perawat);
         $this->mintaDenganVersi('PATCH', "/api/v1/asesmen-awal/$id", '2', ['catatan' => 'x', 'alasan_perubahan' => 'Terlambat'])
             ->assertStatus(409)->assertJsonPath('error.kode', 'batas_perbaikan_lewat');
     }
@@ -166,7 +177,7 @@ class AsesmenAwalTest extends TestCase
     public function test_tanpa_izin_di_luar_cakupan_dan_kunjungan_batal_ditolak(): void
     {
         $a = $this->kunjungan();
-        $tanpa = $this->buatPengguna(['pegawai_id' => Pegawai::factory()->create(['profesi' => 'perawat'])->id]);
+        $tanpa = $this->akunPerawat();
         $this->tugaskan($tanpa, $this->buatPeran(['rawat_jalan.worklist']));
         $this->masukSebagai($tanpa);
         $tolak = $this->asesmen($a, ['keluhan_utama' => 'x'])->assertForbidden()->assertJsonPath('error.kode', 'akses_ditolak');
@@ -174,7 +185,7 @@ class AsesmenAwalTest extends TestCase
         $this->minta('GET', "/api/v1/kunjungan/{$a->kunjungan_id}/asesmen-awal")->assertForbidden();
 
         $unitLain = UnitOrganisasi::query()->create(['kode' => 'POLI-LAIN', 'nama' => 'Poli Lain', 'jenis' => 'poli', 'berlaku_dari' => '2026-01-01']);
-        $luar = $this->buatPengguna(['pegawai_id' => Pegawai::factory()->create(['profesi' => 'perawat'])->id]);
+        $luar = $this->akunPerawat();
         $this->tugaskan($luar, $this->buatPeran(['rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat']), cakupan: new Cakupan('unit', $unitLain->id));
         $this->masukSebagai($luar);
         $this->asesmen($a, ['keluhan_utama' => 'x'])->assertForbidden();
