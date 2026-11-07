@@ -307,7 +307,8 @@ API    : `GET /api/v1/rawat-jalan/worklist?poli_id=&tanggal=` (dari `kunjungan.a
 Uji    :
 - IMT dihitung dari BB/TB di server; TTV disimpan sebagai observasi berkode LOINC dengan jam server. Tanpa penanda ambang (data induk belum ada).
 - Asesmen disimpan → antrean pindah ke tahap dokter (event `AsesmenPerawatSelesai`); worklist dokter hanya pasien dokter itu, perawat seluruh poli (7.07.1).
-- Perawat yang memanggil mendapat relasi perawatan kunjungan itu (lapis 4); perawat poli lain melihat "Terbatas" untuk data berlabel.
+- Asesmen tidak memberi relasi perawatan (lapis 4; relasi perawat menunggu jadwal dinas Fase 4): asesmen berlabel tampil "Terbatas" bagi
+  akun yang bukan penulisnya dan tidak lolos lapis 4 (kontrak v0.23.0).
 - Alergi yang tercatat tampil di ringkasan pasien semua kunjungan berikutnya.
 - Akun tanpa `rawat_jalan.asesmen_perawat.input` → formulir tidak dirender dan API 403; IDOR kunjungan poli lain → 403.
 Di luar: skor skrining otomatis (Morse, nyeri, gizi — data induk templat belum ada; isian kategori oleh perawat), form builder (FR-26-07),

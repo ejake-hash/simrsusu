@@ -114,7 +114,7 @@ info:
     HasilImpor. Worklist poli + asesmen awal perawat (tiket 2.13; FR-07-01, FR-07-02, FR-07-21, FR-02-09): GET
     /rawat-jalan/worklist, GET|POST /kunjungan/{id}/asesmen-awal, PATCH /asesmen-awal/{id} (perbaikan ≤ 2 × 24 jam
     berversi), POST /asesmen-awal/{id}/selesai (pasien pindah ke tahap dokter), GET|POST /pasien/{id}/alergi, POST
-    /alergi/{id}/batal. Error baru: 409 `asesmen_sudah_ada`, `batas_perbaikan_lewat`, `alergi_sudah_tercatat`. Hanya
+    /alergi/{id}/batal. Cakupan worklist dokter/perawat dipaksa server dari jadwal praktik. Error baru: 409 `asesmen_sudah_ada`, `batas_perbaikan_lewat`, `alergi_sudah_tercatat`. Hanya
     kontrak; kode menyusul di tiket BE.
 servers:
   - url: /api/v1
@@ -4532,7 +4532,9 @@ paths:
       description: |
         Izin: farmasi.formularium.perbaiki. Wajib If-Match (412 `versi_berubah`, 428 `if_match_wajib`). Barang tidak dihapus:
         nonaktifkan lewat `status`. Barang nonaktif tidak bisa ditambahkan ke formularium (422) dan tidak muncul di pilihan
-        resep, tetapi tetap terbaca di riwayat.
+        resep, tetapi tetap terbaca di riwayat; item formularium yang memuatnya tidak diubah (tetap tampil dengan
+        `barang.status = nonaktif`). Mengubah `jenis` barang yang sudah ada di formularium mana pun → 422 `validasi_gagal`
+        (field `jenis`).
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -4565,7 +4567,8 @@ paths:
         - wajib: `kode`, `nama`, `jenis` (JenisBarang), `satuan_terkecil`; `generik_paten` wajib untuk `obat`.
         - `kewaspadaan_tinggi`, `narkotika`, `lasa`: `ya` | `tidak` (kosong = tidak).
         Kode salah per baris: `kolom_wajib`, `jenis_tidak_dikenal`, `kode_tidak_valid`, `kode_ganda` (sama di berkas),
-        `kode_sudah_dipakai`, `nilai_tidak_valid`. Audit `master_data.barang_diimpor`.
+        `kode_sudah_dipakai`, `nilai_tidak_valid`. Audit `master_data.barang_diimpor` berisi jumlah baris, tanpa isi baris.
+        Penerapan satu transaksi dengan `SET LOCAL statement_timeout` sendiri (14.1.1), bukan menaikkan batas role.
       requestBody:
         required: true
         content:
@@ -4664,7 +4667,7 @@ paths:
       summary: Ubah nama atau masa berlaku formularium
       description: |
         Izin: farmasi.formularium.perbaiki. Wajib If-Match. Hanya sebelum siap melayani; sesudahnya 409 `harus_lewat_usulan`.
-        Aturan tumpang tindih sama dengan POST. `jenis` dan `penjamin_id` tidak dapat diubah.
+        Aturan tumpang tindih sama dengan POST. `kode`, `jenis`, dan `penjamin_id` tidak dapat diubah.
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -4676,7 +4679,6 @@ paths:
               required: [dasar_perubahan]
               minProperties: 2
               properties:
-                kode: { $ref: '#/components/schemas/KodeData' }
                 nama: { type: string, minLength: 2, maxLength: 150 }
                 berlaku_dari: { type: string, format: date }
                 berlaku_sampai: { type: [string, 'null'], format: date }
@@ -4803,7 +4805,8 @@ paths:
         Izin: farmasi.formularium.input. Hanya sebelum siap melayani; sesudahnya 409 `harus_lewat_usulan`. Aturan berkas dan
         mode sama dengan POST /data-induk/barang/impor. Judul kolom persis: `kode_barang,restriksi,maks_per_resep,kronis`
         (`kronis`: `ya` | `tidak`, kosong = tidak). Kode salah per baris: `kolom_wajib`, `barang_tidak_ditemukan`,
-        `barang_tidak_aktif`, `kode_ganda`, `sudah_di_formularium`, `nilai_tidak_valid`. Audit `master_data.formularium_diimpor`.
+        `barang_tidak_aktif`, `kode_ganda`, `sudah_di_formularium`, `nilai_tidak_valid`. Audit `master_data.formularium_diimpor`
+        berisi jumlah baris, tanpa isi baris; transaksi dengan `SET LOCAL statement_timeout` seperti impor barang.
       requestBody:
         required: true
         content:
@@ -5748,15 +5751,16 @@ paths:
       description: |
         Izin: rawat_jalan.worklist.lihat; poli di luar cakupan izin → 403 `akses_ditolak` (filter cakupan dipaksa server).
         Sumber: antrean titik `poli` (2.8) tanggal itu, urut urutan tunggu `(urutan, id)`, tanpa yang `batal`.
-        - `untuk=perawat` (bawaan): seluruh antrean poli itu.
-        - `untuk=dokter`: hanya kunjungan yang dokter jadwalnya pegawai akun ini (7.07.1); akun tanpa pegawai → daftar kosong.
+        Cakupan baris dipaksa server (7.07.1), bukan pilihan klien: bila pegawai akun ini punya jadwal praktik di poli itu
+        pada tanggal itu, hanya kunjungan dengan dokter jadwal = pegawai itu yang dikirim (daftar kerja dokter); selain itu
+        seluruh antrean poli (daftar kerja perawat). Identitas pasien di baris (nama, No. RM, tanggal lahir) bukan data
+        berlabel (label melekat pada catatan klinis, 9.2.5), jadi tidak diganti `Terbatas`.
         `tahap` menunjukkan siapa yang ditunggu; asesmen awal disimpan `selesai` memindahkan pasien ke tahap `dokter` dan
         antreannya kembali `menunggu` untuk dipanggil dokter. Memanggil memakai POST /antrean/{id}/panggil (2.8).
         Layar kerja: rate limit `api-layar-kerja`, `Cache-Control: no-store`.
       parameters:
         - { in: query, name: tanggal, required: true, schema: { type: string, format: date } }
         - { in: query, name: poli_id, required: true, schema: { type: string, format: uuid } }
-        - { in: query, name: untuk, schema: { type: string, enum: [perawat, dokter], default: perawat } }
         - { in: query, name: tahap, schema: { $ref: '#/components/schemas/TahapWorklist' } }
         - $ref: '#/components/parameters/Kursor'
         - $ref: '#/components/parameters/Batas'
@@ -5782,8 +5786,9 @@ paths:
       operationId: asesmenAwalKunjungan
       summary: Asesmen awal keperawatan kunjungan ini
       description: |
-        Izin: rawat_jalan.asesmen_perawat.lihat; kunjungan di luar cakupan → 403. 404 `tidak_ditemukan` bila belum ada
-        asesmen. ETag = `versi`. Pasien berlabel sensitif tanpa relasi/izin label → `{"data": {"terbatas": true}}` (9.2.5).
+        Izin: rawat_jalan.asesmen_perawat.lihat atau rawat_jalan.pemeriksaan.lihat (dokter membaca asesmen perawat);
+        kunjungan di luar cakupan → 403. 404 `tidak_ditemukan` bila belum ada asesmen. ETag = `versi`. Asesmen berlabel
+        sensitif bagi akun yang bukan penulisnya dan tidak lolos lapis 4 → `{"data": {"terbatas": true}}` (9.2.5).
       responses:
         '200':
           description: Asesmen awal
@@ -5804,8 +5809,9 @@ paths:
       description: |
         Izin: rawat_jalan.asesmen_perawat.input. Satu asesmen awal per kunjungan: sudah ada → 409 `asesmen_sudah_ada`
         (`rincian: [{id}]`). Kunjungan `batal`/`selesai` → 409 `status_tidak_sesuai`. Instalasi belum siap melayani → 409
-        `instalasi_belum_siap`. Pegawai akun ini mendapat relasi perawatan `perawat_asesmen` atas pasien untuk hari kunjungan
-        (lapis 4, `KelolaRelasiPerawatan`); akun tanpa pegawai → 403 `akses_ditolak`. Semua isian opsional saat draf.
+        `instalasi_belum_siap`. Akun tanpa pegawai → 403 `akses_ditolak`. Membuat asesmen **tidak** memberi relasi perawatan
+        (lapis 4): relasi perawat menunggu penugasan dinas (jadwal dinas, Fase 4), agar izin `input` tidak bisa dipakai membuka
+        data berlabel pasien. Penulis selalu bisa membaca asesmennya sendiri. Semua isian opsional saat draf.
         IMT dihitung server dari berat dan tinggi badan. Isi klinis tidak masuk log/audit (audit hanya `klinis.asesmen_dibuat`
         + id).
       requestBody:
@@ -5832,10 +5838,11 @@ paths:
       operationId: ubahAsesmenAwal
       summary: Ubah asesmen awal (draf, atau perbaikan dalam 2 × 24 jam)
       description: |
-        Izin: rawat_jalan.asesmen_perawat.perbaiki. Wajib If-Match (412/428). Hanya penulisnya.
+        Izin: rawat_jalan.asesmen_perawat.perbaiki. Wajib If-Match (412/428). Hanya penulisnya. Minimal satu isian asesmen
+        selain `alasan_perubahan` (422 `validasi_gagal`).
         - Draf: isian bebas diubah, tanpa versi.
         - Sesudah `selesai`: `alasan_perubahan` wajib; diterima ≤ 2 × 24 jam sejak diselesaikan, isi lama tersimpan sebagai
-          versi (FR-26-06, Permenkes 24/2022 Ps. 30 ayat 6). Lewat batas → 409 `batas_perbaikan_lewat` (koreksi klinis
+          versi (FR-26-06, Permenkes 24/2022 Ps. 30 ayat 6) dan `jumlah_versi` bertambah. Lewat batas → 409 `batas_perbaikan_lewat` (koreksi klinis
           lewat adendum CPPT, tiket 2.14).
         Bukan penulis → 403 `akses_ditolak`.
       parameters:
@@ -5900,8 +5907,9 @@ paths:
       operationId: daftarAlergiPasien
       summary: Daftar alergi pasien (semua kunjungan)
       description: |
-        Izin: rawat_jalan.asesmen_perawat.lihat. Urut: dicatat_pada terbaru dulu, id. Bawaan hanya `aktif`. Pasien berlabel
-        sensitif tanpa relasi/izin label → 403 `akses_ditolak` tanpa menyebut label.
+        Izin: rawat_jalan.asesmen_perawat.lihat atau rawat_jalan.pemeriksaan.lihat (pembaca lain, mis. farmasi 2.17, ditambah
+        tiketnya). Alergi lintas semua kunjungan pasien. Urut: dicatat_pada terbaru dulu, id. Bawaan hanya `aktif`. Alergi
+        tidak berlabel sensitivitas (dibutuhkan semua pemberi obat), jadi tidak diganti `Terbatas`.
       parameters:
         - { in: query, name: status, schema: { type: string, enum: [aktif, batal] } }
         - $ref: '#/components/parameters/Kursor'
@@ -5927,7 +5935,8 @@ paths:
       description: |
         Izin: rawat_jalan.asesmen_perawat.input. Alergi aktif dengan `zat` sama (tanpa beda huruf besar/kecil dan spasi) →
         409 `alergi_sudah_tercatat`. `barang_id` opsional (barang aktif katalog 2.11) untuk alergi obat; pemeriksaan resep
-        (2.17) mencocokkan `zat` dengan zat aktif barang.
+        (2.17) mencocokkan `zat` dengan zat aktif barang. Audit `klinis.alergi_dicatat` hanya memuat id alergi dan pasien;
+        `zat`, `reaksi`, dan `tingkat` tidak masuk log/audit.
       requestBody:
         required: true
         content:
@@ -5960,7 +5969,7 @@ paths:
       summary: Batalkan catatan alergi (salah catat atau terbukti tidak alergi)
       description: |
         Izin: rawat_jalan.asesmen_perawat.perbaiki. Baris tidak dihapus: status `batal` + alasan + pelaku + jam.
-        Sudah batal → 409 `sudah_batal`.
+        Sudah batal → 409 `sudah_batal`. Audit `klinis.alergi_dibatalkan` hanya memuat id; `alasan` tidak masuk log/audit.
       requestBody:
         required: true
         content:
@@ -8369,8 +8378,8 @@ components:
                 id: { type: string, format: uuid }
                 status: { $ref: '#/components/schemas/StatusAsesmen' }
         ada_alergi:
-          type: [boolean, 'null']
-          description: "true bila pasien punya alergi aktif; null bila pasien berlabel dan akun tidak lolos lapis 4"
+          type: boolean
+          description: "true bila pasien punya alergi aktif"
         terdaftar_pada: { type: string, format: date-time, description: "Antrean poli dibuat" }
         menunggu_sejak: { type: string, format: date-time, description: "Masuk status menunggu terakhir (dasar lama tunggu di layar)" }
     StatusAsesmen:
