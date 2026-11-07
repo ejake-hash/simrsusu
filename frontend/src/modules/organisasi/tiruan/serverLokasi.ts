@@ -745,5 +745,3 @@ export function buatServerLokasi(opsi: OpsiServerLokasi = {}) {
   }
   return { tangani, potretObjek, labelNilai, ringkasPoli, ringkasRuang, contoh: { poliAnak, gedungA, lantai1, r101, r102, melati, km101, km102, k3, k1 } }
 }
-
-export type ServerLokasi = ReturnType<typeof buatServerLokasi>

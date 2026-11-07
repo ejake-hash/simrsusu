@@ -6,6 +6,10 @@ on:
     - cron: '0 18 * * *' # 01.00 WIB
   workflow_dispatch: {}
 
+# Token baca saja; upload-artifact tidak butuh izin repo.
+permissions:
+  contents: read
+
 jobs:
   e2e-penuh:
     runs-on: ubuntu-24.04

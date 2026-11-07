@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use RuntimeException;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 /** Akun sintetis untuk lokal/staging (PRD 3.4, FR-54-10). Ditolak di production. */
 final class AkunSintetisSeeder extends Seeder
@@ -174,7 +175,7 @@ final class AkunSintetisSeeder extends Seeder
         $this->tugaskan('contoh.superadmin.dua', Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->firstOrFail());
 
         $this->command?->info('Akun sintetis: '.implode(', ', array_keys(self::AKUN)).'.');
-        $sekaliTampil = array_filter([$dibuatAcak ? "Sandi acak (hanya ditampilkan sekali): {$sandi}" : null]);
+        $sekaliTampil = array_filter([$dibuatAcak ? 'Sandi acak (hanya ditampilkan sekali): '.OutputFormatter::escape($sandi) : null]);
         foreach (array_keys(array_filter($rahasiaAcak)) as $namaPengguna) {
             $sekaliTampil[] = "Rahasia TOTP {$namaPengguna} (hanya ditampilkan sekali): {$rahasia[$namaPengguna]}";
         }
