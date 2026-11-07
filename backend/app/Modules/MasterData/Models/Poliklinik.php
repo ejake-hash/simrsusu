@@ -13,6 +13,9 @@ use Illuminate\Support\Carbon;
  * @property string $unit_organisasi_id
  * @property string|null $lokasi_id
  * @property string|null $kode_poli_bpjs
+ * @property string|null $antrean_prefiks prefiks nomor antrean; null = kode (tiket 2.8)
+ * @property string|null $antrean_area kode area display; null = kode huruf kecil
+ * @property string|null $nama_netral terisi = poli sensitif, nama tampil di display (FR-02-15)
  * @property string $status aktif | nonaktif
  * @property int $revisi
  * @property Carbon $diubah_pada

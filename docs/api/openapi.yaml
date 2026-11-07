@@ -95,8 +95,8 @@ info:
     di path seperti tulisan tiket, PRD 14.2), POST /kunjungan/{id}/sep (rujukan kedaluwarsa ditolak kecuali IGD; 503 →
     "simpan, terbitkan SEP nanti" lewat `tunda`; tugas SEP_TERTUNDA). Antrean poli + display (tiket 2.8): POST
     /antrean/{id}/panggil|lewati|sisip|batal, GET /display/{area} (polling ETag/304; nomor + inisial, nama poli netral,
-    suara tanpa nama); bagian baru `pendaftaran.antrean.display` untuk akun perangkat display yang masuk dengan token
-    perangkat (`tokenPerangkat`, PRD 10.3.1), bukan sesi cookie. Error baru: 422
+    suara tanpa nama) untuk perangkat display yang masuk dengan token perangkat (`tokenPerangkat`, PRD 10.3.1), bukan
+    sesi cookie; GET /antrean (daftar petugas, ditambah di 2.8-be). Error baru: 422
     `bpjs_menolak`, `nomor_tidak_dikenali`, `bukan_jkn`, `no_kartu_wajib`, `pemetaan_bpjs_belum_lengkap`, `rujukan_wajib`,
     `rujukan_tidak_sesuai`, `rujukan_kedaluwarsa`; 409 `sep_sudah_terbit`, `sep_sedang_diproses`, `status_tidak_sesuai`,
     `jeda_panggilan_belum_lewat`, `batas_panggilan_tercapai`, `sesi_berakhir`; 503 `integrasi_tidak_tersedia`. Hanya
@@ -5195,11 +5195,41 @@ paths:
   # - Transisi lewat endpoint blok ini: `menunggu` → `dipanggil` (→ `dipanggil` lagi saat panggil ulang), `dipanggil` →
   #   `dilewati`, `dilewati` → `menunggu` (sisip), `menunggu`/`dipanggil`/`dilewati` → `batal`. Status `dilayani`,
   #   `kembali`, dan `selesai` diubah kejadian pelayanan (RME, penunjang), bukan endpoint di sini.
-  # - Izin petugas `pendaftaran.antrean.perbaiki`, cakupan `rs`. Display memakai bagian baru `pendaftaran.antrean.display`
-  #   (aksi `lihat`, tidak sensitif, tidak ikut induk) yang diberikan ke akun perangkat display; akun itu tidak memegang izin
-  #   data pasien dan masuk dengan token perangkat (`tokenPerangkat`), bukan sesi cookie. Data pasien tidak pernah ada di
-  #   respons display, URL, log, atau teks suara.
+  # - Izin petugas `pendaftaran.antrean.lihat|perbaiki`, cakupan `rs`. Display = perangkat di data induk
+  #   `kunjungan.display_antrean` (PRD 7.01.1, 11.2: perangkat, bukan akun orang), jadi tidak pernah memegang izin data
+  #   pasien; masuk dengan token perangkat (`tokenPerangkat`), bukan sesi cookie. Data pasien tidak pernah ada di respons
+  #   display, URL, log, atau teks suara.
   # ---------------------------------------------------------------------------
+  /antrean:
+    get:
+      operationId: daftarAntrean
+      summary: Daftar antrean satu poli pada satu tanggal, urut antrean (paginasi kursor)
+      description: |
+        Izin: pendaftaran.antrean.lihat, cakupan `rs`. `tanggal` dan `poli_id` wajib (tanpa salah satunya → 422
+        `validasi_gagal`). Urut: urutan tunggu (nomor yang disisipkan menempati tempat barunya); kursor keyset
+        `(urutan, id)` (14.1.1). `status` menyaring (bawaan: semua kecuali `batal`). Baris batal tidak dihapus.
+      parameters:
+        - { in: query, name: tanggal, required: true, schema: { type: string, format: date } }
+        - { in: query, name: poli_id, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: pegawai_id, schema: { type: string, format: uuid }, description: "Saring per dokter (sdm.pegawai.id)" }
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/StatusAntrean' } }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman antrean poli (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Antrean' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /antrean/{id}/panggil:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -5213,6 +5243,7 @@ paths:
         - 409 `status_tidak_sesuai`: status bukan `menunggu`/`dipanggil` (`rincian: [{status}]`).
         - 409 `jeda_panggilan_belum_lewat`: jeda dari panggilan sebelumnya belum lewat (`rincian: [{boleh_panggil_pada}]`).
         - 409 `batas_panggilan_tercapai`: jumlah panggilan sudah sama dengan batas data induk; lanjutkan dengan lewati.
+        - 409 `sesi_berakhir`: tanggal antrean sudah lewat (zona RS); pilihan petugas tinggal batal.
         - 422 `validasi_gagal`: `lokasi_id` bukan ruang aktif.
         Audit `antrean.dipanggil` (nomor tampil dan panggilan ke-; tanpa data pasien).
       requestBody:
@@ -5304,13 +5335,14 @@ paths:
       security:
         - tokenPerangkat: []
       description: |
-        Izin: pendaftaran.antrean.display.lihat. Autentikasi token perangkat (PRD 10.3.1 baris "Kios dan perangkat", 7.01.1),
-        bukan sesi cookie: perangkat display tidak memakai sesi login, jadi batas diam sesi area publik (14.2) tidak
-        dilonggarkan. Token milik akun perangkat display (akun tanpa izin data pasien), berkemampuan `display` saja
-        (endpoint lain menolak token ini dengan 403), dapat dibatasi ke area tertentu (area di luar daftar → 403), bisa
-        dicabut, dan dibatasi laju per perangkat. Token dibuat dan dicabut lewat perintah konsol (2.8-be) sampai halaman
-        Perangkat Anjungan & Display (FR-01-23) dibangun; nilainya hanya tampil sekali saat dibuat dan tersimpan sebagai hash.
-        Akun perangkat nonaktif atau token dicabut → 401.
+        Autentikasi token perangkat (PRD 10.3.1 baris "Kios dan perangkat", 7.01.1), bukan sesi cookie: perangkat display
+        tidak memakai sesi login, jadi batas diam sesi area publik (14.2) tidak dilonggarkan. Token milik perangkat di data
+        induk `kunjungan.display_antrean` (bukan akun orang, tanpa izin data pasien), berkemampuan `display` saja (token
+        tanpa kemampuan itu → 403; endpoint lain hanya menerima sesi cookie, jadi token ini di sana → 401), dapat dibatasi
+        ke area tertentu (area di luar daftar → 403), bisa dicabut, dan dibatasi laju per perangkat. Token dibuat dan
+        dicabut lewat perintah konsol `php artisan antrean:token-display <kode> [--area=<area>…] [--cabut]` sampai halaman
+        Perangkat Anjungan & Display (FR-01-23) dibangun; membuat token baru mencabut token lama perangkat itu; nilainya
+        hanya tampil sekali saat dibuat dan tersimpan sebagai hash. Perangkat nonaktif atau token dicabut → 401.
         Polling setiap `interval_detik` (5–10 detik, dari konfigurasi server); Reverb menyusul Tahap C bersama papan IGD (K1).
         ETag = sidik isi tanpa `waktu_server`; If-None-Match yang sama → 304.
         Privasi (FR-02-15, 7.02.1, UU PDP Ps. 4):

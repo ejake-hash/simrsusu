@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * `php artisan lokal:kunjungan-contoh` (e2e pendaftaran): poli (berkode poli BPJS), penjamin BPJS, kredensial VClaim dan kode PPK sintetis (SEP, tiket 2.7), dokter ber-SIP, dan jadwal praktik sintetis setiap hari
+ * `php artisan lokal:kunjungan-contoh` (e2e pendaftaran): poli (berkode poli BPJS, prefiks antrean `PD`, area display `poli-pd`), penjamin BPJS, kredensial VClaim dan kode PPK sintetis (SEP, tiket 2.7), dokter ber-SIP, dan jadwal praktik sintetis setiap hari
  * 00.00–23.59, lalu instalasi ditandai siap melayani. Penanda itu biasanya terkunci lewat wizard penyiapan langkah 1–6,
  * yang tidak bisa dilengkapi data sintetis; `--batal` mengosongkannya lagi agar spec penyiapan tetap bisa diulang.
  * Hanya APP_ENV=local.
@@ -51,6 +51,7 @@ final class KunjunganContoh extends Command
 
         DB::transaction(function () use ($unit) {
             $poli = Poliklinik::query()->updateOrCreate(['kode' => 'POLI-PD'], ['nama' => 'Poli Penyakit Dalam (contoh)', 'unit_organisasi_id' => $unit->id, 'status' => 'aktif']);
+            $poli->forceFill(['antrean_prefiks' => 'PD'])->save();
             $dokter = Pegawai::query()->updateOrCreate(['nip' => 'SINTETIS-POLI'], [
                 'nama' => 'Contoh Dokter Poli', 'profesi' => 'dokter', 'jabatan' => 'Dokter poli (contoh)', 'jenis_kepegawaian' => 'Sintetis',
                 'tanggal_keluar' => null, 'alasan_keluar' => null,
