@@ -186,25 +186,10 @@ export interface Poliklinik {
   diubah_pada: string
 }
 
-export interface KapasitasBangsal {
-  tanggal: string
-  sumber: 'tersimpan' | 'dihitung'
-  bangsal: RingkasBangsal
-  kelas: { kelas_rawat: RingkasKelasRawat; jumlah_tersedia: number; jumlah_ekstra: number }[]
-}
-
 export interface FilterLokasi {
   induk_id?: string
   akar?: boolean
   cari?: string
   jenis?: JenisLokasi
   status?: StatusLokasi
-}
-export interface FilterTempatTidur {
-  kamar_id?: string
-  bangsal_id?: string
-  lokasi_id?: string
-  kelas_rawat_id?: string
-  status_operasional?: StatusOperasionalTt
-  cari?: string
 }

@@ -1,15 +1,10 @@
-import type { AxiosResponse } from 'axios'
-import type { Berversi } from '@/modules/organisasi/api'
+import { berversi, type Berversi } from '@/modules/organisasi/api'
 import type { Halaman } from '@/modules/akses/tipePengaturan'
 import { klien } from '@/shared/api/klien'
 import type { AkunDibuat, FilterPegawai, IsianIzinPraktik, IsianKewenangan, IsianPegawai, IzinPraktik, KewenanganKlinis, PegawaiRingkas, PegawaiRinci, UbahPegawai } from './tipe'
 
 /** Klien SDM → pegawai, izin praktik, RKK, akun dari pegawai (docs/api/openapi.yaml v0.6.0+, tiket 1.8d). */
 
-function berversi(r: AxiosResponse<{ data: PegawaiRinci }>): Berversi<PegawaiRinci> {
-  const etag = r.headers.etag
-  return { data: r.data.data, etag: typeof etag === 'string' && etag ? etag : `"${r.data.data.versi}"` }
-}
 const bersihkan = <T extends object>(f: T) => Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined && v !== '')) as Partial<T>
 
 // ── Pegawai ──

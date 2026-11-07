@@ -69,7 +69,7 @@ final class ProfilRsController
         if (isset($isi['halaman_masuk'])) {
             $isi['halaman_masuk']['tampilkan_motif'] = (bool) $isi['halaman_masuk']['tampilkan_motif'];
         }
-        $versi = self::versiDiminta($request);
+        $versi = IfMatch::versi($request);
 
         return $this->respons($request, $this->kelola->ubah($request->user(), $versi, $isi), true);
     }
@@ -77,7 +77,7 @@ final class ProfilRsController
     public function gantiBerkas(Request $request, string $jenis): JsonResponse
     {
         $request->validate(['berkas' => ['required', 'file']]);
-        $versi = self::versiDiminta($request);
+        $versi = IfMatch::versi($request);
 
         return $this->respons($request, $this->kelola->gantiBerkas($request->user(), $versi, $jenis, $request->file('berkas')), true);
     }
@@ -111,11 +111,5 @@ final class ProfilRsController
         $respons->isNotModified($request);
 
         return $respons;
-    }
-
-    /** ETag bentuk publik dan bentuk ber-rinci menunjuk versi yang sama. */
-    private static function versiDiminta(Request $request): string
-    {
-        return IfMatch::versi($request);
     }
 }

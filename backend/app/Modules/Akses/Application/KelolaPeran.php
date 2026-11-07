@@ -11,6 +11,7 @@ use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\Peran;
 use App\Modules\Akses\Models\PersetujuanAkses;
+use App\Modules\MasterData\Application\SuntinganBerversi;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,7 @@ final class KelolaPeran
         private readonly PenjagaPenyunting $penjaga,
         private readonly CacheHakAkses $cache,
         private readonly AlurPersetujuan $alur,
+        private readonly KebutuhanPersetujuan $kebutuhan,
     ) {}
 
     /** @param  array{kode: string, nama: string, uraian?: string|null, wajib_mfa: bool, salin_dari_id?: string|null, dasar_perubahan: string}  $isi */
@@ -76,7 +78,8 @@ final class KelolaPeran
         $this->penjaga->pastikanBukanPeranSendiri($penyunting, $peran->id);
 
         return DB::transaction(function () use ($penyunting, $peran, $versi, $isi) {
-            $this->naikkanVersi($peran, $versi, $penyunting);
+            SuntinganBerversi::naikkan(Peran::class, $peran->id, $versi, $penyunting->id, 'Peran');
+            $peran->refresh();
 
             if (($isi['wajib_mfa'] ?? true) === false && $this->mfaTerkunci($peran)) {
                 throw new ApiError(422, 'mfa_tidak_bisa_dimatikan', 'MFA tidak bisa dimatikan untuk superadmin atau peran yang memuat izin sensitif.');
@@ -119,7 +122,8 @@ final class KelolaPeran
         $this->penjaga->pastikanBukanPeranSendiri($penyunting, $peran->id);
 
         return DB::transaction(function () use ($penyunting, $peran, $versi, $kodeIzin, $dasar, $alasan) {
-            $this->naikkanVersi($peran, $versi, $penyunting);
+            SuntinganBerversi::naikkan(Peran::class, $peran->id, $versi, $penyunting->id, 'Peran');
+            $peran->refresh();
             if ($peran->bawaan_sistem) {
                 throw $this->bawaanTerkunci();
             }
@@ -131,7 +135,7 @@ final class KelolaPeran
 
             // Izin sensitif baru menunggu persetujuan; yang sudah menunggu tidak diajukan ulang (idempoten).
             $sensitifBaru = $ditambah->where('sensitif', true)->values();
-            $penyetuju = $this->alur->penyetujuIzin(Izin::query()->whereIn('id', $sensitifBaru->pluck('id'))->get());
+            $penyetuju = $this->kebutuhan->penyetujuIzin(Izin::query()->whereIn('id', $sensitifBaru->pluck('id'))->get());
             $menunggu = PersetujuanAkses::query()->menunggu()->where('objek_jenis', 'izin_peran')->where('peran_id', $peran->id)
                 ->whereIn('izin_id', $sensitifBaru->pluck('id'))->get()->keyBy('izin_id');
             $persetujuan = [];
@@ -273,17 +277,6 @@ final class KelolaPeran
                 'dibuat_oleh' => $penyunting->id, 'diubah_oleh' => $penyunting->id,
             ], $potongan));
         }
-    }
-
-    private function naikkanVersi(Peran $peran, string $versi, Pengguna $penyunting): void
-    {
-        // Versi = revisi (integer 32-bit); angka yang lebih panjang tidak mungkin cocok (bukan 500).
-        $naik = ctype_digit($versi) && strlen($versi) <= 9 && Peran::query()->whereKey($peran->id)->where('revisi', (int) $versi)
-            ->update(['revisi' => DB::raw('revisi + 1'), 'diubah_oleh' => $penyunting->id]) === 1;
-        if (! $naik) {
-            throw new ApiError(412, 'versi_berubah', 'Peran ini diubah orang lain sejak Anda membukanya. Muat ulang untuk melihat perubahan terbaru.');
-        }
-        $peran->refresh();
     }
 
     private function jumlahPenugasanAktif(Peran $peran): int

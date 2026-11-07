@@ -4,10 +4,10 @@ namespace App\Modules\Sdm\Application;
 
 use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
-use App\Core\Http\IfMatch;
 use App\Modules\Akses\Application\AkunPegawai;
 use App\Modules\Akses\Application\DataUnit;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\MasterData\Application\SuntinganBerversi;
 use App\Modules\Sdm\Events\PegawaiKeluar;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Database\QueryException;
@@ -43,12 +43,7 @@ final class KelolaPegawai
     public function ubah(Pengguna $penyunting, Pegawai $pegawai, string $versi, array $isi, bool $bolehNik): Pegawai
     {
         return $this->tangkapGanda(fn () => DB::transaction(function () use ($penyunting, $pegawai, $versi, $isi, $bolehNik) {
-            $revisi = IfMatch::revisi($versi);
-            $naik = $revisi !== null && Pegawai::query()->whereKey($pegawai->id)->where('revisi', $revisi)
-                ->update(['revisi' => DB::raw('revisi + 1'), 'diubah_oleh' => $penyunting->id]) === 1;
-            if (! $naik) {
-                throw new ApiError(412, 'versi_berubah', 'Data pegawai ini diubah orang lain sejak Anda membukanya. Muat ulang untuk melihat perubahan terbaru.');
-            }
+            SuntinganBerversi::naikkan(Pegawai::class, $pegawai->id, $versi, $penyunting->id, 'Data pegawai');
             $pegawai->refresh();
             $sebelum = $this->isiAudit($pegawai);
             // Superadmin hanya berkurang lewat persetujuan superadmin lain (K4), bukan lewat data SDM.

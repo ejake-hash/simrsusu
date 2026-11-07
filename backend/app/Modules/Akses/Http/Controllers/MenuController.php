@@ -12,8 +12,10 @@ final class MenuController
 {
     public function __invoke(PohonMenu $pohon): JsonResponse
     {
-        // Dipakai dua halaman: cukup salah satu izin lihat (AccessEvaluator lewat Gate).
-        abort_unless(Gate::any(['pengaturan.peran.lihat', 'pengaturan.akun.lihat'], Cakupan::rs()), 403);
+        // Dipakai dua halaman: cukup salah satu izin lihat. Penolakan lewat authorize agar kode lapis 5 tidak tertelan.
+        if (! Gate::allows('pengaturan.peran.lihat', Cakupan::rs())) {
+            Gate::authorize('pengaturan.akun.lihat', Cakupan::rs());
+        }
 
         return new JsonResponse(['data' => $pohon->semua()]);
     }

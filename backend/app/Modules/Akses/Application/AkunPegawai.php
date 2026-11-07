@@ -47,7 +47,7 @@ final class AkunPegawai
                     throw new ApiError(409, 'pegawai_sudah_punya_akun', 'Pegawai ini sudah punya akun (satu akun untuk satu pegawai).');
                 }
 
-                $sandi = self::sandiAwal();
+                $sandi = ResetSandi::sandiSementara();
                 $akun = new Pengguna(['pegawai_id' => $pegawai->id, 'nama_pengguna' => $namaPengguna, 'email' => $email]);
                 $akun->forceFill([
                     'sandi_hash' => Hash::make($sandi), 'status' => 'aktif', 'wajib_ganti_sandi' => true,
@@ -79,11 +79,5 @@ final class AkunPegawai
             $this->perangkat->cabutSemua($akun->id, 'akun_nonaktif', $kejadian->olehId);
             $this->audit->catat('akses.akun_dinonaktifkan', $kejadian->olehId, 'akses.pengguna', $akun->id, ['alasan' => 'pegawai_keluar']);
         }
-    }
-
-    /** Sama dengan sandi sementara reset (ResetSandi): tidak lebih pendek dari panjang minimal instalasi (PRD 14.2). */
-    private static function sandiAwal(): string
-    {
-        return ResetSandi::sandiSementara();
     }
 }

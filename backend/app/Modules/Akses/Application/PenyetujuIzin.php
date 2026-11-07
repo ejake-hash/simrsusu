@@ -20,6 +20,7 @@ final class PenyetujuIzin
     public function __construct(
         private readonly PenjagaPenyunting $penjaga,
         private readonly AlurPersetujuan $alur,
+        private readonly KebutuhanPersetujuan $kebutuhan,
     ) {}
 
     /** Izin tanpa perubahan bila peran itu sudah penyetujunya; selain itu pengajuan yang menunggu. */
@@ -45,7 +46,7 @@ final class PenyetujuIzin
 
             return $this->alur->ajukan($penyunting, 'izin_sensitif', 'penyetuju_izin',
                 ['izin_id' => $izin->id, 'peran_id' => $peran->id, 'peran_penyetuju_sebelum_id' => $izin->peran_penyetuju_id],
-                [$this->alur->peranSuperadmin()], ['izin_id' => $izin->id, 'peran_id' => $peran->id], $dasar, null)[0];
+                [$this->kebutuhan->peranSuperadmin()], ['izin_id' => $izin->id, 'peran_id' => $peran->id], $dasar, null)[0];
         });
     }
 }

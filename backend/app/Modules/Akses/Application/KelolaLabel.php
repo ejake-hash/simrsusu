@@ -22,6 +22,7 @@ final class KelolaLabel
     public function __construct(
         private readonly PenjagaPenyunting $penjaga,
         private readonly AlurPersetujuan $alur,
+        private readonly KebutuhanPersetujuan $kebutuhan,
         private readonly CatatAktivitas $audit,
     ) {}
 
@@ -45,7 +46,7 @@ final class KelolaLabel
             return $this->alur->ajukan($penyunting, 'izin_sensitif', 'penyetuju_label', [
                 'label_id' => $label->id, 'label_kode' => $label->kode, 'label_nama' => $label->nama,
                 'peran_id' => $peran->id, 'peran_penyetuju_sebelum_id' => $label->peran_penyetuju_id,
-            ], [$this->alur->peranSuperadmin()], ['peran_id' => $peran->id], $dasar, null)[0];
+            ], [$this->kebutuhan->peranSuperadmin()], ['peran_id' => $peran->id], $dasar, null)[0];
         });
     }
 

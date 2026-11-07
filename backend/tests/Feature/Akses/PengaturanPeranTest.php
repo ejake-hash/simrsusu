@@ -40,6 +40,18 @@ class PengaturanPeranTest extends TestCase
         }
     }
 
+    public function test_pohon_menu_cukup_izin_lihat_peran(): void
+    {
+        $pengguna = $this->buatPengguna();
+        $peran = $this->buatPeran(['pengaturan.peran']);
+        DB::table('akses.peran_izin')->where('peran_id', $peran->id)
+            ->whereIn('izin_id', Izin::query()->where('kode', '<>', 'pengaturan.peran.lihat')->select('id'))->update(['status' => 'batal']);
+        $this->tugaskan($pengguna, $peran);
+        $this->masukSebagai($pengguna);
+
+        $this->minta('GET', '/api/v1/menu')->assertOk();
+    }
+
     public function test_pohon_menu_memuat_node_aktif_dan_izin_per_node(): void
     {
         $pengguna = $this->buatPengguna();

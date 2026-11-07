@@ -166,6 +166,7 @@ class JadwalPraktikTest extends TestCase
         $this->assertTrue($this->minta('GET', '/api/v1/jadwal-praktik?tanggal=2030-01-14&pegawai_id='.$dokter->id)->json('data.0.pada_tanggal.tersedia'));
 
         $libur = $this->minta('POST', '/api/v1/jadwal-pengecualian', ['jenis' => 'libur', 'dari_tanggal' => self::SENIN, 'sampai_tanggal' => self::SENIN, 'alasan' => 'Libur nasional'])->assertCreated();
+        $this->assertSesuaiKontrak($libur->assertJsonPath('data.pegawai', null), 'POST', '/jadwal-pengecualian');
         $this->assertSame([false, false], collect($this->minta('GET', $url)->json('data'))->pluck('pada_tanggal.tersedia')->all());
 
         $this->mintaDenganVersi('PATCH', '/api/v1/jadwal-pengecualian/'.$libur->json('data.id'), '0', ['status' => 'batal', 'alasan_batal' => 'Salah catat'])

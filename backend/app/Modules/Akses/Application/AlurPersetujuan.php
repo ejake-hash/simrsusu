@@ -6,7 +6,6 @@ use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
 use App\Modules\Akses\Events\PersetujuanDiajukan;
 use App\Modules\Akses\Events\PersetujuanDitutup;
-use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PenggunaPeran;
 use App\Modules\Akses\Models\Peran;
@@ -28,28 +27,7 @@ final class AlurPersetujuan
     public function __construct(
         private readonly CatatAktivitas $audit,
         private readonly PenerapPersetujuan $penerap,
-        private readonly KebutuhanPersetujuan $kebutuhan,
     ) {}
-
-    /**
-     * @param  Collection<int, Izin>  $izin
-     * @return array<string, string> izin id => peran penyetuju id
-     */
-    public function penyetujuIzin(Collection $izin): array
-    {
-        return $this->kebutuhan->penyetujuIzin($izin);
-    }
-
-    public function peranSuperadmin(): string
-    {
-        return $this->kebutuhan->peranSuperadmin();
-    }
-
-    /** @return list<string> */
-    public function penyetujuPenugasan(Peran $peran): array
-    {
-        return $this->kebutuhan->penugasan($peran);
-    }
 
     /**
      * Buat satu pengajuan (grup) dengan satu baris per peran penyetuju, atau satu baris dengan penyetuju orang tertentu

@@ -1,17 +1,14 @@
-import type { AxiosResponse } from 'axios'
 import { klien } from '@/shared/api/klien'
 import type { Halaman } from '@/modules/akses/tipePengaturan'
-import type { Berversi } from './api'
+import { berversi, type Berversi } from './api'
 import type {
   AtributKamar,
   Bangsal,
   FilterLokasi,
-  FilterTempatTidur,
   HasilImporLokasi,
   IsianLokasi,
   IsianTempatTidur,
   Kamar,
-  KapasitasBangsal,
   KelasRawat,
   Lokasi,
   Poliklinik,
@@ -21,10 +18,6 @@ import type {
 
 /** Klien lokasi fisik, bangsal, kamar, TT, kelas rawat, poliklinik, kapasitas (docs/api/openapi.yaml v0.5.0, tiket 1.8b). */
 
-function berversi<T extends { versi: string }>(r: AxiosResponse<{ data: T }>): Berversi<T> {
-  const etag = r.headers.etag
-  return { data: r.data.data, etag: typeof etag === 'string' && etag ? etag : `"${r.data.data.versi}"` }
-}
 const bersihkan = <T extends object>(f: T) => Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined && v !== '')) as Partial<T>
 const ifMatch = (etag: string) => ({ headers: { 'If-Match': etag } })
 async function halaman<T>(jalur: string, filter: object, kursor: string | null, batas: number): Promise<Halaman<T>> {
@@ -79,7 +72,6 @@ export const ubahKamar = async (id: string, etag: string, isian: { bangsal_id?: 
   berversi<Kamar>(await klien.patch(`/kamar/${id}`, isian, ifMatch(etag)))
 
 // ── Tempat tidur ──
-export const daftarTempatTidur = (filter: FilterTempatTidur, kursor: string | null = null, batas = 50) => halaman<TempatTidur>('/tempat-tidur', filter, kursor, batas)
 export const semuaTempatTidurKamar = (kamarId: string) => semua<TempatTidur>('/tempat-tidur', { kamar_id: kamarId })
 export const ambilTempatTidur = async (id: string) => berversi<TempatTidur>(await klien.get(`/tempat-tidur/${id}`))
 /** 201 + `peringatan` (mis. melebihi_kapasitas): TT tetap dibuat. */
@@ -117,5 +109,3 @@ export const ubahPoliklinik = async (
 ) => berversi<Poliklinik>(await klien.patch(`/poliklinik/${id}`, isian, ifMatch(etag)))
 
 // ── Kapasitas ──
-export const kapasitasTempatTidur = (filter: { tanggal?: string; bangsal_id?: string }, kursor: string | null = null, batas = 50) =>
-  halaman<KapasitasBangsal>('/kapasitas-tempat-tidur', filter, kursor, batas)

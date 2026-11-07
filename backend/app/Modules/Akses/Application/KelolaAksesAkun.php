@@ -36,6 +36,7 @@ final class KelolaAksesAkun
         private readonly PenjagaPenyunting $penjaga,
         private readonly DataUnit $dataUnit,
         private readonly AlurPersetujuan $alur,
+        private readonly KebutuhanPersetujuan $kebutuhan,
         private readonly KelolaPermintaanAkses $permintaan,
         private readonly KelolaPerangkat $perangkat,
     ) {}
@@ -71,7 +72,7 @@ final class KelolaAksesAkun
             // Menunggu persetujuan, satu baris per peran penyetuju: superadmin (K4); peran berizin sensitif (K3, pemilik
             // data tiap izin); peran yang menjadi penyetuju izin sensitif (superadmin lain, K13: satu superadmin tidak
             // bisa membuat penyetuju sendiri lalu menyetujui lewat peran itu). Dihitung ulang saat diterapkan.
-            $penyetuju = $this->alur->penyetujuPenugasan($peran);
+            $penyetuju = $this->kebutuhan->penugasan($peran);
             if ($penyetuju !== []) {
                 $menunggu = PersetujuanAkses::query()->menunggu()->where('objek_jenis', 'penugasan')->where('sasaran_pengguna_id', $akun->id)
                     ->where('peran_id', $peran->id)->get()->contains(fn (PersetujuanAkses $p) => $p->objek['cakupan_jenis'] === $isi['cakupan_jenis']
@@ -126,7 +127,7 @@ final class KelolaAksesAkun
 
                 return $this->alur->ajukan($penyunting, 'peran_superadmin', 'pengakhiran_penugasan',
                     ['penugasan_id' => $penugasan->id, 'pengguna_id' => $akun->id, 'peran_id' => $penugasan->peran_id, 'alasan_batal' => $alasan],
-                    [$this->alur->peranSuperadmin()], ['peran_id' => $penugasan->peran_id, 'sasaran_pengguna_id' => $akun->id], $alasan, $alasan)[0];
+                    [$this->kebutuhan->peranSuperadmin()], ['peran_id' => $penugasan->peran_id, 'sasaran_pengguna_id' => $akun->id], $alasan, $alasan)[0];
             }
             $this->batalkan($penugasan, $penyunting, $alasan);
             $this->audit->catat('akses.penugasan_dibatalkan', $penyunting->id, 'akses.pengguna', $akun->id, [
@@ -163,7 +164,7 @@ final class KelolaAksesAkun
             ]);
         }
         $butuhPersetujuan = $sensitif && $isi['efek'] === 'tambah';
-        $penyetuju = $butuhPersetujuan ? $this->alur->penyetujuIzin(collect([$izin])) : [];
+        $penyetuju = $butuhPersetujuan ? $this->kebutuhan->penyetujuIzin(collect([$izin])) : [];
 
         [$kolomSasaran, $idSasaran] = $izin !== null ? ['izin_id', $izin->id] : ['menu_id', $menuId];
 

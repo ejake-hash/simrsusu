@@ -1,6 +1,6 @@
 import type { AxiosResponse } from 'axios'
 import type { Halaman } from '@/modules/akses/tipePengaturan'
-import type { Berversi } from '@/modules/organisasi/api'
+import { berversi, type Berversi } from '@/modules/organisasi/api'
 import { klien } from '@/shared/api/klien'
 import type { HalamanNotifikasi, HalamanTugas, JenisTugas, Notifikasi, PreferensiNotifikasi, TabTugas, TugasRinci, UbahJenisTugas } from './tipe'
 
@@ -67,10 +67,6 @@ export async function ambilTugas(id: string): Promise<TugasRinci> {
 }
 
 // ── Jenis tugas (data induk) ──
-function berversi(r: AxiosResponse<{ data: JenisTugas }>): Berversi<JenisTugas> {
-  const e = r.headers.etag
-  return { data: r.data.data, etag: typeof e === 'string' && e ? e : `"${r.data.data.versi}"` }
-}
 export async function daftarJenisTugas(filter: { aktif?: boolean }, kursor: string | null = null, batas = 50): Promise<Halaman<JenisTugas>> {
   const { data } = await klien.get<Halaman<JenisTugas>>('/jenis-tugas', { params: { aktif: filter.aktif, kursor: kursor ?? undefined, batas } })
   return data
