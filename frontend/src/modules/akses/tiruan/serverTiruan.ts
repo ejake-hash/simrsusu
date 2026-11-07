@@ -167,7 +167,12 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   // Petugas pendaftaran: NIK termasking (tanpa bagian identitas). Pembaca identitas memegang bagian NIK/paspor utuh (2.5).
   tambahPeran(uid(102), 'contoh_admisi', 'Contoh Petugas Admisi', [...izinMenu(pohon, ['pendaftaran']), 'pendaftaran.master_pasien.usul', 'pendaftaran.master_pasien.verifikasi'])
   tambahPeran(uid(111), 'contoh_pendaftaran', 'Contoh Pendaftaran + Identitas', [...izinMenu(pohon, ['pendaftaran']), 'pendaftaran.pasien.identitas.lihat', 'pendaftaran.pasien.batal'])
-  tambahPeran(uid(103), 'contoh_perawat', 'Contoh Perawat', izinMenu(pohon, ['igd', 'rawat_inap']))
+  // Sama dengan seeder (2.13): perawat poli melihat worklist, mengisi asesmen awal, memanggil nomor, dan memilih poli.
+  tambahPeran(uid(103), 'contoh_perawat', 'Contoh Perawat', [
+    ...izinMenu(pohon, ['igd', 'rawat_inap']),
+    'rawat_jalan.worklist.lihat', ...['lihat', 'input', 'perbaiki'].map((a) => `rawat_jalan.asesmen_perawat.${a}`),
+    'pendaftaran.antrean.lihat', 'pendaftaran.antrean.perbaiki', 'master_data.organisasi.lihat',
+  ])
   tambahPeran(uid(104), 'contoh_dokter', 'Contoh Dokter', izinMenu(pohon, ['igd', 'rawat_jalan', 'rekam_medis']))
   tambahPeran(uid(105), 'contoh_kasir', 'Contoh Kasir', [...izinMenu(pohon, ['kasir']), 'kasir.tagihan.cetak', 'kasir.tagihan.lihat_rupiah'], { wajib_mfa: true })
   tambahPeran(uid(106), 'contoh_lama', 'Contoh Peran Lama', [], { status: 'nonaktif' })

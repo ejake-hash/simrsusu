@@ -87,6 +87,9 @@ final class KunjunganContoh extends Command
                     ['cons_id' => '1234', 'secret_key' => 'rahasia-sintetis', 'user_key' => 'kunci-sintetis'], true, false, $oleh);
             }
 
+            // Modul 07 Rawat Jalan (worklist, asesmen perawat; 2.13) dinyalakan RS lewat penyiapan; di lokal langsung aktif.
+            DB::table('inti.modul_aktif')->insertOrIgnore(['id' => (string) Str::uuid7(), 'modul_no' => 7]);
+
             $profil = DB::table('inti.profil_rs')->first(['id', 'siap_melayani_sejak']);
             if ($profil === null) {
                 DB::table('inti.profil_rs')->insert(['id' => (string) Str::uuid7(), 'paket_identitas' => '{}', 'siap_melayani_sejak' => self::SEJAK]);

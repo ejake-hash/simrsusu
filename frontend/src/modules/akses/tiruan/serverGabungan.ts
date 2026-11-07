@@ -1,6 +1,7 @@
 import { buatServerNotifikasi } from '../../notifikasi/tiruan/serverNotifikasi'
 import { buatServerKunjungan } from '../../pendaftaran/tiruan/serverKunjungan'
 import { buatServerPasien } from '../../pendaftaran/tiruan/serverPasien'
+import { buatServerRawatJalan } from '../../rawat-jalan/tiruan/serverRawatJalan'
 import { buatServerPenjamin } from '../../penjamin/tiruan/serverPenjamin'
 import { buatServerLokasi } from '../../organisasi/tiruan/serverLokasi'
 import { buatServerJadwal } from '../../jadwal-praktik/tiruan/serverJadwal'
@@ -39,6 +40,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     akses.tambahPenugasanDev('penyiap_instalasi')
     akses.tambahPenugasanDev('contoh_integrasi')
     akses.tambahPenugasanDev('contoh_pendaftaran')
+    akses.tambahPenugasanDev('contoh_perawat')
   }
   unitMilikSaya = akses.unitMilikSaya
   const lokasi = buatServerLokasi({ unit: organisasi.ringkasUnit, unitContoh: organisasi.akar.irna, sekarang: opsi.sekarang })
@@ -106,6 +108,15 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     pelaku: () => ({ id: opsi.penggunaId ?? ID_SUPERADMIN, nama: 'Contoh Superadmin' }),
     sekarang: opsi.sekarang,
   })
+  const dokterRawatJalan = sdm.ringkasPegawai(sdm.contoh.dokter)
+  const rawatJalan = buatServerRawatJalan({
+    boleh: akses.bolehSaya,
+    poliId: lokasi.contoh.poliAnak.id,
+    dokter: dokterRawatJalan ?? { id: sdm.contoh.dokter, nama: 'Contoh Dokter', status: 'aktif' },
+    pasien: [pasien.contoh.satu, pasien.contoh.dua, pasien.contoh.tiga].map((p) => pasien.ringkas(p.id)!),
+    pelaku: () => ({ id: opsi.penggunaId ?? ID_SUPERADMIN, nama: 'Contoh Superadmin' }),
+    sekarang: opsi.sekarang,
+  })
   const integrasi = buatServerIntegrasi({ boleh: akses.bolehSaya, pelaku: () => ({ id: opsi.penggunaId ?? ID_SUPERADMIN, nama: 'Contoh Superadmin' }), sekarang: opsi.sekarang })
   // TtdSintetisSeeder: superadmin kedua (penyetuju kontrol ganda) sudah punya TTE aktif.
   ttd.aktifkan(ID_SUPERADMIN_DUA)
@@ -138,11 +149,12 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     penjamin,
     pasien,
     kunjungan,
+    rawatJalan,
     tangani: (r: PermintaanTiruan): ResponsTiruan | Promise<ResponsTiruan> | null => {
       if (akses.wajibGantiSandi() && !bebasGantiSandi(r)) {
         return { status: 403, isi: { error: { kode: 'wajib_ganti_sandi', pesan: 'Ganti sandi awal Anda lebih dulu.', rincian: [] } } }
       }
-      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r) ?? pasien.tangani(r) ?? kunjungan.tangani(r)
+      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r) ?? pasien.tangani(r) ?? kunjungan.tangani(r) ?? rawatJalan.tangani(r)
     },
   }
 }

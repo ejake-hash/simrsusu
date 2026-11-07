@@ -74,7 +74,7 @@ const BAGIAN: Record<string, [kode: string, label: string, ikutInduk: boolean][]
 }
 const AKSI_BAGIAN: Record<string, JenisAksi[]> = { 'sdm.pegawai.identitas': ['lihat'], 'pendaftaran.pasien.identitas': ['lihat'] }
 
-export const TERSEDIA = new Set(['beranda', 'pendaftaran.pasien', 'pendaftaran.master_pasien', 'pendaftaran.antrean', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.penjamin', 'master_data.usulan', 'master_data.jadwal_praktik', 'master_data.tarif', 'sdm.pegawai'])
+export const TERSEDIA = new Set(['beranda', 'pendaftaran.pasien', 'pendaftaran.master_pasien', 'pendaftaran.antrean', 'rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.penjamin', 'master_data.usulan', 'master_data.jadwal_praktik', 'master_data.tarif', 'sdm.pegawai'])
 /** Modul yang dimatikan di instalasi contoh, agar penanda "modul nonaktif" ikut teruji. */
 const MODUL_NONAKTIF = new Set(['kamar_operasi'])
 
