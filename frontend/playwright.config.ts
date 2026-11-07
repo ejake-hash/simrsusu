@@ -5,7 +5,7 @@ import { defineConfig, devices } from '@playwright/test'
  * terpisah dan sudah di-seed AkunSintetisSeeder dengan AKUN_SINTETIS_SANDI = E2E_SANDI;
  * Vite dev server di bawah memproksi /api dan /sanctum ke SIMRS_API_URL.
  */
-const LAYAR_FASE2 = /(penjamin|buku-tarif|jadwal-praktik|gabung-rm)\.spec\.ts/
+const LAYAR_FASE2 = /(penjamin|buku-tarif|jadwal-praktik|gabung-rm|formularium)\.spec\.ts/
 /** Spec yang punya proyek berurutan sendiri; desktop/seluler mengabaikannya. */
 const LAYAR_FASE2_ATAU_BERURUTAN = [/(pengaturan|fase1|pendaftaran|antrean)\.spec\.ts/, LAYAR_FASE2]
 const port = Number(process.env.E2E_PORT ?? 5173)
