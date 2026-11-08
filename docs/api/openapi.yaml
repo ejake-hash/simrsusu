@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.29.0
+  version: 0.30.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -147,6 +147,9 @@ info:
     v0.29.0: Akses darurat (break-glass) rekam medis (tiket 2.21; FR-26-12, FR-26-26, UC-33, PRD 9.2.4–9.2.5): POST
     /pasien/{id}/akses-darurat (izin rawat_jalan.cppt.darurat, butuh MFA), GET /akses-darurat, POST /akses-darurat/{id}/tinjau
     (izin rekam_medis.akses_darurat.lihat/tinjau). Selama aktif, baca RM pasien itu terbuka (lapis 3–4) dan tercatat di audit.log_akses.
+    v0.30.0: Anjungan (APM) tahap 1 (tiket 2.20; FR-01-23, FR-01-26, FR-01-28, FR-02-01, FR-02-07, PRD 7.01.1): GET /anjungan,
+    POST /anjungan/nomor-loket, GET /anjungan/jadwal-praktik dengan token perangkat berkemampuan `anjungan` (bukan sesi petugas,
+    tanpa data pasien). GET /antrean menerima `titik=loket` tanpa `poli_id`; nomor prioritas `P-` didahulukan dari `A-`.
 servers:
   - url: /api/v1
 security:
@@ -5655,12 +5658,17 @@ paths:
       operationId: daftarAntrean
       summary: Daftar antrean satu poli pada satu tanggal, urut antrean (paginasi kursor)
       description: |
-        Izin: pendaftaran.antrean.lihat, cakupan `rs`. `tanggal` dan `poli_id` wajib (tanpa salah satunya → 422
-        `validasi_gagal`). Urut: urutan tunggu (nomor yang disisipkan menempati tempat barunya); kursor keyset
-        `(urutan, id)` (14.1.1). `status` menyaring (bawaan: semua kecuali `batal`). Baris batal tidak dihapus.
+        Izin: pendaftaran.antrean.lihat, cakupan `rs`. `tanggal` wajib. `titik` bawaan `poli`: `poli_id` wajib; `titik=loket`
+        (tiket 2.20): antrean loket admisi seluruh RS, `poli_id` dan `pegawai_id` tidak dipakai (dikirim → 422). Tanpa yang
+        wajib → 422 `validasi_gagal`. Urut: urutan tunggu (nomor yang disisipkan menempati tempat barunya); kursor keyset
+        `(urutan, id)` (14.1.1). Di loket, nomor prioritas `P-` mendapat urutan sesudah nomor prioritas lain yang masih
+        menunggu dan di depan semua nomor `A-` yang menunggu (FR-02-07, 7.02.1 butir 2). `status` menyaring (bawaan: semua
+        kecuali `batal`). Baris batal tidak dihapus. Nomor loket belum tertaut kunjungan: `kunjungan_id`, `pasien`,
+        `poliklinik`, `dokter` null. Panggil, lewati, sisip, dan batal memakai endpoint yang sama dengan antrean poli.
       parameters:
         - { in: query, name: tanggal, required: true, schema: { type: string, format: date } }
-        - { in: query, name: poli_id, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: titik, schema: { type: string, enum: [poli, loket], default: poli } }
+        - { in: query, name: poli_id, schema: { type: string, format: uuid }, description: "Wajib bila titik = poli" }
         - { in: query, name: pegawai_id, schema: { type: string, format: uuid }, description: "Saring per dokter (sdm.pegawai.id)" }
         - { in: query, name: status, schema: { $ref: '#/components/schemas/StatusAntrean' } }
         - $ref: '#/components/parameters/Kursor'
@@ -5819,6 +5827,101 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+  # ---------------------------------------------------------------------------
+  # Anjungan pendaftaran mandiri, tahap 1 (tiket 2.20; PRD 7.01.1, FR-01-23, FR-01-26, FR-01-28, FR-02-01, FR-02-07).
+  # - Anjungan = perangkat di data induk `kunjungan.anjungan` (kode, lokasi, mode, status), bukan akun orang. Token perangkat
+  #   berkemampuan `anjungan` hanya membuka endpoint /anjungan/*. Di /anjungan/*: tanpa token (termasuk sesi cookie
+  #   petugas) → 401, token tanpa kemampuan `anjungan` (mis. display) → 403. Token anjungan di /display/{area} → 403; di
+  #   endpoint lain (hanya sesi cookie) → 401. Token dibuat/dicabut lewat
+  #   `php artisan antrean:token-anjungan <kode> [--cabut]` sampai halaman Perangkat Anjungan & Display dibangun; nilai hanya
+  #   tampil sekali, tersimpan sebagai hash. Perangkat nonaktif atau token dicabut → 401. Rate limit per perangkat.
+  # - Tanpa data pasien di permintaan maupun respons, URL, dan log (FR-01-28). Setiap layanan yang selesai dicatat di
+  #   `kunjungan.sesi_anjungan` (layanan, hasil, jam), tanpa identitas pasien.
+  # - Sesi layar berakhir sendiri sesudah `batas_diam_detik` tanpa sentuhan (data induk per perangkat, bawaan 60): klien
+  #   kembali ke layar awal dan membuang semua isian; server tidak menyimpan isian sesi.
+  # ---------------------------------------------------------------------------
+  /anjungan:
+    get:
+      operationId: bacaAnjungan
+      summary: Konfigurasi perangkat anjungan yang memanggil (layar awal)
+      security:
+        - tokenPerangkat: []
+      description: |
+        Token kemampuan `anjungan` saja. Memuat kode dan nama lokasi perangkat, mode, `batas_diam_detik`, dan layanan yang
+        tersedia di tahap ini. Juga menandai perangkat online (`terakhir_aktif_pada`, FR-01-30). Mode selain `pendaftaran`
+        belum didukung → 409 `mode_belum_didukung`.
+      responses:
+        '200':
+          description: Konfigurasi perangkat
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AnjunganPerangkat' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /anjungan/nomor-loket:
+    post:
+      operationId: ambilNomorLoket
+      summary: Ambil nomor antrean loket admisi (biasa `A-` atau prioritas `P-`)
+      security:
+        - tokenPerangkat: []
+      description: |
+        Token kemampuan `anjungan`, mode `pendaftaran`. Membuat antrean titik `loket` hari ini (zona RS), sumber `apm`, tanpa
+        kunjungan dan pasien: nomor `A-<urut>` atau, bila `prioritas`, `P-<urut>` (urut per prefiks per hari, FR-02-01).
+        Prioritas (lansia, disabilitas, ibu hamil, anak dengan kondisi khusus; FR-02-07) dipilih pasien sendiri tanpa bukti;
+        petugas loket yang menilai. Jam ambil tersimpan di `kunjungan.antrean_jejak` (status `menunggu`, pelaku null =
+        perangkat). Area display = area loket (data induk, bawaan `loket`). Setiap pengambilan dicatat di `sesi_anjungan`
+        (layanan `nomor_loket`, hasil `ke_loket`). Tanpa idempotensi: tiap permintaan satu nomor, dibatasi rate limit perangkat.
+        Struk tampil di layar (cetak menyusul, FR-01-27).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PermintaanNomorLoket' }
+      responses:
+        '201':
+          description: Nomor loket baru
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/TiketLoket' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /anjungan/jadwal-praktik:
+    get:
+      operationId: jadwalPraktikAnjungan
+      summary: Jadwal dokter satu tanggal untuk layar anjungan (tanpa data pasien)
+      security:
+        - tokenPerangkat: []
+      description: |
+        Token kemampuan `anjungan`. `tanggal` bawaan hari ini (zona RS); boleh hari ini sampai 6 hari ke depan, selain itu →
+        422 `validasi_gagal`. Hanya jadwal aktif yang jatuh pada tanggal itu (aturan sama dengan GET /jadwal-praktik
+        bertanggal). Poli bertanda sensitif tampil dengan nama netral. Tidak memuat id pegawai, kuota angka, maupun alasan
+        cuti: hanya `status` (`tersedia`, `penuh`, `tidak_praktik`). Urut poli (nama tampil), jam mulai, id; kursor keyset.
+      parameters:
+        - { in: query, name: tanggal, schema: { type: string, format: date } }
+        - { in: query, name: poli_id, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman jadwal (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/JadwalAnjungan' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /rawat-jalan/worklist:
     get:
       operationId: worklistPoli
@@ -7051,7 +7154,7 @@ components:
     tokenPerangkat:
       type: http
       scheme: bearer
-      description: "Token perangkat bercakupan sempit untuk display antrean (tiket 2.8, PRD 10.3.1); bukan token akun orang dan tidak dipakai SPA petugas."
+      description: "Token perangkat bercakupan sempit untuk display antrean (tiket 2.8) dan anjungan (tiket 2.20), PRD 10.3.1, 7.01.1; bukan token akun orang dan tidak dipakai SPA petugas. Kemampuan token (`display` atau `anjungan`) menentukan endpoint yang boleh."
     sesiCookie:
       type: apiKey
       in: cookie
@@ -8433,6 +8536,52 @@ components:
           items: { $ref: '#/components/schemas/JadwalPengecualian' }
         versi: { type: string }
         diubah_pada: { type: string, format: date-time }
+    AnjunganPerangkat:
+      type: object
+      required: [kode, lokasi, mode, batas_diam_detik, layanan]
+      properties:
+        kode: { type: string }
+        lokasi: { type: string, description: "Nama lokasi tampil (penunjuk arah, FR-54-13)" }
+        mode: { type: string, enum: [pendaftaran, farmasi] }
+        batas_diam_detik: { type: integer, minimum: 15, maximum: 600, description: "Sesi layar berakhir tanpa sentuhan (data induk, bawaan 60)" }
+        layanan:
+          type: array
+          description: "Layanan yang tersedia di perangkat ini pada tahap ini"
+          items: { type: string, enum: [nomor_loket, jadwal_praktik] }
+    PermintaanNomorLoket:
+      type: object
+      required: [prioritas]
+      properties:
+        prioritas: { type: boolean }
+        alasan_prioritas:
+          type: [string, 'null']
+          enum: [lansia, disabilitas, ibu_hamil, anak_khusus, null]
+          description: "Wajib bila prioritas = true (FR-02-07); null bila tidak"
+    TiketLoket:
+      type: object
+      required: [nomor_tampil, prioritas, tanggal, diambil_pada, menunggu_di_depan, lokasi]
+      description: "Struk layar; tanpa id antrean dan tanpa data pasien"
+      properties:
+        nomor_tampil: { type: string, examples: ['A-012', 'P-004'] }
+        prioritas: { type: boolean }
+        tanggal: { type: string, format: date }
+        diambil_pada: { type: string, format: date-time }
+        menunggu_di_depan: { type: integer, minimum: 0, description: "Nomor loket berstatus menunggu yang akan dipanggil lebih dulu saat ini" }
+        lokasi: { type: string, description: "Penunjuk arah ke loket admisi (data induk)" }
+    JadwalAnjungan:
+      type: object
+      required: [poliklinik, dokter, jam_mulai, jam_selesai, status]
+      properties:
+        poliklinik:
+          type: object
+          required: [id, nama]
+          properties:
+            id: { type: string, format: uuid }
+            nama: { type: string, description: "Nama netral bila poli sensitif" }
+        dokter: { type: string, description: "Nama tampil dokter" }
+        jam_mulai: { type: string, pattern: '^[0-2][0-9]:[0-5][0-9]$' }
+        jam_selesai: { type: string, pattern: '^[0-2][0-9]:[0-5][0-9]$' }
+        status: { type: string, enum: [tersedia, penuh, tidak_praktik], description: "`tidak_praktik` = cuti dokter atau libur RS" }
     MetaKursor:
       type: object
       required: [kursor_berikutnya]
