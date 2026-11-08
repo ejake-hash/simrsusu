@@ -54,7 +54,7 @@ export const circuitBreaker = (status: 'terbuka' | 'tertutup') =>
  * berikut nomor antreannya (pembatalan lewat DB tidak memicu event batal kunjungan).
  */
 export function bersihkanPesertaSintetis(): void {
-  php('tinker', '--execute', "$u = DB::table('akses.pengguna')->value('id'); $k = DB::table('kunjungan.kunjungan')->whereIn('pasien_id', DB::table('pasien.pasien')->where('nama', 'Peserta Sintetis BPJS')->pluck('id'))->where('status', '<>', 'batal'); $id = (clone $k)->pluck('id'); $k->update(['status' => 'batal', 'alasan_batal' => 'Bersih uji e2e', 'dibatalkan_oleh' => $u, 'dibatalkan_pada' => now()]); DB::table('kunjungan.antrean')->whereIn('kunjungan_id', $id)->whereIn('status', ['menunggu', 'dipanggil', 'dilewati'])->update(['status' => 'batal', 'alasan_batal' => 'Bersih uji e2e', 'dibatalkan_oleh' => $u, 'dibatalkan_pada' => now()]);")
+  php('tinker', '--execute', "$u = DB::table('akses.pengguna')->value('id'); $k = DB::table('kunjungan.kunjungan')->whereIn('pasien_id', DB::table('pasien.pasien')->where('nama', 'Peserta Sintetis BPJS')->pluck('id'))->where('status', '<>', 'batal'); $id = (clone $k)->pluck('id'); $k->update(['status' => 'batal', 'alasan_batal' => 'Bersih uji e2e', 'dibatalkan_oleh' => $u, 'dibatalkan_pada' => now()]); DB::table('kunjungan.antrean')->whereIn('kunjungan_id', $id)->whereIn('status', ['menunggu', 'dipanggil', 'dilewati', 'selesai'])->update(['status' => 'batal', 'alasan_batal' => 'Bersih uji e2e', 'dibatalkan_oleh' => $u, 'dibatalkan_pada' => now()]);")
 }
 
 /** Login sebagai admisi di konteks baru 1440 px (tanpa animasi supaya axe memeriksa keadaan akhir). */

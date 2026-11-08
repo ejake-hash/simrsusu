@@ -9,11 +9,15 @@ use App\Modules\MasterData\Models\Poliklinik;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\AksesUji;
+use Tests\Support\KlienSpa;
 use Tests\TestCase;
 
 /** `lokal:kunjungan-contoh`: data kunjungan sintetis untuk e2e pendaftaran, hanya APP_ENV=local. */
 class KunjunganContohTest extends TestCase
 {
+    use AksesUji, KlienSpa;
+
     public function test_menyiapkan_jadwal_tiap_hari_dan_penanda_siap_lalu_batal(): void
     {
         $this->artisan('lokal:kunjungan-contoh')->assertFailed();
@@ -36,6 +40,31 @@ class KunjunganContohTest extends TestCase
         // Dipasang ulang: baris poli yang sama aktif kembali (tidak dihapus saat batal).
         $this->artisan('lokal:kunjungan-contoh')->assertSuccessful();
         $this->assertSame('aktif', $poli->fresh()?->status);
+    }
+
+    public function test_paket_icd_sintetis_hanya_bila_belum_ada_dan_akun_dokter_ditautkan(): void
+    {
+        $this->app['env'] = 'local';
+        $this->seed(OrganisasiSintetisSeeder::class);
+        $akun = $this->buatPengguna(['nama_pengguna' => 'dokter.poli']);
+        $this->artisan('lokal:kunjungan-contoh')->assertSuccessful();
+        $this->artisan('lokal:kunjungan-contoh')->assertSuccessful();
+
+        $this->assertSame(['contoh-sintetis'], DB::table('inti.paket_referensi')->where('sistem', 'icd10')->pluck('versi')->all());
+        $this->assertSame(['ZZC01', 'ZZC02'], DB::table('inti.terminologi')->where('sistem', 'icd10')->orderBy('kode')->pluck('kode')->all());
+        $this->assertSame(Pegawai::query()->where('nip', 'SINTETIS-POLI')->value('id'), $akun->fresh()?->pegawai_id);
+    }
+
+    public function test_paket_icd_yang_sudah_dimuat_rs_tidak_disentuh(): void
+    {
+        $this->app['env'] = 'local';
+        $this->seed(OrganisasiSintetisSeeder::class);
+        DB::table('inti.paket_referensi')->insert(['id' => (string) Str::uuid7(), 'sistem' => 'icd10', 'versi' => 'rs-1', 'sumber' => 'Berkas RS (uji)',
+            'jumlah_kode' => 0, 'sidik_isi' => str_repeat('1', 64), 'dimuat_pada' => now()]);
+        $this->artisan('lokal:kunjungan-contoh')->assertSuccessful();
+
+        $this->assertSame(['rs-1'], DB::table('inti.paket_referensi')->where('sistem', 'icd10')->pluck('versi')->all());
+        $this->assertSame(0, DB::table('inti.terminologi')->where('sistem', 'icd10')->count());
     }
 
     public function test_batal_tidak_mengosongkan_penanda_siap_dari_wizard(): void

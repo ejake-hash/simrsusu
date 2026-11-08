@@ -63,6 +63,9 @@ final class AkunSintetisSeeder extends Seeder
         'usulan.penyetuju' => 'Contoh Penyetuju Usulan',
         // Verifikator gabung RM (tiket 2.9): pengusul (admisi) ≠ pemverifikasi, dijaga server.
         'rekam.medis' => 'Contoh Petugas Rekam Medis',
+        // Tiket 2.15: dokter jadwal poli contoh (lokal:kunjungan-contoh menautkannya ke pegawai jadwal); worklist dokter hanya
+        // memuat pasien jadwalnya sendiri (7.07.1). Terpisah dari `dokter` agar menu dan pegawai akun itu tetap.
+        'dokter.poli' => 'Contoh Pemeriksa Poli',
     ];
 
     /**
@@ -78,7 +81,7 @@ final class AkunSintetisSeeder extends Seeder
     ];
 
     /** Profesi pegawai sintetis (selain ini non_kesehatan). */
-    private const PROFESI = ['perawat' => 'perawat', 'dokter' => 'dokter'];
+    private const PROFESI = ['perawat' => 'perawat', 'dokter' => 'dokter', 'dokter.poli' => 'dokter'];
 
     /**
      * Peran contoh (tiket 1.2a) agar menu tiap akun sintetis berbeda: kode peran => [nama, akun, menu].
@@ -128,6 +131,11 @@ final class AkunSintetisSeeder extends Seeder
         'contoh_usulan_verifikator' => ['Contoh Verifikator Usulan', 'usulan.verifikator', self::IZIN_USULAN],
         'contoh_usulan_penyetuju' => ['Contoh Penyetuju Usulan', 'usulan.penyetuju', self::IZIN_USULAN],
         'contoh_rekam_medis' => ['Contoh Petugas Rekam Medis', 'rekam.medis', ['pendaftaran.master_pasien.lihat', 'pendaftaran.master_pasien.verifikasi']],
+        // Tiket 2.15: pemeriksaan dokter dari worklist; poli dipilih dari data induk.
+        'contoh_dokter_poli' => ['Contoh Pemeriksa Poli', 'dokter.poli', [
+            'rawat_jalan.worklist.lihat', 'rawat_jalan.pemeriksaan.lihat', 'rawat_jalan.pemeriksaan.input', 'rawat_jalan.pemeriksaan.perbaiki',
+            'rawat_jalan.pemeriksaan.sahkan', 'rawat_jalan.cppt.lihat', 'master_data.organisasi.lihat',
+        ]],
     ];
 
     /** Semua aksi usulan data induk + lihat organisasi (pemilih objek); pemisahan tugas dijaga server (1.8c). */

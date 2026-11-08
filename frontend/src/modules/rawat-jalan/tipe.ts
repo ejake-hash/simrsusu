@@ -1,5 +1,5 @@
 import type { RingkasPegawai } from '@/modules/jadwal-praktik/tipe'
-import type { Pelaku, RingkasPasienKunjungan } from '@/modules/pendaftaran/tipeKunjungan'
+import type { Pelaku, RingkasPasienKunjungan, StatusKunjungan } from '@/modules/pendaftaran/tipeKunjungan'
 import type { StatusAntrean } from '@/modules/antrean/tipe'
 
 /** Bentuk respons worklist poli, asesmen awal perawat, alergi (v0.23.0, tiket 2.13), dan CPPT (v0.24.0, tiket 2.14). */
@@ -160,4 +160,47 @@ export const cpptTerbatas = (c: Cppt | CpptTerbatas): c is CpptTerbatas => 'terb
 export interface FilterCppt {
   profesi?: ProfesiCatatan
   tatanan?: TatananCatatan
+}
+
+// ── Pemeriksaan dokter (v0.25.0, tiket 2.15) ──
+export type JenisDiagnosis = 'utama' | 'sekunder'
+export interface Diagnosis {
+  id: string
+  kunjungan_id: string
+  sistem: 'icd10'
+  kode: string
+  tampilan: string
+  jenis: JenisDiagnosis
+  sumber: 'dokter'
+  status: 'aktif' | 'batal'
+  dicatat_oleh: Pelaku | null
+  dicatat_pada: string
+  alasan_batal: string | null
+  dibatalkan_oleh: Pelaku | null
+  dibatalkan_pada: string | null
+  /** Pencatat + izin perbaiki + kunjungan masih dilayani + aktif (server). */
+  dapat: { ubah: boolean }
+  versi: string
+  diubah_pada: string
+}
+/** Kode dari paket referensi yang dimuat RS (K7), bukan kode bawaan produk. */
+export interface KodeReferensi {
+  id: string
+  sistem: 'icd10' | 'icd9cm' | 'loinc' | 'ucum'
+  kode: string
+  tampilan: string
+  kode_induk: string | null
+}
+export interface RingkasanKlinis {
+  pasien_id: string
+  diagnosis_aktif: { kode: string; tampilan: string; jenis: JenisDiagnosis; kunjungan_id: string; tanggal: string }[]
+  kunjungan_terakhir: {
+    kunjungan_id: string
+    tanggal: string
+    /** Nama netral bila poli bertanda sensitif; diagnosisnya lalu tidak dikirim. */
+    poliklinik: { id: string; nama: string }
+    dokter: RingkasPegawai
+    status: StatusKunjungan
+    diagnosis_utama: { kode: string; tampilan: string } | null
+  }[]
 }
