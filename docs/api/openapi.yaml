@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.26.0
+  version: 0.27.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -136,6 +136,12 @@ info:
     /episode/{id}/permintaan-pemeriksaan, POST /permintaan-pemeriksaan/{id}/batal. Bagian izin baru
     `rawat_jalan.pemeriksaan.order` (input, batal). Tarif.kategori (lab/rad, opsional) dan filter GET /data-induk/tarif?jenis=
     sebagai katalog order (izin tetap master_data.tarif.lihat). Error baru: 409 `order_ganda`. Hanya kontrak; kode menyusul di tiket BE.
+    v0.27.0: E-resep rawat jalan → antrean farmasi (tiket 2.17; FR-07-06, FR-07-07, FR-02-10, FR-22-01): GET|POST
+    /kunjungan/{id}/resep, PATCH /resep/{id} (draf, If-Match), POST /resep/{id}/sahkan (PIN T1 dokter jadwal, tanggapan per
+    peringatan, antrean farmasi satu per pasien per hari), POST /resep/{id}/batal, GET /resep?depo_id=&tanggal= (antrean depo),
+    GET /depo. Bagian izin baru `rawat_jalan.pemeriksaan.resep` (lihat, input, sahkan, batal) dan sub-menu `farmasi.resep`
+    (lihat); GET /pasien/{id}/alergi ikut menerima farmasi.resep.lihat. Objek TTE `resep`. Error baru: 409
+    `peringatan_belum_ditanggapi`, 403 `bukan_dokter_kunjungan`. Hanya kontrak; kode menyusul di tiket BE.
 servers:
   - url: /api/v1
 security:
@@ -3410,7 +3416,7 @@ paths:
         '503': { $ref: '#/components/responses/Error' }
   /ttd/verifikasi/{objek_jenis}/{objek_id}:
     parameters:
-      - { in: path, name: objek_jenis, required: true, schema: { type: string, enum: [persetujuan_akses, usulan_data_induk, catatan_klinis, catatan_klinis_adendum] } }
+      - { in: path, name: objek_jenis, required: true, schema: { type: string, enum: [persetujuan_akses, usulan_data_induk, catatan_klinis, catatan_klinis_adendum, resep] } }
       - { in: path, name: objek_id, required: true, schema: { type: string, format: uuid } }
     get:
       operationId: verifikasiTtd
@@ -3418,7 +3424,8 @@ paths:
       description: |
         Hanya akun yang boleh melihat objek itu (persetujuan_akses: aturan /persetujuan-akses/{id}; usulan_data_induk: izin
         master_data.usulan.lihat atau pelaku usulan itu; catatan_klinis dan catatan_klinis_adendum: aturan baca catatannya,
-        termasuk lapis 4 — catatan yang bagi akun itu `terbatas` → 404); selain itu 404.
+        termasuk lapis 4 — catatan yang bagi akun itu `terbatas` → 404; resep: rawat_jalan.pemeriksaan.lihat dalam cakupan
+        unit kunjungan atau farmasi.resep.lihat dalam cakupan unit depo); selain itu 404.
         Urutan pemeriksaan: keaslian dulu (`tanda_tangan_tidak_sah` bila tanda tangan tidak cocok dengan hash tersimpan dan
         kunci publik yang dipakai, mis. baris palsu), lalu isi (`isi_berubah` bila hash isi kanonik objek saat ini berbeda
         dari saat ditandatangani). Waktu di isi kanonik selalu UTC dengan presisi mikrodetik (tidak bergantung zona waktu
@@ -6504,6 +6511,258 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /depo:
+    get:
+      operationId: daftarDepo
+      summary: Depo farmasi aktif (pemilih depo resep dan antrean depo)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.resep.input ATAU farmasi.resep.lihat. Unit organisasi jenis `depo` berstatus aktif,
+        urut kode. Daftar pendek tanpa paginasi: paling banyak 200 baris (batas tetap).
+      responses:
+        '200':
+          description: Depo aktif
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, maxItems: 200, items: { $ref: '#/components/schemas/RingkasDepo' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/resep:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: daftarResepKunjungan
+      summary: Resep satu kunjungan (semua status, terbaru dulu)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.lihat, cakupan unit kunjungan (selain itu 403). Kunjungan tidak ada → 404.
+        Urut `(dibuat_pada, id)` terbaru dulu. Peringatan resep draf dihitung ulang saat dibaca (lihat PeringatanResep).
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman resep (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Resep' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatResep
+      summary: Tulis resep draf rawat jalan (FR-07-06, FR-07-07)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.resep.input (bagian, 9.2.1), cakupan unit kunjungan (selain itu 403).
+        - Kunjungan bukan `dilayani` → 409 `status_tidak_sesuai`.
+        - `depo_id`: unit organisasi jenis `depo` yang aktif (selain itu 422 `validasi_gagal`, kolom `depo_id`).
+        - `item`: lihat IsiItemResep. `barang_id` berbeda dalam satu resep, barang aktif berjenis `obat` atau `bmhp`
+          (selain itu 422, kolom `item.<n>.barang_id`).
+        - `jumlah` kosong → server menghitung `ceil(frekuensi_per_hari × jumlah_per_pakai × hari)` (FR-07-06).
+        Satu kunjungan boleh punya lebih dari satu resep. Draf belum masuk antrean farmasi. `jenis` = `rj`. Penulis = akun ini.
+        `no_resep` dibuat server. Audit `farmasi.resep_dibuat` hanya memuat id resep dan kunjungan (isi resep tidak masuk
+        log/audit).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [depo_id, item]
+              additionalProperties: false
+              properties:
+                depo_id: { type: string, format: uuid }
+                racikan: { type: boolean, default: false, description: "Tanda racikan untuk antrean farmasi (FR-02-10); komponen racikan menyusul (FR-22-09)" }
+                catatan: { type: [string, 'null'], maxLength: 1000 }
+                item:
+                  type: array
+                  minItems: 1
+                  maxItems: 30
+                  items: { $ref: '#/components/schemas/IsiItemResep' }
+      responses:
+        '201':
+          description: Resep draf tersimpan
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Resep' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /resep:
+    get:
+      operationId: daftarResepDepo
+      summary: Antrean resep elektronik satu depo per hari (FR-22-01)
+      description: |
+        Izin: farmasi.resep.lihat, cakupan unit depo `depo_id` (selain itu 403). Hanya resep `sah` atau `batal` (draf tidak
+        pernah dikirim ke farmasi). Bawaan `status=sah`, `tanggal` = hari ini zona RS (tanggal `disahkan_pada`). Urut
+        `(disahkan_pada, id)` terlama dulu (urutan antrean). Resep dari poli bertanda sensitif tampil dengan nama netral poli.
+      parameters:
+        - { in: query, name: depo_id, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: tanggal, schema: { type: string, format: date } }
+        - { in: query, name: status, schema: { type: string, enum: [sah, batal] } }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman resep (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Resep' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /resep/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      operationId: ubahResep
+      summary: Ubah resep draf
+      description: |
+        Izin: rawat_jalan.pemeriksaan.resep.input, cakupan unit kunjungan. Wajib If-Match (`versi`; 412/428). Hanya penulis
+        atau dokter jadwal kunjungan (selain itu 403 `akses_ditolak`). Status `sah` → 409 `sudah_disahkan` (resep sah tidak
+        bisa diubah: batal + resep baru); `batal` → 409 `status_tidak_sesuai`. Kunjungan bukan `dilayani` → 409
+        `status_tidak_sesuai`. `item` bila dikirim mengganti seluruh daftar butir (aturan sama dengan POST). Audit
+        `farmasi.resep_diubah` + id.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              additionalProperties: false
+              properties:
+                depo_id: { type: string, format: uuid }
+                racikan: { type: boolean }
+                catatan: { type: [string, 'null'], maxLength: 1000 }
+                item:
+                  type: array
+                  minItems: 1
+                  maxItems: 30
+                  items: { $ref: '#/components/schemas/IsiItemResep' }
+      responses:
+        '200':
+          description: Resep draf sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Resep' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /resep/{id}/sahkan:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: sahkanResep
+      summary: Sahkan resep dengan PIN T1 dokter jadwal kunjungan → antrean farmasi (FR-02-10)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.resep.sahkan, cakupan unit kunjungan; izin ini bersyarat klinis, jadi SIP/SPK tidak
+        berlaku hari ini → 403 `izin_praktik_tidak_berlaku` (lapis 5, 9.2.2). Akun bukan dokter jadwal kunjungan
+        (`Kunjungan.dokter`) → 403 `bukan_dokter_kunjungan`. Wajib If-Match. Urutan pemeriksaan sesudah izin:
+        1. Status `sah` → 409 `sudah_disahkan`; `batal` atau kunjungan bukan `dilayani` → 409 `status_tidak_sesuai`.
+        2. Peringatan dihitung ulang (PeringatanResep). Ada peringatan yang `kunci`-nya tidak punya `tanggapan` → 409
+           `peringatan_belum_ditanggapi`, tanpa menyimpan apa pun dan tanpa memeriksa PIN; `rincian` satu objek per
+           peringatan yang belum ditanggapi `{"kolom": "tanggapan", "kunci", "jenis", "resep_item_id", "tingkat", "pesan"}`.
+           `tanggapan` dengan `kunci` yang tidak ada di daftar terkini diabaikan.
+        3. TTE (objek `resep`, isi kanonik = butir + depo + racikan + kunjungan, hanya di-hash): kesalahan sama dengan POST
+           /cppt/{id}/sahkan; gagal → status tetap draf.
+        Berhasil: `sah`, `disahkan_pada` = jam server, `dokter` = pegawai akun ini; peringatan dan tanggapannya disimpan
+        (`farmasi.peringatan_resep`). Antrean farmasi: antrean titik `farmasi` pasien ini hari ini (zona RS) yang tidak
+        batal dipakai bila sudah ada (resep kedua dari poli lain, FR-07-26); bila belum, dibuat satu (`menunggu`, terikat
+        kunjungan resep ini, nomor dari `nomor_antrean` prefiks titik farmasi). Kejadian `ResepDisahkan` (id resep, id
+        antrean, jam server; task 5 farmasi untuk 2.18). Audit `farmasi.resep_disahkan` + id (tanggapan tidak masuk
+        log/audit).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pernyataan_disetujui]
+              additionalProperties: false
+              properties:
+                pin: { type: [string, 'null'], maxLength: 20, description: "Boleh null selama sesi tanda tangan berlaku (aturan /ttd/tandatangani)" }
+                pernyataan_disetujui: { type: boolean, const: true }
+                tanggapan:
+                  type: array
+                  maxItems: 200
+                  default: []
+                  items:
+                    type: object
+                    required: [kunci, alasan]
+                    additionalProperties: false
+                    properties:
+                      kunci: { type: string, maxLength: 200 }
+                      alasan: { type: string, minLength: 5, maxLength: 500, description: "Alasan tetap meresepkan walau ada peringatan (aturan UX 5.1)" }
+      responses:
+        '200':
+          description: Resep sah, sudah di antrean farmasi
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Resep' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /resep/{id}/batal:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: batalResep
+      summary: Batalkan resep draf atau sah (tidak dihapus)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.resep.batal, cakupan unit kunjungan. Draf: penulis atau dokter jadwal kunjungan; sah:
+        dokter jadwal kunjungan (selain itu 403 `akses_ditolak`). Sudah `batal` → 409 `status_tidak_sesuai`. Resep sah
+        boleh dibatalkan selama farmasi belum menelaah (telaah menyusul Tahap C). Resep → `batal`, `alasan_batal`,
+        `dibatalkan_oleh`, `dibatalkan_pada`; baris tetap tersimpan. Bila sesudahnya pasien tidak punya resep `sah` lain
+        hari itu, antrean farmasinya → `batal` dengan alasan yang sama. Audit `farmasi.resep_dibatalkan` + id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PermintaanBatal' }
+      responses:
+        '200':
+          description: Resep sesudah dibatalkan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Resep' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /pasien/{id}/ringkasan-klinis:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -6538,8 +6797,8 @@ paths:
       operationId: daftarAlergiPasien
       summary: Daftar alergi pasien (semua kunjungan)
       description: |
-        Izin: rawat_jalan.asesmen_perawat.lihat atau rawat_jalan.pemeriksaan.lihat (pembaca lain, mis. farmasi 2.17, ditambah
-        tiketnya). Alergi lintas semua kunjungan pasien. Urut: dicatat_pada terbaru dulu, id. Bawaan hanya `aktif`. Alergi
+        Izin: rawat_jalan.asesmen_perawat.lihat, rawat_jalan.pemeriksaan.lihat, atau farmasi.resep.lihat (sejak v0.27.0,
+        telaah depo). Alergi lintas semua kunjungan pasien. Urut: dicatat_pada terbaru dulu, id. Bawaan hanya `aktif`. Alergi
         tidak berlabel sensitivitas (dibutuhkan semua pemberi obat), jadi tidak diganti `Terbatas`.
       parameters:
         - { in: query, name: status, schema: { type: string, enum: [aktif, batal] } }
@@ -7486,7 +7745,7 @@ components:
       required: [id, objek_jenis, objek_id, penanda_tangan, tingkat, metode, hash_isi, sidik_kunci, kredensial_dicabut, ditandatangani_pada, verifikasi]
       properties:
         id: { type: string, format: uuid }
-        objek_jenis: { type: string, enum: [persetujuan_akses, usulan_data_induk, catatan_klinis, catatan_klinis_adendum] }
+        objek_jenis: { type: string, enum: [persetujuan_akses, usulan_data_induk, catatan_klinis, catatan_klinis_adendum, resep] }
         objek_id: { type: string, format: uuid }
         penanda_tangan:
           type: object
@@ -9344,4 +9603,133 @@ components:
           required: [batal]
           description: "true bila akun punya rawat_jalan.pemeriksaan.order.batal dalam cakupan unit kunjungan dan status `dipesan`"
           properties:
+            batal: { type: boolean }
+    RingkasDepo:
+      type: object
+      required: [id, kode, nama]
+      properties:
+        id: { type: string, format: uuid, description: "inti.unit_organisasi.id berjenis depo" }
+        kode: { type: string }
+        nama: { type: string }
+    StatusResep:
+      type: string
+      enum: [draf, sah, batal]
+      description: "PRD 11.2 farmasi.resep.status. Status telaah, siap, dan diserahkan menyusul Tahap C."
+    IsiItemResep:
+      type: object
+      required: [barang_id, frekuensi_per_hari, jumlah_per_pakai, hari]
+      additionalProperties: false
+      properties:
+        barang_id: { type: string, format: uuid }
+        dosis: { type: [string, 'null'], maxLength: 100, description: "Teks bebas, mis. kekuatan per pemberian" }
+        frekuensi_per_hari: { type: integer, minimum: 1, maximum: 24 }
+        jumlah_per_pakai: { type: number, exclusiveMinimum: 0, maximum: 1000, description: "Dalam satuan terkecil barang" }
+        hari: { type: integer, minimum: 1, maximum: 365 }
+        jumlah: { type: [number, 'null'], exclusiveMinimum: 0, maximum: 100000, description: "null = dihitung server (FR-07-06); diisi = dokter menimpa hasil hitung" }
+        rute: { type: [string, 'null'], maxLength: 50 }
+        aturan_pakai: { type: [string, 'null'], maxLength: 200, description: "Keterangan pakai, mis. sesudah makan" }
+        catatan: { type: [string, 'null'], maxLength: 500 }
+    PeringatanResep:
+      type: object
+      required: [kunci, resep_item_id, jenis, tingkat, pesan, tanggapan]
+      description: |
+        Peringatan pemeriksaan resep otomatis (FR-07-07) dibuat server. Resep draf: dihitung ulang setiap kali resep dibaca
+        atau disimpan, `tanggapan` null. Resep sah/batal: yang tersimpan saat disahkan, dengan tanggapannya. Jenis:
+        - `alergi`: alergi aktif pasien (GET /pasien/{id}/alergi) dengan `barang_id` sama, atau `zat` sama dengan salah satu
+          zat aktif barang (tanpa beda huruf besar/kecil dan spasi). `tingkat` = tingkat alergi.
+        - `duplikasi`: zat aktif sama di butir lain resep ini, atau di resep `sah` lain pasien ini hari ini (zona RS, poli
+          mana pun). Resep dari kunjungan di poli bertanda sensitif yang unitnya di luar cakupan akun tidak dihitung (9.2.5,
+          sama dengan order ganda 2.16); `pesan` tidak menyebut poli atau dokter asalnya.
+        - `non_fornas`: barang tidak ada di formularium yang berlaku hari ini untuk penjamin kunjungan: formularium jenis
+          `penjamin` milik penjamin itu bila ada; bila tidak ada dan cara bayar `jkn`, formularium `fornas`; selain itu
+          formularium `rs`. Tidak ada formularium yang berlaku → tidak ada peringatan jenis ini.
+        Interaksi dan dosis ginjal menunggu data induk yang disetujui RS (di luar 2.17).
+      properties:
+        kunci: { type: string, description: "Penanda tetap selama sumbernya sama (butir + jenis + rujukan); dipakai `tanggapan` saat sahkan" }
+        resep_item_id: { type: string, format: uuid }
+        jenis: { type: string, enum: [alergi, duplikasi, non_fornas], description: "Subset PRD 11.2 farmasi.peringatan_resep.jenis" }
+        tingkat: { type: [string, 'null'], enum: [ringan, sedang, berat, null], description: "Hanya jenis alergi; null bila tidak tercatat" }
+        pesan: { type: string }
+        tanggapan:
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [alasan, oleh, pada]
+              properties:
+                alasan: { type: string }
+                oleh: { $ref: '#/components/schemas/Pelaku' }
+                pada: { type: string, format: date-time }
+    Resep:
+      type: object
+      required: [id, no_resep, kunjungan_id, pasien, poliklinik, depo, jenis, racikan, catatan, status, penulis, dokter, dibuat_pada,
+        disahkan_pada, item, peringatan, antrean, alasan_batal, dibatalkan_oleh, dibatalkan_pada, versi, dapat]
+      properties:
+        id: { type: string, format: uuid }
+        no_resep: { type: string, description: "Dibuat server, unik" }
+        kunjungan_id: { type: string, format: uuid }
+        pasien: { $ref: '#/components/schemas/RingkasPasienKunjungan' }
+        poliklinik:
+          type: object
+          required: [id, nama]
+          description: "Nama netral bila poli bertanda sensitif (9.2.5)"
+          properties:
+            id: { type: string, format: uuid }
+            nama: { type: string }
+        depo: { $ref: '#/components/schemas/RingkasDepo' }
+        jenis: { type: string, enum: [rj, ri, pulang, igd], description: "PRD 11.2; tiket 2.17 hanya membuat `rj`" }
+        racikan: { type: boolean }
+        catatan: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/StatusResep' }
+        penulis: { $ref: '#/components/schemas/Pelaku' }
+        dokter: { $ref: '#/components/schemas/RingkasPegawai', description: "Dokter yang mengesahkan; null sebelum sah" }
+        dibuat_pada: { type: string, format: date-time }
+        disahkan_pada: { type: [string, 'null'], format: date-time, description: "= masuk antrean farmasi (PRD resep.masuk_pada)" }
+        item:
+          type: array
+          items:
+            type: object
+            required: [id, barang, dosis, frekuensi_per_hari, jumlah_per_pakai, hari, jumlah, rute, aturan_pakai, catatan]
+            properties:
+              id: { type: string, format: uuid }
+              barang:
+                type: object
+                required: [id, kode, nama, zat_aktif, kekuatan, sediaan, satuan_terkecil]
+                properties:
+                  id: { type: string, format: uuid }
+                  kode: { type: string }
+                  nama: { type: string }
+                  zat_aktif: { type: [string, 'null'] }
+                  kekuatan: { type: [string, 'null'] }
+                  sediaan: { type: [string, 'null'] }
+                  satuan_terkecil: { type: string }
+              dosis: { type: [string, 'null'] }
+              frekuensi_per_hari: { type: integer }
+              jumlah_per_pakai: { type: number }
+              hari: { type: integer }
+              jumlah: { type: number }
+              rute: { type: [string, 'null'] }
+              aturan_pakai: { type: [string, 'null'] }
+              catatan: { type: [string, 'null'] }
+        peringatan: { type: array, items: { $ref: '#/components/schemas/PeringatanResep' } }
+        antrean:
+          description: "Antrean farmasi pasien hari itu; null selama draf atau bila resep batal sebelum disahkan"
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [id, nomor_tampil, status]
+              properties:
+                id: { type: string, format: uuid }
+                nomor_tampil: { type: string, examples: ['F-045'] }
+                status: { $ref: '#/components/schemas/StatusAntrean' }
+        alasan_batal: { type: [string, 'null'] }
+        dibatalkan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        dibatalkan_pada: { type: [string, 'null'], format: date-time }
+        versi: { type: string, description: "Nilai untuk If-Match (sama dengan ETag)" }
+        dapat:
+          type: object
+          required: [ubah, sahkan, batal]
+          description: "Hak akun ini atas resep (izin, cakupan, pemilik, status); lapis 5 tetap diperiksa saat sahkan"
+          properties:
+            ubah: { type: boolean }
+            sahkan: { type: boolean }
             batal: { type: boolean }
