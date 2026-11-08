@@ -6923,9 +6923,11 @@ paths:
       operationId: bukaAksesDarurat
       summary: Buka akses darurat (break-glass) RM satu pasien
       description: |
-        Tiket 2.21, UC-33. Izin: rawat_jalan.cppt.darurat (aksi klinis; `butuh_mfa`). Superadmin tanpa izin klinis → 403
-        `akses_ditolak` (9.2.4). Lapis 5: 403 `mfa_belum_terdaftar` / `mfa_ulang_diperlukan` (verifikasi ulang lalu ulangi).
-        Pasien tidak ada → 404. `alasan` wajib; tidak masuk log aplikasi.
+        Tiket 2.21, UC-33. Izin: rawat_jalan.cppt.darurat, ditandai sensitif (pemberian lewat peran atau per akun butuh
+        persetujuan pemilik data, 9.2.4: rekam medis seluruh RS), klinis (`butuh_kewenangan_klinis`), dan `butuh_mfa`.
+        Superadmin tanpa izin itu → 403 `akses_ditolak` (9.2.4). Akun tanpa pegawai → 403 `akses_ditolak` (bukan tenaga
+        klinis). Lapis 5: 403 `izin_praktik_tidak_berlaku`, `mfa_belum_terdaftar`, `mfa_ulang_diperlukan` (verifikasi ulang
+        lalu ulangi). Pasien tidak ada → 404. `kategori_alasan` (FR-26-26) dan `alasan` wajib; `alasan` tidak masuk log aplikasi.
 
         Akses berlaku dari `mulai_pada` sampai `berakhir_pada` = mulai + `akses.kebijakan_keamanan.akses_darurat_menit`
         (data, bawaan 240 menit = 4 jam), lalu tertutup tanpa tindakan. Selama aktif, untuk pasien ini saja dan hanya baca:
@@ -6933,7 +6935,8 @@ paths:
           lihat layarnya di cakupan mana pun (lapis 1–2 tetap berlaku);
         - lapis 4: entri berlabel sensitivitas terbuka walau akun tidak memegang izin label atau tidak merawat pasien.
         Tulis, sahkan, dan perbaiki tetap mengikuti hak biasa. Setiap pembacaan RM pasien ini oleh akun ini selama aktif tercatat
-        di `audit.log_akses` (pengguna, pasien, kunjungan, layar, aksi `lihat`, id akses darurat, ip; tanpa isi klinis).
+        di `audit.log_akses` (pengguna, pasien, kunjungan, layar, aksi `lihat`, alasan = `kategori_alasan`, id akses darurat,
+        ip; tanpa isi klinis dan tanpa teks `alasan`).
 
         Bila akun ini masih punya akses darurat aktif untuk pasien yang sama → 200 dengan akses itu (tidak diperpanjang,
         alasan baru diabaikan). Selain itu 201 dan tugas TINJAUAN_AKSES_DARURAT terbit ke setiap peran pemegang
@@ -6999,7 +7002,7 @@ paths:
       summary: Simpan hasil tinjauan pasca-akses (sekali, tidak bisa diubah)
       description: |
         Tiket 2.21, UC-33 langkah 3. Izin: rekam_medis.akses_darurat.tinjau, cakupan rs. Tidak ada → 404.
-        Meninjau akses darurat milik sendiri → 403 `tinjau_diri_sendiri`. Sudah ditinjau → 409 `sudah_ditinjau`
+        Meninjau akses darurat milik sendiri → 403 `diri_sendiri` (9.2.4). Sudah ditinjau → 409 `sudah_ditinjau`
         (hasil tidak bisa diubah). Boleh ditinjau sebelum masa akses berakhir; akses tidak dicabut oleh tinjauan.
         Tugas TINJAUAN_AKSES_DARURAT objek ini selesai. Audit `akses.akses_darurat_ditinjau` (id dan hasil; tanpa catatan).
       requestBody:
@@ -9811,18 +9814,23 @@ components:
                 pada: { type: string, format: date-time }
     AksesDaruratBaru:
       type: object
-      required: [alasan]
+      required: [kategori_alasan, alasan]
       properties:
-        alasan: { type: string, minLength: 10, maxLength: 500, description: "Alasan klinis darurat; wajib (FR-26-12)" }
+        kategori_alasan: { $ref: '#/components/schemas/KategoriAlasanAksesRm' }
+        alasan: { type: string, minLength: 10, maxLength: 500, description: "Uraian keadaan darurat; wajib (FR-26-12)" }
+    KategoriAlasanAksesRm:
+      type: string
+      enum: [audit, klaim, hukum, pelayanan_lanjutan]
+      description: "Alasan terpilih akses RM di luar cakupan (FR-26-26, PMK 24/2022 Ps. 29–30); tampil di tinjauan akses"
     TinjauanAksesDaruratBaru:
       type: object
       required: [hasil, catatan]
       properties:
-        hasil: { type: string, enum: [wajar, tidak_wajar], description: "`tidak_wajar` = ditindaklanjuti di luar sistem (PRD 9.2.4)" }
+        hasil: { type: string, enum: [wajar, tidak_wajar], description: "`tidak_wajar` = ditindaklanjuti peninjau di luar sistem (UC-33 langkah 3)" }
         catatan: { type: string, minLength: 5, maxLength: 1000 }
     AksesDarurat:
       type: object
-      required: [id, pasien, pengguna, alasan, mulai_pada, berakhir_pada, aktif, jumlah_akses, tinjauan, dapat]
+      required: [id, pasien, pengguna, kategori_alasan, alasan, mulai_pada, berakhir_pada, aktif, jumlah_akses, tinjauan, dapat]
       properties:
         id: { type: string, format: uuid }
         pasien: { $ref: '#/components/schemas/RingkasPasienKunjungan' }
@@ -9830,6 +9838,7 @@ components:
           allOf: [{ $ref: '#/components/schemas/Pelaku' }]
           type: object
           description: Akun yang membuka akses
+        kategori_alasan: { $ref: '#/components/schemas/KategoriAlasanAksesRm' }
         alasan: { type: string }
         mulai_pada: { type: string, format: date-time }
         berakhir_pada: { type: string, format: date-time }
