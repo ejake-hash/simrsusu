@@ -227,6 +227,15 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
   empat lebar belum. Pindahkan ke proyek malam sesudah `rawat-jalan`?
 - Lokal: `php artisan test` penuh (±453 uji) melebihi `memory_limit` 128M bawaan PHP Homebrew; CI hijau. Jalankan lokal dengan
   `php -d memory_limit=512M artisan test` atau setel `memory_limit` di php.ini pengembang.
+- Migrasi `2026_10_11_120100_create_akses_menu_peran_izin_tables` diubah PR #131 (menambah `usul` ke `izin_jenis_aksi_cek`) setelah
+  sudah jalan. DB yang dimigrasi sebelum 24 Okt masih memakai constraint lama, lalu gagal di `2026_10_19_100000_create_inti_penjamin_table`
+  karena `MenuBawaan::pasang()` (isi terbaru) menyisipkan izin `usul` sebelum `2026_10_24_100000_gabung_rm_pasien` memperluas constraint.
+  CI tidak menangkapnya karena selalu memakai DB baru. Perbaikan maju-saja: migrasi bertanggal sebelum `2026_10_19_100000` yang
+  menyamakan constraint (idempoten, `DROP … IF EXISTS` + `ADD`); larang mengubah migrasi yang sudah di-merge (cek CI?). Sementara:
+  pasang constraint versi 10_24 secara manual lalu `migrate` (dilakukan di DB lokal folder utama 8 Nov 2026).
+- `MaskingLogTest::test_log_manual_dengan_binding_pesan_mentah_dan_jejak_argumen_tetap_tersamar` gagal di lokal (juga di `main` tanpa
+  perubahan, 8 Nov 2026): log berisi `SQLSTATE[22P02] invalid input syntax for type uuid: "?"`, bukan pesan yang diharapkan. CI lulus →
+  kemungkinan beda versi PostgreSQL/ekstensi atau pengaturan lokal. Selidiki sebelum menganggapnya flake.
 
 ## Tahap B — tiket (rawat jalan + RME)
 
