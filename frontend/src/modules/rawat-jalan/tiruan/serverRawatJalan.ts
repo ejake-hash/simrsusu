@@ -1,12 +1,15 @@
 import type { PermintaanTiruan, ResponsTiruan } from '../../akses/tiruan/serverTiruan'
 import type { RingkasPegawai } from '../../jadwal-praktik/tipe'
 import type { Pelaku, RingkasPasienKunjungan } from '../../pendaftaran/tipeKunjungan'
-import type { Alergi, AsesmenAwal, BarisWorklist, IsianAsesmenAwal, TandaVital } from '../tipe'
+import { PIN_TIRUAN } from '../../ttd/tiruan/serverTtd'
+import type { Alergi, AsesmenAwal, BarisWorklist, Cppt, CpptTerbatas, IsianAsesmenAwal, IsiSoap, TandaVital } from '../tipe'
 
 /**
  * Server tiruan kontrak v0.23.0 (tiket 2.13): GET /rawat-jalan/worklist, asesmen awal (draf → selesai → perbaikan ≤ 2 × 24 jam
  * dengan If-Match), alergi pasien, dan POST /antrean/{id}/panggil untuk nomor miliknya. Keadaan di memori; antrean dan
  * kunjungan sintetis dibuat sendiri untuk poli contoh karena server tiruan pendaftaran tidak menerbitkan antrean.
+ * CPPT (v0.24.0, tiket 2.14): linimasa episode/pasien, tulis, ubah/perbaiki, sahkan (PIN_TIRUAN), adendum. Entri dengan
+ * `terbatasBagiSaya` dikirim sebagai CpptTerbatas (pengganti lapis 4).
  * Bukan sumber aturan.
  */
 const error = (status: number, kode: string, pesan: string, rincian: Record<string, unknown>[] = []): ResponsTiruan => ({ status, isi: { error: { kode, pesan, rincian } } })
@@ -76,6 +79,8 @@ export function buatServerRawatJalan(opsi: OpsiServerRawatJalan) {
     a.tanda_vital = { ...a.tanda_vital, ...isian.tanda_vital }
     a.skrining = { ...a.skrining, ...isian.skrining }
     a.imt = imt(a.tanda_vital)
+    if ('label' in isian) a.label = isian.label ?? null
+    a.ditandatangani_pada = null
   }
 
   function tanganiAsesmen(r: PermintaanTiruan, bagian: string[], metode: string): ResponsTiruan | null {
@@ -95,7 +100,7 @@ export function buatServerRawatJalan(opsi: OpsiServerRawatJalan) {
       const a: AsesmenAwal = {
         id: uid('s'), kunjungan_id: b.kunjungan_id, episode_id: uid('e'), status: 'draf', keluhan_utama: null, riwayat_penyakit_sekarang: null, riwayat_penyakit_dahulu: null,
         tanda_vital: {}, imt: null, skrining: { skala_nyeri: null, lokasi_nyeri: null, risiko_jatuh: null, gizi_berisiko: null, catatan: null }, catatan: null,
-        penulis: opsi.pelaku(), dibuat_pada: iso(), selesai_pada: null, batas_perbaikan_pada: null, jumlah_versi: 0, versi: '', diubah_pada: iso(),
+        penulis: opsi.pelaku(), dibuat_pada: iso(), selesai_pada: null, batas_perbaikan_pada: null, jumlah_versi: 0, label: null, ditandatangani_pada: null, versi: '', diubah_pada: iso(),
       }
       terapkan(a, isian)
       baru(a)
@@ -178,6 +183,110 @@ export function buatServerRawatJalan(opsi: OpsiServerRawatJalan) {
     return null
   }
 
+  // ── CPPT ──
+  type CpptT = Cppt & { terbatasBagiSaya?: boolean }
+  const cppt: CpptT[] = []
+  const BAGIAN_SOAP = ['subjektif', 'objektif', 'asesmen', 'plan'] as const
+  const kosong = (isi: Partial<IsiSoap>) => BAGIAN_SOAP.every((k) => !isi[k]?.trim())
+  const bentukCppt = (c: CpptT): Cppt | CpptTerbatas => {
+    if (c.terbatasBagiSaya) return { id: c.id, terbatas: true, dibuat_pada: c.dibuat_pada }
+    const milik = c.penulis.id === opsi.pelaku().id
+    const dalamBatas = !!c.batas_perbaikan_pada && new Date(c.batas_perbaikan_pada) > sekarang()
+    const { terbatasBagiSaya: _, ...data } = c
+    return {
+      ...data,
+      dapat: {
+        ubah: milik && opsi.boleh('rawat_jalan.cppt.perbaiki') && (c.status === 'draf' || dalamBatas),
+        sahkan: milik && opsi.boleh('rawat_jalan.cppt.sahkan') && c.status === 'draf',
+        adendum: milik && opsi.boleh('rawat_jalan.cppt.input') && c.status === 'sah' && !dalamBatas,
+      },
+    }
+  }
+  const versiCppt = (c: CpptT) => {
+    c.versi = `c${++versiN}`
+    c.diubah_pada = iso()
+  }
+  const periksaTtd = (isi: { pin?: string | null; pernyataan_disetujui?: boolean }): ResponsTiruan | null => {
+    if (isi.pernyataan_disetujui !== true) return error(422, 'validasi_gagal', 'Pernyataan wajib disetujui.', [{ kolom: 'pernyataan_disetujui' }])
+    if (!isi.pin) return error(422, 'pin_wajib', 'PIN wajib.', [{ kolom: 'pin' }])
+    if (isi.pin !== PIN_TIRUAN) return error(422, 'pin_salah', 'PIN salah.', [{ kolom: 'pin', sisa_percobaan: 4 }])
+    return null
+  }
+
+  function tanganiCppt(r: PermintaanTiruan, bagian: string[], metode: string): ResponsTiruan | null {
+    if ((bagian[0] === 'episode' || bagian[0] === 'pasien') && bagian[2] === 'cppt' && metode === 'GET') {
+      if (!opsi.boleh('rawat_jalan.cppt.lihat') && !opsi.boleh('rawat_jalan.pemeriksaan.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak melihat CPPT.')
+      const profesi = r.kueri.get('profesi')
+      const tatanan = r.kueri.get('tatanan')
+      const pasienKunjungan = (kunjunganId: string) => baris.find((b) => b.kunjungan_id === kunjunganId)?.pasien.id
+      const data = cppt
+        .filter((c) => (bagian[0] === 'episode' ? c.episode_id === bagian[1] : pasienKunjungan(c.kunjungan_id) === bagian[1]))
+        .filter((c) => c.status === 'sah' || c.penulis.id === opsi.pelaku().id)
+        .filter((c) => (!profesi && !tatanan) || (!c.terbatasBagiSaya && (!profesi || c.profesi === profesi) && (!tatanan || c.tatanan === tatanan)))
+        .sort((a, b) => b.dibuat_pada.localeCompare(a.dibuat_pada) || b.id.localeCompare(a.id))
+        .map(bentukCppt)
+      return { status: 200, header: NO_STORE, isi: { data, meta: { kursor_berikutnya: null } } }
+    }
+    if (bagian[0] === 'kunjungan' && bagian[2] === 'cppt' && metode === 'POST') {
+      const b = baris.find((x) => x.kunjungan_id === bagian[1])
+      if (!b) return error(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.')
+      if (!opsi.boleh('rawat_jalan.cppt.input')) return error(403, 'akses_ditolak', 'Anda tidak berhak menulis CPPT.')
+      const isi = (r.isi ?? {}) as IsiSoap & { label?: string | null }
+      if (kosong(isi)) return error(422, 'validasi_gagal', 'Minimal satu bagian SOAP terisi.', [{ kolom: 'subjektif' }])
+      const c: CpptT = {
+        id: uid('p'), episode_id: `e-${b.kunjungan_id}`, kunjungan_id: b.kunjungan_id, unit: { id: opsi.poliId, kode: 'POLI', nama: 'Poli contoh' }, tatanan: 'rj',
+        profesi: 'perawat', jenis: 'soap', isi: { subjektif: isi.subjektif ?? null, objektif: isi.objektif ?? null, asesmen: isi.asesmen ?? null, plan: isi.plan ?? null },
+        label: isi.label ?? null, status: 'draf', penulis: opsi.pelaku(), dibuat_pada: iso(), disahkan_pada: null, batas_perbaikan_pada: null, jumlah_versi: 0, adendum: [],
+        dapat: { ubah: false, sahkan: false, adendum: false }, versi: '', diubah_pada: iso(),
+      }
+      versiCppt(c)
+      cppt.push(c)
+      return { status: 201, header: { ETag: `"${c.versi}"` }, isi: { data: bentukCppt(c) } }
+    }
+    if (bagian[0] !== 'cppt') return null
+    const c = cppt.find((x) => x.id === bagian[1])
+    if (!c) return error(404, 'tidak_ditemukan', 'CPPT tidak ditemukan.')
+    if (c.penulis.id !== opsi.pelaku().id) return error(403, 'akses_ditolak', 'Hanya penulisnya.')
+    const im = r.header['if-match']
+    if (!im) return error(428, 'if_match_wajib', 'Header If-Match wajib.')
+    if (im !== `"${c.versi}"`) return error(412, 'versi_usang', 'CPPT sudah berubah.')
+    const isi = (r.isi ?? {}) as Partial<IsiSoap> & { label?: string | null; alasan_perubahan?: string; pin?: string | null; pernyataan_disetujui?: boolean; isi?: string; alasan?: string }
+    const dalamBatas = !!c.batas_perbaikan_pada && new Date(c.batas_perbaikan_pada) > sekarang()
+    const jawab = () => ({ status: bagian[2] === 'adendum' ? 201 : 200, header: { ETag: `"${c.versi}"` }, isi: { data: bentukCppt(c) } })
+    if (metode === 'PATCH' && !bagian[2]) {
+      if (c.status === 'sah') {
+        if (!dalamBatas) return error(409, 'batas_perbaikan_lewat', 'Batas perbaikan sudah lewat.')
+        if ((isi.alasan_perubahan ?? '').trim().length < 5) return error(422, 'validasi_gagal', 'Alasan perubahan wajib.', [{ kolom: 'alasan_perubahan' }])
+        const salah = periksaTtd(isi)
+        if (salah) return salah
+        c.jumlah_versi += 1
+      }
+      for (const k of BAGIAN_SOAP) if (k in isi) c.isi[k] = isi[k] ?? null
+      if ('label' in isi) c.label = isi.label ?? null
+      versiCppt(c)
+      return jawab()
+    }
+    if (metode === 'POST' && bagian[2] === 'sahkan') {
+      if (c.status === 'sah') return error(409, 'sudah_disahkan', 'CPPT sudah disahkan.')
+      const salah = periksaTtd(isi)
+      if (salah) return salah
+      Object.assign(c, { status: 'sah', disahkan_pada: iso(), batas_perbaikan_pada: new Date(sekarang().getTime() + 2 * HARI_MS).toISOString() })
+      versiCppt(c)
+      return jawab()
+    }
+    if (metode === 'POST' && bagian[2] === 'adendum') {
+      if (c.status === 'draf') return error(409, 'belum_disahkan', 'CPPT belum disahkan.')
+      if (dalamBatas) return error(409, 'masih_bisa_diperbaiki', 'CPPT masih bisa diperbaiki.')
+      if (!isi.isi?.trim() || (isi.alasan ?? '').trim().length < 5) return error(422, 'validasi_gagal', 'Isi dan alasan wajib.', [{ kolom: !isi.isi?.trim() ? 'isi' : 'alasan' }])
+      const salah = periksaTtd(isi)
+      if (salah) return salah
+      c.adendum.push({ id: uid('d'), penulis: opsi.pelaku(), isi: isi.isi.trim(), alasan: isi.alasan!.trim(), disahkan_pada: iso() })
+      versiCppt(c)
+      return jawab()
+    }
+    return null
+  }
+
   function tangani(r: PermintaanTiruan): ResponsTiruan | null {
     const bagian = r.jalur.replace(/^\/+|\/+$/g, '').split('/')
     const metode = r.metode.toUpperCase()
@@ -198,10 +307,10 @@ export function buatServerRawatJalan(opsi: OpsiServerRawatJalan) {
       b.status = 'dipanggil'
       return { status: 200, isi: { data: { id: b.antrean_id, nomor_tampil: b.nomor, status: 'dipanggil' } } }
     }
-    return tanganiAsesmen(r, bagian, metode) ?? tanganiAlergi(r, bagian, metode)
+    return tanganiAsesmen(r, bagian, metode) ?? tanganiAlergi(r, bagian, metode) ?? tanganiCppt(r, bagian, metode)
   }
 
-  return { tangani, contoh: { poliId: opsi.poliId, baris } }
+  return { tangani, contoh: { poliId: opsi.poliId, baris, cppt } }
 }
 
 export type ServerRawatJalan = ReturnType<typeof buatServerRawatJalan>

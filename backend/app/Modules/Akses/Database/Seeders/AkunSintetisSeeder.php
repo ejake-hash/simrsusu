@@ -101,6 +101,8 @@ final class AkunSintetisSeeder extends Seeder
         'contoh_perawat' => [
             'rawat_jalan.worklist.lihat', 'rawat_jalan.asesmen_perawat.lihat', 'rawat_jalan.asesmen_perawat.input', 'rawat_jalan.asesmen_perawat.perbaiki',
             'pendaftaran.antrean.lihat', 'pendaftaran.antrean.perbaiki', 'master_data.organisasi.lihat',
+            // Tiket 2.14: perawat menulis CPPT dan mengesahkannya dengan PIN sendiri.
+            'rawat_jalan.cppt.lihat', 'rawat_jalan.cppt.input', 'rawat_jalan.cppt.perbaiki', 'rawat_jalan.cppt.sahkan',
         ],
     ];
 

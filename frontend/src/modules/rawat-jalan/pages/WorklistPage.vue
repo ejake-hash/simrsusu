@@ -17,6 +17,7 @@ import { daftarPoliklinik } from '@/modules/organisasi/apiLokasi'
 import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
 import { boleh } from '@/shared/composables/usePermission'
 import { daftarWorklist } from '../api'
+import CpptLinimasa from '../components/CpptLinimasa.vue'
 import DialogAsesmen from '../components/DialogAsesmen.vue'
 import { KUNCI_WORKLIST, LABEL_ASESMEN, LABEL_TAHAP, NADA_TAHAP, lamaMenunggu } from '../rawatJalan'
 import type { BarisWorklist, TahapWorklist } from '../tipe'
@@ -26,8 +27,16 @@ import type { BarisWorklist, TahapWorklist } from '../tipe'
  * pasien satu poli pada satu tanggal, urut tunggu. Perawat melihat seluruh poli, dokter hanya pasiennya; cakupan itu dipaksa
  * server. Dari sini petugas memanggil nomor (2.8) dan membuka asesmen awal; asesmen selesai memindahkan pasien ke tahap dokter.
  * `asesmen` = sub-menu Asesmen perawat: gerbang izinnya sendiri dan tahap awal "menunggu perawat".
+ * `cppt` = sub-menu CPPT episode (tiket 2.14): pasien dipilih dari daftar yang sama, linimasanya tampil di bawah daftar.
  */
-const props = defineProps<{ mode: 'worklist' | 'asesmen' }>()
+const props = defineProps<{ mode: 'worklist' | 'asesmen' | 'cppt' }>()
+const IZIN = { worklist: 'rawat_jalan.worklist.lihat', asesmen: 'rawat_jalan.asesmen_perawat.lihat', cppt: 'rawat_jalan.cppt.lihat' } as const
+const JUDUL = { worklist: 'Worklist poliklinik', asesmen: 'Asesmen perawat', cppt: 'CPPT episode' } as const
+const URAIAN = {
+  worklist: 'Pasien poli hari ini menurut tahapnya. Perawat melihat seluruh poli; dokter hanya pasiennya.',
+  asesmen: 'Isi asesmen awal keperawatan pasien poli. Setelah selesai, pasien menunggu dokter.',
+  cppt: 'Pilih pasien poli untuk membaca dan menulis catatan perkembangan terintegrasi lintas profesi dan kunjungan.',
+} as const
 const qc = useQueryClient()
 const tanggal = ref(hariIniLokal())
 const poliId = ref('')
@@ -83,15 +92,19 @@ function bukaAsesmen(b: BarisWorklist) {
   terpilih.value = b
   dialogBuka.value = true
 }
+const bisaCppt = computed(() => boleh('rawat_jalan.cppt.lihat'))
+const pasienCppt = ref<BarisWorklist | null>(null)
+// Ganti poli atau tanggal: pasien terpilih belum tentu ada di daftar baru.
+watch([poliId, tanggal], () => (pasienCppt.value = null))
 const labelAsesmen = (b: BarisWorklist) => (!b.asesmen_awal ? 'Mulai asesmen' : b.asesmen_awal.status === 'draf' ? 'Lanjutkan asesmen' : 'Lihat asesmen')
 const galatPilihan = (e: unknown) => (e ? `Daftar poliklinik tidak dapat dimuat: ${pesanError(e)}` : undefined)
 </script>
 
 <template>
   <HalamanModul
-    :izin="mode === 'asesmen' ? 'rawat_jalan.asesmen_perawat.lihat' : 'rawat_jalan.worklist.lihat'"
-    :judul="mode === 'asesmen' ? 'Asesmen perawat' : 'Worklist poliklinik'"
-    :uraian="mode === 'asesmen' ? 'Isi asesmen awal keperawatan pasien poli. Setelah selesai, pasien menunggu dokter.' : 'Pasien poli hari ini menurut tahapnya. Perawat melihat seluruh poli; dokter hanya pasiennya.'"
+    :izin="IZIN[mode]"
+    :judul="JUDUL[mode]"
+    :uraian="URAIAN[mode]"
   >
     <section class="kartu" aria-labelledby="judul-worklist">
       <div class="kartu-kepala">
@@ -155,12 +168,14 @@ const galatPilihan = (e: unknown) => (e ? `Daftar poliklinik tidak dapat dimuat:
             <Tombol v-if="bisaPanggil && (b.status_antrean === 'menunggu' || b.status_antrean === 'dipanggil')" :varian="b.status_antrean === 'menunggu' ? 'utama' : 'kedua'" :sibuk="sibukId === b.antrean_id" :aria-label="`${b.status_antrean === 'dipanggil' ? 'Panggil ulang' : 'Panggil'} ${b.nomor_tampil}`" @click="panggil.mutate(b)">
               {{ b.status_antrean === 'dipanggil' ? 'Panggil ulang' : 'Panggil' }}
             </Tombol>
-            <Tombol v-if="bisaAsesmen" :aria-label="`${labelAsesmen(b)} ${b.nomor_tampil}`" @click="bukaAsesmen(b)">{{ labelAsesmen(b) }}</Tombol>
+            <Tombol v-if="bisaCppt" :aria-label="`Buka CPPT ${b.nomor_tampil}`" :aria-pressed="pasienCppt?.kunjungan_id === b.kunjungan_id" @click="pasienCppt = b">CPPT</Tombol>
+            <Tombol v-if="bisaAsesmen && mode !== 'cppt'" :aria-label="`${labelAsesmen(b)} ${b.nomor_tampil}`" @click="bukaAsesmen(b)">{{ labelAsesmen(b) }}</Tombol>
           </div>
         </template>
       </DataTable>
     </section>
 
+    <CpptLinimasa v-if="pasienCppt && bisaCppt" :key="pasienCppt.kunjungan_id" :baris="pasienCppt" />
     <DialogAsesmen v-if="terpilih" :key="terpilih.kunjungan_id" v-model:open="dialogBuka" :baris="terpilih" />
   </HalamanModul>
 </template>

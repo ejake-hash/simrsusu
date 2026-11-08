@@ -11,14 +11,20 @@ import { buatServerGabungan } from '@/modules/akses/tiruan/serverGabungan'
 import { ID_SUPERADMIN, ID_SUPERADMIN_DUA } from '@/modules/akses/tiruan/serverTiruan'
 import { ApiError, klien } from '@/shared/api/klien'
 import { aturIzin, vCan } from '@/shared/composables/usePermission'
-import { ambilAsesmenKunjungan, batalkanAlergi, catatAlergi, daftarAlergi, daftarWorklist, mulaiAsesmen, selesaikanAsesmen, ubahAsesmen } from './api'
+import { PIN_TIRUAN } from '@/modules/ttd/tiruan/serverTtd'
+import { adendumCppt, ambilAsesmenKunjungan, batalkanAlergi, catatAlergi, daftarAlergi, daftarWorklist, linimasaCppt, mulaiAsesmen, sahkanCppt, selesaikanAsesmen, tulisCppt, ubahAsesmen, ubahCppt } from './api'
+import CpptLinimasa from './components/CpptLinimasa.vue'
 import DialogAsesmen from './components/DialogAsesmen.vue'
-import { lamaMenunggu, pesanKlinis, sisaPerbaikan } from './rawatJalan'
+import { lamaMenunggu, pesanCppt, pesanKlinis, sisaPerbaikan } from './rawatJalan'
+import type { Cppt } from './tipe'
 
 const adapterAsli = klien.defaults.adapter
 const SEKARANG = new Date('2026-11-02T03:00:00Z')
 const HARI_INI = '2026-11-02'
-const IZIN = ['rawat_jalan.worklist.lihat', 'rawat_jalan.asesmen_perawat.lihat', 'rawat_jalan.asesmen_perawat.input', 'rawat_jalan.asesmen_perawat.perbaiki', 'pendaftaran.antrean.perbaiki']
+const IZIN = [
+  'rawat_jalan.worklist.lihat', 'rawat_jalan.asesmen_perawat.lihat', 'rawat_jalan.asesmen_perawat.input', 'rawat_jalan.asesmen_perawat.perbaiki', 'pendaftaran.antrean.perbaiki',
+  'rawat_jalan.cppt.lihat', 'rawat_jalan.cppt.input', 'rawat_jalan.cppt.perbaiki', 'rawat_jalan.cppt.sahkan',
+]
 let gabungan: ReturnType<typeof buatServerGabungan>
 let waktu = SEKARANG
 let POLI: string
@@ -39,6 +45,8 @@ afterEach(() => {
 
 const kode = async (p: Promise<unknown>) => ((await p.then(() => null, (e: unknown) => e)) as ApiError | null)?.kode
 const worklist = async (tahap?: 'perawat' | 'dokter') => (await daftarWorklist({ tanggal: HARI_INI, poli_id: POLI, tahap })).data
+const SOAP = { subjektif: 'Batuk dua hari', objektif: null, asesmen: 'ISPA', plan: 'Edukasi minum' }
+const ttd = (pin: string | null = PIN_TIRUAN) => ({ pin, pernyataan_disetujui: true })
 const LENGKAP = { keluhan_utama: 'Demam tiga hari', tanda_vital: { sistolik: 120, diastolik: 80, nadi: 80, napas: 18, suhu: 37.2, berat_badan: 70, tinggi_badan: 170 } }
 
 describe('pembantu tampilan', () => {
@@ -165,5 +173,130 @@ describe('DialogAsesmen — layar', () => {
     await pasang(b!)
     expect(document.body.textContent).toContain('tidak punya izin mengisi asesmen')
     expect(document.querySelector('#form-asesmen')).toBeNull()
+  })
+})
+
+describe('CPPT (server tiruan v0.24.0)', () => {
+
+  it('draf → sahkan dengan PIN penulis (salah: tetap draf) → perbaikan beralasan menambah versi → lewat batas 409 → adendum', async () => {
+    const [b] = await worklist()
+    const { data: d, etag } = await tulisCppt(b!.kunjungan_id, SOAP)
+    expect(d).toMatchObject({ status: 'draf', dapat: { ubah: true, sahkan: true, adendum: false } })
+    expect(await kode(tulisCppt(b!.kunjungan_id, { subjektif: ' ', objektif: null, asesmen: null, plan: null }))).toBe('validasi_gagal')
+
+    expect(await kode(sahkanCppt(d.id, etag, ttd('000000')))).toBe('pin_salah')
+    expect((await linimasaCppt('pasien', b!.pasien.id, {})).data[0]).toMatchObject({ status: 'draf' })
+    const { data: sah, etag: e2 } = await sahkanCppt(d.id, etag, ttd())
+    expect(sah).toMatchObject({ status: 'sah', batas_perbaikan_pada: '2026-11-04T03:00:00.000Z' })
+
+    expect(await kode(ubahCppt(sah.id, e2, { plan: 'Kontrol 3 hari', ...ttd() }))).toBe('validasi_gagal')
+    const { data: p, etag: e3 } = await ubahCppt(sah.id, e2, { plan: 'Kontrol 3 hari', alasan_perubahan: 'Melengkapi rencana', ...ttd() })
+    expect(p.jumlah_versi).toBe(1)
+    expect(await kode(adendumCppt(p.id, e3, { isi: 'x', alasan: 'Koreksi dosis', ...ttd() }))).toBe('masih_bisa_diperbaiki')
+
+    waktu = new Date(SEKARANG.getTime() + 49 * 3_600_000)
+    expect(await kode(ubahCppt(p.id, e3, { plan: 'terlambat', alasan_perubahan: 'Koreksi rencana', ...ttd() }))).toBe('batas_perbaikan_lewat')
+    const { data: a } = await adendumCppt(p.id, e3, { isi: 'Dosis parasetamol 500 mg', alasan: 'Koreksi dosis', ...ttd() })
+    expect(a.adendum).toHaveLength(1)
+    expect(a.isi.plan).toBe('Kontrol 3 hari')
+  })
+
+  it('pesan galat CPPT memberi langkah berikutnya', () => {
+    expect(pesanCppt(new ApiError(409, 'batas_perbaikan_lewat', 'x'))).toContain('adendum')
+    expect(pesanCppt(new ApiError(412, 'versi_usang', 'x'))).toContain('Muat ulang')
+  })
+})
+
+describe('CpptLinimasa — layar', () => {
+  async function tenang() {
+    for (let i = 0; i < 8; i++) {
+      await flushPromises()
+      await new Promise((r) => setTimeout(r, 10))
+    }
+  }
+  async function pasang(baris: Awaited<ReturnType<typeof worklist>>[number]) {
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] })
+    await router.push('/rawat-jalan/cppt')
+    mount(CpptLinimasa, {
+      attachTo: document.body,
+      props: { baris },
+      global: { plugins: [router, [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]], directives: { can: vCan } },
+    })
+    await tenang()
+  }
+  const tombol = (nama: string) => [...document.querySelectorAll('button')].find((x) => x.textContent?.trim() === nama) as HTMLButtonElement | undefined
+  const isi = (label: string, nilai: string) => {
+    const id = [...document.querySelectorAll('label')].find((l) => l.textContent?.trim().startsWith(label))!.getAttribute('for')!
+    const el = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement
+    el.value = nilai
+    el.dispatchEvent(new Event('input'))
+  }
+  const aktifkanTtd = () => {
+    const s = useSesiStore()
+    s.pengguna = { ...s.pengguna!, ttd: { ...s.pengguna!.ttd, aktif: true } }
+  }
+
+  it('entri berlabel tampil "Terbatas" tanpa isi; dengan filter profesi tidak dikirim sama sekali', async () => {
+    waktu = new Date()
+    const [b] = await worklist()
+    const { data } = await tulisCppt(b!.kunjungan_id, { subjektif: 'Rahasia klinis', objektif: null, asesmen: null, plan: null, label: 'psikiatri' })
+    const c = gabungan.rawatJalan.contoh.cppt.find((x: Cppt) => x.id === data.id)!
+    Object.assign(c, { status: 'sah', terbatasBagiSaya: true })
+    await pasang(b!)
+    expect(document.body.textContent).toContain('Terbatas')
+    expect(document.body.textContent).not.toContain('Rahasia klinis')
+    expect((await linimasaCppt('pasien', b!.pasien.id, { profesi: 'perawat' })).data).toHaveLength(0)
+  })
+
+  it('tulis draf dari formulir SOAP polos lalu sahkan dengan PIN sendiri', async () => {
+    waktu = new Date()
+    aktifkanTtd()
+    const [b] = await worklist()
+    await pasang(b!)
+    expect(document.body.textContent).toContain('Belum ada catatan CPPT')
+    tombol('Tulis CPPT')!.click()
+    await tenang()
+    isi('S · Subjektif', 'Nyeri ulu hati')
+    await tenang()
+    tombol('Simpan draf')!.click()
+    await tenang()
+    expect(document.body.textContent).toContain('Nyeri ulu hati')
+    expect(document.body.textContent).toContain('Draf hanya terlihat oleh Anda')
+
+    tombol('Sahkan dengan PIN')!.click()
+    await tenang()
+    const dialog = document.querySelector('[role="dialog"]')!
+    expect(dialog.textContent).toContain('Penanda tangan')
+    ;(dialog.querySelector('input[type="checkbox"]') as HTMLInputElement).click()
+    isi('PIN tanda tangan', PIN_TIRUAN)
+    await tenang()
+    tombol('Tanda tangani')!.click()
+    await tenang()
+    expect(document.body.textContent).toContain('Disahkan')
+    expect(document.body.textContent).toMatch(/Perbaikan masih bisa dalam [12] hari/)
+  })
+
+  it('perbaikan yang ditolak karena batas 2 × 24 jam lewat beralih ke adendum (B-14)', async () => {
+    waktu = new Date()
+    aktifkanTtd()
+    const [b] = await worklist()
+    const { data, etag } = await tulisCppt(b!.kunjungan_id, SOAP)
+    await sahkanCppt(data.id, etag, ttd())
+    await pasang(b!)
+    tombol('Perbaiki')!.click()
+    await tenang()
+    isi('Alasan perubahan', 'Melengkapi rencana')
+    await tenang()
+    waktu = new Date(Date.now() + 49 * 3_600_000)
+    tombol('Simpan perbaikan dan tandatangani')!.click()
+    await tenang()
+    const dialog = document.querySelector('[role="dialog"]')!
+    ;(dialog.querySelector('input[type="checkbox"]') as HTMLInputElement).click()
+    isi('PIN tanda tangan', PIN_TIRUAN)
+    await tenang()
+    tombol('Tanda tangani')!.click()
+    await tenang()
+    expect(document.body.textContent).toContain('Tulis koreksinya sebagai adendum')
+    expect(tombol('Tandatangani adendum')).toBeTruthy()
   })
 })
