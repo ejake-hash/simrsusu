@@ -6384,7 +6384,9 @@ paths:
       operationId: ringkasanKlinisPasien
       summary: Ringkasan klinis pasien untuk dokter (FR-07-03, data yang sudah ada)
       description: |
-        Izin: rawat_jalan.pemeriksaan.lihat. Hanya dari data yang sudah ada di Fase 2: diagnosis aktif dan kunjungan terakhir.
+        Izin: rawat_jalan.pemeriksaan.lihat. Cakupan dipaksa server: pasien harus punya kunjungan tidak batal di unit dalam
+        cakupan izin itu; selain itu 403 `akses_ditolak` (bukan 404, agar id pasien tidak bisa ditebak sebagai ada/tidak).
+        Hanya dari data yang sudah ada di Fase 2: diagnosis aktif dan kunjungan terakhir.
         Alergi memakai GET /pasien/{id}/alergi; hasil lab, obat rutin, risiko jatuh, dan program menyusul tiketnya (Tahap C).
         - `diagnosis_aktif`: diagnosis berstatus aktif dari kunjungan pasien yang tidak batal, satu baris per kode (yang
           terbaru), terbaru dulu, paling banyak 20.
