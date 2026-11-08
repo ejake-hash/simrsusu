@@ -12,10 +12,11 @@ import { ID_SUPERADMIN, ID_SUPERADMIN_DUA } from '@/modules/akses/tiruan/serverT
 import { ApiError, klien } from '@/shared/api/klien'
 import { aturIzin, vCan } from '@/shared/composables/usePermission'
 import { PIN_TIRUAN } from '@/modules/ttd/tiruan/serverTtd'
-import { adendumCppt, ambilAsesmenKunjungan, batalkanAlergi, catatAlergi, daftarAlergi, daftarWorklist, linimasaCppt, mulaiAsesmen, sahkanCppt, selesaikanAsesmen, tulisCppt, ubahAsesmen, ubahCppt } from './api'
+import { adendumCppt, ambilAsesmenKunjungan, batalkanAlergi, catatAlergi, catatDiagnosis, cariKodeIcd10, daftarAlergi, daftarDiagnosis, daftarWorklist, linimasaCppt, mulaiAsesmen, mulaiPeriksa, ringkasanKlinis, sahkanCppt, selesaikanAsesmen, selesaiPeriksa, tulisCppt, ubahAsesmen, ubahCppt, ubahDiagnosis } from './api'
 import CpptLinimasa from './components/CpptLinimasa.vue'
 import DialogAsesmen from './components/DialogAsesmen.vue'
-import { lamaMenunggu, pesanCppt, pesanKlinis, sisaPerbaikan } from './rawatJalan'
+import PanelPemeriksaan from './components/PanelPemeriksaan.vue'
+import { lamaMenunggu, pesanCppt, pesanKlinis, pesanPemeriksaan, sisaPerbaikan } from './rawatJalan'
 import type { Cppt } from './tipe'
 
 const adapterAsli = klien.defaults.adapter
@@ -24,6 +25,7 @@ const HARI_INI = '2026-11-02'
 const IZIN = [
   'rawat_jalan.worklist.lihat', 'rawat_jalan.asesmen_perawat.lihat', 'rawat_jalan.asesmen_perawat.input', 'rawat_jalan.asesmen_perawat.perbaiki', 'pendaftaran.antrean.perbaiki',
   'rawat_jalan.cppt.lihat', 'rawat_jalan.cppt.input', 'rawat_jalan.cppt.perbaiki', 'rawat_jalan.cppt.sahkan',
+  'rawat_jalan.pemeriksaan.lihat', 'rawat_jalan.pemeriksaan.input', 'rawat_jalan.pemeriksaan.perbaiki', 'rawat_jalan.pemeriksaan.sahkan',
 ]
 let gabungan: ReturnType<typeof buatServerGabungan>
 let waktu = SEKARANG
@@ -298,5 +300,63 @@ describe('CpptLinimasa — layar', () => {
     await tenang()
     expect(document.body.textContent).toContain('Tulis koreksinya sebagai adendum')
     expect(tombol('Tandatangani adendum')).toBeTruthy()
+  })
+})
+
+describe('pemeriksaan dokter (server tiruan v0.25.0)', () => {
+  it('mulai periksa, diagnosis dari paket RS, syarat selesai, lalu selesai', async () => {
+    const [b] = await worklist()
+    const id = b!.kunjungan_id
+    expect(await kode(catatDiagnosis(id, 'ZZ01', 'utama'))).toBe('status_tidak_sesuai')
+    const mulai = await mulaiPeriksa(id)
+    expect(mulai.data.status).toBe('dilayani')
+    expect((await cariKodeIcd10('batuk')).map((k) => k.kode)).toEqual(['ZZ02'])
+    expect(await kode(catatDiagnosis(id, 'A00', 'utama'))).toBe('validasi_gagal')
+
+    const e = await selesaiPeriksa(id, mulai.etag).then(() => null, (x: unknown) => x as ApiError)
+    expect(e?.kode).toBe('syarat_selesai_belum_lengkap')
+    expect(pesanPemeriksaan(e)).toContain('diagnosis utama belum dicatat')
+
+    const utama = await catatDiagnosis(id, 'ZZ01', 'utama')
+    expect(await kode(catatDiagnosis(id, 'ZZ02', 'utama'))).toBe('diagnosis_utama_sudah_ada')
+    const sekunder = await catatDiagnosis(id, 'ZZ02', 'sekunder')
+    expect(await kode(ubahDiagnosis(sekunder, { jenis: 'utama' }))).toBe('diagnosis_utama_sudah_ada')
+    expect((await ubahDiagnosis(sekunder, { status: 'batal', alasan_batal: 'Salah pilih' })).status).toBe('batal')
+    expect((await daftarDiagnosis(id)).data.map((d) => d.kode)).toEqual(['ZZ01'])
+    expect((await ringkasanKlinis(b!.pasien.id)).kunjungan_terakhir[0]?.diagnosis_utama?.kode).toBe(utama.kode)
+
+    expect((await selesaiPeriksa(id, mulai.etag)).data.status).toBe('selesai')
+    expect(await kode(mulaiPeriksa(id))).toBe('status_tidak_sesuai')
+  })
+
+  it('pesan galat menunjuk langkah berikutnya', () => {
+    expect(pesanPemeriksaan(new ApiError(409, 'paket_referensi_belum_dimuat', 'x'))).toContain('langkah 4')
+    expect(pesanPemeriksaan(new ApiError(409, 'syarat_selesai_belum_lengkap', 'x', [{ kolom: 'cppt_dokter_draf', jumlah: 2 }]))).toContain('2 CPPT dokter masih draf')
+    expect(pesanPemeriksaan(new ApiError(422, 'validasi_gagal', 'x', [{ kolom: 'kode' }]))).toContain('paket ICD-10 RS')
+  })
+})
+
+describe('PanelPemeriksaan — layar', () => {
+  async function tenang() {
+    for (let i = 0; i < 8; i++) {
+      await flushPromises()
+      await new Promise((r) => setTimeout(r, 10))
+    }
+  }
+  it('membuka panel memulai pemeriksaan; selesai ditolak dengan daftar yang kurang', async () => {
+    const [b] = await worklist()
+    mount(PanelPemeriksaan, {
+      attachTo: document.body,
+      props: { baris: b! },
+      global: { plugins: [[VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]], directives: { can: vCan } },
+    })
+    await tenang()
+    expect(document.body.textContent).toContain(b!.pasien.nama)
+    expect(document.body.textContent).toContain('Belum ada diagnosis')
+    expect((await mulaiPeriksa(b!.kunjungan_id)).data.status).toBe('dilayani') // sudah dimulai oleh panel
+    const selesai = [...document.querySelectorAll('button')].find((x) => x.textContent?.trim() === 'Selesaikan kunjungan')!
+    selesai.click()
+    await tenang()
+    expect(document.body.textContent).toContain('diagnosis utama belum dicatat')
   })
 })

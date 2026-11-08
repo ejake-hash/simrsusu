@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
  * 00.00–23.59, lalu instalasi ditandai siap melayani. Penanda itu biasanya terkunci lewat wizard penyiapan langkah 1–6,
  * yang tidak bisa dilengkapi data sintetis, jadi perintah ini memasang nilai tetap `SEJAK`. `--batal` mengosongkannya lagi
  * (hanya bila nilainya masih `SEJAK`, bukan hasil wizard) agar spec penyiapan tetap bisa diulang, dan menonaktifkan poli
- * `POLI-PD` beserta jadwalnya (data induk dirujuk kunjungan: tidak dihapus).
+ * `POLI-PD` beserta jadwalnya (data induk dirujuk kunjungan: tidak dihapus). Paket ICD-10 sintetis (2.15) tetap tinggal.
  * Hanya APP_ENV=local.
  */
 final class KunjunganContoh extends Command
@@ -90,6 +90,16 @@ final class KunjunganContoh extends Command
             // Modul 07 Rawat Jalan (worklist, asesmen perawat; 2.13) dan 26 RME (CPPT; 2.14) dinyalakan RS lewat penyiapan; di lokal langsung aktif.
             foreach ([7, 26] as $modul) {
                 DB::table('inti.modul_aktif')->insertOrIgnore(['id' => (string) Str::uuid7(), 'modul_no' => $modul]);
+            }
+
+            // Pemeriksaan dokter (2.15): paket ICD-10 SINTETIS (kode ZZC*, bukan kode resmi) hanya bila belum ada paket ICD-10
+            // sama sekali; paket resmi yang dimuat RS (K7) tidak pernah ditimpa.
+            if (! DB::table('inti.paket_referensi')->where('sistem', 'icd10')->exists()) {
+                DB::table('inti.paket_referensi')->insert(['id' => (string) Str::uuid7(), 'sistem' => 'icd10', 'versi' => 'contoh-sintetis',
+                    'sumber' => 'Data sintetis lokal (bukan ICD-10 resmi)', 'jumlah_kode' => 2, 'sidik_isi' => str_repeat('0', 64), 'dimuat_pada' => now()]);
+                foreach (['ZZC01' => 'Diagnosis contoh sintetis satu', 'ZZC02' => 'Diagnosis contoh sintetis dua'] as $kode => $tampilan) {
+                    DB::table('inti.terminologi')->insert(['id' => (string) Str::uuid7(), 'sistem' => 'icd10', 'kode' => $kode, 'tampilan' => $tampilan, 'versi_terakhir' => 'contoh-sintetis']);
+                }
             }
 
             $profil = DB::table('inti.profil_rs')->first(['id', 'siap_melayani_sejak']);

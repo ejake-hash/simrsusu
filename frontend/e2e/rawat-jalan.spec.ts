@@ -8,6 +8,8 @@ import { artisan, bersihkanPesertaSintetis, daftarkanKunjunganJkn, halamanAdmisi
  * langkah memakai nomor dari langkah sebelumnya. Hanya 1440 px + axe; empat lebar di workflow malam.
  * Tiket 2.14-fe: CPPT kunjungan yang sama ditulis, disahkan dengan PIN T1 perawat sendiri (TtdSintetisSeeder,
  * E2E_TTD_PIN), diperbaiki dengan alasan dan tanda tangan ulang, lalu disaring per profesi dan episode.
+ * Tiket 2.15-fe: dokter (akun `dokter`) membuka Pemeriksaan kunjungan yang sama, selesai ditolak tanpa diagnosis utama,
+ * mencatat diagnosis dari paket ICD-10 SINTETIS lokal (ZZC*, lokal:kunjungan-contoh), lalu menyelesaikan kunjungan.
  */
 const kartu = '9990000000001'
 const nama = 'Peserta Sintetis BPJS'
@@ -170,6 +172,38 @@ test('CPPT: tulis SOAP polos, sahkan dengan PIN sendiri, perbaiki beralasan, sar
   await expect(entri).toBeVisible()
   await cppt.getByRole('combobox', { name: 'Lingkup' }).selectOption('episode')
   await expect(entri).toBeVisible()
+  expect(await pelanggaranAxe(page)).toEqual([])
+  await page.close()
+})
+
+test('dokter memeriksa: selesai ditolak tanpa diagnosis utama, catat ICD-10 sintetis, selesaikan kunjungan', async ({ browser }) => {
+  test.setTimeout(90_000)
+  const page = await halamanAkun(browser, new URL(test.info().project.use.baseURL ?? '').origin, 'dokter')
+  await page.goto('/rawat-jalan/pemeriksaan')
+  await expect(page.getByRole('heading', { name: 'Pemeriksaan', level: 1 })).toBeVisible()
+  await page.getByRole('combobox', { name: 'Poliklinik' }).selectOption({ label: poli })
+  const baris = page.getByRole('region', { name: 'Worklist poliklinik' }).getByRole('row', { name: new RegExp(nama) })
+  await expect(baris).toContainText('Menunggu dokter')
+  await baris.getByRole('button', { name: `Periksa ${nomor}` }).click()
+  const panel = page.getByRole('region', { name: 'Pemeriksaan dokter' })
+  await expect(panel).toContainText(nama)
+  await expect(panel).toContainText('Belum ada diagnosis')
+  expect(await pelanggaranAxe(page)).toEqual([])
+
+  await panel.getByRole('button', { name: /Selesaikan kunjungan/ }).click()
+  await expect(panel).toContainText('diagnosis utama belum dicatat')
+
+  await panel.getByRole('button', { name: 'Tambah diagnosis' }).click()
+  await page.getByRole('combobox', { name: 'Cari kode atau nama diagnosis ICD-10' }).fill('ZZC')
+  await page.getByRole('option', { name: /Diagnosis contoh sintetis satu/ }).click()
+  await expect(page.getByText('Diagnosis ZZC01 dicatat sebagai utama.')).toBeVisible()
+  await expect(panel.getByRole('listitem').filter({ hasText: 'ZZC01' })).toContainText('Utama')
+
+  await panel.getByRole('button', { name: /Selesaikan kunjungan/ }).click()
+  await expect(page.getByText(`Kunjungan ${nama} selesai.`)).toBeVisible()
+  // Saringan bawaan "menunggu dokter": pasien selesai pindah ke tahap Selesai.
+  await page.getByRole('combobox', { name: 'Tahap' }).selectOption('selesai')
+  await expect(baris).toContainText('Selesai')
   expect(await pelanggaranAxe(page)).toEqual([])
   await page.close()
 })

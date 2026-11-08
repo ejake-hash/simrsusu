@@ -2,7 +2,7 @@ import type { PermintaanTiruan, ResponsTiruan } from '../../akses/tiruan/serverT
 import type { RingkasPegawai } from '../../jadwal-praktik/tipe'
 import type { Pelaku, RingkasPasienKunjungan } from '../../pendaftaran/tipeKunjungan'
 import { PIN_TIRUAN } from '../../ttd/tiruan/serverTtd'
-import type { Alergi, AsesmenAwal, BarisWorklist, Cppt, CpptTerbatas, IsianAsesmenAwal, IsiSoap, TandaVital } from '../tipe'
+import type { Alergi, AsesmenAwal, BarisWorklist, Cppt, CpptTerbatas, Diagnosis, IsianAsesmenAwal, IsiSoap, KodeReferensi, TandaVital } from '../tipe'
 
 /**
  * Server tiruan kontrak v0.23.0 (tiket 2.13): GET /rawat-jalan/worklist, asesmen awal (draf → selesai → perbaikan ≤ 2 × 24 jam
@@ -10,6 +10,8 @@ import type { Alergi, AsesmenAwal, BarisWorklist, Cppt, CpptTerbatas, IsianAsesm
  * kunjungan sintetis dibuat sendiri untuk poli contoh karena server tiruan pendaftaran tidak menerbitkan antrean.
  * CPPT (v0.24.0, tiket 2.14): linimasa episode/pasien, tulis, ubah/perbaiki, sahkan (PIN_TIRUAN), adendum. Entri dengan
  * `terbatasBagiSaya` dikirim sebagai CpptTerbatas (pengganti lapis 4).
+ * Pemeriksaan dokter (v0.25.0, tiket 2.15): mulai periksa, diagnosis dari paket ICD-10 SINTETIS (`ZZ*`, bukan kode resmi), selesai
+ * dengan syarat diagnosis utama + tanpa CPPT draf, ringkasan klinis, cari kode. `paketIcd: false` meniru paket belum dimuat.
  * Bukan sumber aturan.
  */
 const error = (status: number, kode: string, pesan: string, rincian: Record<string, unknown>[] = []): ResponsTiruan => ({ status, isi: { error: { kode, pesan, rincian } } })
@@ -24,6 +26,7 @@ export interface OpsiServerRawatJalan {
   pasien: RingkasPasienKunjungan[]
   pelaku: () => Pelaku
   sekarang?: () => Date
+  paketIcd?: boolean
 }
 
 interface BarisT {
@@ -35,7 +38,15 @@ interface BarisT {
   tahap: BarisWorklist['tahap']
   asesmen: AsesmenAwal | null
   menunggu_sejak: string
+  kunjungan: 'terdaftar' | 'dilayani' | 'selesai'
+  revisi: number
 }
+
+/** Paket ICD-10 SINTETIS untuk tiruan; kode resmi dimuat RS (K7). */
+const ICD_SINTETIS: KodeReferensi[] = [
+  { id: 'k1', sistem: 'icd10', kode: 'ZZ01', tampilan: 'Diagnosis sintetis demam', kode_induk: null },
+  { id: 'k2', sistem: 'icd10', kode: 'ZZ02', tampilan: 'Diagnosis sintetis batuk', kode_induk: null },
+]
 
 const SYARAT_TV: (keyof TandaVital)[] = ['sistolik', 'diastolik', 'nadi', 'napas', 'suhu']
 const BATAS_TV: Record<string, [number, number]> = {
@@ -49,7 +60,7 @@ export function buatServerRawatJalan(opsi: OpsiServerRawatJalan) {
   const uid = (p: string) => `${p}${String(++n).padStart(8, '0')}-0000-7000-8000-000000000000`
   const hariIni = TANGGAL_RS.format(sekarang())
   const baris: BarisT[] = opsi.pasien.map((p, i) => ({
-    antrean_id: uid('a'), kunjungan_id: uid('c'), nomor: `RJ-${String(i + 1).padStart(3, '0')}`, pasien: p, status: 'menunggu', tahap: 'perawat', asesmen: null,
+    antrean_id: uid('a'), kunjungan_id: uid('c'), nomor: `RJ-${String(i + 1).padStart(3, '0')}`, pasien: p, status: 'menunggu', tahap: 'perawat', asesmen: null, kunjungan: 'terdaftar', revisi: 0,
     menunggu_sejak: new Date(sekarang().getTime() - (30 - i * 10) * 60_000).toISOString(),
   }))
   const alergi: (Alergi & { pasien_id: string })[] = []
@@ -287,6 +298,72 @@ export function buatServerRawatJalan(opsi: OpsiServerRawatJalan) {
     return null
   }
 
+  const diagnosis: Diagnosis[] = []
+  const kunjunganT = (b: BarisT) => ({ status: 200, header: { ETag: `"${b.revisi}"`, ...NO_STORE }, isi: { data: { id: b.kunjungan_id, status: b.kunjungan, versi: String(b.revisi) } } })
+  function tanganiPemeriksaan(r: PermintaanTiruan, bagian: string[], metode: string): ResponsTiruan | null {
+    const paket = opsi.paketIcd ?? true
+    if (bagian[0] === 'paket-referensi' && bagian[2] === 'kode' && metode === 'GET') {
+      if (!paket) return error(409, 'paket_referensi_belum_dimuat', 'Paket referensi belum dimuat.')
+      const q = (r.kueri.get('q') ?? '').toLowerCase()
+      return { status: 200, isi: { data: ICD_SINTETIS.filter((k) => `${k.kode} ${k.tampilan}`.toLowerCase().includes(q)), meta: { kursor_berikutnya: null } } }
+    }
+    if (bagian[0] === 'pasien' && bagian[2] === 'ringkasan-klinis' && metode === 'GET') {
+      const milik = baris.filter((x) => x.pasien.id === bagian[1])
+      const aktif = diagnosis.filter((d) => d.status === 'aktif' && milik.some((m) => m.kunjungan_id === d.kunjungan_id))
+      return { status: 200, header: NO_STORE, isi: { data: { pasien_id: bagian[1], diagnosis_aktif: aktif.map((d) => ({ kode: d.kode, tampilan: d.tampilan, jenis: d.jenis, kunjungan_id: d.kunjungan_id, tanggal: hariIni })),
+        kunjungan_terakhir: milik.map((m) => ({ kunjungan_id: m.kunjungan_id, tanggal: hariIni, poliklinik: { id: opsi.poliId, nama: 'Poli contoh' }, dokter: opsi.dokter, status: m.kunjungan,
+          diagnosis_utama: aktif.find((d) => d.kunjungan_id === m.kunjungan_id && d.jenis === 'utama') ?? null })) } } }
+    }
+    if (bagian[0] === 'diagnosis' && metode === 'PATCH') {
+      const d = diagnosis.find((x) => x.id === bagian[1])
+      if (!d) return error(404, 'tidak_ditemukan', 'Diagnosis tidak ditemukan.')
+      if (r.header['if-match'] !== `"${d.versi}"`) return error(412, 'versi_berubah', 'Diagnosis sudah berubah.')
+      const isi = (r.isi ?? {}) as { jenis?: Diagnosis['jenis']; status?: 'batal'; alasan_batal?: string }
+      if (isi.jenis === 'utama' && diagnosis.some((x) => x.kunjungan_id === d.kunjungan_id && x.status === 'aktif' && x.jenis === 'utama' && x.id !== d.id)) return error(409, 'diagnosis_utama_sudah_ada', 'Sudah ada diagnosis utama.')
+      if (isi.jenis) d.jenis = isi.jenis
+      else Object.assign(d, { status: 'batal', alasan_batal: isi.alasan_batal ?? '', dibatalkan_oleh: opsi.pelaku(), dibatalkan_pada: iso(), dapat: { ubah: false } })
+      d.versi = String(Number(d.versi) + 1)
+      return { status: 200, header: { ETag: `"${d.versi}"` }, isi: { data: d } }
+    }
+    if (bagian[0] !== 'kunjungan') return null
+    const b = baris.find((x) => x.kunjungan_id === bagian[1])
+    if (!b) return null
+    if (bagian[2] === 'mulai-periksa' && metode === 'POST') {
+      if (b.kunjungan === 'selesai') return error(409, 'status_tidak_sesuai', 'Kunjungan sudah selesai.')
+      if (b.kunjungan === 'terdaftar') Object.assign(b, { kunjungan: 'dilayani', revisi: b.revisi + 1 })
+      return kunjunganT(b)
+    }
+    if (bagian[2] === 'selesai' && metode === 'POST') {
+      if (b.kunjungan !== 'dilayani') return error(409, 'status_tidak_sesuai', 'Kunjungan belum dilayani.')
+      if (r.header['if-match'] !== `"${b.revisi}"`) return error(412, 'versi_berubah', 'Kunjungan sudah berubah.')
+      const kurang: Record<string, unknown>[] = []
+      if (!diagnosis.some((d) => d.kunjungan_id === b.kunjungan_id && d.status === 'aktif' && d.jenis === 'utama')) kurang.push({ kolom: 'diagnosis_utama', pesan: 'Diagnosis utama belum dicatat.' })
+      const draf = cppt.filter((c) => c.kunjungan_id === b.kunjungan_id && c.profesi === 'dokter' && c.status === 'draf')
+      if (draf.length) kurang.push({ kolom: 'cppt_dokter_draf', pesan: 'Masih ada CPPT dokter draf.', jumlah: draf.length, id: draf.map((c) => c.id) })
+      if (kurang.length) return error(409, 'syarat_selesai_belum_lengkap', 'Kunjungan belum bisa diselesaikan.', kurang)
+      Object.assign(b, { kunjungan: 'selesai', tahap: 'selesai', status: 'selesai', revisi: b.revisi + 1 })
+      return kunjunganT(b)
+    }
+    if (bagian[2] !== 'diagnosis') return null
+    if (metode === 'GET') {
+      const status = r.kueri.get('status') ?? 'aktif'
+      return { status: 200, header: NO_STORE, isi: { data: diagnosis.filter((d) => d.kunjungan_id === b.kunjungan_id && d.status === status).map((d) => ({ ...d, dapat: { ubah: d.status === 'aktif' && b.kunjungan === 'dilayani' } })), meta: { kursor_berikutnya: null } } }
+    }
+    if (metode !== 'POST') return null
+    if (!paket) return error(409, 'paket_referensi_belum_dimuat', 'Paket referensi belum dimuat.')
+    if (b.kunjungan !== 'dilayani') return error(409, 'status_tidak_sesuai', 'Kunjungan belum dilayani.')
+    const isi = (r.isi ?? {}) as { kode?: string; jenis?: Diagnosis['jenis'] }
+    const k = ICD_SINTETIS.find((x) => x.kode === isi.kode)
+    if (!k || !isi.jenis) return error(422, 'validasi_gagal', 'Kode tidak ada di paket.', [{ kolom: 'kode' }])
+    const aktif = diagnosis.filter((d) => d.kunjungan_id === b.kunjungan_id && d.status === 'aktif')
+    if (isi.jenis === 'utama' && aktif.some((d) => d.jenis === 'utama')) return error(409, 'diagnosis_utama_sudah_ada', 'Sudah ada diagnosis utama.')
+    if (aktif.some((d) => d.kode === k.kode)) return error(409, 'diagnosis_sudah_tercatat', 'Kode sudah tercatat.')
+    const d: Diagnosis = { id: uid('g'), kunjungan_id: b.kunjungan_id, sistem: 'icd10', kode: k.kode, tampilan: k.tampilan, jenis: isi.jenis, sumber: 'dokter', status: 'aktif',
+      dicatat_oleh: opsi.pelaku(), dicatat_pada: iso(), alasan_batal: null, dibatalkan_oleh: null, dibatalkan_pada: null, dapat: { ubah: true }, versi: '0', diubah_pada: iso() }
+    diagnosis.push(d)
+    return { status: 201, header: { ETag: '"0"' }, isi: { data: d } }
+  }
+
   function tangani(r: PermintaanTiruan): ResponsTiruan | null {
     const bagian = r.jalur.replace(/^\/+|\/+$/g, '').split('/')
     const metode = r.metode.toUpperCase()
@@ -307,7 +384,7 @@ export function buatServerRawatJalan(opsi: OpsiServerRawatJalan) {
       b.status = 'dipanggil'
       return { status: 200, isi: { data: { id: b.antrean_id, nomor_tampil: b.nomor, status: 'dipanggil' } } }
     }
-    return tanganiAsesmen(r, bagian, metode) ?? tanganiAlergi(r, bagian, metode) ?? tanganiCppt(r, bagian, metode)
+    return tanganiAsesmen(r, bagian, metode) ?? tanganiAlergi(r, bagian, metode) ?? tanganiPemeriksaan(r, bagian, metode) ?? tanganiCppt(r, bagian, metode)
   }
 
   return { tangani, contoh: { poliId: opsi.poliId, baris, cppt } }
