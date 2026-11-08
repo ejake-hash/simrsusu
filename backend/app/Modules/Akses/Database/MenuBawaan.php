@@ -82,8 +82,18 @@ final class MenuBawaan
         'pendaftaran.pasien' => ['identitas' => ['Identitas pasien (NIK, paspor)', ['lihat']]],
         // Order penunjang bersama (tiket 2.16, 7.00.5). `lihat` = bagian dicentang (peran_menu diturunkan dari izin lihat, 9.2.1);
         // daftar order sendiri memakai rawat_jalan.pemeriksaan.lihat.
-        'rawat_jalan.pemeriksaan' => ['order' => ['Order penunjang', ['lihat', 'input', 'batal']]],
+        // E-resep (tiket 2.17): pola yang sama; `lihat` juga dipakai daftar resep kunjungan.
+        'rawat_jalan.pemeriksaan' => [
+            'order' => ['Order penunjang', ['lihat', 'input', 'batal']],
+            'resep' => ['Resep', ['lihat', 'input', 'sahkan', 'batal']],
+        ],
     ];
+
+    /**
+     * Izin bersyarat klinis (lapis 5, 9.2.2): SIP/SPK harus berlaku hari ini. pasang() hanya menyalakan tanda ini, tidak
+     * pernah mematikannya.
+     */
+    public const IZIN_KLINIS = ['rawat_jalan.pemeriksaan.resep.sahkan'];
 
     /**
      * Izin data pribadi yang sensitif tanpa penyetuju bawaan: tidak bisa diberikan sampai RS menetapkan pemilik datanya
@@ -307,6 +317,8 @@ final class MenuBawaan
             ->update(['sensitif' => true, 'diubah_pada' => now()]);
         DB::table('akses.izin')->whereIn('kode', self::IZIN_BUTUH_MFA)->where('butuh_mfa', false)
             ->update(['butuh_mfa' => true, 'diubah_pada' => now()]);
+        DB::table('akses.izin')->whereIn('kode', self::IZIN_KLINIS)->where('butuh_kewenangan_klinis', false)
+            ->update(['butuh_kewenangan_klinis' => true, 'diubah_pada' => now()]);
         self::pasangSuperadmin();
         self::pasangPenyetujuBawaan();
         self::pasangPenyiap();

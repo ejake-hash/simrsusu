@@ -4,8 +4,10 @@ namespace App\Modules\RekamMedis\Http\Controllers;
 
 use App\Core\Http\ApiError;
 use App\Core\Http\Paginasi;
+use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\RekamMedis\Application\KelolaAlergi;
+use App\Modules\RekamMedis\Application\KelolaResep;
 use App\Modules\RekamMedis\Models\Alergi;
 use App\Modules\Sdm\Application\RingkasanPegawai;
 use Illuminate\Http\JsonResponse;
@@ -27,10 +29,16 @@ final class AlergiController
 
     public function index(Request $request, string $pasien): JsonResponse
     {
-        if (! array_any(self::LIHAT, fn ($i) => Gate::allows($i))) {
+        $klinis = array_any(self::LIHAT, fn ($i) => Gate::allows($i));
+        if (! $klinis && ! Gate::allows(KelolaResep::IZIN_FARMASI)) {
             throw new ApiError(403, 'akses_ditolak', 'Anda tidak memiliki akses ke halaman ini.');
         }
         self::pastikanPasien($pasien);
+        // Farmasi (tiket 2.17): hanya pasien yang punya resep sah di depo dalam cakupannya.
+        if (! $klinis && ! DB::table('farmasi.resep')->where('pasien_id', $pasien)->whereNotNull('masuk_pada')->distinct()->pluck('depo_id')
+            ->contains(fn ($d) => Gate::allows(KelolaResep::IZIN_FARMASI, new Cakupan('unit', (string) $d)))) {
+            throw new ApiError(403, 'akses_ditolak', 'Pasien ini tidak punya resep di depo dalam cakupan akses Anda.');
+        }
         $filter = $request->validate(['status' => ['nullable', Rule::in(['aktif', 'batal'])]]);
         $query = Alergi::query()->where('pasien_id', $pasien)->where('status', $filter['status'] ?? 'aktif');
 

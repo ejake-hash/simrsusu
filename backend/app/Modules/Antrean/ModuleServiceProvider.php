@@ -8,6 +8,8 @@ use App\Modules\Pendaftaran\Events\KunjunganDibatalkan;
 use App\Modules\Pendaftaran\Events\KunjunganDibuat;
 use App\Modules\RekamMedis\Events\AsesmenPerawatSelesai;
 use App\Modules\RekamMedis\Events\PemeriksaanSelesai;
+use App\Modules\RekamMedis\Events\ResepDibatalkan;
+use App\Modules\RekamMedis\Events\ResepDisahkan;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -28,6 +30,8 @@ class ModuleServiceProvider extends ServiceProvider
         Event::listen(KunjunganDibatalkan::class, [KelolaAntrean::class, 'batalkanKunjungan']);
         Event::listen(AsesmenPerawatSelesai::class, [KelolaAntrean::class, 'keTahapDokter']);
         Event::listen(PemeriksaanSelesai::class, [KelolaAntrean::class, 'selesaikanKunjungan']);
+        Event::listen(ResepDisahkan::class, [KelolaAntrean::class, 'buatFarmasi']);
+        Event::listen(ResepDibatalkan::class, [KelolaAntrean::class, 'batalFarmasi']);
 
         // Display dihitung per token (banyak TV bisa berbagi satu IP), dengan batas per IP untuk token acak.
         RateLimiter::for('display', fn (Request $request) => [
