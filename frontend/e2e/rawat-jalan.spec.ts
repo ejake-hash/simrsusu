@@ -10,6 +10,8 @@ import { artisan, bersihkanPesertaSintetis, daftarkanKunjunganJkn, halamanAdmisi
  * E2E_TTD_PIN), diperbaiki dengan alasan dan tanda tangan ulang, lalu disaring per profesi dan episode.
  * Tiket 2.15-fe: dokter jadwal poli contoh (akun `dokter.poli`) membuka Pemeriksaan kunjungan yang sama, selesai ditolak tanpa diagnosis utama,
  * mencatat diagnosis dari paket ICD-10 SINTETIS lokal (ZZC*, lokal:kunjungan-contoh), lalu menyelesaikan kunjungan.
+ * Tiket 2.16-fe: sebelum selesai, dokter memesan lab dari katalog tarif SINTETIS (CONTOH-LAB-*), pesanan sama ditolak sebagai
+ * order ganda lalu dikirim dengan alasan, dan satu order dibatalkan beralasan.
  */
 const kartu = '9990000000001'
 const nama = 'Peserta Sintetis BPJS'
@@ -198,6 +200,35 @@ test('dokter memeriksa: selesai ditolak tanpa diagnosis utama, catat ICD-10 sint
   await page.getByRole('option', { name: /Diagnosis contoh sintetis satu/ }).click()
   await expect(page.getByText('Diagnosis ZZC01 dicatat sebagai utama.')).toBeVisible()
   await expect(panel.getByRole('listitem').filter({ hasText: 'ZZC01' })).toContainText('Utama')
+
+  // Order penunjang (2.16). Pasien dipakai ulang antarjalan: order lab contoh hari ini dari jalan sebelumnya ikut terhitung ganda.
+  const order = panel.getByRole('region', { name: 'Order penunjang' })
+  const pesanLab = async () => {
+    await order.getByRole('button', { name: 'Tambah pemeriksaan' }).click()
+    await page.getByRole('combobox', { name: 'Cari pemeriksaan laboratorium' }).fill('lab contoh')
+    await page.getByRole('option', { name: /Pemeriksaan lab contoh satu/ }).click()
+    await order.getByRole('textbox', { name: /Indikasi klinis/ }).fill('Indikasi sintetis e2e')
+    await order.getByRole('button', { name: 'Kirim order laboratorium' }).click()
+  }
+  await pesanLab()
+  const ganda = order.getByRole('textbox', { name: /Alasan tetap memesan/ })
+  if (await ganda.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await ganda.fill('Ulang uji sintetis')
+    await order.getByRole('button', { name: 'Tetap kirim order' }).click()
+  }
+  await expect(page.getByText('Order laboratorium terkirim: 1 pemeriksaan.')).toBeVisible()
+  await pesanLab()
+  await expect(order).toContainText('Sudah dipesan untuk pasien ini hari ini')
+  expect(await pelanggaranAxe(page)).toEqual([])
+  await ganda.fill('Sampel sebelumnya lisis')
+  await order.getByRole('button', { name: 'Tetap kirim order' }).click()
+  // Terbaru dulu; order sama dari jalan sebelumnya sudah dibatalkan.
+  const terbaru = order.getByRole('listitem').filter({ hasText: 'Sampel sebelumnya lisis' }).first()
+  await expect(terbaru).toBeVisible()
+  await terbaru.getByRole('button', { name: /Batalkan order/ }).click()
+  await order.getByRole('textbox', { name: /Alasan membatalkan order/ }).fill('Tidak jadi diulang')
+  await order.getByRole('button', { name: 'Batalkan order', exact: true }).click()
+  await expect(page.getByText('Order laboratorium dibatalkan.')).toBeVisible()
 
   await panel.getByRole('button', { name: /Selesaikan kunjungan/ }).click()
   await expect(page.getByText(`Kunjungan ${nama} selesai.`)).toBeVisible()
