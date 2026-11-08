@@ -14,11 +14,12 @@ import { catatDiagnosis, cariKodeIcd10, daftarDiagnosis, mulaiPeriksa, ringkasan
 import { KUNCI_WORKLIST, LABEL_JENIS_DIAGNOSIS, pesanPemeriksaan } from '../rawatJalan'
 import type { BarisWorklist, Diagnosis, JenisDiagnosis } from '../tipe'
 import PanelAlergi from './PanelAlergi.vue'
+import PanelResep from './PanelResep.vue'
 
 /**
  * Pemeriksaan dokter rawat jalan (tiket 2.15; FR-07-03, FR-07-05, FR-02-09). Membuka panel = dokter membuka RM: kunjungan
  * `terdaftar` menjadi `dilayani` (task 4). Ringkasan klinis dari data yang sudah ada, alergi, diagnosis ICD-10 dari paket
- * yang dimuat RS, lalu Selesaikan kunjungan (task 5) setelah diagnosis utama ada dan CPPT dokter tidak ada yang draf.
+ * yang dimuat RS, order penunjang (2.16), e-resep (2.17), lalu Selesaikan kunjungan (task 5) setelah diagnosis utama ada dan CPPT dokter tidak ada yang draf.
  */
 const props = defineProps<{ baris: BarisWorklist }>()
 const qc = useQueryClient()
@@ -198,6 +199,7 @@ const tutup = useMutation({
       </section>
 
       <OrderPenunjang v-if="episodeId" :kunjungan-id="kunjunganId" :episode-id="episodeId" :bisa-pesan="dilayani && boleh('rawat_jalan.pemeriksaan.order.input')" />
+      <PanelResep v-if="boleh('rawat_jalan.pemeriksaan.resep.lihat')" :kunjungan-id="kunjunganId" :identitas="identitas" :bisa-tulis="dilayani && boleh('rawat_jalan.pemeriksaan.resep.input')" />
 
       <div v-if="dilayani && bisaSelesai" class="selesai">
         <Pesan v-if="tutup.isError.value" jenis="error">{{ pesanPemeriksaan(tutup.error.value) }}</Pesan>

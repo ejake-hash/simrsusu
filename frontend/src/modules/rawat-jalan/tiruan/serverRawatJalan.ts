@@ -309,6 +309,9 @@ export function buatServerRawatJalan(opsi: OpsiServerRawatJalan) {
     }
     // Order penunjang (v0.26.0, tiket 2.16): daftar episode kosong; alur order diuji e2e ke backend asli.
     if (bagian[0] === 'episode' && bagian[2] === 'permintaan-pemeriksaan' && metode === 'GET') return { status: 200, header: NO_STORE, isi: { data: [], meta: { kursor_berikutnya: null } } }
+    // E-resep (v0.27.0, tiket 2.17): sama, daftar kosong; alur resep diuji e2e ke backend asli.
+    if (bagian[0] === 'kunjungan' && bagian[2] === 'resep' && metode === 'GET') return { status: 200, header: NO_STORE, isi: { data: [], meta: { kursor_berikutnya: null } } }
+    if (bagian[0] === 'depo' && bagian.length === 1 && metode === 'GET') return { status: 200, isi: { data: [] } }
     if (bagian[0] === 'pasien' && bagian[2] === 'ringkasan-klinis' && metode === 'GET') {
       const milik = baris.filter((x) => x.pasien.id === bagian[1])
       const aktif = diagnosis.filter((d) => d.status === 'aktif' && milik.some((m) => m.kunjungan_id === d.kunjungan_id))

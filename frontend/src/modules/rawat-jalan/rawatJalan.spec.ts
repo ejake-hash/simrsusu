@@ -16,7 +16,8 @@ import { adendumCppt, ambilAsesmenKunjungan, batalkanAlergi, catatAlergi, catatD
 import CpptLinimasa from './components/CpptLinimasa.vue'
 import DialogAsesmen from './components/DialogAsesmen.vue'
 import PanelPemeriksaan from './components/PanelPemeriksaan.vue'
-import { lamaMenunggu, pesanCppt, pesanKlinis, pesanPemeriksaan, sisaPerbaikan } from './rawatJalan'
+import { ringkasItemResep } from '@/shared/api/resep'
+import { lamaMenunggu, pesanCppt, pesanKlinis, pesanPemeriksaan, pesanResep, sisaPerbaikan } from './rawatJalan'
 import type { Cppt } from './tipe'
 
 const adapterAsli = klien.defaults.adapter
@@ -69,6 +70,15 @@ describe('pembantu tampilan', () => {
     expect(pesanKlinis(new ApiError(409, 'batas_perbaikan_lewat', 'x'))).toContain('adendum')
     expect(pesanKlinis(new ApiError(409, 'alergi_sudah_tercatat', 'x'))).toContain('sudah tercatat')
     expect(pesanKlinis(new ApiError(412, 'versi_usang', 'x'))).toContain('Muat ulang')
+  })
+  it('e-resep: galat lapis 5 dan peringatan baru diberi langkah berikutnya; butir dibaca dalam satu baris', () => {
+    expect(pesanResep(new ApiError(403, 'izin_praktik_tidak_berlaku', 'x'))).toContain('SIP/SPK')
+    expect(pesanResep(new ApiError(409, 'peringatan_belum_ditanggapi', 'x'))).toContain('alasan')
+    expect(pesanResep(new ApiError(409, 'sudah_disahkan', 'x'))).toContain('Batalkan')
+    expect(pesanResep(new ApiError(422, 'validasi_gagal', 'x', [{ kolom: 'item.0.barang_id' }]))).toContain('pilih ulang')
+    const barang = { id: 'b', kode: 'K', nama: 'Obat contoh', zat_aktif: null, kekuatan: '500 mg', sediaan: null, satuan_terkecil: 'tablet' }
+    expect(ringkasItemResep({ id: 'i', barang, dosis: null, frekuensi_per_hari: 3, jumlah_per_pakai: 1, hari: 5, jumlah: 15, rute: 'oral', aturan_pakai: null, catatan: null }))
+      .toBe('Obat contoh 500 mg · 3× sehari 1 tablet, 5 hari · oral · jumlah 15 tablet')
   })
 })
 
