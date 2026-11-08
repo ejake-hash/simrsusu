@@ -2,7 +2,7 @@ import type { RingkasPegawai } from '@/modules/jadwal-praktik/tipe'
 import type { Pelaku, RingkasPasienKunjungan } from '@/modules/pendaftaran/tipeKunjungan'
 import type { StatusAntrean } from '@/modules/antrean/tipe'
 
-/** Bentuk respons worklist poli, asesmen awal perawat, dan alergi (docs/api/openapi.yaml v0.23.0, tiket 2.13). */
+/** Bentuk respons worklist poli, asesmen awal perawat, alergi (v0.23.0, tiket 2.13), dan CPPT (v0.24.0, tiket 2.14). */
 
 export type TahapWorklist = 'perawat' | 'dokter' | 'selesai'
 export type StatusAsesmen = 'draf' | 'selesai'
@@ -56,6 +56,7 @@ export interface IsianAsesmenAwal {
   tanda_vital?: TandaVital
   skrining?: Partial<Skrining>
   catatan?: string | null
+  label?: string | null
 }
 export interface AsesmenAwal {
   id: string
@@ -76,6 +77,10 @@ export interface AsesmenAwal {
   /** selesai_pada + 2 × 24 jam. */
   batas_perbaikan_pada: string | null
   jumlah_versi: number
+  /** Kode label sensitivitas; null = tidak berlabel. */
+  label: string | null
+  /** Tanda tangan T1 penulis atas isi saat ini; null = belum, atau isi diperbaiki sesudahnya. */
+  ditandatangani_pada: string | null
   versi: string
   diubah_pada: string
 }
@@ -105,4 +110,54 @@ export interface IsianAlergi {
   jenis: JenisAlergi
   reaksi?: string | null
   tingkat?: TingkatAlergi | null
+}
+
+export type ProfesiCatatan = 'dokter' | 'perawat' | 'bidan' | 'apoteker'
+export type TatananCatatan = 'rj' | 'igd' | 'ri' | 'ok' | 'icu' | 'hd'
+export interface IsiSoap {
+  subjektif: string | null
+  objektif: string | null
+  asesmen: string | null
+  plan: string | null
+}
+export interface AdendumCppt {
+  id: string
+  penulis: Pelaku
+  isi: string
+  alasan: string
+  disahkan_pada: string
+}
+export interface Cppt {
+  id: string
+  episode_id: string
+  kunjungan_id: string
+  unit: { id: string; kode: string; nama: string }
+  tatanan: TatananCatatan
+  profesi: ProfesiCatatan
+  jenis: 'soap'
+  isi: IsiSoap
+  label: string | null
+  status: 'draf' | 'sah'
+  penulis: Pelaku
+  dibuat_pada: string
+  disahkan_pada: string | null
+  /** disahkan_pada + 2 × 24 jam. */
+  batas_perbaikan_pada: string | null
+  jumlah_versi: number
+  adendum: AdendumCppt[]
+  /** Aksi yang boleh akun ini sekarang, dihitung server. */
+  dapat: { ubah: boolean; sahkan: boolean; adendum: boolean }
+  versi: string
+  diubah_pada: string
+}
+/** Entri berlabel bagi akun yang bukan penulisnya dan tidak lolos lapis 4: hanya id dan waktu. */
+export interface CpptTerbatas {
+  id: string
+  terbatas: true
+  dibuat_pada: string
+}
+export const cpptTerbatas = (c: Cppt | CpptTerbatas): c is CpptTerbatas => 'terbatas' in c
+export interface FilterCppt {
+  profesi?: ProfesiCatatan
+  tatanan?: TatananCatatan
 }

@@ -18,8 +18,8 @@ use RuntimeException;
  */
 final class TtdSintetisSeeder extends Seeder
 {
-    /** Akun dengan TTE aktif: akun TTE contoh dan superadmin penyetuju e2e kontrol ganda (menandatangani keputusannya). */
-    public const AKTIF = ['contoh.ttd', 'contoh.superadmin.dua'];
+    /** Akun dengan TTE aktif: akun TTE contoh, superadmin penyetuju e2e kontrol ganda, dan perawat yang mengesahkan CPPT (2.14). */
+    public const AKTIF = ['contoh.ttd', 'contoh.superadmin.dua', 'contoh.perawat'];
 
     /** Akun tanpa TTE (alur aktivasi). */
     public const BELUM_AKTIF = ['contoh.ttd.baru'];

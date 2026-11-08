@@ -78,15 +78,17 @@ class HakAksesMenuTest extends TestCase
         }
     }
 
-    public function test_sub_menu_worklist_dan_asesmen_perawat_tersedia_bila_modul_07_aktif(): void
+    public function test_sub_menu_worklist_asesmen_perawat_dan_cppt_tersedia_bila_modul_07_dan_26_aktif(): void
     {
-        DB::table('inti.modul_aktif')->insert(['id' => (string) Str::uuid7(), 'modul_no' => 7]);
+        foreach ([7, 26] as $modul) {
+            DB::table('inti.modul_aktif')->insert(['id' => (string) Str::uuid7(), 'modul_no' => $modul]);
+        }
         $pengguna = $this->buatPengguna();
-        $this->tugaskan($pengguna, $this->buatPeran(['rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat']));
+        $this->tugaskan($pengguna, $this->buatPeran(['rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat', 'rawat_jalan.cppt']));
 
         $menu = $this->masukLaluMenu($pengguna)->assertOk();
 
-        foreach (['rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat'] as $kode) {
+        foreach (['rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat', 'rawat_jalan.cppt'] as $kode) {
             $this->assertSame('aktif', $this->item($menu, $kode)['status'], $kode);
         }
     }
