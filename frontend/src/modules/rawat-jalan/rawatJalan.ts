@@ -1,17 +1,20 @@
 import { ApiError } from '@/shared/api/klien'
-import type { JenisAlergi, StatusAsesmen, TahapWorklist, TingkatAlergi } from './tipe'
+import type { JenisAlergi, ProfesiCatatan, StatusAsesmen, TahapWorklist, TatananCatatan, TingkatAlergi } from './tipe'
 
 export const KUNCI_WORKLIST = {
   semua: ['rawat-jalan'] as const,
   daftar: (filter: object) => ['rawat-jalan', 'worklist', filter] as const,
   asesmen: (kunjunganId: string) => ['rawat-jalan', 'asesmen', kunjunganId] as const,
   alergi: (pasienId: string) => ['rawat-jalan', 'alergi', pasienId] as const,
+  cppt: ['rawat-jalan', 'cppt'] as const,
 }
 
 export const LABEL_TAHAP: Record<TahapWorklist, string> = { perawat: 'Menunggu perawat', dokter: 'Menunggu dokter', selesai: 'Selesai' }
 export const NADA_TAHAP: Record<TahapWorklist, 'info' | 'ok' | 'netral'> = { perawat: 'info', dokter: 'ok', selesai: 'netral' }
 export const LABEL_ASESMEN: Record<StatusAsesmen, string> = { draf: 'Draf', selesai: 'Selesai' }
 export const LABEL_JENIS_ALERGI: Record<JenisAlergi, string> = { obat: 'Obat', makanan: 'Makanan', lingkungan: 'Lingkungan', lainnya: 'Lainnya' }
+export const LABEL_PROFESI: Record<ProfesiCatatan, string> = { dokter: 'Dokter', perawat: 'Perawat', bidan: 'Bidan', apoteker: 'Apoteker' }
+export const LABEL_TATANAN: Record<TatananCatatan, string> = { rj: 'Rawat jalan', igd: 'IGD', ri: 'Rawat inap', ok: 'Kamar operasi', icu: 'ICU', hd: 'Hemodialisis' }
 export const LABEL_TINGKAT: Record<TingkatAlergi, string> = { ringan: 'Ringan', sedang: 'Sedang', berat: 'Berat' }
 
 const MENIT = 60_000
@@ -53,3 +56,35 @@ export function pesanKlinis(e: unknown): string {
       return e.message
   }
 }
+
+/** Pesan galat CPPT (tulis, ubah, adendum; galat TTE ditafsirkan TtdModal). */
+export function pesanCppt(e: unknown): string {
+  if (!(e instanceof ApiError)) return 'Terjadi kesalahan. Coba lagi.'
+  switch (e.kode) {
+    case 'batas_perbaikan_lewat':
+      return 'Batas perbaikan 2 × 24 jam sudah lewat. Koreksi dicatat lewat adendum.'
+    case 'masih_bisa_diperbaiki':
+      return 'Catatan ini masih dalam batas perbaikan 2 × 24 jam. Perbaiki isinya, bukan menambah adendum.'
+    case 'profesi_tidak_dikenali':
+      return `${e.message} Hubungi bagian SDM untuk melengkapi profesi pada data pegawai Anda.`
+    case 'validasi_gagal':
+      return e.rincian.some((r) => r.kolom === 'label') ? 'Label sensitivitas tidak dikenal atau sudah nonaktif.' : e.message
+    default:
+      if (e.status === 412 || e.status === 428) return 'Catatan sudah berubah sejak Anda membukanya. Muat ulang linimasa, lalu ulangi.'
+      return e.message
+  }
+}
+
+/** Isian formulir SOAP polos + label ('' = kosong). */
+export interface IsianSoap {
+  subjektif: string
+  objektif: string
+  asesmen: string
+  plan: string
+  label: string
+}
+export const soapKosong = (): IsianSoap => ({ subjektif: '', objektif: '', asesmen: '', plan: '', label: '' })
+export const adaIsi = (f: IsianSoap) => [f.subjektif, f.objektif, f.asesmen, f.plan].some((v) => v.trim())
+const teks = (v: string) => v.trim() || null
+/** Isian → badan permintaan: bagian kosong dikirim null, label kosong null. */
+export const isiSoap = (f: IsianSoap) => ({ subjektif: teks(f.subjektif), objektif: teks(f.objektif), asesmen: teks(f.asesmen), plan: teks(f.plan), label: f.label || null })

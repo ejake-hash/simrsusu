@@ -4,21 +4,27 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import Dialog from '@/design-system/components/Dialog.vue'
 import Pesan from '@/design-system/components/Pesan.vue'
 import Tombol from '@/design-system/components/Tombol.vue'
+import TtdModal from '@/design-system/components/TtdModal.vue'
 import { tampilkanToast } from '@/design-system/components/toast'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
+import { useSesiStore } from '@/app/sesi'
 import { pesanError } from '@/modules/akses/pengaturan'
 import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
 import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
+import { formatTanggalWaktu } from '@/shared/utils/waktu'
+import { useTandaTangan } from '@/modules/ttd/ttd'
 import { ambilAsesmenKunjungan, mulaiAsesmen, selesaikanAsesmen, ubahAsesmen } from '../api'
 import { KUNCI_WORKLIST, pesanKlinis, sisaPerbaikan } from '../rawatJalan'
 import { adalahTerbatas, type AsesmenAwal, type BarisWorklist, type IsianAsesmenAwal, type RisikoJatuh, type Terbatas } from '../tipe'
 import PanelAlergi from './PanelAlergi.vue'
+import PilihLabel from './PilihLabel.vue'
 
 /**
  * Asesmen awal keperawatan satu kunjungan (FR-07-02, FR-07-21): draf → selesai, lalu perbaikan ≤ 2 × 24 jam dengan alasan
  * (FR-26-06). Tanda vital angka mentah; IMT dihitung server. Tidak ada penanda ambang atau warna untuk nilai (ambang klinis
- * menunggu data induk RS). Selesai memindahkan pasien ke tahap dokter.
+ * menunggu data induk RS). Selesai memindahkan pasien ke tahap dokter. Penulis memberi label sensitivitas dan menandatangani
+ * asesmen selesai dengan PIN T1 sendiri (2.14); perbaikan sesudah ditandatangani perlu ditandatangani lagi.
  */
 const props = defineProps<{ baris: BarisWorklist }>()
 const buka = defineModel<boolean>('open', { required: true })
@@ -60,6 +66,7 @@ const f = reactive({
   keluhan: '', rps: '', rpd: '', catatan: '',
   sistolik: '', diastolik: '', nadi: '', napas: '', suhu: '', spo2: '', berat: '', tinggi: '',
   nyeri: '', lokasiNyeri: '', jatuh: '' as RisikoJatuh | '', gizi: '' as '' | 'ya' | 'tidak', catatanSkrining: '',
+  label: '',
   alasan: '',
 })
 const str = (v: unknown) => (v == null ? '' : String(v))
@@ -73,7 +80,7 @@ watch(asesmen, (a) => {
     sistolik: str(a.tanda_vital.sistolik), diastolik: str(a.tanda_vital.diastolik), nadi: str(a.tanda_vital.nadi), napas: str(a.tanda_vital.napas),
     suhu: str(a.tanda_vital.suhu), spo2: str(a.tanda_vital.spo2), berat: str(a.tanda_vital.berat_badan), tinggi: str(a.tanda_vital.tinggi_badan),
     nyeri: str(a.skrining.skala_nyeri), lokasiNyeri: str(a.skrining.lokasi_nyeri), jatuh: a.skrining.risiko_jatuh ?? '',
-    gizi: a.skrining.gizi_berisiko == null ? '' : a.skrining.gizi_berisiko ? 'ya' : 'tidak', catatanSkrining: str(a.skrining.catatan), alasan: '',
+    gizi: a.skrining.gizi_berisiko == null ? '' : a.skrining.gizi_berisiko ? 'ya' : 'tidak', catatanSkrining: str(a.skrining.catatan), label: a.label ?? '', alasan: '',
   })
 }, { immediate: true })
 
@@ -88,6 +95,7 @@ function isian(): IsianAsesmenAwal {
       spo2: angka(f.spo2), berat_badan: angka(f.berat), tinggi_badan: angka(f.tinggi),
     },
     skrining: { skala_nyeri: angka(f.nyeri), lokasi_nyeri: teks(f.lokasiNyeri), risiko_jatuh: f.jatuh || null, gizi_berisiko: f.gizi === '' ? null : f.gizi === 'ya', catatan: teks(f.catatanSkrining) },
+    label: f.label || null,
   }
 }
 
@@ -121,6 +129,19 @@ const galat = computed(() => {
   return { teks: pesanKlinis(e), rincian }
 })
 const perluAlasan = computed(() => status.value === 'selesai' && f.alasan.trim().length < 5)
+
+// Tanda tangan T1 asesmen selesai: hanya penulisnya sendiri (aturan UX 5.1), lewat POST /ttd/tandatangani objek catatan_klinis.
+const sesi = useSesiStore()
+const pengguna = computed(() => ({ id: sesi.pengguna?.id ?? '', nama: sesi.pengguna?.pegawai?.nama ?? sesi.pengguna?.nama_pengguna ?? '' }))
+const milikSaya = computed(() => !!asesmen.value && asesmen.value.penulis?.id === pengguna.value.id)
+const dialogTtd = ref(false)
+const ttd = useTandaTangan()
+const handlerTtd = computed(() =>
+  ttd([{ jenis: 'catatan_klinis', id: asesmen.value?.id ?? '' }], () => {
+    tampilkanToast('Asesmen ditandatangani.', 'ok')
+    void qc.invalidateQueries({ queryKey: KUNCI_WORKLIST.asesmen(props.baris.kunjungan_id) })
+  }),
+)
 
 const muatGalat = computed(() => (kueri.isError.value ? pesanError(kueri.error.value) : null))
 const uraian = computed(() => `${props.baris.pasien.nama} · No. RM ${formatNoRm(props.baris.pasien.no_rm)} · lahir ${formatTanggal(props.baris.pasien.tanggal_lahir)} · nomor ${props.baris.nomor_tampil}`)
@@ -192,6 +213,7 @@ const uraian = computed(() => `${props.baris.pasien.nama} · No. RM ${formatNoRm
         <fieldset :disabled="!bisaUbah || undefined">
           <legend>Catatan</legend>
           <KolomIsian v-slot="k" label="Catatan perawat"><textarea v-bind="k" v-model="f.catatan" class="isian" rows="2" maxlength="4000"></textarea></KolomIsian>
+          <PilihLabel v-model="f.label" />
           <KolomIsian v-if="status === 'selesai'" v-slot="k" label="Alasan perubahan" wajib petunjuk="Minimal 5 karakter. Tercatat bersama versi lama.">
             <textarea v-bind="k" v-model="f.alasan" class="isian" rows="2" maxlength="500"></textarea>
           </KolomIsian>
@@ -205,6 +227,17 @@ const uraian = computed(() => `${props.baris.pasien.nama} · No. RM ${formatNoRm
         </Pesan>
       </div>
 
+      <section v-if="status === 'selesai'" class="ttd" aria-labelledby="judul-ttd-asesmen">
+        <h3 id="judul-ttd-asesmen">Tanda tangan</h3>
+        <p class="ket">
+          {{ asesmen!.ditandatangani_pada ? `Ditandatangani penulis ${formatTanggalWaktu(asesmen!.ditandatangani_pada)}.` : 'Belum ditandatangani atas isi saat ini.' }}
+        </p>
+        <template v-if="milikSaya && !asesmen!.ditandatangani_pada">
+          <Tombol v-if="sesi.pengguna?.ttd?.aktif" varian="utama" @click="dialogTtd = true">Tandatangani asesmen</Tombol>
+          <RouterLink v-else to="/tanda-tangan" class="tombol">Aktifkan TTE untuk menandatangani</RouterLink>
+        </template>
+      </section>
+
       <PanelAlergi :pasien-id="baris.pasien.id" :bisa-catat="bisaInput" :bisa-batal="bisaPerbaiki" />
     </div>
 
@@ -216,6 +249,14 @@ const uraian = computed(() => `${props.baris.pasien.nama} · No. RM ${formatNoRm
         <Tombol v-else varian="utama" :disabled="perluAlasan || undefined" :sibuk="kerjakan.isPending.value" @click="kerjakan.mutate(false)">Simpan perbaikan</Tombol>
       </template>
     </template>
+    <TtdModal
+      v-if="asesmen"
+      v-model:open="dialogTtd"
+      :objek="[{ id: asesmen.id, judul: `Asesmen awal keperawatan · ${uraian}`, ringkasan: asesmen.keluhan_utama, peringatan: null }]"
+      :pengguna="pengguna"
+      :sesi-berlaku-sampai="sesi.pengguna?.ttd?.sesi_berlaku_sampai ?? null"
+      :tandatangani="handlerTtd"
+    />
   </Dialog>
 </template>
 
@@ -252,6 +293,15 @@ legend {
   margin: 0;
   font-size: 12px;
   color: var(--muted);
+}
+.ttd {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+}
+.ttd h3 {
+  margin: 0;
+  font-size: 14px;
 }
 .rincian {
   margin: var(--space-1) 0 0;
