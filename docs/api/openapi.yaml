@@ -139,8 +139,8 @@ info:
     v0.27.0: E-resep rawat jalan → antrean farmasi (tiket 2.17; FR-07-06, FR-07-07, FR-02-10, FR-22-01): GET|POST
     /kunjungan/{id}/resep, PATCH /resep/{id} (draf, If-Match), POST /resep/{id}/sahkan (PIN T1 dokter jadwal, tanggapan per
     peringatan, antrean farmasi satu per pasien per hari), POST /resep/{id}/batal, GET /resep?depo_id=&tanggal= (antrean depo),
-    GET /depo. Bagian izin baru `rawat_jalan.pemeriksaan.resep` (lihat, input, sahkan, batal) dan sub-menu `farmasi.resep`
-    (lihat); GET /pasien/{id}/alergi ikut menerima farmasi.resep.lihat. Objek TTE `resep`. Error baru: 409
+    GET /depo. Bagian izin baru `rawat_jalan.pemeriksaan.resep` (lihat, input, sahkan, batal); sub-menu `farmasi.resep`
+    yang sudah ada mulai dipakai (lihat); GET /pasien/{id}/alergi ikut menerima farmasi.resep.lihat. Objek TTE `resep`. Error baru: 409
     `peringatan_belum_ditanggapi`, 403 `bukan_dokter_kunjungan`. Hanya kontrak; kode menyusul di tiket BE.
 servers:
   - url: /api/v1
@@ -3424,7 +3424,7 @@ paths:
       description: |
         Hanya akun yang boleh melihat objek itu (persetujuan_akses: aturan /persetujuan-akses/{id}; usulan_data_induk: izin
         master_data.usulan.lihat atau pelaku usulan itu; catatan_klinis dan catatan_klinis_adendum: aturan baca catatannya,
-        termasuk lapis 4 — catatan yang bagi akun itu `terbatas` → 404; resep: rawat_jalan.pemeriksaan.lihat dalam cakupan
+        termasuk lapis 4 — catatan yang bagi akun itu `terbatas` → 404; resep: rawat_jalan.pemeriksaan.resep.lihat dalam cakupan
         unit kunjungan atau farmasi.resep.lihat dalam cakupan unit depo); selain itu 404.
         Urutan pemeriksaan: keaslian dulu (`tanda_tangan_tidak_sah` bila tanda tangan tidak cocok dengan hash tersimpan dan
         kunci publik yang dipakai, mis. baris palsu), lalu isi (`isi_berubah` bila hash isi kanonik objek saat ini berbeda
@@ -6537,7 +6537,7 @@ paths:
       operationId: daftarResepKunjungan
       summary: Resep satu kunjungan (semua status, terbaru dulu)
       description: |
-        Izin: rawat_jalan.pemeriksaan.lihat, cakupan unit kunjungan (selain itu 403). Kunjungan tidak ada → 404.
+        Izin: rawat_jalan.pemeriksaan.resep.lihat, cakupan unit kunjungan (selain itu 403). Kunjungan tidak ada → 404.
         Urut `(dibuat_pada, id)` terbaru dulu. Peringatan resep draf dihitung ulang saat dibaca (lihat PeringatanResep).
       parameters:
         - $ref: '#/components/parameters/Kursor'
@@ -6606,7 +6606,7 @@ paths:
       summary: Antrean resep elektronik satu depo per hari (FR-22-01)
       description: |
         Izin: farmasi.resep.lihat, cakupan unit depo `depo_id` (selain itu 403). Hanya resep `sah` atau `batal` (draf tidak
-        pernah dikirim ke farmasi). Bawaan `status=sah`, `tanggal` = hari ini zona RS (tanggal `disahkan_pada`). Urut
+        pernah dikirim ke farmasi); `status=batal` hanya memuat resep yang sempat sah (punya `disahkan_pada`). Bawaan `status=sah`, `tanggal` = hari ini zona RS (tanggal `disahkan_pada`). Urut
         `(disahkan_pada, id)` terlama dulu (urutan antrean). Resep dari poli bertanda sensitif tampil dengan nama netral poli.
       parameters:
         - { in: query, name: depo_id, required: true, schema: { type: string, format: uuid } }
@@ -6746,7 +6746,8 @@ paths:
         dokter jadwal kunjungan (selain itu 403 `akses_ditolak`). Sudah `batal` → 409 `status_tidak_sesuai`. Resep sah
         boleh dibatalkan selama farmasi belum menelaah (telaah menyusul Tahap C). Resep → `batal`, `alasan_batal`,
         `dibatalkan_oleh`, `dibatalkan_pada`; baris tetap tersimpan. Bila sesudahnya pasien tidak punya resep `sah` lain
-        hari itu, antrean farmasinya → `batal` dengan alasan yang sama. Audit `farmasi.resep_dibatalkan` + id.
+        hari itu dan antrean farmasinya masih `menunggu`, `dipanggil`, atau `dilewati`, antrean itu → `batal` dengan alasan
+        yang sama; antrean yang sudah `dilayani` atau `selesai` tidak diubah. Audit `farmasi.resep_dibatalkan` + id.
       requestBody:
         required: true
         content:
@@ -6798,7 +6799,8 @@ paths:
       summary: Daftar alergi pasien (semua kunjungan)
       description: |
         Izin: rawat_jalan.asesmen_perawat.lihat, rawat_jalan.pemeriksaan.lihat, atau farmasi.resep.lihat (sejak v0.27.0,
-        telaah depo). Alergi lintas semua kunjungan pasien. Urut: dicatat_pada terbaru dulu, id. Bawaan hanya `aktif`. Alergi
+        telaah depo). Jalur farmasi.resep.lihat hanya untuk pasien yang punya resep `sah` (hari mana pun) di depo dalam
+        cakupan unit izin itu; selain itu 403. Alergi lintas semua kunjungan pasien. Urut: dicatat_pada terbaru dulu, id. Bawaan hanya `aktif`. Alergi
         tidak berlabel sensitivitas (dibutuhkan semua pemberi obat), jadi tidak diganti `Terbatas`.
       parameters:
         - { in: query, name: status, schema: { type: string, enum: [aktif, batal] } }
@@ -9670,10 +9672,9 @@ components:
         pasien: { $ref: '#/components/schemas/RingkasPasienKunjungan' }
         poliklinik:
           type: object
-          required: [id, nama]
-          description: "Nama netral bila poli bertanda sensitif (9.2.5)"
+          required: [nama]
+          description: "Nama netral bila poli bertanda sensitif (9.2.5); id poli tidak dikirim agar poli asal tidak terbaca"
           properties:
-            id: { type: string, format: uuid }
             nama: { type: string }
         depo: { $ref: '#/components/schemas/RingkasDepo' }
         jenis: { type: string, enum: [rj, ri, pulang, igd], description: "PRD 11.2; tiket 2.17 hanya membuat `rj`" }
