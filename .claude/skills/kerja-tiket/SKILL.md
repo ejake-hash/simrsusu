@@ -103,6 +103,22 @@ revert); proteksi cabang tidak aktif (GitHub Free), jadi aturan ini dijaga sesi 
 5. **CI gagal 3× untuk sebab yang sama** → catat utang di backlog (sebab + job), tandai tiket "Terhambat", ambil
    tiket lain.
 6. **Berhenti dan laporkan** hanya bila tidak ada tiket Siap, atau butuh data/kredensial pihak luar.
+7. **Satu tiket = satu konteks.** Setelah merge, CI `main` hijau, dan worktree dibersihkan, tutup pesan dengan laporan
+   5 baris lalu prompt lanjutan dalam blok berpagar ` ```lanjut `: keadaan (tanggal, commit `main`), tiket berikutnya
+   dan alasannya, aturan yang sering terlewat, dan perintah agar sesi itu juga menutup dengan blok `lanjut`. Pemilik
+   menjalankan `/clear` lalu menempel isi blok itu. Blok `lanjut` hanya ditulis setelah merge; berhenti karena butir 6
+   atau menunggu pemilik → tanpa blok `lanjut`.
+8. **Tiket habis** (tak ada tiket Siap, utang teknis tak bisa dikerjakan sendiri): sesi tidak membuat tiket (§2).
+   Tutup dengan `[TIKET-HABIS]` dan prompt siap-tempel untuk pemilik, dengan tahap berikutnya diisi dari bagian
+   "Kerangka tahap berikutnya" di backlog aktif:
+   ```
+   /mattpocock-skills:to-tickets Rinci Tahap <X> dari docs/backlog-fase<N>.md bagian "Kerangka tahap berikutnya"
+   dan utang terbuka di "Utang dan keputusan tertunda". Sumber aturan: docs/prd.md bagian <nomor> (baca per bagian
+   dengan grep -n). Iris vertikal sesuai skill kerja-tiket §2: Ukuran S/M, Jalur, Prasyarat, uji penerimaan
+   ≤ 5 Given/When/Then, latar belakang = nomor PRD, tanpa aturan karangan. Terbitkan ke docs/backlog-fase<N>.md
+   (tabel + rincian, status "Siap dikerjakan") lewat satu PR dokumen, bukan .scratch/ atau GitHub issue.
+   Setelah saya setujui dan PR merge, kerjakan tiket pertama yang prasyaratnya selesai sesuai kerja-tiket §5.
+   ```
 
 ## 6. DoD bertingkat (ketentuan pemilik, 17 Okt 2026)
 
@@ -126,7 +142,22 @@ Skill `antislop*` di `.claude/skills/` (pihak ketiga, MIT; deskripsinya disesuai
 - Arah desain sudah ada (`DESIGN.md`, PRD 5.3, token) dan aset dari paket identitas, jadi R-23/R-37 tidak memicu
   pertanyaan. Mode `after` (audit bernomor menunggu persetujuan) tidak dipakai agen otomatis. Bentrok → PRD/CLAUDE.md.
 
-## 8. Tinjauan subagen
+## 8. Subagen dan model
+
+Sesi utama (model termahal) memegang yang butuh penilaian; tugas lain didelegasikan dengan brief ringkas (jalur
+worktree, ruang lingkup, perintah tes, bentuk laporan). Brief tidak menyalin PRD; cukup nomor bagian.
+
+| Tugas | Siapa |
+|---|---|
+| Pilih tiket, kontrak, keputusan/asumsi PRD, keamanan, migrasi berisiko, merge | sesi utama |
+| Menulis kode tiket S yang ruang lingkupnya sudah ditetapkan | `pelaksana` (sonnet) |
+| Tinjauan PR | `peninjau` (sonnet) |
+| Pantau `gh pr checks`, ringkas log CI gagal, jalankan tes dan laporkan yang merah, ubah status baris backlog, `graphify update`, cek worktree | `pesuruh` (haiku) |
+| Mencari letak kode lintas banyak berkas | `Explore` |
+
+Tugas yang cukup dua-tiga perintah dikerjakan sendiri; delegasi hanya bila menghemat konteks sesi utama.
+
+### Tinjauan
 
 Pakai `peninjau` (sonnet). Beri: nomor PR/branch, jalur worktree, perintah diff (ruang lingkup), badan tiket + uji
 penerimaan, dan fokus. Putusan "Disetujui"/"Perlu perbaikan"; perbaiki temuan wajib, minta tinjau ulang, baru merge.
