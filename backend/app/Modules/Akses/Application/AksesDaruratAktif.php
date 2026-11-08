@@ -21,6 +21,7 @@ final class AksesDaruratAktif
      */
     public function untuk(Pengguna $pengguna, array $pasienId): ?AksesDarurat
     {
+        $pasienId = array_values(array_filter($pasienId, fn ($id) => Str::isUuid($id)));
         if ($pasienId === [] || ! $pengguna->aktif() || $pengguna->terkunci()) {
             return null;
         }

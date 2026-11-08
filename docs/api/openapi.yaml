@@ -8450,7 +8450,7 @@ components:
       description: "Diterima: `rs` (cakupan_id kosong) dan `unit` (cakupan_id = unit aktif, tiket 1.8a; unit induk mencakup turunannya). Lainnya 422 cakupan_belum_didukung"
     JenisAksi:
       type: string
-      enum: [lihat, input, perbaiki, sahkan, verifikasi, setujui, batal, ekspor, cetak, lihat_rupiah, usul]
+      enum: [lihat, input, perbaiki, sahkan, verifikasi, setujui, batal, ekspor, cetak, lihat_rupiah, usul, darurat, tinjau]
     PermintaanBatal:
       type: object
       required: [alasan_batal]

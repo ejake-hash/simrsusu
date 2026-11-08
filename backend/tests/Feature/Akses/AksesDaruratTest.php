@@ -162,7 +162,9 @@ class AksesDaruratTest extends TestCase
         $this->masukSebagai($superadmin, $rahasiaSa);
         $this->minta('POST', "/api/v1/pasien/{$pasien->id}/akses-darurat", $isi)->assertForbidden()->assertJsonPath('error.kode', 'akses_ditolak');
 
-        [$admin, $rahasia] = $this->klinisiPoliB(Pegawai::factory()->create(['profesi' => 'non_kesehatan']));
+        /** @var Pegawai $nonKlinis */
+        $nonKlinis = Pegawai::factory()->create(['profesi' => 'non_kesehatan']);
+        [$admin, $rahasia] = $this->klinisiPoliB($nonKlinis);
         $this->masukSebagai($admin, $rahasia);
         $this->minta('POST', "/api/v1/pasien/{$pasien->id}/akses-darurat", $isi)->assertForbidden()->assertJsonPath('error.kode', 'akses_ditolak');
 

@@ -401,7 +401,8 @@ class HakAksesMenuTest extends TestCase
     {
         $menu = Menu::query()->where('kode', $kode)->firstOrFail();
         PeranMenu::query()->create(['peran_id' => $peran->id, 'menu_id' => $menu->id]);
-        foreach (Izin::query()->where('menu_id', $menu->id)->pluck('id') as $izinId) {
+        // Izin data pribadi (mis. akses darurat) sensitif: memaksa MFA saat masuk, diberikan tersendiri.
+        foreach (Izin::query()->where('menu_id', $menu->id)->whereNotIn('kode', MenuBawaan::IZIN_DATA_PRIBADI)->pluck('id') as $izinId) {
             PeranIzin::query()->create(['peran_id' => $peran->id, 'izin_id' => $izinId]);
         }
     }
