@@ -257,7 +257,26 @@ describe('CpptLinimasa — layar', () => {
     await pasang(b!)
     expect(document.body.textContent).toContain('Terbatas')
     expect(document.body.textContent).not.toContain('Rahasia klinis')
+    expect(tombol('Buka akses darurat')).toBeUndefined()
     expect((await linimasaCppt('pasien', b!.pasien.id, { profesi: 'perawat' })).data).toHaveLength(0)
+  })
+
+  it('tawaran akses darurat hanya dengan izin; dialog menolak uraian pendek tanpa memanggil server', async () => {
+    waktu = new Date()
+    aturIzin([...IZIN, 'rawat_jalan.cppt.darurat'])
+    const [b] = await worklist()
+    const { data } = await tulisCppt(b!.kunjungan_id, { subjektif: 'Rahasia klinis', objektif: null, asesmen: null, plan: null, label: 'psikiatri' })
+    Object.assign(gabungan.rawatJalan.contoh.cppt.find((x: Cppt) => x.id === data.id)!, { status: 'sah', terbatasBagiSaya: true })
+    await pasang(b!)
+    tombol('Buka akses darurat')!.click()
+    await tenang()
+    const dialog = document.querySelector('[role="alertdialog"]')!
+    expect(dialog.textContent).toContain('tercatat atas nama Anda')
+    isi('Uraian keadaan darurat', 'pendek')
+    await tenang()
+    ;(document.getElementById('form-akses-darurat') as HTMLFormElement).requestSubmit()
+    await tenang()
+    expect(document.body.textContent).toContain('minimal 10 karakter')
   })
 
   it('tulis draf dari formulir SOAP polos lalu sahkan dengan PIN sendiri', async () => {

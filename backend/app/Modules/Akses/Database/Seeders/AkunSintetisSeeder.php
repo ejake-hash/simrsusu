@@ -68,6 +68,8 @@ final class AkunSintetisSeeder extends Seeder
         'dokter.poli' => 'Contoh Pemeriksa Poli',
         // Tiket 2.17: antrean resep depo (farmasi.resep.lihat) dan baca alergi pasien beresep.
         'apoteker' => 'Contoh Apoteker Depo',
+        // Tiket 2.21: dokter tanpa relasi pasien yang membuka CPPT berlabel lewat akses darurat (MFA aktif, SIP dari lokal:kunjungan-contoh).
+        'dokter.darurat' => 'Contoh Dokter Akses Darurat',
     ];
 
     /**
@@ -80,10 +82,11 @@ final class AkunSintetisSeeder extends Seeder
         'superadmin.dua' => 'akun_sintetis_superadmin_dua_mfa_rahasia',
         'sdm' => 'akun_sintetis_sdm_mfa_rahasia',
         'integrasi' => 'akun_sintetis_integrasi_mfa_rahasia',
+        'dokter.darurat' => 'akun_sintetis_dokter_darurat_mfa_rahasia',
     ];
 
     /** Profesi pegawai sintetis (selain ini non_kesehatan). */
-    private const PROFESI = ['perawat' => 'perawat', 'dokter' => 'dokter', 'dokter.poli' => 'dokter', 'apoteker' => 'apoteker'];
+    private const PROFESI = ['perawat' => 'perawat', 'dokter' => 'dokter', 'dokter.poli' => 'dokter', 'dokter.darurat' => 'dokter', 'apoteker' => 'apoteker'];
 
     /**
      * Peran contoh (tiket 1.2a) agar menu tiap akun sintetis berbeda: kode peran => [nama, akun, menu].
@@ -132,7 +135,9 @@ final class AkunSintetisSeeder extends Seeder
         'contoh_usulan_pengusul' => ['Contoh Pengusul Usulan', 'usulan.pengusul', self::IZIN_USULAN],
         'contoh_usulan_verifikator' => ['Contoh Verifikator Usulan', 'usulan.verifikator', self::IZIN_USULAN],
         'contoh_usulan_penyetuju' => ['Contoh Penyetuju Usulan', 'usulan.penyetuju', self::IZIN_USULAN],
-        'contoh_rekam_medis' => ['Contoh Petugas Rekam Medis', 'rekam.medis', ['pendaftaran.master_pasien.lihat', 'pendaftaran.master_pasien.verifikasi']],
+        'contoh_rekam_medis' => ['Contoh Petugas Rekam Medis', 'rekam.medis', ['pendaftaran.master_pasien.lihat', 'pendaftaran.master_pasien.verifikasi',
+            // Tiket 2.21: tinjauan pasca-akses darurat (Kepala RM/DPO).
+            'rekam_medis.akses_darurat.lihat', 'rekam_medis.akses_darurat.tinjau']],
         // Tiket 2.15: pemeriksaan dokter dari worklist; poli dipilih dari data induk.
         'contoh_dokter_poli' => ['Contoh Pemeriksa Poli', 'dokter.poli', [
             'rawat_jalan.worklist.lihat', 'rawat_jalan.pemeriksaan.lihat', 'rawat_jalan.pemeriksaan.input', 'rawat_jalan.pemeriksaan.perbaiki',
@@ -142,6 +147,10 @@ final class AkunSintetisSeeder extends Seeder
             // Tiket 2.17: e-resep; pemilih obat dari katalog barang (GET /data-induk/barang, farmasi.formularium.lihat).
             'rawat_jalan.pemeriksaan.resep.lihat', 'rawat_jalan.pemeriksaan.resep.input', 'rawat_jalan.pemeriksaan.resep.sahkan',
             'rawat_jalan.pemeriksaan.resep.batal', 'farmasi.formularium.lihat',
+        ]],
+        // Tiket 2.21: akses darurat CPPT (izin sensitif, klinis, butuh MFA); worklist dan CPPT dibaca dari layar rawat jalan.
+        'contoh_dokter_darurat' => ['Contoh Dokter Akses Darurat', 'dokter.darurat', [
+            'rawat_jalan.worklist.lihat', 'rawat_jalan.cppt.lihat', 'rawat_jalan.cppt.darurat', 'master_data.organisasi.lihat',
         ]],
         'contoh_apoteker' => ['Contoh Apoteker Depo', 'apoteker', ['farmasi.resep.lihat']],
     ];
