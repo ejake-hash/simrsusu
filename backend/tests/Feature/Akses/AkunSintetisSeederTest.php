@@ -132,6 +132,37 @@ class AkunSintetisSeederTest extends TestCase
         $this->assertSame(1, PenggunaPeran::query()->where('pengguna_id', $akun('dokter')->id)->count());
     }
 
+    public function test_superadmin_semua_menu_hanya_di_local_dengan_flag_dan_dicabut_saat_flag_mati(): void
+    {
+        config(['autentikasi.akun_sintetis_sandi' => 'kuda-lumping-biru-29', 'autentikasi.akun_sintetis_superadmin_semua_menu' => true]);
+        $evaluator = app(AccessEvaluator::class);
+        $superadmin = fn () => Pengguna::query()->where('nama_pengguna', 'superadmin')->firstOrFail();
+        $bolehIgd = function () use ($evaluator, $superadmin) {
+            app(CacheHakAkses::class)->lupakanSemua();
+
+            return $evaluator->bolehMenu($superadmin(), 'igd.papan');
+        };
+
+        $this->seed(AkunSintetisSeeder::class);
+        $this->assertFalse($bolehIgd(), 'Flag tanpa APP_ENV=local (testing/CI/staging) tidak berlaku: batas PRD 9.2.4.');
+        $this->assertSame(0, DB::table('akses.peran')->where('kode', AkunSintetisSeeder::PERAN_SEMUA_MENU)->count(), 'Peran demo tidak dibuat.');
+
+        $this->app['env'] = 'local';
+        try {
+            $this->seed(AkunSintetisSeeder::class);
+            $this->assertTrue($bolehIgd());
+            $this->assertTrue($evaluator->bolehMenu($superadmin(), 'pendaftaran.pasien'));
+            $this->assertTrue($evaluator->bolehMenu($superadmin(), 'pengaturan.akun'), 'Peran superadmin bawaan tetap.');
+            $this->assertFalse($evaluator->bolehMenu(Pengguna::query()->where('nama_pengguna', 'superadmin.dua')->firstOrFail(), 'igd.papan'));
+
+            config(['autentikasi.akun_sintetis_superadmin_semua_menu' => false]);
+            $this->seed(AkunSintetisSeeder::class);
+            $this->assertFalse($bolehIgd(), 'Flag dimatikan lalu seeding ulang: kembali ke batas PRD 9.2.4.');
+        } finally {
+            $this->app['env'] = 'testing';
+        }
+    }
+
     public function test_admin_sdm_sintetis_dengan_mfa_dan_izin_terpilih(): void
     {
         config([

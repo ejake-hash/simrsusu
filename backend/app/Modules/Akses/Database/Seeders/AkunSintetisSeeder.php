@@ -27,6 +27,8 @@ final class AkunSintetisSeeder extends Seeder
     /** Akun tanpa peran dan pengecualian (Beranda "belum ada modul", tiket 1.2e). */
     public const TANPA_PERAN = 'tanpa.peran';
 
+    public const PERAN_SEMUA_MENU = 'contoh_semua_menu';
+
     public const AKUN = [
         'admisi' => 'Contoh Petugas Admisi',
         'perawat' => 'Contoh Perawat',
@@ -189,6 +191,7 @@ final class AkunSintetisSeeder extends Seeder
         $this->kosongkanAkses(self::TANPA_PERAN);
         $this->tugaskan('superadmin', Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->firstOrFail());
         $this->tugaskan('superadmin.dua', Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->firstOrFail());
+        $this->pasangSemuaMenuSuperadmin();
 
         $this->command?->info('Akun sintetis: '.implode(', ', array_keys(self::AKUN)).'.');
         $sekaliTampil = array_filter([$dibuatAcak ? 'Sandi acak (hanya ditampilkan sekali): '.OutputFormatter::escape($sandi) : null]);
@@ -227,6 +230,34 @@ final class AkunSintetisSeeder extends Seeder
 
             $this->tugaskan($namaPengguna, $peran);
         }
+    }
+
+    /**
+     * Demo lokal (config autentikasi.akun_sintetis_superadmin_semua_menu): akun `superadmin` mendapat peran tambahan berisi semua menu
+     * dan izin. Bila flag mati, penugasan peran itu dibatalkan agar seeding ulang kembali ke batas PRD 9.2.4.
+     */
+    private function pasangSemuaMenuSuperadmin(): void
+    {
+        if (! (app()->environment('local') && config('autentikasi.akun_sintetis_superadmin_semua_menu'))) {
+            $peranLama = Peran::query()->where('kode', self::PERAN_SEMUA_MENU)->select('id');
+            foreach (PenggunaPeran::query()->where('status', 'aktif')->whereIn('peran_id', $peranLama)->get() as $p) {
+                $p->forceFill(['status' => 'batal', 'alasan_batal' => 'Seeding ulang: demo semua menu dimatikan', 'dibatalkan_pada' => now()])->save();
+            }
+
+            return;
+        }
+
+        $peran = Peran::query()->updateOrCreate(['kode' => self::PERAN_SEMUA_MENU],
+            ['nama' => 'Contoh Semua Menu (demo lokal)', 'uraian' => 'Peran sintetis demo lokal: semua menu dan izin.']);
+
+        foreach (Menu::query()->whereIn('tingkat', ['sub_menu', 'bagian'])->pluck('id') as $menuId) {
+            $this->aktifkan('akses.peran_menu', ['peran_id' => $peran->id, 'menu_id' => $menuId]);
+        }
+        foreach (Izin::query()->pluck('id') as $izinId) {
+            $this->aktifkan('akses.peran_izin', ['peran_id' => $peran->id, 'izin_id' => $izinId]);
+        }
+        app(CacheHakAkses::class)->lupakanSemua();
+        $this->tugaskan('superadmin', $peran);
     }
 
     /** @param  list<string>  $daftarIzin */
