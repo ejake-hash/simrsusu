@@ -31,6 +31,7 @@ final class TarifController
             'cari' => ['nullable', 'string', 'max:100'],
             'status' => ['nullable', Rule::in(['aktif', 'nonaktif'])],
             'kelompok' => ['nullable', 'string', 'max:50'],
+            'jenis' => ['nullable', Rule::in(['lab', 'rad'])],
             'kelas_rawat_id' => ['nullable', 'uuid'],
             'tanggal' => ['nullable', 'date_format:Y-m-d'],
         ]);
@@ -41,6 +42,7 @@ final class TarifController
         $query = Tarif::query()->whereRaw("$berlaku is not null", [$tanggal])
             ->when($f['status'] ?? null, fn ($q, $s) => $q->whereRaw("(select status from keuangan.tarif_versi where id = $berlaku) = ?", [$tanggal, $s]))
             ->when($f['kelompok'] ?? null, fn ($q, $k) => $q->whereRaw("(select kelompok from keuangan.tarif_versi where id = $berlaku) = ?", [$tanggal, $k]))
+            ->when($f['jenis'] ?? null, fn ($q, $j) => $q->whereRaw("(select kategori from keuangan.tarif_versi where id = $berlaku) = ?", [$tanggal, $j]))
             ->when($f['kelas_rawat_id'] ?? null, fn ($q, $k) => $q->whereExists(fn ($e) => $e->selectRaw('1')->from('keuangan.tarif_versi_harga as h')
                 ->whereRaw("h.tarif_versi_id = $berlaku", [$tanggal])->where('h.kelas_rawat_id', $k)))
             ->when($cari, fn ($q) => $q->where(fn ($w) => $w->where('kode', 'ilike', $cari)
@@ -89,7 +91,7 @@ final class TarifController
             $v = $berlaku[$t->id];
             $terbuka = $perTarif[$t->id] ?? [];
             $hasil[] = [
-                'id' => $t->id, 'kode' => $t->kode, 'nama' => $v->nama, 'kelompok' => $v->kelompok, 'status' => $v->status,
+                'id' => $t->id, 'kode' => $t->kode, 'nama' => $v->nama, 'kelompok' => $v->kelompok, 'kategori' => $v->kategori, 'status' => $v->status,
                 'berlaku_dari' => $v->berlaku_dari->toDateString(), 'harga' => $saring(($harga[$v->id] ?? [])),
                 'akan_berlaku' => $this->akanBerlaku($terbuka, $tanggal, ($harga[$v->id] ?? []), $saring),
                 'usulan_terbuka' => $lihatUsulan && $terbuka !== [] ? ['id' => $terbuka[0][0]->id, 'nomor' => $terbuka[0][0]->nomor] : null,

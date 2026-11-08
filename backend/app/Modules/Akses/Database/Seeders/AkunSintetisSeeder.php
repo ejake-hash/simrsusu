@@ -135,6 +135,8 @@ final class AkunSintetisSeeder extends Seeder
         'contoh_dokter_poli' => ['Contoh Pemeriksa Poli', 'dokter.poli', [
             'rawat_jalan.worklist.lihat', 'rawat_jalan.pemeriksaan.lihat', 'rawat_jalan.pemeriksaan.input', 'rawat_jalan.pemeriksaan.perbaiki',
             'rawat_jalan.pemeriksaan.sahkan', 'rawat_jalan.cppt.lihat', 'master_data.organisasi.lihat',
+            // Tiket 2.16: order penunjang; katalog butir dari buku tarif (GET /data-induk/tarif?jenis=).
+            'rawat_jalan.pemeriksaan.order.lihat', 'rawat_jalan.pemeriksaan.order.input', 'rawat_jalan.pemeriksaan.order.batal', 'master_data.tarif.lihat',
         ]],
     ];
 

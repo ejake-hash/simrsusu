@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
  * 00.00–23.59, lalu instalasi ditandai siap melayani. Penanda itu biasanya terkunci lewat wizard penyiapan langkah 1–6,
  * yang tidak bisa dilengkapi data sintetis, jadi perintah ini memasang nilai tetap `SEJAK`. `--batal` mengosongkannya lagi
  * (hanya bila nilainya masih `SEJAK`, bukan hasil wizard) agar spec penyiapan tetap bisa diulang, dan menonaktifkan poli
- * `POLI-PD` beserta jadwalnya (data induk dirujuk kunjungan: tidak dihapus). Paket ICD-10 sintetis (2.15) tetap tinggal.
+ * `POLI-PD` beserta jadwalnya (data induk dirujuk kunjungan: tidak dihapus). Paket ICD-10 sintetis (2.15) dan butir tarif penunjang sintetis (2.16) tetap tinggal.
  * Hanya APP_ENV=local.
  */
 final class KunjunganContoh extends Command
@@ -103,6 +103,17 @@ final class KunjunganContoh extends Command
                     'sumber' => 'Data sintetis lokal (bukan ICD-10 resmi)', 'jumlah_kode' => 2, 'sidik_isi' => str_repeat('0', 64), 'dimuat_pada' => now()]);
                 foreach (['ZZC01' => 'Diagnosis contoh sintetis satu', 'ZZC02' => 'Diagnosis contoh sintetis dua'] as $kode => $tampilan) {
                     DB::table('inti.terminologi')->insert(['id' => (string) Str::uuid7(), 'sistem' => 'icd10', 'kode' => $kode, 'tampilan' => $tampilan, 'versi_terakhir' => 'contoh-sintetis']);
+                }
+            }
+
+            // Order penunjang (2.16): butir tarif SINTETIS ber-kategori lab/rad (tanpa harga; bukan tarif RS), hanya bila kodenya belum ada.
+            foreach (['CONTOH-LAB-01' => ['Pemeriksaan lab contoh satu', 'lab'], 'CONTOH-LAB-02' => ['Pemeriksaan lab contoh dua', 'lab'],
+                'CONTOH-RAD-01' => ['Pemeriksaan radiologi contoh', 'rad']] as $kode => [$nama, $kategori]) {
+                if (! DB::table('keuangan.tarif')->where('kode', $kode)->exists()) {
+                    $tarifId = (string) Str::uuid7();
+                    DB::table('keuangan.tarif')->insert(['id' => $tarifId, 'kode' => $kode]);
+                    DB::table('keuangan.tarif_versi')->insert(['id' => (string) Str::uuid7(), 'tarif_id' => $tarifId, 'versi' => 1, 'nama' => $nama,
+                        'kelompok' => 'Contoh penunjang', 'kategori' => $kategori, 'status' => 'aktif', 'berlaku_dari' => '2026-01-01', 'dasar' => 'Data sintetis lokal']);
                 }
             }
 
