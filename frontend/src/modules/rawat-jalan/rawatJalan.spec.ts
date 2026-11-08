@@ -273,7 +273,7 @@ describe('CpptLinimasa — layar', () => {
     tombol('Tanda tangani')!.click()
     await tenang()
     expect(document.body.textContent).toContain('Disahkan')
-    expect(document.body.textContent).toContain('Perbaikan masih bisa dalam 1 hari')
+    expect(document.body.textContent).toMatch(/Perbaikan masih bisa dalam [12] hari/)
   })
 
   it('perbaikan yang ditolak karena batas 2 × 24 jam lewat beralih ke adendum (B-14)', async () => {

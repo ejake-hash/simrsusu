@@ -191,6 +191,10 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
 - Endpoint lookup (`/poliklinik`, `/jadwal-praktik`, `/data-induk/penjamin`) hanya menerima izin `master_data.*.lihat`; layar
   kunjungan admisi butuh ketiganya. Saat ini diatasi lewat peran (data contoh #137). Terima juga izin `pendaftaran.pasien.input`?
 - `AlurPersetujuan::alasanTidakBoleh`: satu orang dengan dua peran penyetuju bisa menyetujui dua baris dalam satu grup. PRD belum mengatur.
+- 2.14-fe (kontrak di luar endpoint tiket): (a) `GET /label-sensitivitas` hanya untuk `pengaturan.akun.lihat`, jadi PPA tidak bisa
+  memilih label catatan dari layar CPPT/asesmen (pemilih label disembunyikan, penjelasan tampil). Buka baca daftar label aktif untuk
+  pemegang `rawat_jalan.cppt.input`/`.asesmen_perawat.input`? (b) `BarisWorklist` tanpa `episode_id`: lingkup "Episode kunjungan ini"
+  baru bisa dipilih setelah ada catatan pada kunjungan itu. Tambah `episode_id` ke worklist?
 - `throttle:api` (120/menit per akun dan IP) membuat spec e2e pendaftaran/antrean yang diulang cepat gagal "Terlalu banyak
   permintaan" (sekali jalan di CI aman). Pindahkan endpoint SEP/antrean petugas ke `throttle:api-layar-kerja`? Pelonggaran
   rate limit = keputusan pemilik.
@@ -218,6 +222,9 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
     panggil); filter tahap saat pindah sub-menu diperbaiki tanpa uji navigasi.
 - E2E `rawat-jalan.spec` (proyek sesudah `fase2`) pernah gagal karena sesi hilang/429 akun admisi yang dipakai beruntun, lulus saat rerun
   (PR #156). Rerun dulu; perbaikan: tunggu jatah batas laju penuh di awal spec (pola `tungguJatahPenuh` di `fase1.spec`).
+- Layar CPPT dan worklist (2.13/2.14) tidak masuk `LAYAR` `fase1.spec`: modul 07/26 baru diaktifkan `lokal:kunjungan-contoh` di
+  `rawat-jalan.spec` (berjalan sesudah fase1), dan akun `fase1` tidak memegang izin rawat jalan. Diuji @1440 + axe di `rawat-jalan.spec`;
+  empat lebar belum. Pindahkan ke proyek malam sesudah `rawat-jalan`?
 - Lokal: `php artisan test` penuh (±453 uji) melebihi `memory_limit` 128M bawaan PHP Homebrew; CI hijau. Jalankan lokal dengan
   `php -d memory_limit=512M artisan test` atau setel `memory_limit` di php.ini pengembang.
 
@@ -245,7 +252,7 @@ Kolom tabel = PRD 11.2; kolom yang belum perlu boleh ditunda, kolom baru di luar
 | 2.11 | Katalog obat + formularium (penyiapan) | BE+FE | M | — · **Selesai** (PR #153 BE: `logistik.barang`, `farmasi.formularium(_item)`, impor CSV, kontrak v0.23.0; PR FE: layar `/farmasi/formularium`, TERSEDIA + migrasi `pasang()`, `fase1` LAYAR) |
 | 2.12 | Wizard langkah 7 + usulan formularium | BE+FE | S | 2.11 · **Selesai** (kontrak #159 v0.24.0; BE #160: syarat `formularium_rs`, jenis usulan `formularium`; PR FE: dialog formularium berganti mode usulan sesudah 409 `harus_lewat_usulan`, tautan langkah 7) |
 | 2.13 | Worklist poli + asesmen awal perawat | BE+FE | M | — · **Selesai** (PR BE #154: modul `RekamMedis` — `klinis.catatan_klinis(_versi)`, `klinis.observasi` berpartisi, `klinis.alergi`; worklist + tahap perawat→dokter di `Antrean`. PR FE: modul `rawat-jalan` — worklist, asesmen awal, alergi; `rawat_jalan.worklist` dan `.asesmen_perawat` TERSEDIA di menu; e2e `rawat-jalan.spec.ts`) |
-| 2.14 | CPPT episode (`CpptLinimasa`) + pengesahan PIN | BE+FE | M | 2.13 · Siap |
+| 2.14 | CPPT episode (`CpptLinimasa`) + pengesahan PIN | BE+FE | M | 2.13 · **Selesai** (kontrak #159 v0.24.0; BE #161: CPPT episode, sahkan PIN, adendum, label catatan klinis. PR FE: sub-menu `rawat_jalan.cppt` TERSEDIA — linimasa pasien/episode + filter profesi/pos, SOAP polos, sahkan/perbaiki/adendum ber-TTE, label + TTE asesmen perawat; e2e `rawat-jalan.spec.ts`) |
 | 2.15 | Pemeriksaan dokter: diagnosis ICD-10 + selesai kunjungan | BE+FE | M | 2.14 · Siap |
 | 2.16 | Order penunjang bersama (7.00.5) | BE+FE | M | 2.14 · Siap |
 | 2.17 | E-resep rawat jalan → antrean farmasi | BE+FE | M | 2.11, 2.14 · Siap |
