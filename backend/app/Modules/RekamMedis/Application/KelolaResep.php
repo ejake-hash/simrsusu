@@ -97,6 +97,9 @@ final class KelolaResep
         $this->pastikanDokterJadwal($oleh, $r);
         $this->pastikanDraf($r);
         $this->kunjunganDilayani($r->kunjungan_id, false);
+        if (IfMatch::revisi($versi) !== $r->revisi) {
+            throw new ApiError(412, 'versi_berubah', 'Resep ini diubah sejak Anda membukanya. Muat ulang untuk melihat perubahan terbaru.');
+        }
         $alasan = array_column($tanggapan, 'alasan', 'kunci');
         // Sebelum PIN dibuka: peringatan yang belum ditanggapi tidak menghabiskan percobaan PIN.
         $this->pastikanDitanggapi($this->pemeriksa->periksa($oleh, $r), $alasan);
@@ -139,6 +142,10 @@ final class KelolaResep
     public function batal(Pengguna $oleh, string $resepId, string $alasan): Resep
     {
         return DB::transaction(function () use ($oleh, $resepId, $alasan) {
+            // Urutan kunci sama dengan sahkan (pasien lalu resep): batal resep sah terakhir tidak membatalkan antrean yang
+            // baru saja dipakai resep lain yang disahkan bersamaan.
+            $pasienId = Resep::query()->whereKey($resepId)->value('pasien_id') ?? throw new ApiError(404, 'tidak_ditemukan', 'Resep tidak ditemukan.');
+            DB::table('pasien.pasien')->where('id', $pasienId)->lockForUpdate()->value('id');
             $r = Resep::query()->whereKey($resepId)->lockForUpdate()->firstOrFail();
             if ($r->status === 'batal') {
                 throw new ApiError(409, 'status_tidak_sesuai', 'Resep sudah dibatalkan.', [['status' => $r->status]]);

@@ -274,6 +274,29 @@ class ResepTest extends TestCase
         $this->minta('GET', "/api/v1/ttd/verifikasi/resep/$id")->assertNotFound();
     }
 
+    public function test_poli_sensitif_nama_netral_dan_duplikasi_di_luar_cakupan_tidak_dihitung(): void
+    {
+        $pasien = $this->pasien();
+        $unitS = UnitOrganisasi::query()->create(['kode' => 'POLI-S', 'nama' => 'Poli S', 'jenis' => 'poli', 'berlaku_dari' => '2026-01-01']);
+        $poliS = Poliklinik::query()->create(['kode' => 'UJS', 'nama' => 'Poli Sensitif Uji', 'unit_organisasi_id' => $unitS->id]);
+        $poliS->forceFill(['nama_netral' => 'Klinik 7', 'antrean_prefiks' => 'K7', 'antrean_area' => 'poli-k7'])->save();
+        $dokterS = $this->dokter();
+        $akunS = $this->akunTtd($dokterS);
+        $kS = $this->kunjunganDilayani($pasien, $this->jadwal($dokterS, ['poli_id' => $poliS->id]));
+        $this->masukSebagai($akunS);
+        $this->sahkan($this->tulis($kS, ['UJI-A'])->assertCreated()->json('data.id'))->assertOk()->assertJsonPath('data.poliklinik.nama', 'Klinik 7');
+
+        // Dokter bercakupan poli uji saja: resep poli sensitif tidak dihitung duplikasi.
+        $umum = $this->buatPengguna(['pegawai_id' => $this->dokter->id]);
+        $this->tugaskan($umum, $this->buatPeran(self::PERAN), cakupan: new Cakupan('unit', $this->poli->unit_organisasi_id));
+        $k = $this->kunjunganDilayani($pasien);
+        $this->masukSebagai($umum);
+        $this->tulis($k, ['UJI-A'])->assertCreated()->assertJsonCount(0, 'data.peringatan');
+        // Akun bercakupan RS melihat duplikasinya.
+        $this->masukSebagai($this->akunDokter);
+        $this->tulis($k, ['UJI-A'])->assertCreated()->assertJsonPath('data.peringatan.0.jenis', 'duplikasi');
+    }
+
     public function test_jumlah_hari_dibulatkan_ke_atas(): void
     {
         $this->assertSame(9.0, KelolaResep::jumlah(3, 1, 3));
