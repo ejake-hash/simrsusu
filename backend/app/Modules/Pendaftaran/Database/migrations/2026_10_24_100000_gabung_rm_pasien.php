@@ -17,7 +17,7 @@ return new class extends Migration
     {
         DB::statement('ALTER TABLE akses.izin DROP CONSTRAINT IF EXISTS izin_jenis_aksi_cek');
         DB::statement("ALTER TABLE akses.izin ADD CONSTRAINT izin_jenis_aksi_cek CHECK (jenis_aksi IN
-            ('lihat', 'input', 'perbaiki', 'sahkan', 'verifikasi', 'setujui', 'batal', 'ekspor', 'cetak', 'lihat_rupiah', 'usul'))");
+            ('lihat', 'input', 'perbaiki', 'sahkan', 'verifikasi', 'setujui', 'batal', 'ekspor', 'cetak', 'lihat_rupiah', 'usul', 'darurat', 'tinjau'))");
 
         Schema::table('pasien.pasien', function (Blueprint $table) {
             $table->foreignUuid('digabung_ke_id')->nullable()->comment('RM tujuan; terisi = RM ini sudah digabung (tidak dipakai lagi)')

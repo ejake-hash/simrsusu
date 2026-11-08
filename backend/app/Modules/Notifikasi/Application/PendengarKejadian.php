@@ -3,6 +3,8 @@
 namespace App\Modules\Notifikasi\Application;
 
 use App\Modules\Akses\Events\AkunTerkunci;
+use App\Modules\Akses\Events\AksesDaruratDibuka;
+use App\Modules\Akses\Events\AksesDaruratDitinjau;
 use App\Modules\Akses\Events\PermintaanAksesDibuat;
 use App\Modules\Akses\Events\PermintaanAksesDitutup;
 use App\Modules\Akses\Events\PersetujuanDiajukan;
@@ -59,6 +61,19 @@ final class PendengarKejadian
     public function permintaanDitutup(PermintaanAksesDitutup $e): void
     {
         $this->kotakKerja->selesaikan('PERMINTAAN_AKSES', $e->permintaanId, 'Permintaan '.$e->status);
+    }
+
+    /** Akses darurat dibuka (2.21, UC-33 langkah 3): tugas tinjauan ke setiap peran pemegang izin tinjau (Kepala RM/DPO). */
+    public function aksesDaruratDibuka(AksesDaruratDibuka $e): void
+    {
+        foreach ($this->peranPemegang('rekam_medis.akses_darurat.tinjau') as $id) {
+            $this->kotakKerja->buat('TINJAUAN_AKSES_DARURAT', $e->aksesDaruratId, 'Akses darurat rekam medis menunggu tinjauan', ['peran', $id]);
+        }
+    }
+
+    public function aksesDaruratDitinjau(AksesDaruratDitinjau $e): void
+    {
+        $this->kotakKerja->selesaikan('TINJAUAN_AKSES_DARURAT', $e->aksesDaruratId, 'Ditinjau: '.$e->hasil);
     }
 
     /**

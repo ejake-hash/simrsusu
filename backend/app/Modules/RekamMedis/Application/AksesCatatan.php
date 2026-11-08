@@ -2,6 +2,8 @@
 
 namespace App\Modules\RekamMedis\Application;
 
+use App\Modules\Akses\Application\AccessEvaluator;
+use App\Modules\Akses\Application\AksesDaruratAktif;
 use App\Modules\Akses\Application\PemeriksaLabel;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Models\Pengguna;
@@ -20,10 +22,15 @@ final class AksesCatatan
 
     public const LIHAT_ASESMEN = ['rawat_jalan.asesmen_perawat.lihat', 'rawat_jalan.pemeriksaan.lihat'];
 
-    public function __construct(private readonly PemeriksaLabel $label) {}
+    public function __construct(
+        private readonly PemeriksaLabel $label,
+        private readonly AccessEvaluator $evaluator,
+    ) {}
 
     /**
-     * Akun memegang salah satu izin di cakupan unit salah satu kunjungan yang cocok dengan filter.
+     * Akun memegang salah satu izin di cakupan unit salah satu kunjungan yang cocok dengan filter. Di luar cakupan: lolos
+     * bila semua izin adalah izin baca (`.lihat`), akun memegang salah satunya di cakupan mana pun, dan punya akses darurat
+     * aktif untuk pasien itu (tiket 2.21, lapis 3).
      *
      * @param  list<string>  $izin
      * @param  array{episode_id?: string, pasien_id?: list<string>, tanpa_batal?: bool}  $filter
@@ -37,7 +44,15 @@ final class AksesCatatan
             ->distinct()->limit(200)->pluck('p.unit_organisasi_id');
         $gate = Gate::forUser($pengguna);
 
-        return $unit->contains(fn ($u) => array_any($izin, fn ($i) => $gate->allows($i, new Cakupan('unit', (string) $u))));
+        if ($unit->contains(fn ($u) => array_any($izin, fn ($i) => $gate->allows($i, new Cakupan('unit', (string) $u))))) {
+            return true;
+        }
+        if (! array_all($izin, fn ($i) => str_ends_with($i, '.lihat')) || ! array_any($izin, fn ($i) => $gate->allows($i))) {
+            return false;
+        }
+        $pasien = isset($filter['episode_id']) ? AksesDaruratAktif::pasienEpisode($filter['episode_id']) : ($filter['pasien_id'] ?? []);
+
+        return $this->evaluator->aksesDarurat($pengguna, $pasien);
     }
 
     /** Catatan boleh dibaca utuh (bukan Terbatas). Draf orang lain dianggap tidak ada; cek izin/cakupan di pemanggil. */

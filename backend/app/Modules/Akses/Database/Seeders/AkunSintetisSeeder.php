@@ -230,7 +230,8 @@ final class AkunSintetisSeeder extends Seeder
             foreach ($subMenu as $menuId) {
                 $this->aktifkan('akses.peran_menu', ['peran_id' => $peran->id, 'menu_id' => $menuId]);
             }
-            foreach (Izin::query()->whereIn('menu_id', $subMenu)->pluck('id') as $izinId) {
+            // Izin sensitif (mis. akses darurat 2.21) tidak ikut: pemberiannya lewat persetujuan dan memaksa MFA saat masuk.
+            foreach (Izin::query()->whereIn('menu_id', $subMenu)->where('sensitif', false)->pluck('id') as $izinId) {
                 $this->aktifkan('akses.peran_izin', ['peran_id' => $peran->id, 'izin_id' => $izinId]);
             }
             $this->beriIzin($peran, self::IZIN_TAMBAHAN_CONTOH[$kode]);

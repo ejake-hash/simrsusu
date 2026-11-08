@@ -45,6 +45,7 @@ final class AccessEvaluator
         private readonly DataUnit $dataUnit,
         private readonly KewenanganPraktik $kewenangan,
         private readonly RelasiPerawatan $relasi,
+        private readonly AksesDaruratAktif $darurat,
     ) {}
 
     public function hak(Pengguna $pengguna): HakAkses
@@ -111,15 +112,30 @@ final class AccessEvaluator
     /**
      * Lapis 4 untuk satu objek berlabel (PRD 9.2.2): izin label yang disetujui dan masih berlaku, DAN merawat pasiennya
      * bila label itu butuh relasi perawatan. Label tidak dikenal atau nonaktif = tertutup (tolak kecuali diberikan).
+     * Gagal → lolos bila akun punya akses darurat aktif untuk pasien itu (tiket 2.21; pemanggil hanya membaca).
      */
     public function bolehLabel(Pengguna $pengguna, string $label, ?string $pasienId): bool
     {
-        if (! $this->punyaIzinLabel($pengguna, $label)) {
-            return false;
+        // Dari cache hak akses (tanpa query per objek di daftar data pasien); berubah → cache dihapus.
+        if ($this->punyaIzinLabel($pengguna, $label)
+            && (! $this->hak($pengguna)->butuhRelasi($label) || $this->relasi->merawat($pengguna, $pasienId))) {
+            return true;
         }
 
-        // Dari cache hak akses (tanpa query per objek di daftar data pasien); berubah → cache dihapus.
-        return ! $this->hak($pengguna)->butuhRelasi($label) || $this->relasi->merawat($pengguna, $pasienId);
+        return $pasienId !== null && $this->aksesDarurat($pengguna, [$pasienId]);
+    }
+
+    /**
+     * Akses darurat berlaku untuk salah satu pasien (tiket 2.21, lapis 3–4, hanya baca): izin darurat masih dipegang, SIP/SPK
+     * masih berlaku, dan akses aktif (tanpa cache: tertutup tepat pada berakhir_pada). MFA hanya disyaratkan saat membuka.
+     *
+     * @param  list<string>  $pasienId
+     */
+    public function aksesDarurat(Pengguna $pengguna, array $pasienId): bool
+    {
+        return $this->boleh($pengguna, AksesDaruratAktif::IZIN)
+            && $this->kewenangan->izinPraktikBerlaku($pengguna->pegawai_id)
+            && $this->darurat->untuk($pengguna, $pasienId) !== null;
     }
 
     /** Separuh pertama lapis 4: izin label akun ini disetujui pejabat PDP dan belum berakhir atau dicabut. */

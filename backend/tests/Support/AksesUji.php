@@ -48,7 +48,8 @@ trait AksesUji
         foreach ($subMenu as $kode) {
             $menu = Menu::query()->where('kode', $kode)->firstOrFail();
             PeranMenu::query()->create(['peran_id' => $peran->id, 'menu_id' => $menu->id]);
-            foreach (Izin::query()->where('menu_id', $menu->id)->pluck('id') as $izinId) {
+            // Izin data pribadi tanpa penyetuju bawaan (mis. akses darurat) diberikan tersendiri: sensitif, memaksa MFA saat masuk.
+            foreach (Izin::query()->where('menu_id', $menu->id)->whereNotIn('kode', MenuBawaan::IZIN_DATA_PRIBADI)->pluck('id') as $izinId) {
                 PeranIzin::query()->create(['peran_id' => $peran->id, 'izin_id' => $izinId]);
             }
         }

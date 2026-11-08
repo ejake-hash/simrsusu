@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Akses\Http\Controllers\AksesAkunController;
+use App\Modules\Akses\Http\Controllers\AksesDaruratController;
 use App\Modules\Akses\Http\Controllers\AkunController;
 use App\Modules\Akses\Http\Controllers\AkunPegawaiController;
 use App\Modules\Akses\Http\Controllers\AutentikasiController;
@@ -95,6 +96,11 @@ Route::prefix('api/v1')->middleware('api')->whereUuid(['peran', 'akun', 'penugas
         Route::get('akun/{akun}/label', [LabelAkunController::class, 'index'])->middleware('can.rs:pengaturan.akun.lihat');
         Route::post('akun/{akun}/label', [LabelAkunController::class, 'ajukan'])->middleware('can.rs:pengaturan.akun.input');
         Route::post('akun/{akun}/label/{labelAkunId}/batal', [LabelAkunController::class, 'batalkan'])->middleware('can.rs:pengaturan.akun.perbaiki');
+        // Akses darurat RM (tiket 2.21): buka = izin klinis butuh MFA, diperiksa di controller (akun tanpa pegawai ditolak dulu).
+        Route::post('pasien/{pasien}/akses-darurat', [AksesDaruratController::class, 'buka'])->whereUuid('pasien');
+        Route::get('akses-darurat', [AksesDaruratController::class, 'index'])->middleware('can.rs:rekam_medis.akses_darurat.lihat');
+        Route::post('akses-darurat/{akses}/tinjau', [AksesDaruratController::class, 'tinjau'])->whereUuid('akses')
+            ->middleware('can.rs:rekam_medis.akses_darurat.tinjau');
         Route::post('permintaan-akses/{permintaan}/tolak', [PermintaanAksesController::class, 'tolak'])->middleware('can.rs:pengaturan.akun.perbaiki');
     });
 });

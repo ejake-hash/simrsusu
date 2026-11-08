@@ -498,6 +498,9 @@ dipakai sebagai pengganti (catatan lapangan: obat tanpa KFA dilewati SATUSEHAT t
 - Kunjungan belum punya `dpjp_id`/`pemeriksa_id` (PPDS, 7.07.1): supervisi peserta didik (FR-07-14) dijadwalkan di tahap mana?
 - Selisih PRD ↔ kode dari penyelarasan v0.10.22 (PRD tidak diubah): kolom cari HMAC bernama `*_sidik` di kode, PRD 11.1 menulis `*_hash`;
   Jadwal praktik ada di Master Data (`master_data.jadwal_praktik`), pohon menu 9.1 menaruhnya di Rawat Jalan. Mana yang dibakukan?
+- Akses darurat (2.21): batas jumlah pembukaan per akun per hari (kini hanya `throttle:api`)? Tenggat tinjauan bawaan 1×24 jam
+  (`TINJAUAN_AKSES_DARURAT`, data jenis tugas) perlu verifikasi RS. Peran pemilik data RM untuk menyetujui `rawat_jalan.cppt.darurat`
+  ditetapkan RS lewat `PUT /izin/{kode}/penyetuju`; sebelum itu izin ini tidak bisa diberikan.
 
 ## Kerangka tahap berikutnya (dirinci kemudian)
 - **C — Penunjang, IGD, rawat inap**: lab/radiologi + hasil mengikuti pasien, telaah resep & depo (+ obat kronis 7 + 23, racikan, mode farmasi APM), IGD + triase + papan (Reverb), rujukan, surat kontrol, admisi RI dari peta TT, SPRI, pemulangan, gelang, verifikasi DPJP dan TBaK.

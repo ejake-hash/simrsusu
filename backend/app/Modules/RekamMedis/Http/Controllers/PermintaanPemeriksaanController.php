@@ -4,6 +4,7 @@ namespace App\Modules\RekamMedis\Http\Controllers;
 
 use App\Core\Http\ApiError;
 use App\Core\Http\Paginasi;
+use App\Modules\Akses\Application\AksesDaruratAktif;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\RekamMedis\Application\AksesCatatan;
@@ -26,6 +27,7 @@ final class PermintaanPemeriksaanController
         private readonly KelolaPermintaanPemeriksaan $kelola,
         private readonly AksesCatatan $akses,
         private readonly RingkasanPegawai $pegawai,
+        private readonly AksesDaruratAktif $darurat,
     ) {}
 
     public function store(Request $request, string $kunjungan): JsonResponse
@@ -54,6 +56,7 @@ final class PermintaanPemeriksaanController
         if (! $this->akses->bolehBacaKunjungan($pengguna, [$izin], ['episode_id' => $episode])) {
             throw new ApiError(403, 'akses_ditolak', 'Episode ini di luar cakupan akses Anda.');
         }
+        $this->darurat->catatBaca($request, AksesDaruratAktif::pasienEpisode($episode), null, 'order_penunjang');
         $filter = $request->validate(['status' => ['nullable', Rule::in(['dipesan', 'batal'])]]);
         $sensitif = KelolaPermintaanPemeriksaan::unitSensitifTerbuka($pengguna);
         $terlihat = DB::table('kunjungan.kunjungan AS k')->join('inti.poliklinik AS pl', 'pl.id', '=', 'k.poli_id')->where('k.episode_id', $episode)

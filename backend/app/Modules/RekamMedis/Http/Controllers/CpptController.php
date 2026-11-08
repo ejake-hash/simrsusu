@@ -5,6 +5,7 @@ namespace App\Modules\RekamMedis\Http\Controllers;
 use App\Core\Http\ApiError;
 use App\Core\Http\IfMatch;
 use App\Core\Http\Paginasi;
+use App\Modules\Akses\Application\AksesDaruratAktif;
 use App\Modules\Akses\Application\PemeriksaLabel;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Models\LabelSensitivitas;
@@ -33,6 +34,7 @@ final class CpptController
         private readonly AksesCatatan $akses,
         private readonly PemeriksaLabel $label,
         private readonly RingkasanPegawai $pegawai,
+        private readonly AksesDaruratAktif $darurat,
     ) {}
 
     public function episode(Request $request, string $episode): JsonResponse
@@ -41,6 +43,7 @@ final class CpptController
         $e = DB::table('kunjungan.episode')->where('id', $episode)->first(['id', 'pasien_id'])
             ?? throw new ApiError(404, 'tidak_ditemukan', 'Episode tidak ditemukan.');
         $this->pastikanCakupan(['episode_id' => $e->id]);
+        $this->darurat->catatBaca($request, [(string) $e->pasien_id], null, 'cppt');
 
         return $this->linimasa($request, fn (Builder $q) => $q->where('episode_id', $e->id), [(string) $e->pasien_id]);
     }
@@ -52,6 +55,7 @@ final class CpptController
         // RM lama yang digabung ke pasien ini ikut (2.9).
         $id = [$pasien, ...DB::table('pasien.pasien')->where('digabung_ke_id', $pasien)->pluck('id')->all()];
         $this->pastikanCakupan(['pasien_id' => $id]);
+        $this->darurat->catatBaca($request, $id, null, 'cppt');
 
         return $this->linimasa($request, fn (Builder $q) => $q->whereIn('pasien_id', $id), $id);
     }
@@ -73,6 +77,7 @@ final class CpptController
             throw new ApiError(404, 'tidak_ditemukan', 'CPPT tidak ditemukan.');
         }
         $this->pastikanCakupan(['episode_id' => $c->episode_id]);
+        $this->darurat->catatBaca($request, [$c->pasien_id], $c->kunjungan_id, 'cppt');
         if (! $this->akses->terbuka($pengguna, $c)) {
             return (new JsonResponse(['data' => PemeriksaLabel::TERBATAS]))->setPrivate()->header('Cache-Control', 'no-store, private');
         }

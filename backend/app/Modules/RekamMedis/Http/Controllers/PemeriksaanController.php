@@ -5,6 +5,7 @@ namespace App\Modules\RekamMedis\Http\Controllers;
 use App\Core\Http\ApiError;
 use App\Core\Http\IfMatch;
 use App\Core\Http\Paginasi;
+use App\Modules\Akses\Application\AksesDaruratAktif;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Pendaftaran\Http\Resources\KunjunganResource;
@@ -30,6 +31,7 @@ final class PemeriksaanController
         private readonly AksesCatatan $akses,
         private readonly RingkasanPegawai $pegawai,
         private readonly KunjunganResource $kunjungan,
+        private readonly AksesDaruratAktif $darurat,
     ) {}
 
     public function mulai(Request $request, string $kunjungan): JsonResponse
@@ -103,6 +105,7 @@ final class PemeriksaanController
         if (! $this->akses->bolehBacaKunjungan($request->user(), [$izin], ['pasien_id' => $id, 'tanpa_batal' => true])) {
             throw new ApiError(403, 'akses_ditolak', 'Pasien ini di luar cakupan akses Anda.');
         }
+        $this->darurat->catatBaca($request, $id, null, 'ringkasan_klinis');
         $dasar = fn () => DB::table('klinis.diagnosis AS d')->join('kunjungan.kunjungan AS k', 'k.id', '=', 'd.kunjungan_id')
             ->join('inti.terminologi AS t', fn ($j) => $j->on('t.sistem', '=', 'd.sistem_icd')->on('t.kode', '=', 'd.kode_icd'))
             ->where('d.status', 'aktif')->where('k.status', '<>', 'batal');
