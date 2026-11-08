@@ -4,6 +4,8 @@ namespace App\Modules\Notifikasi;
 
 use App\Modules\Akses\Application\JumlahTugasSaya;
 use App\Modules\Akses\Events\AkunTerkunci;
+use App\Modules\Akses\Events\AksesDaruratDibuka;
+use App\Modules\Akses\Events\AksesDaruratDitinjau;
 use App\Modules\Akses\Events\PermintaanAksesDibuat;
 use App\Modules\Akses\Events\PermintaanAksesDitutup;
 use App\Modules\Akses\Events\PersetujuanDiajukan;
@@ -41,6 +43,8 @@ class ModuleServiceProvider extends ServiceProvider
 
         Event::listen(PersetujuanDiajukan::class, [PendengarKejadian::class, 'persetujuanDiajukan']);
         Event::listen(PersetujuanDitutup::class, [PendengarKejadian::class, 'persetujuanDitutup']);
+        Event::listen(AksesDaruratDibuka::class, [PendengarKejadian::class, 'aksesDaruratDibuka']);
+        Event::listen(AksesDaruratDitinjau::class, [PendengarKejadian::class, 'aksesDaruratDitinjau']);
         Event::listen(PermintaanAksesDibuat::class, [PendengarKejadian::class, 'permintaanDibuat']);
         Event::listen(PermintaanAksesDitutup::class, [PendengarKejadian::class, 'permintaanDitutup']);
         Event::listen(AkunTerkunci::class, [PendengarKejadian::class, 'akunTerkunci']);

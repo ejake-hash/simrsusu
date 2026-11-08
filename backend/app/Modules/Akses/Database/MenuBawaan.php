@@ -29,7 +29,7 @@ final class MenuBawaan
     public const IZIN_PENYIAP = ['pengaturan.penyiapan.lihat', 'pengaturan.penyiapan.perbaiki', 'master_data.katalog.lihat', 'master_data.katalog.input'];
 
     /** Halaman yang sudah dibangun; menu lain tampil sebagai Segera hadir atau disembunyikan. */
-    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.usulan', 'master_data.penjamin', 'master_data.tarif', 'master_data.jadwal_praktik', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'pendaftaran.pasien', 'pendaftaran.master_pasien', 'pendaftaran.antrean', 'rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat', 'rawat_jalan.cppt', 'rawat_jalan.pemeriksaan', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'sdm.pegawai', 'farmasi.formularium', 'farmasi.resep'];
+    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.usulan', 'master_data.penjamin', 'master_data.tarif', 'master_data.jadwal_praktik', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'pendaftaran.pasien', 'pendaftaran.master_pasien', 'pendaftaran.antrean', 'rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat', 'rawat_jalan.cppt', 'rawat_jalan.pemeriksaan', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'sdm.pegawai', 'farmasi.formularium', 'farmasi.resep', 'rekam_medis.akses_darurat'];
 
     /** Aksi dasar Permenkes 24/2022 Ps. 30 ayat 3 untuk setiap sub-menu (FR-09-03). */
     public const AKSI_DASAR = ['lihat', 'input', 'perbaiki'];
@@ -44,9 +44,12 @@ final class MenuBawaan
         // Tiket 2.7: "hapus" SEP (FR-01-10) = pembatalan beralasan (B-10, JenisAksi `batal`); endpointnya menyusul.
         'pendaftaran.sep' => ['batal'],
         // Tiket 2.14: pengesahan CPPT dengan PIN T1 (FR-07-13, FR-26-18).
-        'rawat_jalan.cppt' => ['sahkan'],
+        // Tiket 2.21: akses darurat RM satu pasien (UC-33) dari layar klinis yang menampilkan RM.
+        'rawat_jalan.cppt' => ['sahkan', 'darurat'],
         // Tiket 2.15: menyelesaikan kunjungan poli (pengesahan pemeriksaan dokter, FR-02-09).
         'rawat_jalan.pemeriksaan' => ['sahkan'],
+        // Tiket 2.21: tinjauan pasca-akses darurat oleh Kepala RM/DPO.
+        'rekam_medis.akses_darurat' => ['tinjau'],
     ];
 
     /** Superadmin mengelola peran, akun, dan profil RS (wizard langkah 2); tidak membuka rekam medis, rupiah, atau data induk milik unit (PRD 9.2.4, FR-54-01). */
@@ -69,7 +72,7 @@ final class MenuBawaan
      * Izin yang selalu meminta MFA ulang di sesi berjalan (K11, lapis 5). pasang() hanya menyalakan tanda ini; RS boleh
      * menambah izin lain dari data, tidak mengurangi yang ada di sini.
      */
-    public const IZIN_BUTUH_MFA = ['pengaturan.keamanan.perbaiki'];
+    public const IZIN_BUTUH_MFA = ['pengaturan.keamanan.perbaiki', 'rawat_jalan.cppt.darurat'];
 
     /**
      * Bagian halaman (PRD 9.1, 9.2.1) per sub-menu: kode bagian => [label, aksi]. Data bagian tanpa izin tidak dikirim
@@ -93,13 +96,15 @@ final class MenuBawaan
      * Izin bersyarat klinis (lapis 5, 9.2.2): SIP/SPK harus berlaku hari ini. pasang() hanya menyalakan tanda ini, tidak
      * pernah mematikannya.
      */
-    public const IZIN_KLINIS = ['rawat_jalan.pemeriksaan.resep.sahkan'];
+    public const IZIN_KLINIS = ['rawat_jalan.pemeriksaan.resep.sahkan', 'rawat_jalan.cppt.darurat'];
 
     /**
      * Izin data pribadi yang sensitif tanpa penyetuju bawaan: tidak bisa diberikan sampai RS menetapkan pemilik datanya
      * (K3, PUT /izin/{kode}/penyetuju). pasang() hanya menyalakan tanda sensitif, tidak pernah mematikannya.
      */
-    public const IZIN_DATA_PRIBADI = ['sdm.pegawai.identitas.lihat', 'pendaftaran.pasien.identitas.lihat'];
+    public const IZIN_DATA_PRIBADI = ['sdm.pegawai.identitas.lihat', 'pendaftaran.pasien.identitas.lihat',
+        // Tiket 2.21: membuka RM seluruh RS; pemberiannya menunggu pemilik data RM yang ditetapkan RS (9.2.4).
+        'rawat_jalan.cppt.darurat'];
 
     /**
      * Kode yang pindah tempat (lama => baru), diganti di tempat sebelum pohon dipasang agar id, peran,
@@ -180,6 +185,7 @@ final class MenuBawaan
                 'kelengkapan' => ['Kelengkapan RM', 26],
                 'pelepasan' => ['Pelepasan informasi & akses', 26],
                 'arsip' => ['Alih media & retensi', 26],
+                'akses_darurat' => ['Tinjauan akses darurat', 26],
             ]],
         ]],
         'pendapatan' => ['Pendapatan', [
