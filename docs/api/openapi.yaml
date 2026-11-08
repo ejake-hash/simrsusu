@@ -6568,6 +6568,7 @@ paths:
         - `item`: lihat IsiItemResep. `barang_id` berbeda dalam satu resep, barang aktif berjenis `obat` atau `bmhp`
           (selain itu 422, kolom `item.<n>.barang_id`).
         - `jumlah` kosong → server menghitung `ceil(frekuensi_per_hari × jumlah_per_pakai × hari)` (FR-07-06).
+        Pemilih barang memakai GET /data-induk/barang (izin tetap farmasi.formularium.lihat, pola katalog order 2.16).
         Satu kunjungan boleh punya lebih dari satu resep. Draf belum masuk antrean farmasi. `jenis` = `rj`. Penulis = akun ini.
         `no_resep` dibuat server. Audit `farmasi.resep_dibuat` hanya memuat id resep dan kunjungan (isi resep tidak masuk
         log/audit).

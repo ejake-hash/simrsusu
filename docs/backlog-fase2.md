@@ -236,6 +236,8 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
 - `MaskingLogTest::test_log_manual_dengan_binding_pesan_mentah_dan_jejak_argumen_tetap_tersamar` gagal di lokal (juga di `main` tanpa
   perubahan, 8 Nov 2026): log berisi `SQLSTATE[22P02] invalid input syntax for type uuid: "?"`, bukan pesan yang diharapkan. CI lulus →
   kemungkinan beda versi PostgreSQL/ekstensi atau pengaturan lokal. Selidiki sebelum menganggapnya flake.
+- Antrean farmasi (2.17) terbentuk dengan nomor `F-` dan area `farmasi`, tetapi panggil/layani dari depo belum ada: endpoint
+  /antrean/{id}/panggil memakai izin `pendaftaran.antrean`. Alur depo (telaah, siap, serah, panggil) = Tahap C.
 - `keuangan.tarif_versi.kategori` (2.16, lab/rad) belum bisa diisi lewat API: usulan tarif belum memuat `kategori` (perubahan kontrak
   usulan di luar 2.16 → [Perlu pemilik]). Sampai itu katalog order (`GET /data-induk/tarif?jenis=`) kosong di instalasi nyata;
   lokal diisi `lokal:kunjungan-contoh` (butir `CONTOH-LAB-*`/`CONTOH-RAD-01`). `paket_order` (FR-07-09) juga belum ada endpoint.
@@ -267,7 +269,7 @@ Kolom tabel = PRD 11.2; kolom yang belum perlu boleh ditunda, kolom baru di luar
 | 2.14 | CPPT episode (`CpptLinimasa`) + pengesahan PIN | BE+FE | M | 2.13 · **Selesai** (kontrak #159 v0.24.0; BE #161: CPPT episode, sahkan PIN, adendum, label catatan klinis. PR FE: sub-menu `rawat_jalan.cppt` TERSEDIA — linimasa pasien/episode + filter profesi/pos, SOAP polos, sahkan/perbaiki/adendum ber-TTE, label + TTE asesmen perawat; e2e `rawat-jalan.spec.ts`) |
 | 2.15 | Pemeriksaan dokter: diagnosis ICD-10 + selesai kunjungan | BE+FE | M | 2.14 · **Selesai** (kontrak #167 v0.25.0; BE #168: `klinis.diagnosis`, mulai periksa/selesai + kejadian task 4/5, relasi diakhiri, antrean poli selesai, ringkasan klinis, cari kode paket RS. PR FE: sub-menu `rawat_jalan.pemeriksaan` TERSEDIA — panel Pemeriksaan dari worklist tahap dokter: ringkasan klinis, alergi, diagnosis ICD-10 lewat pencarian paket RS, selesaikan kunjungan; `lokal:kunjungan-contoh` memuat paket ICD-10 sintetis bila belum ada; e2e `rawat-jalan.spec.ts`) |
 | 2.16 | Order penunjang bersama (7.00.5) | BE+FE | M | 2.14 · **Selesai** (kontrak #172 v0.26.0; BE #173: `permintaan.permintaan_pemeriksaan`/`_item`, bagian izin `rawat_jalan.pemeriksaan.order`, `keuangan.tarif_versi.kategori`, cek order ganda, kejadian `PermintaanPemeriksaanDibuat`; PR FE: komponen bersama `src/shared/components/OrderPenunjang.vue` di panel Pemeriksaan, e2e `rawat-jalan.spec.ts`) |
-| 2.17 | E-resep rawat jalan → antrean farmasi | BE+FE | M | 2.11, 2.14 · Siap |
+| 2.17 | E-resep rawat jalan → antrean farmasi | BE+FE | M | 2.11, 2.14 · **BE selesai** (kontrak #175 v0.27.0; PR BE: `farmasi.resep`/`_item`/`peringatan_resep`, bagian izin `rawat_jalan.pemeriksaan.resep` (sahkan bersyarat SIP), peringatan alergi/duplikasi/non_fornas, antrean farmasi `F-` lewat `ResepDisahkan`, objek TTE `resep`, akun sintetis `apoteker`) · FE menyusul |
 | 2.18 | Task ID antrean 1–7 tercatat internal | BE | S | 2.15, 2.17 · Siap |
 | 2.19 | [Perlu pemilik] Adapter Antrean RS BPJS + simulator | BE | M | 2.18 + dokumen katalog Antrean RS · Terhambat |
 | 2.20 | APM tahap 1: anjungan, nomor loket, cek jadwal | BE+FE | M | — · Siap |

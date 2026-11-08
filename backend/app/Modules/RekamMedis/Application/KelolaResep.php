@@ -38,9 +38,9 @@ final class KelolaResep
     public function buat(Pengguna $oleh, string $kunjunganId, array $isian): Resep
     {
         $this->pastikanDepo($isian['depo_id']);
-        $barang = $this->barang($isian['item']);
+        $this->pastikanBarang($isian['item']);
 
-        return DB::transaction(function () use ($oleh, $kunjunganId, $isian, $barang) {
+        return DB::transaction(function () use ($oleh, $kunjunganId, $isian) {
             $k = $this->kunjunganDilayani($kunjunganId);
             $tanggal = SuntinganBerversi::hariIni();
             $urut = DB::selectOne('INSERT INTO farmasi.nomor_resep (tanggal, terakhir) VALUES (?, 1)
@@ -51,7 +51,7 @@ final class KelolaResep
                 'penulis_id' => $oleh->id, 'dibuat_oleh' => $oleh->id, 'diubah_oleh' => $oleh->id,
             ]);
             $r->save();
-            $this->simpanButir($oleh, $r->id, $isian['item'], $barang);
+            $this->simpanButir($oleh, $r->id, $isian['item']);
             $this->audit->catat('farmasi.resep_dibuat', $oleh->id, $r->getTable(), $r->id, ['kunjungan_id' => $k->id]);
 
             return $r->refresh();
@@ -66,9 +66,11 @@ final class KelolaResep
         if (isset($isian['depo_id'])) {
             $this->pastikanDepo($isian['depo_id']);
         }
-        $barang = isset($isian['item']) ? $this->barang($isian['item']) : [];
+        if (isset($isian['item'])) {
+            $this->pastikanBarang($isian['item']);
+        }
 
-        return DB::transaction(function () use ($oleh, $resepId, $versi, $isian, $barang) {
+        return DB::transaction(function () use ($oleh, $resepId, $versi, $isian) {
             $r = $this->kunci($resepId, $versi);
             $this->pastikanDraf($r);
             $this->pastikanPenulisAtauDokter($oleh, $r);
@@ -78,7 +80,7 @@ final class KelolaResep
             if (isset($isian['item'])) {
                 DB::table('farmasi.resep_item')->where('resep_id', $r->id)->whereNull('diganti_pada')
                     ->update(['diganti_pada' => now(), 'diubah_oleh' => $oleh->id, 'diubah_pada' => now()]);
-                $this->simpanButir($oleh, $r->id, $isian['item'], $barang);
+                $this->simpanButir($oleh, $r->id, $isian['item']);
             }
             $this->audit->catat('farmasi.resep_diubah', $oleh->id, $r->getTable(), $r->id, ['kunjungan_id' => $r->kunjungan_id]);
 
@@ -171,7 +173,7 @@ final class KelolaResep
     /** Akun ini dokter jadwal kunjungan resep (Kunjungan.dokter). */
     public static function dokterJadwal(Pengguna $pengguna, string $kunjunganId): bool
     {
-        return $pengguna->pegawai_id !== null
+        return ! empty($pengguna->pegawai_id)
             && DB::table('kunjungan.kunjungan')->where('id', $kunjunganId)->value('pegawai_id') === $pengguna->pegawai_id;
     }
 
@@ -199,12 +201,11 @@ final class KelolaResep
      * Barang aktif berjenis obat/bmhp per butir; selain itu 422 per baris.
      *
      * @param  list<array<string, mixed>>  $item
-     * @return array<string, true>
      */
-    private function barang(array $item): array
+    private function pastikanBarang(array $item): void
     {
         $ada = DB::table('logistik.barang')->whereIn('id', array_column($item, 'barang_id'))->where('status', 'aktif')
-            ->whereIn('jenis', ['obat', 'bmhp'])->pluck('id')->flip()->map(fn () => true)->all();
+            ->whereIn('jenis', ['obat', 'bmhp'])->pluck('id')->flip()->all();
         $salah = [];
         foreach ($item as $n => $i) {
             if (! isset($ada[$i['barang_id']])) {
@@ -214,15 +215,12 @@ final class KelolaResep
         if ($salah !== []) {
             throw ValidationException::withMessages($salah);
         }
-
-        return $ada;
     }
 
     /**
      * @param  list<array<string, mixed>>  $item
-     * @param  array<string, true>  $barang
      */
-    private function simpanButir(Pengguna $oleh, string $resepId, array $item, array $barang): void
+    private function simpanButir(Pengguna $oleh, string $resepId, array $item): void
     {
         DB::table('farmasi.resep_item')->insert(array_map(fn (array $i, int $n) => [
             'id' => (string) Str::uuid7(), 'resep_id' => $resepId, 'barang_id' => $i['barang_id'], 'urutan' => $n + 1,

@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
  * 00.00–23.59, lalu instalasi ditandai siap melayani. Penanda itu biasanya terkunci lewat wizard penyiapan langkah 1–6,
  * yang tidak bisa dilengkapi data sintetis, jadi perintah ini memasang nilai tetap `SEJAK`. `--batal` mengosongkannya lagi
  * (hanya bila nilainya masih `SEJAK`, bukan hasil wizard) agar spec penyiapan tetap bisa diulang, dan menonaktifkan poli
- * `POLI-PD` beserta jadwalnya (data induk dirujuk kunjungan: tidak dihapus). Paket ICD-10 sintetis (2.15) dan butir tarif penunjang sintetis (2.16) tetap tinggal.
+ * `POLI-PD` beserta jadwalnya (data induk dirujuk kunjungan: tidak dihapus). Paket ICD-10 sintetis (2.15) dan butir tarif penunjang sintetis (2.16), dan obat sintetis (2.17) tetap tinggal.
  * Hanya APP_ENV=local.
  */
 final class KunjunganContoh extends Command
@@ -114,6 +114,14 @@ final class KunjunganContoh extends Command
                     DB::table('keuangan.tarif')->insert(['id' => $tarifId, 'kode' => $kode]);
                     DB::table('keuangan.tarif_versi')->insert(['id' => (string) Str::uuid7(), 'tarif_id' => $tarifId, 'versi' => 1, 'nama' => $nama,
                         'kelompok' => 'Contoh penunjang', 'kategori' => $kategori, 'status' => 'aktif', 'berlaku_dari' => '2026-01-01', 'dasar' => 'Data sintetis lokal']);
+                }
+            }
+
+            // E-resep (2.17): obat SINTETIS (bukan katalog RS) di formularium RS contoh, hanya bila kodenya belum ada.
+            foreach (['CONTOH-OBAT-01' => ['Obat contoh satu', 'Zat contoh satu'], 'CONTOH-OBAT-02' => ['Obat contoh dua', 'Zat contoh dua']] as $kode => [$nama, $zat]) {
+                if (! DB::table('logistik.barang')->where('kode', $kode)->exists()) {
+                    DB::table('logistik.barang')->insert(['id' => (string) Str::uuid7(), 'kode' => $kode, 'nama' => $nama, 'jenis' => 'obat',
+                        'generik_paten' => 'generik', 'zat_aktif' => $zat, 'satuan_terkecil' => 'tablet']);
                 }
             }
 

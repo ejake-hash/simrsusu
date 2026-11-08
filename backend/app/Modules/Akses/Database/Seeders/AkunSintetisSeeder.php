@@ -66,6 +66,8 @@ final class AkunSintetisSeeder extends Seeder
         // Tiket 2.15: dokter jadwal poli contoh (lokal:kunjungan-contoh menautkannya ke pegawai jadwal); worklist dokter hanya
         // memuat pasien jadwalnya sendiri (7.07.1). Terpisah dari `dokter` agar menu dan pegawai akun itu tetap.
         'dokter.poli' => 'Contoh Pemeriksa Poli',
+        // Tiket 2.17: antrean resep depo (farmasi.resep.lihat) dan baca alergi pasien beresep.
+        'apoteker' => 'Contoh Apoteker Depo',
     ];
 
     /**
@@ -81,7 +83,7 @@ final class AkunSintetisSeeder extends Seeder
     ];
 
     /** Profesi pegawai sintetis (selain ini non_kesehatan). */
-    private const PROFESI = ['perawat' => 'perawat', 'dokter' => 'dokter', 'dokter.poli' => 'dokter'];
+    private const PROFESI = ['perawat' => 'perawat', 'dokter' => 'dokter', 'dokter.poli' => 'dokter', 'apoteker' => 'apoteker'];
 
     /**
      * Peran contoh (tiket 1.2a) agar menu tiap akun sintetis berbeda: kode peran => [nama, akun, menu].
@@ -137,7 +139,11 @@ final class AkunSintetisSeeder extends Seeder
             'rawat_jalan.pemeriksaan.sahkan', 'rawat_jalan.cppt.lihat', 'master_data.organisasi.lihat',
             // Tiket 2.16: order penunjang; katalog butir dari buku tarif (GET /data-induk/tarif?jenis=).
             'rawat_jalan.pemeriksaan.order.lihat', 'rawat_jalan.pemeriksaan.order.input', 'rawat_jalan.pemeriksaan.order.batal', 'master_data.tarif.lihat',
+            // Tiket 2.17: e-resep; pemilih obat dari katalog barang (GET /data-induk/barang, farmasi.formularium.lihat).
+            'rawat_jalan.pemeriksaan.resep.lihat', 'rawat_jalan.pemeriksaan.resep.input', 'rawat_jalan.pemeriksaan.resep.sahkan',
+            'rawat_jalan.pemeriksaan.resep.batal', 'farmasi.formularium.lihat',
         ]],
+        'contoh_apoteker' => ['Contoh Apoteker Depo', 'apoteker', ['farmasi.resep.lihat']],
     ];
 
     /** Semua aksi usulan data induk + lihat organisasi (pemilih objek); pemisahan tugas dijaga server (1.8c). */

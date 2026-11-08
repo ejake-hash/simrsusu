@@ -181,7 +181,7 @@ final class ResepController
         return $baris->map(function (Resep $r) use ($item, $tersimpan, $kunjungan, $pasien, $depo, $antrean, $dokter, $pelaku, $pengguna, $boleh) {
             $k = $kunjungan[$r->kunjungan_id];
             $p = $pasien[$r->pasien_id];
-            $dokterJadwal = $pengguna->pegawai_id !== null && $k->pegawai_id === $pengguna->pegawai_id;
+            $dokterJadwal = ! empty($pengguna->pegawai_id) && $k->pegawai_id === $pengguna->pegawai_id;
             $pemilik = $dokterJadwal || $r->penulis_id === $pengguna->id;
             $peringatan = $r->status === 'draf'
                 ? array_map(fn (array $x) => [...$x, 'tanggapan' => null], $this->pemeriksa->periksa($pengguna, $r))
