@@ -66,12 +66,38 @@ class SandiTest extends TestCase
     {
         $this->assertFalse($this->lolos('123456'), 'Testing/CI tetap memakai aturan PRD 14.2.');
 
-        foreach (['staging' => false, 'production' => false, 'local' => true] as $env => $lolos) {
-            $this->app['env'] = $env;
-            $this->assertSame($lolos, $this->lolos('123456'), "APP_ENV={$env}");
+        try {
+            foreach (['staging' => false, 'production' => false, 'local' => true] as $env => $lolos) {
+                $this->app['env'] = $env;
+                $this->assertSame($lolos, $this->lolos('123456'), "APP_ENV={$env}");
+            }
+            $this->assertFalse($this->lolos('12345'), 'Lokal pun minimal 6 karakter.');
+        } finally {
+            $this->app['env'] = 'testing';
         }
-        $this->assertFalse($this->lolos('12345'), 'Lokal pun minimal 6 karakter.');
-        $this->app['env'] = 'testing';
+    }
+
+    public function test_ganti_sandi_demo_pendek_hanya_di_lingkungan_local(): void
+    {
+        $pengguna = Pengguna::factory()->create(['sandi_hash' => Hash::make('sandi-lama-yang-panjang-1')]);
+        $request = request();
+        $request->setLaravelSession(app('session.store'));
+        $ganti = fn () => app(GantiSandi::class)->ganti($request, $pengguna, 'sandi-lama-yang-panjang-1', '123456');
+
+        try {
+            $ganti();
+            $this->fail('Testing/CI tetap menolak sandi pendek.');
+        } catch (ApiError $e) {
+            $this->assertSame('validasi_gagal', $e->kode);
+        }
+
+        $this->app['env'] = 'local';
+        try {
+            $ganti();
+        } finally {
+            $this->app['env'] = 'testing';
+        }
+        $this->assertTrue(Hash::check('123456', $pengguna->refresh()->sandi_hash));
     }
 
     public function test_sandi_dari_daftar_bocor_lokal_ditolak_tanpa_internet(): void
