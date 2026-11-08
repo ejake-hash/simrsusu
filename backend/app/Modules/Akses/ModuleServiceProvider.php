@@ -87,6 +87,12 @@ class ModuleServiceProvider extends ServiceProvider
 
         // Aturan sandi PRD 14.2; dipakai lewat Password::defaults() di mana pun sandi ditetapkan.
         Password::defaults(function () {
+            // Keputusan pemilik 8 Nov 2026: APP_ENV=local (mesin pengembang) boleh sandi demo pendek seperti 123456.
+            // Staging, testing/CI, dan production tetap memakai aturan penuh PRD 14.2 di bawah.
+            if ($this->app->environment('local')) {
+                return Password::min(6);
+            }
+
             // PRD 14.2: minimal 12, walau konfigurasi diisi lebih kecil.
             $aturan = Password::min(max(12, (int) config('autentikasi.sandi.panjang_minimal')))
                 ->rules([$this->app->make(SandiTidakBocor::class)]);
