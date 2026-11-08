@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.28.0
+  version: 0.29.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -144,6 +144,9 @@ info:
     `peringatan_belum_ditanggapi`, 403 `bukan_dokter_kunjungan`. Hanya kontrak; kode menyusul di tiket BE.
     v0.28.0: Task ID antrean tercatat internal (tiket 2.18; FR-02-02, FR-02-06, FR-02-16): GET /kunjungan/{id}/task-antrean
     (izin integrasi.bpjs.lihat, daftar kursor, tanpa data pasien). Pemetaan kejadian → task disimpan sebagai data.
+    v0.29.0: Akses darurat (break-glass) rekam medis (tiket 2.21; FR-26-12, FR-26-26, UC-33, PRD 9.2.4–9.2.5): POST
+    /pasien/{id}/akses-darurat (izin rawat_jalan.cppt.darurat, butuh MFA), GET /akses-darurat, POST /akses-darurat/{id}/tinjau
+    (izin rekam_medis.akses_darurat.lihat/tinjau). Selama aktif, baca RM pasien itu terbuka (lapis 3–4) dan tercatat di audit.log_akses.
 servers:
   - url: /api/v1
 security:
@@ -6913,6 +6916,109 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /pasien/{id}/akses-darurat:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: bukaAksesDarurat
+      summary: Buka akses darurat (break-glass) RM satu pasien
+      description: |
+        Tiket 2.21, UC-33. Izin: rawat_jalan.cppt.darurat (aksi klinis; `butuh_mfa`). Superadmin tanpa izin klinis → 403
+        `akses_ditolak` (9.2.4). Lapis 5: 403 `mfa_belum_terdaftar` / `mfa_ulang_diperlukan` (verifikasi ulang lalu ulangi).
+        Pasien tidak ada → 404. `alasan` wajib; tidak masuk log aplikasi.
+
+        Akses berlaku dari `mulai_pada` sampai `berakhir_pada` = mulai + `akses.kebijakan_keamanan.akses_darurat_menit`
+        (data, bawaan 240 menit = 4 jam), lalu tertutup tanpa tindakan. Selama aktif, untuk pasien ini saja dan hanya baca:
+        - lapis 3: catatan klinis kunjungan di unit di luar cakupan penugasan akun boleh dibaca, asalkan akun memegang izin
+          lihat layarnya di cakupan mana pun (lapis 1–2 tetap berlaku);
+        - lapis 4: entri berlabel sensitivitas terbuka walau akun tidak memegang izin label atau tidak merawat pasien.
+        Tulis, sahkan, dan perbaiki tetap mengikuti hak biasa. Setiap pembacaan RM pasien ini oleh akun ini selama aktif tercatat
+        di `audit.log_akses` (pengguna, pasien, kunjungan, layar, aksi `lihat`, id akses darurat, ip; tanpa isi klinis).
+
+        Bila akun ini masih punya akses darurat aktif untuk pasien yang sama → 200 dengan akses itu (tidak diperpanjang,
+        alasan baru diabaikan). Selain itu 201 dan tugas TINJAUAN_AKSES_DARURAT terbit ke setiap peran pemegang
+        rekam_medis.akses_darurat.tinjau (kotak kerja + notifikasi, tenggat dari data jenis tugas). Audit
+        `akses.akses_darurat_dibuka` (id saja).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AksesDaruratBaru' }
+      responses:
+        '200':
+          description: Akses darurat aktif yang sudah ada
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AksesDarurat' } } }
+        '201':
+          description: Akses darurat baru
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AksesDarurat' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /akses-darurat:
+    get:
+      operationId: daftarAksesDarurat
+      summary: Daftar akses darurat untuk tinjauan pasca-akses
+      description: |
+        Tiket 2.21. Izin: rekam_medis.akses_darurat.lihat, cakupan rs (selain itu 403). Urut `(mulai_pada, id)` terbaru dulu.
+        `status`: `menunggu` = belum ditinjau (bawaan), `ditinjau` = sudah ditinjau. Pembacaan daftar ini tidak dicatat di
+        audit.log_akses (bukan pembukaan RM).
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [menunggu, ditinjau], default: menunggu }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman akses darurat (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AksesDarurat' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /akses-darurat/{id}/tinjau:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: tinjauAksesDarurat
+      summary: Simpan hasil tinjauan pasca-akses (sekali, tidak bisa diubah)
+      description: |
+        Tiket 2.21, UC-33 langkah 3. Izin: rekam_medis.akses_darurat.tinjau, cakupan rs. Tidak ada → 404.
+        Meninjau akses darurat milik sendiri → 403 `tinjau_diri_sendiri`. Sudah ditinjau → 409 `sudah_ditinjau`
+        (hasil tidak bisa diubah). Boleh ditinjau sebelum masa akses berakhir; akses tidak dicabut oleh tinjauan.
+        Tugas TINJAUAN_AKSES_DARURAT objek ini selesai. Audit `akses.akses_darurat_ditinjau` (id dan hasil; tanpa catatan).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TinjauanAksesDaruratBaru' }
+      responses:
+        '200':
+          description: Akses darurat sesudah ditinjau
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AksesDarurat' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
 components:
   parameters:
     Id:
@@ -9703,6 +9809,45 @@ components:
                 alasan: { type: string }
                 oleh: { $ref: '#/components/schemas/Pelaku' }
                 pada: { type: string, format: date-time }
+    AksesDaruratBaru:
+      type: object
+      required: [alasan]
+      properties:
+        alasan: { type: string, minLength: 10, maxLength: 500, description: "Alasan klinis darurat; wajib (FR-26-12)" }
+    TinjauanAksesDaruratBaru:
+      type: object
+      required: [hasil, catatan]
+      properties:
+        hasil: { type: string, enum: [wajar, tidak_wajar], description: "`tidak_wajar` = ditindaklanjuti di luar sistem (PRD 9.2.4)" }
+        catatan: { type: string, minLength: 5, maxLength: 1000 }
+    AksesDarurat:
+      type: object
+      required: [id, pasien, pengguna, alasan, mulai_pada, berakhir_pada, aktif, jumlah_akses, tinjauan, dapat]
+      properties:
+        id: { type: string, format: uuid }
+        pasien: { $ref: '#/components/schemas/RingkasPasienKunjungan' }
+        pengguna:
+          allOf: [{ $ref: '#/components/schemas/Pelaku' }]
+          type: object
+          description: Akun yang membuka akses
+        alasan: { type: string }
+        mulai_pada: { type: string, format: date-time }
+        berakhir_pada: { type: string, format: date-time }
+        aktif: { type: boolean, description: "Saat respons dibentuk: mulai_pada ≤ sekarang < berakhir_pada" }
+        jumlah_akses: { type: integer, minimum: 0, description: "Baris audit.log_akses akses darurat ini" }
+        tinjauan:
+          type: [object, 'null']
+          required: [hasil, catatan, oleh, pada]
+          properties:
+            hasil: { type: string, enum: [wajar, tidak_wajar] }
+            catatan: { type: string }
+            oleh: { $ref: '#/components/schemas/Pelaku' }
+            pada: { type: string, format: date-time }
+        dapat:
+          type: object
+          required: [tinjau]
+          properties:
+            tinjau: { type: boolean, description: "Izin tinjau + belum ditinjau + bukan milik sendiri" }
     Resep:
       type: object
       required: [id, no_resep, kunjungan_id, pasien, poliklinik, depo, jenis, racikan, catatan, status, penulis, dokter, dibuat_pada,
