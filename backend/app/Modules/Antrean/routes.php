@@ -2,6 +2,7 @@
 
 use App\Modules\Antrean\Http\Controllers\AntreanController;
 use App\Modules\Antrean\Http\Controllers\DisplayController;
+use App\Modules\Antrean\Http\Controllers\TaskAntreanController;
 use App\Modules\Antrean\Http\Controllers\WorklistController;
 use App\Modules\Antrean\Http\Middleware\TokenPerangkatDisplay;
 use Illuminate\Support\Facades\Route;
@@ -16,6 +17,11 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::post('antrean/{antrean}/lewati', [AntreanController::class, 'lewati']);
     Route::post('antrean/{antrean}/sisip', [AntreanController::class, 'sisip']);
     Route::post('antrean/{antrean}/batal', [AntreanController::class, 'batal']);
+});
+
+// Task ID antrean satu kunjungan (tiket 2.18): izin integrasi.bpjs.lihat diperiksa di controller.
+Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->group(function () {
+    Route::get('kunjungan/{kunjungan}/task-antrean', [TaskAntreanController::class, 'index'])->whereUuid('kunjungan');
 });
 
 // Display: token perangkat, bukan sesi cookie; batas laju per perangkat.

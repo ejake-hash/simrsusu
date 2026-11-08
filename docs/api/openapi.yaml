@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.27.0
+  version: 0.28.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -142,6 +142,8 @@ info:
     GET /depo. Bagian izin baru `rawat_jalan.pemeriksaan.resep` (lihat, input, sahkan, batal); sub-menu `farmasi.resep`
     yang sudah ada mulai dipakai (lihat); GET /pasien/{id}/alergi ikut menerima farmasi.resep.lihat. Objek TTE `resep`. Error baru: 409
     `peringatan_belum_ditanggapi`, 403 `bukan_dokter_kunjungan`. Hanya kontrak; kode menyusul di tiket BE.
+    v0.28.0: Task ID antrean tercatat internal (tiket 2.18; FR-02-02, FR-02-06, FR-02-16): GET /kunjungan/{id}/task-antrean
+    (izin integrasi.bpjs.lihat, daftar kursor, tanpa data pasien). Pemetaan kejadian → task disimpan sebagai data.
 servers:
   - url: /api/v1
 security:
@@ -6530,6 +6532,34 @@ paths:
                   data: { type: array, maxItems: 200, items: { $ref: '#/components/schemas/RingkasDepo' } }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/task-antrean:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: daftarTaskAntreanKunjungan
+      summary: Jam task ID antrean satu kunjungan (7.02.1)
+      description: |
+        Izin: integrasi.bpjs.lihat, cakupan rs (selain itu 403). Kunjungan tidak ada → 404. Urut `(terjadi_pada, id)` naik.
+        Hanya kunjungan JKN yang punya baris. `status_kirim` `tertahan` = menunggu adapter Antrean (tiket 2.19).
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman task (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/TaskAntrean' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /kunjungan/{id}/resep:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -6931,6 +6961,17 @@ components:
         application/json:
           schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Antrean' } } }
   schemas:
+    TaskAntrean:
+      type: object
+      required: [id, antrean_id, titik, task_no, kejadian, terjadi_pada, status_kirim]
+      properties:
+        id: { type: string, format: uuid }
+        antrean_id: { type: string, format: uuid }
+        titik: { type: string }
+        task_no: { type: integer }
+        kejadian: { type: string, description: "Kunci kejadian sistem; pemetaan ke task_no ada di data induk" }
+        terjadi_pada: { type: string, format: date-time }
+        status_kirim: { type: string, enum: [tertahan, menunggu, terkirim, gagal] }
     Error:
       type: object
       required: [error]
