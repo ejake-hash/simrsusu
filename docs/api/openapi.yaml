@@ -6218,8 +6218,7 @@ paths:
       description: |
         Izin: rawat_jalan.pemeriksaan.input, cakupan unit kunjungan (selain itu 403). Instalasi belum siap melayani → 409
         `instalasi_belum_siap`.
-        - `terdaftar` → `dilayani`; `mulai_periksa_pada` = jam server; kejadian `PemeriksaanDimulai` (task ID 4, 7.02.1;
-          dipakai 2.18). Audit `kunjungan.pemeriksaan_dimulai` + id.
+        - `terdaftar` → `dilayani`; kejadian `PemeriksaanDimulai` membawa jam server (task ID 4, 7.02.1; dipakai 2.18). Audit `kunjungan.pemeriksaan_dimulai` + id.
         - Sudah `dilayani` → 200 tanpa perubahan (dokter membuka RM lagi; kejadian dan audit tidak diulang).
         - `selesai` atau `batal` → 409 `status_tidak_sesuai`.
         Tidak mensyaratkan asesmen awal perawat selesai (pasien bisa langsung ke dokter). Tidak memberi relasi perawatan baru.
@@ -6247,9 +6246,10 @@ paths:
         - Bukan `dilayani` → 409 `status_tidak_sesuai` (belum mulai periksa, sudah selesai, atau batal).
         - Syarat belum lengkap → 409 `syarat_selesai_belum_lengkap`, `rincian` memuat semua yang kurang sekaligus:
           `{"kolom": "diagnosis_utama", "pesan": …}` bila tidak ada diagnosis utama berstatus aktif, dan
-          `{"kolom": "cppt_dokter_draf", "pesan": …, "id": [<id cppt>]}` bila masih ada CPPT profesi dokter berstatus draf di
-          kunjungan ini (milik siapa pun).
-        Berhasil: `selesai`, `selesai_pada` = jam server; kejadian `PemeriksaanSelesai` (task ID 5); relasi perawatan yang
+          `{"kolom": "cppt_dokter_draf", "pesan": …, "jumlah": <n>, "id": [<id cppt milik akun ini>]}` bila masih ada CPPT
+          profesi dokter berstatus draf di kunjungan ini (milik siapa pun). `id` hanya draf milik akun ini, karena draf
+          orang lain tidak terlihat (aturan CPPT).
+        Berhasil: `selesai`; kejadian `PemeriksaanSelesai` membawa jam server (task ID 5); relasi perawatan yang
         lahir dari kunjungan ini diakhiri (`KelolaRelasiPerawatan`, aturan 2.6); antrean poli kunjungan ini → `selesai`
         (worklist tahap `selesai`). Diagnosis dan CPPT sesudahnya tidak bisa ditambah lewat kunjungan ini (perbaikan CPPT sah
         tetap lewat PATCH/adendum). Audit `kunjungan.pemeriksaan_selesai` + id.
@@ -6339,8 +6339,10 @@ paths:
       summary: Ganti jenis diagnosis atau batalkan (tidak dihapus)
       description: |
         Izin: rawat_jalan.pemeriksaan.perbaiki, cakupan unit kunjungan. Wajib If-Match (412/428). Kunjungan bukan `dilayani`
-        → 409 `status_tidak_sesuai` (sesudah selesai, perbaikan koding lewat casemix, Tahap D). Diagnosis sudah `batal` → 409
-        `status_tidak_sesuai` (catat diagnosis baru). Isi tepat satu dari:
+        → 409 `status_tidak_sesuai` (sesudah selesai, perbaikan koding lewat casemix, Tahap D). Hanya pencatatnya
+        (`dicatat_oleh`; selain itu 403 `akses_ditolak`, seperti CPPT). Diagnosis sudah `batal` → 409 `status_tidak_sesuai`
+        (catat diagnosis baru). Diagnosis tidak memakai draf/sah dan PIN: kunci klinisnya adalah POST /kunjungan/{id}/selesai.
+        Isi tepat satu dari:
         - `jenis`: utama ↔ sekunder; menjadikan utama saat ada utama aktif lain → 409 `diagnosis_utama_sudah_ada`.
         - `status: batal` + `alasan_batal` (wajib): baris tetap tersimpan dengan `dibatalkan_oleh`/`dibatalkan_pada`.
         Kode tidak bisa diganti (batalkan lalu catat kode yang benar). Audit `klinis.diagnosis_diubah` + id.
@@ -6385,7 +6387,7 @@ paths:
       summary: Ringkasan klinis pasien untuk dokter (FR-07-03, data yang sudah ada)
       description: |
         Izin: rawat_jalan.pemeriksaan.lihat. Cakupan dipaksa server: pasien harus punya kunjungan tidak batal di unit dalam
-        cakupan izin itu; selain itu 403 `akses_ditolak` (bukan 404, agar id pasien tidak bisa ditebak sebagai ada/tidak).
+        cakupan izin itu; selain itu, termasuk id pasien yang tidak ada, 403 `akses_ditolak` (ada/tidaknya pasien tidak terbaca).
         Hanya dari data yang sudah ada di Fase 2: diagnosis aktif dan kunjungan terakhir.
         Alergi memakai GET /pasien/{id}/alergi; hasil lab, obat rutin, risiko jatuh, dan program menyusul tiketnya (Tahap C).
         - `diagnosis_aktif`: diagnosis berstatus aktif dari kunjungan pasien yang tidak batal, satu baris per kode (yang
@@ -6393,7 +6395,8 @@ paths:
         - `kunjungan_terakhir`: kunjungan tidak batal, terbaru dulu, paling banyak 5, dengan diagnosis utama aktifnya.
         Privasi (9.2.5, 5.1): kunjungan di poli bertanda sensitif (punya nama netral di data induk) tidak menyumbang diagnosis
         ke ringkasan, dan di `kunjungan_terakhir` tampil dengan nama netral poli dan `diagnosis_utama` null. Bukan daftar
-        berhalaman (batas tetap di atas). `Cache-Control: no-store`.
+        berhalaman (batas tetap di atas). `Cache-Control: no-store`. Keterbatasan: diagnosis sensitif yang dicatat di poli
+        tanpa nama netral tetap tampil lintas poli; menunggu label sensitivitas diagnosis (9.2.5), di luar tiket ini.
       responses:
         '200':
           description: Ringkasan klinis
@@ -6403,7 +6406,6 @@ paths:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/RingkasanKlinis' } } }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
-        '404': { $ref: '#/components/responses/Error' }
   /pasien/{id}/alergi:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -9090,7 +9092,7 @@ components:
         dapat:
           type: object
           required: [ubah]
-          description: "true bila akun ini punya izin perbaiki, kunjungan masih `dilayani`, dan diagnosis aktif"
+          description: "true bila akun ini pencatatnya, punya izin perbaiki, kunjungan masih `dilayani`, dan diagnosis aktif"
           properties:
             ubah: { type: boolean }
         versi: { type: string }
