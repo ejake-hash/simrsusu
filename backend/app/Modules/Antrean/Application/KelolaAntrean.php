@@ -13,6 +13,7 @@ use App\Modules\Pendaftaran\Events\KunjunganDibatalkan;
 use App\Modules\Pendaftaran\Events\KunjunganDibuat;
 use App\Modules\Pendaftaran\Models\Kunjungan;
 use App\Modules\RekamMedis\Events\AsesmenPerawatSelesai;
+use App\Modules\RekamMedis\Events\PemeriksaanSelesai;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -89,6 +90,16 @@ final class KelolaAntrean
         // Nomor yang dilewati/belum check-in tidak hidup lagi tanpa petugas: hanya tahapnya yang berpindah.
         $this->ubah($antrean, $kejadian->olehId, in_array($antrean->status, ['menunggu', 'dipanggil', 'dilayani'], true)
             ? ['tahap' => 'dokter', 'status' => 'menunggu', 'panggilan_ke' => 0] : ['tahap' => 'dokter']);
+    }
+
+    /** Kunjungan selesai (tiket 2.15, di dalam transaksinya): antrean poli yang masih hidup → selesai. */
+    public function selesaikanKunjungan(PemeriksaanSelesai $kejadian): void
+    {
+        $antrean = Antrean::query()->where('kunjungan_id', $kejadian->kunjunganId)->where('titik', 'poli')
+            ->whereNotIn('status', ['batal', 'selesai'])->lockForUpdate()->get();
+        foreach ($antrean as $a) {
+            $this->ubah($a, $kejadian->olehId, ['status' => 'selesai']);
+        }
     }
 
     /** Panggil (menunggu → dipanggil) atau panggil ulang (dipanggil → dipanggil) sampai batas data induk. */

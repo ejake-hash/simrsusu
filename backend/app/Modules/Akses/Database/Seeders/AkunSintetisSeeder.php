@@ -96,6 +96,8 @@ final class AkunSintetisSeeder extends Seeder
      */
     private const IZIN_TAMBAHAN_CONTOH = [
         'contoh_admisi' => ['master_data.organisasi.lihat', 'master_data.jadwal_praktik.lihat', 'master_data.penjamin.lihat'],
+        // Tiket 2.15: dokter menyelesaikan kunjungan (aksi tambahan, tidak ikut aksi dasar menu rawat_jalan).
+        'contoh_dokter' => ['rawat_jalan.pemeriksaan.sahkan'],
         'contoh_data_induk' => ['sdm.pegawai.lihat', 'farmasi.formularium.lihat', 'farmasi.formularium.input', 'farmasi.formularium.perbaiki'],
         // Tiket 2.13: perawat poli melihat worklist, mengisi asesmen awal dan alergi, dan memanggil nomor antrean (poli dipilih dari data induk).
         'contoh_perawat' => [
@@ -212,7 +214,7 @@ final class AkunSintetisSeeder extends Seeder
             foreach (Izin::query()->whereIn('menu_id', $subMenu)->pluck('id') as $izinId) {
                 $this->aktifkan('akses.peran_izin', ['peran_id' => $peran->id, 'izin_id' => $izinId]);
             }
-            $this->beriIzin($peran, self::IZIN_TAMBAHAN_CONTOH[$kode] ?? []);
+            $this->beriIzin($peran, self::IZIN_TAMBAHAN_CONTOH[$kode]);
             app(CacheHakAkses::class)->lupakanSemua();
 
             $this->tugaskan($namaPengguna, $peran);
