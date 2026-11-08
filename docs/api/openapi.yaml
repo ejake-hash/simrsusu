@@ -134,8 +134,8 @@ info:
     v0.26.0: Order penunjang bersama (tiket 2.16; FR-00-08, FR-07-09, FR-07-27, 7.00.5 butir 1 dan 3): POST
     /kunjungan/{id}/permintaan-pemeriksaan (lab/rad, rutin/cito, indikasi wajib, peringatan order ganda), GET
     /episode/{id}/permintaan-pemeriksaan, POST /permintaan-pemeriksaan/{id}/batal. Bagian izin baru
-    `rawat_jalan.pemeriksaan.order` (input, batal). Tarif.kategori (lab/rad, opsional) dan GET /data-induk/tarif?jenis=
-    sebagai katalog order. Error baru: 409 `order_ganda`. Hanya kontrak; kode menyusul di tiket BE.
+    `rawat_jalan.pemeriksaan.order` (input, batal). Tarif.kategori (lab/rad, opsional) dan filter GET /data-induk/tarif?jenis=
+    sebagai katalog order (izin tetap master_data.tarif.lihat). Error baru: 409 `order_ganda`. Hanya kontrak; kode menyusul di tiket BE.
 servers:
   - url: /api/v1
 security:
@@ -4464,9 +4464,8 @@ paths:
       operationId: daftarTarif
       summary: Daftar buku tarif (paginasi kursor)
       description: |
-        Izin: master_data.tarif.lihat, cakupan `rs`. Katalog order penunjang (tiket 2.16): dengan `jenis` terisi, izin
-        rawat_jalan.pemeriksaan.order.input juga cukup; bagi akun tanpa master_data.tarif.lihat hanya butir `aktif` yang
-        dikirim (filter `status` diabaikan). Urut: kode (unik); kursor keyset `(kode, id)`. `harga` = harga yang berlaku pada `tanggal` (bawaan hari ini
+        Izin: master_data.tarif.lihat, cakupan `rs`. Katalog order penunjang (tiket 2.16) memakai endpoint dan izin yang sama
+        dengan `jenis` terisi; RS memberi izin lihat ini ke peran pemesan lewat Peran & izin. Urut: kode (unik); kursor keyset `(kode, id)`. `harga` = harga yang berlaku pada `tanggal` (bawaan hari ini
         zona RS), per kelas rawat. Tidak ada endpoint tulis tarif: menambah atau mengubah tarif = usulan 1.8c
         (POST /usulan-data-induk, `jenis_data` `tarif`; izin master_data.usulan.*). Perubahan terjadwal yang sudah disahkan
         tampil di `akan_berlaku`. Pengisian awal saat penyiapan (sebelum siap melayani) bukan bagian kontrak ini.
@@ -6403,8 +6402,10 @@ paths:
           tarif saat dipesan.
         - Terikat kunjungan **dan** episode kunjungan saat dipesan (`episode_id` diisi server, 7.00.5 butir 1); pemindahan
           pasien sesudahnya tidak mengubahnya.
-        - Order ganda (FR-07-27): butir yang sama sudah dipesan pemesan lain untuk pasien ini hari ini (zona RS, permintaan
-          dan butir tidak batal, kunjungan mana pun) dan `alasan_ganda` kosong → 409 `order_ganda`, tanpa menyimpan apa pun.
+        - Order ganda (FR-07-27): butir yang sama sudah dipesan untuk pasien ini hari ini (zona RS, permintaan dan butir
+          tidak batal, pemesan siapa pun termasuk akun ini, kunjungan mana pun) dan `alasan_ganda` kosong → 409 `order_ganda`,
+          tanpa menyimpan apa pun. Order dari kunjungan di poli bertanda sensitif (punya nama netral) yang unitnya di luar
+          cakupan akun tidak dihitung (9.2.5, sama dengan GET daftar episode).
           `rincian` satu objek per butir ganda `{"kolom": "item.<n>.tarif_id", "tarif_id", "nama", "dipesan_pada"}`
           (tanpa pemesan atau poli asalnya). Kirim ulang dengan `alasan_ganda` untuk tetap memesan; alasan disimpan di
           permintaan.
@@ -9304,6 +9305,10 @@ components:
       type: string
       enum: [dipesan, batal]
       description: "Tahap penerimaan, sampling, dan hasil (Tahap C) menambah nilai tanpa memecah klien"
+    StatusPermintaanItem:
+      type: string
+      enum: [dipesan, batal]
+      description: "Status per butir; tahap penunjang (Tahap C) menambah nilai tanpa memecah klien"
     PermintaanPemeriksaan:
       type: object
       required: [id, kunjungan_id, episode_id, jenis, prioritas, diagnosis_kerja, catatan, alasan_ganda, status, pemesan,
@@ -9330,7 +9335,7 @@ components:
               tarif_id: { type: string, format: uuid }
               kode_item: { type: string, description: "Kode tarif saat dipesan" }
               nama: { type: string, description: "Nama versi tarif yang berlaku saat dipesan" }
-              status: { $ref: '#/components/schemas/StatusPermintaanPemeriksaan' }
+              status: { $ref: '#/components/schemas/StatusPermintaanItem' }
         alasan_batal: { type: [string, 'null'] }
         dibatalkan_oleh: { $ref: '#/components/schemas/Pelaku' }
         dibatalkan_pada: { type: [string, 'null'], format: date-time }
