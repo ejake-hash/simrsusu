@@ -198,6 +198,7 @@ const batal = useMutation({
             <Tombol v-if="r.dapat.ubah && r.item.length > 1" varian="tautan" :sibuk="ubah.isPending.value && ubah.variables.value?.itemId === i.id" :aria-label="`Hapus ${i.barang.nama} dari resep ${r.no_resep}`" @click="ubah.mutate({ r, itemId: i.id })">Hapus</Tombol>
           </li>
         </ul>
+        <p v-if="r.dapat.ubah && r.item.length === 1" class="ket">Obat terakhir tidak bisa dihapus dari draf; batalkan resep bila tidak jadi.</p>
         <p v-if="r.catatan" class="ket">Catatan: {{ r.catatan }}</p>
 
         <div v-if="r.peringatan.length" class="peringatan">
