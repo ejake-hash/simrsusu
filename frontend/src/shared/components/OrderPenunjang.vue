@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed, ref, useId, watch } from 'vue'
+import { computed, nextTick, ref, useId, watch } from 'vue'
 import Lencana from '@/design-system/components/Lencana.vue'
 import PopoverPencarian, { type ItemPencarian } from '@/design-system/components/PopoverPencarian.vue'
 import Pesan from '@/design-system/components/Pesan.vue'
@@ -39,7 +39,10 @@ const dipilih = ref<ItemPencarian[]>([])
 const indikasi = ref('')
 const catatan = ref('')
 const alasanGanda = ref('')
-watch(jenis, () => (dipilih.value = []))
+watch(jenis, () => {
+  dipilih.value = []
+  kirim.reset()
+})
 
 const cariBuka = ref(false)
 const kueri = ref('')
@@ -98,23 +101,33 @@ const kirim = useMutation({
 })
 // Order ganda (FR-07-27): server menyebut butir yang sudah dipesan hari ini; dokter memutuskan dengan alasan.
 const ganda = computed(() => (kirim.error.value instanceof ApiError && kirim.error.value.kode === 'order_ganda' ? kirim.error.value.rincian : null))
+const elAlasanGanda = ref<HTMLTextAreaElement | null>(null)
+watch(ganda, (g) => g && void nextTick(() => elAlasanGanda.value?.focus()))
 const bolehKirim = computed(() => dipilih.value.length > 0 && indikasi.value.trim().length >= 3)
 
 // ── Pembatalan ──
 const sasaran = ref<PermintaanPemeriksaan | null>(null)
 const alasanBatal = ref('')
+const elAlasanBatal = ref<HTMLTextAreaElement | null>(null)
+let asalBatal: HTMLElement | null = null
+function tutupBatal() {
+  sasaran.value = null
+  if (asalBatal?.isConnected) asalBatal.focus()
+}
 const batal = useMutation({
   mutationFn: () => batalkanPermintaan(sasaran.value!.id, alasanBatal.value.trim()),
   onSuccess: (p) => {
     tampilkanToast(`Order ${LABEL_JENIS[p.jenis].toLowerCase()} dibatalkan.`, 'ok')
-    sasaran.value = null
+    tutupBatal()
     void qc.invalidateQueries({ queryKey: kunci.value })
   },
 })
 function mulaiBatal(p: PermintaanPemeriksaan) {
+  asalBatal = document.activeElement instanceof HTMLElement ? document.activeElement : null
   sasaran.value = p
   alasanBatal.value = ''
   batal.reset()
+  void nextTick(() => elAlasanBatal.value?.focus())
 }
 const ringkasItem = (p: PermintaanPemeriksaan) => p.item.map((i) => i.nama).join(', ')
 </script>
@@ -123,9 +136,12 @@ const ringkasItem = (p: PermintaanPemeriksaan) => p.item.map((i) => i.nama).join
   <section :aria-labelledby="idJudul">
     <h3 :id="idJudul">Order penunjang</h3>
     <p v-if="daftar.isPending.value" class="ket" role="status">Memuat order…</p>
-    <Pesan v-else-if="daftar.isError.value" jenis="error">Order tidak dapat dimuat: {{ pesanGalat(daftar.error.value) }}</Pesan>
-    <p v-else-if="!daftar.data.value?.length" class="ket">Belum ada order laboratorium atau radiologi di episode ini.</p>
-    <ul v-else class="daftar">
+    <!-- Wadah alert selalu ada agar pesan yang muncul belakangan dibacakan (Pesan menyerahkan peran ARIA ke pemakai). -->
+    <div role="alert">
+      <Pesan v-if="daftar.isError.value" jenis="error">Order tidak dapat dimuat: {{ pesanGalat(daftar.error.value) }}</Pesan>
+    </div>
+    <p v-if="daftar.isSuccess.value && !daftar.data.value?.length" class="ket">Belum ada order laboratorium atau radiologi di episode ini.</p>
+    <ul v-else-if="daftar.isSuccess.value" class="daftar">
       <li v-for="p in daftar.data.value" :key="p.id" :class="{ redup: p.status === 'batal' }">
         <div>
           <p class="baris-judul">
@@ -145,10 +161,10 @@ const ringkasItem = (p: PermintaanPemeriksaan) => p.item.map((i) => i.nama).join
 
     <form v-if="sasaran" class="form" @submit.prevent="batal.mutate()">
       <KolomIsian v-slot="k" :label="`Alasan membatalkan order ${ringkasItem(sasaran)}`" wajib petunjuk="Minimal 5 karakter. Order tidak dihapus; alasan dan pelakunya tersimpan." :error="batal.isError.value ? pesanGalat(batal.error.value) : undefined">
-        <textarea v-bind="k" v-model="alasanBatal" class="isian" rows="2" maxlength="500"></textarea>
+        <textarea v-bind="k" ref="elAlasanBatal" v-model="alasanBatal" class="isian" rows="2" maxlength="500"></textarea>
       </KolomIsian>
       <div class="aksi">
-        <Tombol @click="sasaran = null">Tidak jadi</Tombol>
+        <Tombol @click="tutupBatal">Tidak jadi</Tombol>
         <Tombol type="submit" varian="bahaya" :disabled="alasanBatal.trim().length < 5 || undefined" :sibuk="batal.isPending.value">Batalkan order</Tombol>
       </div>
     </form>
@@ -169,7 +185,7 @@ const ringkasItem = (p: PermintaanPemeriksaan) => p.item.map((i) => i.nama).join
 
       <div>
         <PopoverPencarian v-model:open="cariBuka" v-model:kueri="kueri" label="Tambah pemeriksaan" :uraian="`katalog ${LABEL_JENIS[jenis].toLowerCase()} RS`" :label-isian="`Cari pemeriksaan ${LABEL_JENIS[jenis].toLowerCase()}`" placeholder="Kode atau nama pemeriksaan" :item="hasil" :status="statusCari" ikon="tambah" @pilih="pilih" />
-        <Pesan v-if="galatCari" jenis="error">{{ galatCari }}</Pesan>
+        <div role="alert"><Pesan v-if="galatCari" jenis="error">{{ galatCari }}</Pesan></div>
         <p v-if="!dipilih.length" class="ket">Belum ada pemeriksaan dipilih.</p>
         <ul v-else class="dipilih" aria-label="Pemeriksaan dipilih">
           <li v-for="d in dipilih" :key="d.kode">
@@ -186,19 +202,19 @@ const ringkasItem = (p: PermintaanPemeriksaan) => p.item.map((i) => i.nama).join
         <textarea v-bind="k" v-model="catatan" class="isian" rows="2" maxlength="1000"></textarea>
       </KolomIsian>
 
-      <div v-if="ganda" class="ganda">
-        <Pesan jenis="peringatan">
+      <div role="alert">
+        <Pesan v-if="ganda" jenis="peringatan">
           Sudah dipesan untuk pasien ini hari ini:
           <ul>
             <li v-for="r in ganda" :key="String(r.tarif_id)">{{ r.nama }} ({{ formatTanggalWaktu(String(r.dipesan_pada)) }})</li>
           </ul>
           Hapus butir itu, atau isi alasan untuk tetap memesan.
         </Pesan>
-        <KolomIsian v-slot="k" label="Alasan tetap memesan" wajib petunjuk="Minimal 5 karakter, mis. sampel sebelumnya rusak.">
-          <textarea v-bind="k" v-model="alasanGanda" class="isian" rows="2" maxlength="500"></textarea>
-        </KolomIsian>
+        <Pesan v-else-if="kirim.isError.value" jenis="error">{{ pesanGalat(kirim.error.value) }}</Pesan>
       </div>
-      <Pesan v-else-if="kirim.isError.value" jenis="error">{{ pesanGalat(kirim.error.value) }}</Pesan>
+      <KolomIsian v-if="ganda" v-slot="k" label="Alasan tetap memesan" wajib petunjuk="Minimal 5 karakter, mis. sampel sebelumnya rusak.">
+        <textarea v-bind="k" ref="elAlasanGanda" v-model="alasanGanda" class="isian" rows="2" maxlength="500"></textarea>
+      </KolomIsian>
 
       <div class="aksi">
         <Tombol v-if="ganda" varian="utama" :disabled="!bolehKirim || alasanGanda.trim().length < 5 || undefined" :sibuk="kirim.isPending.value" @click="kirim.mutate(true)">Tetap kirim order</Tombol>
@@ -280,11 +296,7 @@ legend {
   margin-right: var(--space-2);
   font-weight: 600;
 }
-.ganda {
-  display: grid;
-  gap: var(--space-3);
-}
-.ganda ul {
+[role='alert'] ul {
   margin: var(--space-1) 0;
   padding-left: var(--space-4);
 }

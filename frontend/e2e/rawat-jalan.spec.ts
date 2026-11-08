@@ -212,11 +212,13 @@ test('dokter memeriksa: selesai ditolak tanpa diagnosis utama, catat ICD-10 sint
   }
   await pesanLab()
   const ganda = order.getByRole('textbox', { name: /Alasan tetap memesan/ })
-  if (await ganda.isVisible({ timeout: 3000 }).catch(() => false)) {
+  const terkirim = page.getByText('Order laboratorium terkirim: 1 pemeriksaan.')
+  await expect(terkirim.or(ganda)).toBeVisible()
+  if (await ganda.isVisible()) {
     await ganda.fill('Ulang uji sintetis')
     await order.getByRole('button', { name: 'Tetap kirim order' }).click()
   }
-  await expect(page.getByText('Order laboratorium terkirim: 1 pemeriksaan.')).toBeVisible()
+  await expect(terkirim).toBeVisible()
   await pesanLab()
   await expect(order).toContainText('Sudah dipesan untuk pasien ini hari ini')
   expect(await pelanggaranAxe(page)).toEqual([])

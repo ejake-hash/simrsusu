@@ -37,6 +37,7 @@ export interface ButirKatalog {
   nama: string
 }
 
+// shortcut: hanya halaman pertama (200 order per episode), cukup untuk satu episode poli; pakai kursor bila episode rawat inap panjang memakainya.
 export async function daftarPermintaanEpisode(episodeId: string): Promise<PermintaanPemeriksaan[]> {
   return (await klien.get<{ data: PermintaanPemeriksaan[] }>(`/episode/${episodeId}/permintaan-pemeriksaan`, { params: { batas: 200 } })).data.data
 }
