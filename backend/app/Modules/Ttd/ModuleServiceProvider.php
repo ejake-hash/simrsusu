@@ -6,6 +6,7 @@ use App\Modules\Akses\Application\PencabutTtd;
 use App\Modules\Akses\Application\StatusTtdSaya;
 use App\Modules\RekamMedis\Infrastructure\IsiAdendumCatatan;
 use App\Modules\RekamMedis\Infrastructure\IsiCatatanKlinis;
+use App\Modules\RekamMedis\Infrastructure\IsiResep;
 use App\Modules\Ttd\Application\DaftarPenyediaIsi;
 use App\Modules\Ttd\Application\KelolaTtd;
 use App\Modules\Ttd\Application\PencabutKredensial;
@@ -23,7 +24,7 @@ class ModuleServiceProvider extends ServiceProvider
         // Penyedia isi per jenis objek; jenis baru (mis. usulan_data_induk, 1.8c) ditambahkan di sini.
         $this->app->bind(DaftarPenyediaIsi::class, fn ($app) => new DaftarPenyediaIsi([
             $app->make(IsiPersetujuanAkses::class), $app->make(IsiUsulanDataInduk::class),
-            $app->make(IsiCatatanKlinis::class), $app->make(IsiAdendumCatatan::class),
+            $app->make(IsiCatatanKlinis::class), $app->make(IsiAdendumCatatan::class), $app->make(IsiResep::class),
         ]));
         $this->app->bind(StatusTtdSaya::class, KelolaTtd::class);
         $this->app->bind(PencabutTtd::class, PencabutKredensial::class);

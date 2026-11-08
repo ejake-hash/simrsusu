@@ -5,12 +5,13 @@ use App\Modules\RekamMedis\Http\Controllers\AsesmenAwalController;
 use App\Modules\RekamMedis\Http\Controllers\CpptController;
 use App\Modules\RekamMedis\Http\Controllers\PemeriksaanController;
 use App\Modules\RekamMedis\Http\Controllers\PermintaanPemeriksaanController;
+use App\Modules\RekamMedis\Http\Controllers\ResepController;
 use Illuminate\Support\Facades\Route;
 
 // Asesmen awal perawat RJ dan alergi (tiket 2.13, kontrak v0.23.0), CPPT (tiket 2.14, v0.24.0), pemeriksaan dokter (tiket 2.15,
-// v0.25.0), order penunjang (tiket 2.16, v0.26.0): layar kerja klinis, rate limit api-layar-kerja.
+// v0.25.0), order penunjang (tiket 2.16, v0.26.0), e-resep (tiket 2.17, v0.27.0): layar kerja klinis, rate limit api-layar-kerja.
 Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna', 'throttle:api-layar-kerja'])->withoutMiddleware('throttle:api')
-    ->whereUuid(['kunjungan', 'asesmen', 'pasien', 'alergi', 'episode', 'cppt', 'diagnosis', 'permintaan'])->group(function () {
+    ->whereUuid(['kunjungan', 'asesmen', 'pasien', 'alergi', 'episode', 'cppt', 'diagnosis', 'permintaan', 'resep'])->group(function () {
         Route::get('kunjungan/{kunjungan}/asesmen-awal', [AsesmenAwalController::class, 'show']);
         Route::post('kunjungan/{kunjungan}/asesmen-awal', [AsesmenAwalController::class, 'store']);
         Route::patch('asesmen-awal/{asesmen}', [AsesmenAwalController::class, 'update']);
@@ -34,5 +35,12 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna', 'thrott
         Route::post('kunjungan/{kunjungan}/permintaan-pemeriksaan', [PermintaanPemeriksaanController::class, 'store']);
         Route::get('episode/{episode}/permintaan-pemeriksaan', [PermintaanPemeriksaanController::class, 'episode']);
         Route::post('permintaan-pemeriksaan/{permintaan}/batal', [PermintaanPemeriksaanController::class, 'batal']);
+        Route::get('depo', [ResepController::class, 'depo']);
+        Route::get('kunjungan/{kunjungan}/resep', [ResepController::class, 'kunjungan']);
+        Route::post('kunjungan/{kunjungan}/resep', [ResepController::class, 'store']);
+        Route::get('resep', [ResepController::class, 'depoHarian']);
+        Route::patch('resep/{resep}', [ResepController::class, 'update']);
+        Route::post('resep/{resep}/sahkan', [ResepController::class, 'sahkan']);
+        Route::post('resep/{resep}/batal', [ResepController::class, 'batal']);
         Route::get('paket-referensi/{sistem}/kode', [PemeriksaanController::class, 'kode'])->whereIn('sistem', ['icd10', 'icd9cm', 'loinc', 'ucum']);
     });

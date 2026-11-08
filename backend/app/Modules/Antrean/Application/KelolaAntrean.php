@@ -14,6 +14,8 @@ use App\Modules\Pendaftaran\Events\KunjunganDibuat;
 use App\Modules\Pendaftaran\Models\Kunjungan;
 use App\Modules\RekamMedis\Events\AsesmenPerawatSelesai;
 use App\Modules\RekamMedis\Events\PemeriksaanSelesai;
+use App\Modules\RekamMedis\Events\ResepDibatalkan;
+use App\Modules\RekamMedis\Events\ResepDisahkan;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -90,6 +92,54 @@ final class KelolaAntrean
         // Nomor yang dilewati/belum check-in tidak hidup lagi tanpa petugas: hanya tahapnya yang berpindah.
         $this->ubah($antrean, $kejadian->olehId, in_array($antrean->status, ['menunggu', 'dipanggil', 'dilayani'], true)
             ? ['tahap' => 'dokter', 'status' => 'menunggu', 'panggilan_ke' => 0] : ['tahap' => 'dokter']);
+    }
+
+    /** Antrean farmasi pasien pada tanggal itu yang tidak batal (satu per pasien per hari, FR-02-10). */
+    public static function antreanFarmasi(string $pasienId, string $tanggal): ?Antrean
+    {
+        return Antrean::query()->where('titik', 'farmasi')->where('tanggal', $tanggal)->where('status', '<>', 'batal')
+            ->whereIn('kunjungan_id', DB::table('kunjungan.kunjungan')->where('pasien_id', $pasienId)->select('id'))->first();
+    }
+
+    /**
+     * Resep disahkan (tiket 2.17, di dalam transaksinya; baris pasien sudah dikunci): pakai antrean farmasi pasien hari ini,
+     * atau buat satu terikat kunjungan resep itu. Antrean farmasi kunjungan itu yang pernah batal dihidupkan lagi (unik per
+     * kunjungan + titik), dengan nomor yang sama.
+     */
+    public function buatFarmasi(ResepDisahkan $kejadian): void
+    {
+        if (self::antreanFarmasi($kejadian->pasienId, $kejadian->tanggal) !== null) {
+            return;
+        }
+        $lama = Antrean::query()->where('kunjungan_id', $kejadian->kunjunganId)->where('titik', 'farmasi')->lockForUpdate()->first();
+        if ($lama !== null) {
+            $this->ubah($lama, $kejadian->olehId, ['status' => 'menunggu', 'panggilan_ke' => 0, 'alasan_batal' => null, 'dibatalkan_oleh' => null,
+                'dibatalkan_pada' => null]);
+
+            return;
+        }
+        $prefiks = (string) DB::table('kunjungan.aturan_antrean')->value('prefiks_farmasi');
+        $nomor = (int) DB::selectOne('INSERT INTO kunjungan.nomor_antrean (tanggal, prefiks, terakhir) VALUES (?, ?, 1)
+            ON CONFLICT (tanggal, prefiks) DO UPDATE SET terakhir = kunjungan.nomor_antrean.terakhir + 1 RETURNING terakhir', [$kejadian->tanggal, $prefiks])->terakhir;
+        $antrean = new Antrean;
+        $antrean->forceFill([
+            'tanggal' => $kejadian->tanggal, 'kunjungan_id' => $kejadian->kunjunganId, 'titik' => 'farmasi', 'area' => 'farmasi',
+            'prefiks' => $prefiks, 'nomor' => $nomor, 'nomor_tampil' => sprintf('%s-%03d', $prefiks, $nomor), 'urutan' => (string) $nomor,
+            'dibuat_oleh' => $kejadian->olehId, 'diubah_oleh' => $kejadian->olehId,
+        ])->save();
+        $this->jejak($antrean, $kejadian->olehId, now());
+    }
+
+    /** Resep sah dibatalkan (tiket 2.17): antrean farmasi ikut batal bila tak ada resep sah lain dan belum dilayani. */
+    public function batalFarmasi(ResepDibatalkan $kejadian): void
+    {
+        $antrean = Antrean::query()->whereKey($kejadian->antreanId)->lockForUpdate()->first();
+        if ($antrean === null || ! in_array($antrean->status, ['menunggu', 'dipanggil', 'dilewati'], true)
+            || DB::table('farmasi.resep')->where('antrean_id', $antrean->id)->where('status', 'sah')->exists()) {
+            return;
+        }
+        $this->ubah($antrean, $kejadian->olehId, ['status' => 'batal', 'alasan_batal' => $kejadian->alasan,
+            'dibatalkan_oleh' => $kejadian->olehId, 'dibatalkan_pada' => now()]);
     }
 
     /** Kunjungan selesai (tiket 2.15, di dalam transaksinya): antrean poli yang masih hidup → selesai. */
