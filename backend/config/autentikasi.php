@@ -67,6 +67,9 @@ return [
 
     // Hanya untuk AkunSintetisSeeder di lokal/staging; kosong = dibuat acak dan dicetak sekali.
     'akun_sintetis_sandi' => env('AKUN_SINTETIS_SANDI'),
+    // Keputusan pemilik 8 Nov 2026: di mesin pengembang (APP_ENV=local) akun sintetis `superadmin` boleh melihat semua menu untuk demo.
+    // Menyimpang dari PRD 9.2.4 dengan sengaja, hanya lokal; staging/production/CI tidak menyalakannya.
+    'akun_sintetis_superadmin_semua_menu' => (bool) env('AKUN_SINTETIS_SUPERADMIN_SEMUA_MENU', false),
     // Rahasia TOTP sintetis (Base32) untuk akun mfa; kosong = dibuat acak dan dicetak sekali.
     'akun_sintetis_mfa_rahasia' => env('AKUN_SINTETIS_MFA_RAHASIA'),
     // Rahasia TOTP sintetis akun superadmin (tiket 1.2c, e2e Pengaturan); kosong = acak, dicetak sekali.
