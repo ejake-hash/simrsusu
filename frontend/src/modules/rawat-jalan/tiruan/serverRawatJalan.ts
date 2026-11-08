@@ -299,7 +299,7 @@ export function buatServerRawatJalan(opsi: OpsiServerRawatJalan) {
   }
 
   const diagnosis: Diagnosis[] = []
-  const kunjunganT = (b: BarisT) => ({ status: 200, header: { ETag: `"${b.revisi}"`, ...NO_STORE }, isi: { data: { id: b.kunjungan_id, status: b.kunjungan, versi: String(b.revisi) } } })
+  const kunjunganT = (b: BarisT) => ({ status: 200, header: { ETag: `"${b.revisi}"`, ...NO_STORE }, isi: { data: { id: b.kunjungan_id, status: b.kunjungan, versi: String(b.revisi), episode: { id: `e-${b.kunjungan_id}` } } } })
   function tanganiPemeriksaan(r: PermintaanTiruan, bagian: string[], metode: string): ResponsTiruan | null {
     const paket = opsi.paketIcd ?? true
     if (bagian[0] === 'paket-referensi' && bagian[2] === 'kode' && metode === 'GET') {
@@ -307,6 +307,8 @@ export function buatServerRawatJalan(opsi: OpsiServerRawatJalan) {
       const q = (r.kueri.get('q') ?? '').toLowerCase()
       return { status: 200, isi: { data: ICD_SINTETIS.filter((k) => `${k.kode} ${k.tampilan}`.toLowerCase().includes(q)), meta: { kursor_berikutnya: null } } }
     }
+    // Order penunjang (v0.26.0, tiket 2.16): daftar episode kosong; alur order diuji e2e ke backend asli.
+    if (bagian[0] === 'episode' && bagian[2] === 'permintaan-pemeriksaan' && metode === 'GET') return { status: 200, header: NO_STORE, isi: { data: [], meta: { kursor_berikutnya: null } } }
     if (bagian[0] === 'pasien' && bagian[2] === 'ringkasan-klinis' && metode === 'GET') {
       const milik = baris.filter((x) => x.pasien.id === bagian[1])
       const aktif = diagnosis.filter((d) => d.status === 'aktif' && milik.some((m) => m.kunjungan_id === d.kunjungan_id))

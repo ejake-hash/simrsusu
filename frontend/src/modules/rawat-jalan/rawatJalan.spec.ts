@@ -353,6 +353,7 @@ describe('PanelPemeriksaan — layar', () => {
     await tenang()
     expect(document.body.textContent).toContain(b!.pasien.nama)
     expect(document.body.textContent).toContain('Belum ada diagnosis')
+    expect(document.body.textContent).toContain('Belum ada order laboratorium atau radiologi di episode ini.') // OrderPenunjang (2.16)
     expect((await mulaiPeriksa(b!.kunjungan_id)).data.status).toBe('dilayani') // sudah dimulai oleh panel
     const selesai = [...document.querySelectorAll('button')].find((x) => x.textContent?.trim() === 'Selesaikan kunjungan')!
     selesai.click()
