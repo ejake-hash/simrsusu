@@ -12,12 +12,15 @@ import { artisan, bersihkanPesertaSintetis, daftarkanKunjunganJkn, halamanAdmisi
  * mencatat diagnosis dari paket ICD-10 SINTETIS lokal (ZZC*, lokal:kunjungan-contoh), lalu menyelesaikan kunjungan.
  * Tiket 2.16-fe: sebelum selesai, dokter memesan lab dari katalog tarif SINTETIS (CONTOH-LAB-*), pesanan sama ditolak sebagai
  * order ganda lalu dikirim dengan alasan, dan satu order dibatalkan beralasan.
+ * Tiket 2.17-fe: dokter menulis resep CONTOH-OBAT-01, memberi alasan atas peringatan, mengesahkan dengan PIN T1 → nomor
+ * antrean farmasi F…; akun `apoteker` melihat resep itu di Farmasi → Antrean resep.
  */
 const kartu = '9990000000001'
 const nama = 'Peserta Sintetis BPJS'
 const poli = 'Poli Penyakit Dalam (contoh)'
 const PIN = process.env.E2E_TTD_PIN ?? ''
 let nomor = ''
+let antreanFarmasi = ''
 // Alergi menempel pada pasien (dipakai ulang antarjalan), jadi zatnya unik per jalan.
 const zat = `Zat uji ${Date.now() % 100000}`
 
@@ -232,11 +235,53 @@ test('dokter memeriksa: selesai ditolak tanpa diagnosis utama, catat ICD-10 sint
   await order.getByRole('button', { name: 'Batalkan order', exact: true }).click()
   await expect(page.getByText('Order laboratorium dibatalkan.')).toBeVisible()
 
+  // E-resep (2.17). Pasien dipakai ulang antarjalan: resep obat sama dari jalan sebelumnya memunculkan peringatan duplikasi.
+  if (!PIN) throw new Error('Set E2E_TTD_PIN sama dengan AKUN_SINTETIS_TTD_PIN saat seeding.')
+  const resep = panel.getByRole('region', { name: 'Resep', exact: true })
+  await resep.getByRole('button', { name: 'Tambah obat' }).click()
+  await page.getByRole('combobox', { name: 'Cari obat' }).fill('CONTOH-OBAT-01')
+  await page.getByRole('option', { name: /Obat contoh satu/ }).click()
+  const depo = resep.getByRole('combobox', { name: /Depo farmasi/ })
+  if (!(await depo.inputValue())) await depo.selectOption({ index: 1 })
+  await resep.getByRole('button', { name: 'Simpan draf resep' }).click()
+  await expect(page.getByText(/^Draf .+ tersimpan/)).toBeVisible()
+  // Daftar dimuat ulang sesudah toast; peringatan baru ada setelah draf tampil.
+  await expect(resep.getByRole('button', { name: /^Sahkan resep/ })).toBeVisible()
+  const alasan = resep.getByRole('textbox', { name: /Alasan tetap meresepkan/ })
+  for (const isian of await alasan.all()) await isian.fill('Lanjutan terapi uji sintetis')
+  expect(await pelanggaranAxe(page)).toEqual([])
+  await resep.getByRole('button', { name: /^Sahkan resep/ }).click()
+  const ttd = page.getByRole('dialog', { name: 'Tanda tangan elektronik (T1)' })
+  // Identitas pasien (nama + No. RM) tampil di objek yang ditandatangani (5.1 butir 9).
+  await expect(ttd).toContainText(nama)
+  await expect(ttd).toContainText('No. RM')
+  // Resep berperingatan menambah centang "sudah membaca peringatan" sebelum pernyataan.
+  for (const centang of await ttd.getByRole('checkbox').all()) await centang.check()
+  const pin = ttd.getByLabel('PIN tanda tangan')
+  if (await pin.isVisible()) await pin.fill(PIN)
+  await ttd.getByRole('button', { name: 'Tanda tangani' }).click()
+  await expect(ttd).toBeHidden()
+  await expect(page.getByText(/sah\. Pasien masuk antrean farmasi F/)).toBeVisible()
+  antreanFarmasi = (await resep.locator('code').first().textContent())?.trim() ?? ''
+  expect(antreanFarmasi).toMatch(/^F/)
+
   await panel.getByRole('button', { name: /Selesaikan kunjungan/ }).click()
   await expect(page.getByText(`Kunjungan ${nama} selesai.`)).toBeVisible()
   // Saringan bawaan "menunggu dokter": pasien selesai pindah ke tahap Selesai.
   await page.getByRole('combobox', { name: 'Tahap' }).selectOption('selesai')
   await expect(baris).toContainText('Selesai')
+  expect(await pelanggaranAxe(page)).toEqual([])
+  await page.close()
+})
+
+test('apoteker melihat resep sah di antrean resep depo', async ({ browser }) => {
+  const page = await halamanAkun(browser, new URL(test.info().project.use.baseURL ?? '').origin, 'apoteker')
+  await page.goto('/farmasi/resep')
+  await expect(page.getByRole('heading', { name: 'Antrean resep', level: 1 })).toBeVisible()
+  const depo = page.getByRole('combobox', { name: /Depo/ })
+  if (!(await depo.inputValue())) await depo.selectOption({ index: 1 })
+  const baris = page.getByRole('region', { name: 'Antrean resep' }).getByRole('row').filter({ hasText: antreanFarmasi }).filter({ hasText: nama })
+  await expect(baris.first()).toContainText('Obat contoh satu')
   expect(await pelanggaranAxe(page)).toEqual([])
   await page.close()
 })
