@@ -46,7 +46,7 @@ class KunjunganContohTest extends TestCase
     {
         $this->app['env'] = 'local';
         $this->seed(OrganisasiSintetisSeeder::class);
-        $akun = $this->buatPengguna(['nama_pengguna' => 'dokter']);
+        $akun = $this->buatPengguna(['nama_pengguna' => 'dokter.poli']);
         $this->artisan('lokal:kunjungan-contoh')->assertSuccessful();
         $this->artisan('lokal:kunjungan-contoh')->assertSuccessful();
 

@@ -78,9 +78,9 @@ final class KunjunganContoh extends Command
                 ]);
             }
 
-            // Pemeriksaan (2.15): worklist dokter hanya memuat pasien jadwalnya sendiri (7.07.1), jadi akun sintetis `dokter`
+            // Pemeriksaan (2.15): worklist dokter hanya memuat pasien jadwalnya sendiri (7.07.1), jadi akun sintetis `dokter.poli`
             // ditautkan ke dokter jadwal poli contoh.
-            Pengguna::query()->where('nama_pengguna', 'dokter')->update(['pegawai_id' => $dokter->id]);
+            Pengguna::query()->where('nama_pengguna', 'dokter.poli')->update(['pegawai_id' => $dokter->id]);
 
             // SEP (2.7): pemetaan BPJS, kode PPK sintetis, penjamin BPJS, dan kredensial VClaim sintetis (dijawab simulator).
             $poli->forceFill(['kode_poli_bpjs' => 'INT'])->save();

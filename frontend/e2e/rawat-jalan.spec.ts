@@ -8,7 +8,7 @@ import { artisan, bersihkanPesertaSintetis, daftarkanKunjunganJkn, halamanAdmisi
  * langkah memakai nomor dari langkah sebelumnya. Hanya 1440 px + axe; empat lebar di workflow malam.
  * Tiket 2.14-fe: CPPT kunjungan yang sama ditulis, disahkan dengan PIN T1 perawat sendiri (TtdSintetisSeeder,
  * E2E_TTD_PIN), diperbaiki dengan alasan dan tanda tangan ulang, lalu disaring per profesi dan episode.
- * Tiket 2.15-fe: dokter (akun `dokter`) membuka Pemeriksaan kunjungan yang sama, selesai ditolak tanpa diagnosis utama,
+ * Tiket 2.15-fe: dokter jadwal poli contoh (akun `dokter.poli`) membuka Pemeriksaan kunjungan yang sama, selesai ditolak tanpa diagnosis utama,
  * mencatat diagnosis dari paket ICD-10 SINTETIS lokal (ZZC*, lokal:kunjungan-contoh), lalu menyelesaikan kunjungan.
  */
 const kartu = '9990000000001'
@@ -178,7 +178,7 @@ test('CPPT: tulis SOAP polos, sahkan dengan PIN sendiri, perbaiki beralasan, sar
 
 test('dokter memeriksa: selesai ditolak tanpa diagnosis utama, catat ICD-10 sintetis, selesaikan kunjungan', async ({ browser }) => {
   test.setTimeout(90_000)
-  const page = await halamanAkun(browser, new URL(test.info().project.use.baseURL ?? '').origin, 'dokter')
+  const page = await halamanAkun(browser, new URL(test.info().project.use.baseURL ?? '').origin, 'dokter.poli')
   await page.goto('/rawat-jalan/pemeriksaan')
   await expect(page.getByRole('heading', { name: 'Pemeriksaan', level: 1 })).toBeVisible()
   await page.getByRole('combobox', { name: 'Poliklinik' }).selectOption({ label: poli })
