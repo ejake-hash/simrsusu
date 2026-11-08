@@ -186,6 +186,10 @@ class PemeriksaanTest extends TestCase
         $this->tugaskan($luar, $this->buatPeran(['rawat_jalan.pemeriksaan']), cakupan: new \App\Modules\Akses\Domain\Cakupan('unit', $unitLain->id));
         $this->masukSebagai($luar);
         $this->minta('GET', "/api/v1/pasien/{$pasien->id}/ringkasan-klinis")->assertForbidden();
+        $this->minta('POST', "/api/v1/kunjungan/$kunjungan/mulai-periksa")->assertForbidden();
+        $this->mintaDenganVersi('POST', "/api/v1/kunjungan/$kunjungan/selesai", '0')->assertForbidden();
+        $this->catat($kunjungan, 'ZZUJI2', 'sekunder')->assertForbidden();
+        $this->minta('GET', "/api/v1/kunjungan/$kunjungan/diagnosis")->assertForbidden();
         $this->masukSebagai($this->akunDokter);
         $this->minta('GET', '/api/v1/pasien/'.Str::uuid7().'/ringkasan-klinis')->assertForbidden();
     }
