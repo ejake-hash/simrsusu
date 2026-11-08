@@ -62,12 +62,16 @@ class SandiTest extends TestCase
         $this->assertTrue($this->lolos('kuda-lumping-biru-29'));
     }
 
-    public function test_sandi_demo_pendek_hanya_lolos_di_lingkungan_local(): void
+    public function test_sandi_demo_pendek_hanya_lolos_di_local_yang_memintanya(): void
     {
         $this->assertFalse($this->lolos('123456'), 'Testing/CI tetap memakai aturan PRD 14.2.');
 
         try {
-            foreach (['staging' => false, 'production' => false, 'local' => true] as $env => $lolos) {
+            $this->app['env'] = 'local';
+            $this->assertFalse($this->lolos('123456'), 'local tanpa demo_longgar (CI e2e) tetap ketat.');
+
+            config(['autentikasi.sandi.demo_longgar' => true]);
+            foreach (['testing' => false, 'staging' => false, 'production' => false, 'local' => true] as $env => $lolos) {
                 $this->app['env'] = $env;
                 $this->assertSame($lolos, $this->lolos('123456'), "APP_ENV={$env}");
             }
@@ -77,7 +81,7 @@ class SandiTest extends TestCase
         }
     }
 
-    public function test_ganti_sandi_demo_pendek_hanya_di_lingkungan_local(): void
+    public function test_ganti_sandi_demo_pendek_hanya_di_local_yang_memintanya(): void
     {
         $pengguna = Pengguna::factory()->create(['sandi_hash' => Hash::make('sandi-lama-yang-panjang-1')]);
         $request = request();
@@ -91,6 +95,7 @@ class SandiTest extends TestCase
             $this->assertSame('validasi_gagal', $e->kode);
         }
 
+        config(['autentikasi.sandi.demo_longgar' => true]);
         $this->app['env'] = 'local';
         try {
             $ganti();

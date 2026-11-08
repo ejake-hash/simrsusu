@@ -36,8 +36,8 @@ final class GantiSandi
         $minimal = max(12, (int) config('autentikasi.sandi.panjang_minimal'));
         $aturan = ['required', 'string', 'max:200', 'min:'.$minimal, app(SandiTidakBocor::class), new SandiKontekstual($pengguna->nama_pengguna),
             'different:sandi_lama_teks', ...(config('autentikasi.sandi.cek_hibp') ? [Password::min($minimal)->uncompromised()] : [])];
-        // Keputusan pemilik 8 Nov 2026, sama dengan Password::defaults(): mesin pengembang boleh sandi demo pendek.
-        if (app()->environment('local')) {
+        // Sama dengan Password::defaults(): sandi demo pendek hanya bila config autentikasi.sandi.demo_longgar di local.
+        if (app()->environment('local') && config('autentikasi.sandi.demo_longgar')) {
             $minimal = 6;
             $aturan = ['required', 'string', 'max:200', 'min:'.$minimal, 'different:sandi_lama_teks'];
         }
