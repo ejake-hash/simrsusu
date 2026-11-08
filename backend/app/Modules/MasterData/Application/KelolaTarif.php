@@ -69,7 +69,7 @@ final class KelolaTarif
             SuntinganBerversi::naikkan(Tarif::class, $tarif->id, $versi, $penyunting->id, 'Tarif');
             $terbaru = $this->buku->versiTerbaru($tarif->id) ?? throw new \LogicException('Tarif tanpa versi.');
             $lama = $this->buku->isi($terbaru);
-            $baru = [...$lama, ...array_intersect_key($isi, array_flip(['nama', 'kelompok', 'status', 'harga']))];
+            $baru = [...$lama, 'kategori' => $terbaru->kategori, ...array_intersect_key($isi, array_flip(['nama', 'kelompok', 'status', 'harga']))];
             $v = $this->tambahVersi($penyunting, $tarif, $terbaru->versi + 1, $baru, $berlakuDari, $dasar);
             $this->audit->catat('master_data.tarif_diubah', $penyunting->id, $tarif->getTable(), $tarif->id,
                 ['kode' => $tarif->kode, 'versi' => $v->versi, 'berlaku_dari' => $berlakuDari, 'dasar_perubahan' => $dasar]);
@@ -87,7 +87,7 @@ final class KelolaTarif
             if ($terbaru->status === 'nonaktif') {
                 throw new ApiError(422, 'sudah_nonaktif', 'Tarif ini sudah ditutup.', [['kolom' => 'objek_id', 'pesan' => 'Tarif ini sudah ditutup.']]);
             }
-            $v = $this->tambahVersi($penyunting, $tarif, $terbaru->versi + 1, [...$this->buku->isi($terbaru), 'status' => 'nonaktif'], $berlakuDari, $dasar);
+            $v = $this->tambahVersi($penyunting, $tarif, $terbaru->versi + 1, [...$this->buku->isi($terbaru), 'kategori' => $terbaru->kategori, 'status' => 'nonaktif'], $berlakuDari, $dasar);
             $this->audit->catat('master_data.tarif_ditutup', $penyunting->id, $tarif->getTable(), $tarif->id,
                 ['kode' => $tarif->kode, 'versi' => $v->versi, 'berlaku_dari' => $berlakuDari, 'alasan' => $alasan, 'dasar_perubahan' => $dasar]);
 
@@ -95,11 +95,12 @@ final class KelolaTarif
         });
     }
 
-    /** @param  array{nama: string, kelompok: string, status: string, harga: list<array<string, mixed>>}  $isi */
+    /** @param  array{nama: string, kelompok: string, status: string, harga: list<array<string, mixed>>, kategori?: string|null}  $isi */
     private function tambahVersi(Pengguna $penyunting, Tarif $tarif, int $nomor, array $isi, string $berlakuDari, string $dasar): TarifVersi
     {
         $v = new TarifVersi([
             'tarif_id' => $tarif->id, 'versi' => $nomor, 'nama' => $isi['nama'], 'kelompok' => $isi['kelompok'], 'status' => $isi['status'],
+            'kategori' => $isi['kategori'] ?? null,
             'berlaku_dari' => $berlakuDari, 'usulan_id' => $this->catatVersi->usulanAktif(), 'dasar' => $dasar, 'dibuat_oleh' => $penyunting->id,
         ]);
         $v->save();

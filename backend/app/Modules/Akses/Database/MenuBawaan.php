@@ -80,6 +80,8 @@ final class MenuBawaan
         'sdm.pegawai' => ['identitas' => ['Identitas pribadi (NIK)', ['lihat']]],
         // NIK dan paspor pasien utuh (tiket 2.5); tanpa izin ini hanya samaran.
         'pendaftaran.pasien' => ['identitas' => ['Identitas pasien (NIK, paspor)', ['lihat']]],
+        // Order penunjang bersama (tiket 2.16, 7.00.5); melihat order lewat rawat_jalan.pemeriksaan.lihat.
+        'rawat_jalan.pemeriksaan' => ['order' => ['Order penunjang', ['input', 'batal']]],
     ];
 
     /**

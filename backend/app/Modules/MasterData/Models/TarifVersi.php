@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
  * @property int $versi
  * @property string $nama
  * @property string $kelompok
+ * @property string|null $kategori lab | rad | null (tiket 2.16)
  * @property string $status aktif | nonaktif
  * @property Carbon $berlaku_dari
  * @property string|null $usulan_id
