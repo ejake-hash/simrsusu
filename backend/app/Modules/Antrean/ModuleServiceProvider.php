@@ -7,6 +7,7 @@ use App\Modules\Antrean\Console\TokenDisplay;
 use App\Modules\Pendaftaran\Events\KunjunganDibatalkan;
 use App\Modules\Pendaftaran\Events\KunjunganDibuat;
 use App\Modules\RekamMedis\Events\AsesmenPerawatSelesai;
+use App\Modules\RekamMedis\Events\PemeriksaanSelesai;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -26,6 +27,7 @@ class ModuleServiceProvider extends ServiceProvider
         Event::listen(KunjunganDibuat::class, [KelolaAntrean::class, 'buatPoli']);
         Event::listen(KunjunganDibatalkan::class, [KelolaAntrean::class, 'batalkanKunjungan']);
         Event::listen(AsesmenPerawatSelesai::class, [KelolaAntrean::class, 'keTahapDokter']);
+        Event::listen(PemeriksaanSelesai::class, [KelolaAntrean::class, 'selesaikanKunjungan']);
 
         // Display dihitung per token (banyak TV bisa berbagi satu IP), dengan batas per IP untuk token acak.
         RateLimiter::for('display', fn (Request $request) => [
