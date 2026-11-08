@@ -106,15 +106,16 @@ final class KelolaResep
         $kunci = [...$this->ttd->buka($request, $oleh, $pin), $pin === null];
 
         try {
-            return DB::transaction(function () use ($oleh, $resepId, $versi, $alasan, $kunci) {
-                $r = $this->kunci($resepId, $versi);
+            return DB::transaction(function () use ($oleh, $r, $versi, $alasan, $kunci) {
+                // Satu antrean farmasi per pasien per hari: baris pasien dikunci lebih dulu (urutan pasien → resep, sama dengan batal)
+                // agar dua resep yang disahkan bersamaan tidak membuat dua antrean.
+                DB::table('pasien.pasien')->where('id', $r->pasien_id)->lockForUpdate()->value('id');
+                $r = $this->kunci($r->id, $versi);
                 $this->pastikanDraf($r);
                 $this->kunjunganDilayani($r->kunjungan_id);
                 if (PemeriksaResep::butir($r->id) === []) {
                     throw ValidationException::withMessages(['item' => 'Resep belum punya butir.']);
                 }
-                // Satu antrean farmasi per pasien per hari: baris pasien dikunci agar dua resep yang disahkan bersamaan tidak membuat dua antrean.
-                DB::table('pasien.pasien')->where('id', $r->pasien_id)->lockForUpdate()->value('id');
                 $peringatan = $this->pemeriksa->periksa($oleh, $r);
                 $this->pastikanDitanggapi($peringatan, $alasan);
                 $sekarang = now();
