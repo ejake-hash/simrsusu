@@ -4,6 +4,7 @@ namespace App\Modules\Akses\Http\Controllers;
 
 use App\Core\Http\ApiError;
 use App\Core\Http\Paginasi;
+use App\Modules\Akses\Application\AksesDaruratAktif;
 use App\Modules\Akses\Application\KelolaAksesDarurat;
 use App\Modules\Akses\Http\Resources\AksesDaruratPresenter;
 use App\Modules\Akses\Models\AksesDarurat;
@@ -18,8 +19,6 @@ use Illuminate\Validation\Rule;
 /** Akses darurat RM (tiket 2.21, kontrak v0.29.0). Respons `no-store`: memuat identitas pasien dan alasan. */
 final class AksesDaruratController
 {
-    public const IZIN_BUKA = 'rawat_jalan.cppt.darurat';
-
     public function __construct(
         private readonly KelolaAksesDarurat $kelola,
         private readonly AksesDaruratPresenter $presenter,
@@ -34,7 +33,7 @@ final class AksesDaruratController
         if ($profesi === null || $profesi === 'non_kesehatan') {
             throw new ApiError(403, 'akses_ditolak', 'Akses darurat hanya untuk tenaga klinis.');
         }
-        Gate::authorize(self::IZIN_BUKA);
+        Gate::authorize(AksesDaruratAktif::IZIN);
         abort_unless(DB::table('pasien.pasien')->where('id', $pasien)->exists(), 404);
         $isi = $request->validate([
             'kategori_alasan' => ['required', Rule::in(['audit', 'klaim', 'hukum', 'pelayanan_lanjutan'])],

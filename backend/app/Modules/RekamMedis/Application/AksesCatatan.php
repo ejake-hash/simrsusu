@@ -2,6 +2,7 @@
 
 namespace App\Modules\RekamMedis\Application;
 
+use App\Modules\Akses\Application\AccessEvaluator;
 use App\Modules\Akses\Application\AksesDaruratAktif;
 use App\Modules\Akses\Application\PemeriksaLabel;
 use App\Modules\Akses\Domain\Cakupan;
@@ -23,7 +24,7 @@ final class AksesCatatan
 
     public function __construct(
         private readonly PemeriksaLabel $label,
-        private readonly AksesDaruratAktif $darurat,
+        private readonly AccessEvaluator $evaluator,
     ) {}
 
     /**
@@ -51,7 +52,7 @@ final class AksesCatatan
         }
         $pasien = isset($filter['episode_id']) ? AksesDaruratAktif::pasienEpisode($filter['episode_id']) : ($filter['pasien_id'] ?? []);
 
-        return $this->darurat->untuk($pengguna, $pasien) !== null;
+        return $this->evaluator->aksesDarurat($pengguna, $pasien);
     }
 
     /** Catatan boleh dibaca utuh (bukan Terbatas). Draf orang lain dianggap tidak ada; cek izin/cakupan di pemanggil. */

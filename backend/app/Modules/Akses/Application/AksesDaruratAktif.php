@@ -14,6 +14,8 @@ use Illuminate\Support\Str;
  */
 final class AksesDaruratAktif
 {
+    public const IZIN = 'rawat_jalan.cppt.darurat';
+
     /**
      * Akses darurat aktif akun ini untuk salah satu pasien; RM lama yang digabung ke pasien akses itu ikut (2.9).
      *

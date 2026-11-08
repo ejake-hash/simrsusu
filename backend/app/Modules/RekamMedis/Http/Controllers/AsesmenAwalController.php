@@ -4,6 +4,7 @@ namespace App\Modules\RekamMedis\Http\Controllers;
 
 use App\Core\Http\ApiError;
 use App\Core\Http\IfMatch;
+use App\Modules\Akses\Application\AksesDaruratAktif;
 use App\Modules\Akses\Application\PemeriksaLabel;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Models\LabelSensitivitas;
@@ -31,6 +32,7 @@ final class AsesmenAwalController
         private readonly KelolaAsesmenAwal $kelola,
         private readonly RingkasanPegawai $pegawai,
         private readonly AksesCatatan $akses,
+        private readonly AksesDaruratAktif $darurat,
     ) {}
 
     public function show(string $kunjungan): JsonResponse
@@ -38,6 +40,7 @@ final class AsesmenAwalController
         $k = self::kunjungan(self::LIHAT, $kunjungan);
         $catatan = CatatanKlinis::query()->where('kunjungan_id', $k->id)->where('jenis', 'asesmen')->where('profesi', 'perawat')->first()
             ?? throw new ApiError(404, 'tidak_ditemukan', 'Kunjungan ini belum punya asesmen awal.');
+        $this->darurat->catatBaca(request(), [(string) $k->pasien_id], $k->id, 'asesmen_awal');
         if (! $this->akses->terbuka(request()->user(), $catatan)) {
             return (new JsonResponse(['data' => PemeriksaLabel::TERBATAS]))->setPrivate()->header('Cache-Control', 'no-store, private');
         }

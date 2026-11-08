@@ -122,8 +122,20 @@ final class AccessEvaluator
             return true;
         }
 
-        // Tanpa cache: akses darurat tertutup tepat pada berakhir_pada.
-        return $pasienId !== null && $this->darurat->untuk($pengguna, [$pasienId]) !== null;
+        return $pasienId !== null && $this->aksesDarurat($pengguna, [$pasienId]);
+    }
+
+    /**
+     * Akses darurat berlaku untuk salah satu pasien (tiket 2.21, lapis 3–4, hanya baca): izin darurat masih dipegang, SIP/SPK
+     * masih berlaku, dan akses aktif (tanpa cache: tertutup tepat pada berakhir_pada). MFA hanya disyaratkan saat membuka.
+     *
+     * @param  list<string>  $pasienId
+     */
+    public function aksesDarurat(Pengguna $pengguna, array $pasienId): bool
+    {
+        return $this->boleh($pengguna, AksesDaruratAktif::IZIN)
+            && $this->kewenangan->izinPraktikBerlaku($pengguna->pegawai_id)
+            && $this->darurat->untuk($pengguna, $pasienId) !== null;
     }
 
     /** Separuh pertama lapis 4: izin label akun ini disetujui pejabat PDP dan belum berakhir atau dicabut. */

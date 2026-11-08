@@ -100,7 +100,10 @@ class AksesDaruratTest extends TestCase
         $this->minta('GET', "/api/v1/episode/$episode/cppt")->assertOk();
         $this->minta('GET', "/api/v1/cppt/$berlabel")->assertOk()->assertJsonPath('data.isi.plan', 'Konseling');
         $this->minta('GET', "/api/v1/pasien/{$pasien->id}/ringkasan-klinis")->assertOk();
+        $this->minta('GET', "/api/v1/episode/$episode/permintaan-pemeriksaan")->assertOk();
         $this->minta('POST', "/api/v1/kunjungan/$kunjungan/cppt", ['subjektif' => 'Tulis'])->assertForbidden();
+        $this->mintaDenganVersi('PATCH', "/api/v1/cppt/$berlabel", '1', ['plan' => 'Ubah', 'alasan_perubahan' => 'Coba ubah', 'pernyataan_disetujui' => true])->assertForbidden();
+        $this->mintaDenganVersi('POST', "/api/v1/cppt/$berlabel/adendum", '1', ['isi' => 'Tambah', 'alasan' => 'Coba adendum', 'pernyataan_disetujui' => true])->assertForbidden();
 
         // IDOR: pasien lain tetap tertutup dan tidak tercatat.
         $this->minta('GET', "/api/v1/pasien/{$lain->id}/cppt")->assertForbidden();
@@ -108,7 +111,7 @@ class AksesDaruratTest extends TestCase
         $this->minta('GET', "/api/v1/episode/$lainEpisode/cppt")->assertForbidden();
 
         $log = DB::table('audit.log_akses')->where('akses_darurat_id', $id)->orderBy('terjadi_pada')->get();
-        $this->assertSame(['cppt', 'cppt', 'cppt', 'ringkasan_klinis'], $log->pluck('layar')->all());
+        $this->assertSame(['cppt', 'cppt', 'cppt', 'ringkasan_klinis', 'order_penunjang'], $log->pluck('layar')->all());
         $this->assertSame([$pasien->id], $log->pluck('pasien_id')->unique()->values()->all());
         $this->assertSame($kunjungan, $log[2]->kunjungan_id);
         $this->assertSame(['pelayanan_lanjutan'], $log->pluck('alasan')->unique()->values()->all());
@@ -118,11 +121,17 @@ class AksesDaruratTest extends TestCase
         $this->assertStringNotContainsString('rujukan', $isiLog);
         $this->assertSame(0, DB::table('audit.log_akses')->where('pasien_id', $lain->id)->count());
 
+        // SIP berhenti berlaku di tengah masa akses: tertutup (dinilai saat membaca, tanpa cache).
+        $sip = IzinPraktik::query()->where('pegawai_id', $klinisi->pegawai_id)->firstOrFail();
+        $sip->forceFill(['berlaku_sampai' => '2026-11-01'])->save();
+        $this->minta('GET', "/api/v1/pasien/{$pasien->id}/cppt")->assertForbidden();
+        $sip->forceFill(['berlaku_sampai' => '2040-01-01'])->save();
+
         // Lewat berakhir_pada: tertutup lagi tanpa tindakan.
         $this->travelTo(now()->parse($berakhir)->addMinute());
         $this->masukSebagai($klinisi, $rahasia);
         $this->minta('GET', "/api/v1/pasien/{$pasien->id}/cppt")->assertForbidden();
-        $this->assertSame(4, DB::table('audit.log_akses')->where('akses_darurat_id', $id)->count());
+        $this->assertSame(5, DB::table('audit.log_akses')->where('akses_darurat_id', $id)->count());
 
         // Akses milik sendiri tidak boleh ditinjau sendiri.
         $this->tugaskan($klinisi, $peranTinjau);
@@ -132,7 +141,7 @@ class AksesDaruratTest extends TestCase
 
         $this->masukSebagai($kepalaRm);
         $daftar = $this->minta('GET', '/api/v1/akses-darurat')->assertOk()->assertJsonPath('data.0.id', $id)
-            ->assertJsonPath('data.0.jumlah_akses', 4)->assertJsonPath('data.0.aktif', false)->assertJsonPath('data.0.dapat.tinjau', true)
+            ->assertJsonPath('data.0.jumlah_akses', 5)->assertJsonPath('data.0.aktif', false)->assertJsonPath('data.0.dapat.tinjau', true)
             ->assertJsonPath('data.0.pengguna.id', $klinisi->id);
         $this->assertSesuaiKontrak($daftar, 'GET', '/akses-darurat');
         $this->assertSame([], $this->minta('GET', '/api/v1/akses-darurat?status=ditinjau')->assertOk()->json('data'));
@@ -150,6 +159,23 @@ class AksesDaruratTest extends TestCase
         // Tanpa izin tinjauan: daftar ditolak.
         $this->masukSebagai($this->akunKlinis($this->dokter()));
         $this->minta('GET', '/api/v1/akses-darurat')->assertForbidden();
+    }
+
+    public function test_unit_sendiri_asesmen_berlabel_terbuka_karena_akses_darurat_dan_tercatat(): void
+    {
+        $pasien = $this->pasien();
+        [$kunjungan] = $this->cpptBerlabel($pasien);
+        [$klinisi, $rahasia] = $this->klinisiPoliB(unit: $this->poli->unit_organisasi_id);
+
+        $this->masukSebagai($klinisi, $rahasia);
+        $this->minta('GET', "/api/v1/kunjungan/$kunjungan/asesmen-awal")->assertOk()->assertJsonPath('data.terbatas', true);
+        $this->assertSame(0, DB::table('audit.log_akses')->count());
+        $id = $this->minta('POST', "/api/v1/pasien/{$pasien->id}/akses-darurat", ['kategori_alasan' => 'pelayanan_lanjutan', 'alasan' => self::ALASAN])
+            ->assertCreated()->json('data.id');
+        $this->minta('GET', "/api/v1/kunjungan/$kunjungan/asesmen-awal")->assertOk()->assertJsonPath('data.keluhan_utama', 'Cemas berulang');
+        $log = DB::table('audit.log_akses')->where('akses_darurat_id', $id)->get();
+        $this->assertSame(['asesmen_awal'], $log->pluck('layar')->all());
+        $this->assertSame($kunjungan, $log[0]->kunjungan_id);
     }
 
     public function test_superadmin_non_klinis_sip_habis_dan_mfa_basi_ditolak(): void
@@ -190,14 +216,14 @@ class AksesDaruratTest extends TestCase
      *
      * @return array{0: Pengguna, 1: string}
      */
-    private function klinisiPoliB(?Pegawai $pegawai = null): array
+    private function klinisiPoliB(?Pegawai $pegawai = null, ?string $unit = null): array
     {
         $rahasia = Totp::rahasiaBaru();
         $akun = $this->buatPengguna(['pegawai_id' => ($pegawai ?? $this->dokter())->id]);
         $akun->forceFill(['mfa_rahasia_enkripsi' => $rahasia, 'mfa_aktif_pada' => now()])->save();
-        $peran = $this->buatPeran(['rawat_jalan.cppt', 'rawat_jalan.pemeriksaan']);
+        $peran = $this->buatPeran(['rawat_jalan.cppt', 'rawat_jalan.pemeriksaan', 'rawat_jalan.asesmen_perawat']);
         PeranIzin::query()->create(['peran_id' => $peran->id, 'izin_id' => Izin::query()->where('kode', 'rawat_jalan.cppt.darurat')->value('id')]);
-        $this->tugaskan($akun, $peran, cakupan: new Cakupan('unit', $this->unitB->id));
+        $this->tugaskan($akun, $peran, cakupan: new Cakupan('unit', $unit ?? $this->unitB->id));
 
         return [$akun, $rahasia];
     }
@@ -205,7 +231,7 @@ class AksesDaruratTest extends TestCase
     private function akunKlinis(Pegawai $pegawai): Pengguna
     {
         $akun = $this->buatPengguna(['pegawai_id' => $pegawai->id]);
-        $this->tugaskan($akun, $this->buatPeran(['rawat_jalan.cppt', 'rawat_jalan.pemeriksaan']), cakupan: new Cakupan('unit', $this->poli->unit_organisasi_id));
+        $this->tugaskan($akun, $this->buatPeran(['rawat_jalan.cppt', 'rawat_jalan.pemeriksaan', 'rawat_jalan.asesmen_perawat']), cakupan: new Cakupan('unit', $this->poli->unit_organisasi_id));
 
         return $akun;
     }
@@ -221,6 +247,7 @@ class AksesDaruratTest extends TestCase
         $this->minta('POST', '/api/v1/saya/ttd/aktivasi', ['sandi' => self::SANDI_UJI, 'pin' => self::PIN, 'pin_ulang' => self::PIN])->assertSuccessful();
         $id = $this->minta('POST', "/api/v1/kunjungan/$kunjungan/cppt", [...self::SOAP, 'label' => 'psikiatri'])->assertCreated()->json('data.id');
         $this->mintaDenganVersi('POST', "/api/v1/cppt/$id/sahkan", '0', ['pin' => self::PIN, 'pernyataan_disetujui' => true])->assertOk();
+        $this->minta('POST', "/api/v1/kunjungan/$kunjungan/asesmen-awal", ['keluhan_utama' => 'Cemas berulang', 'label' => 'psikiatri'])->assertCreated();
 
         return [$kunjungan, $id];
     }
