@@ -5,7 +5,7 @@ use App\Modules\Akses\Database\MenuBawaan;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
-/** Tiket 2.16-be: bagian rawat_jalan.pemeriksaan.order (input, batal) untuk order penunjang (9.2.1). */
+/** Tiket 2.16-be: bagian rawat_jalan.pemeriksaan.order (lihat = bagian dicentang, input, batal) untuk order penunjang (9.2.1). */
 return new class extends Migration
 {
     public function up(): void

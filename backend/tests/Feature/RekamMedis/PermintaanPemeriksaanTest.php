@@ -192,6 +192,26 @@ class PermintaanPemeriksaanTest extends TestCase
         $this->minta('GET', '/api/v1/data-induk/tarif?jenis=lab')->assertForbidden();
     }
 
+    public function test_bagian_order_efektif_bila_menu_diturunkan_dari_izin_lihat(): void
+    {
+        // Sama dengan KelolaPeran/AkunSintetisSeeder: peran_menu hanya untuk node yang diberi izin `lihat`.
+        $kode = ['rawat_jalan.pemeriksaan.lihat', 'rawat_jalan.pemeriksaan.order.lihat', 'rawat_jalan.pemeriksaan.order.input', 'master_data.tarif.lihat'];
+        $izin = \App\Modules\Akses\Models\Izin::query()->whereIn('kode', $kode)->get(['id', 'menu_id', 'jenis_aksi']);
+        $this->assertCount(count($kode), $izin);
+        $peran = $this->buatPeran([]);
+        foreach ($izin->where('jenis_aksi', 'lihat')->pluck('menu_id')->unique() as $menuId) {
+            \App\Modules\Akses\Models\PeranMenu::query()->create(['peran_id' => $peran->id, 'menu_id' => $menuId]);
+        }
+        foreach ($izin as $i) {
+            \App\Modules\Akses\Models\PeranIzin::query()->create(['peran_id' => $peran->id, 'izin_id' => $i->id]);
+        }
+        $akun = $this->buatPengguna();
+        $this->tugaskan($akun, $peran);
+        $k = $this->kunjunganDilayani($this->pasien());
+        $this->masukSebagai($akun);
+        $this->pesan($k, ['UJI-LAB-1'])->assertCreated();
+    }
+
     public function test_versi_tarif_baru_menyalin_kategori(): void
     {
         $tarif = \App\Modules\MasterData\Models\Tarif::query()->findOrFail($this->tarif['UJI-LAB-1']);
