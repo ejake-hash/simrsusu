@@ -124,7 +124,7 @@ const adaFilter = computed(() => Boolean(profesi.value || tatanan.value))
             <time :datetime="c.dibuat_pada" class="ket">{{ formatTanggalWaktu(c.dibuat_pada) }}</time>
             <PenandaTerbatas />
           </div>
-          <EntriCppt v-else :entri="c" :sekarang="sekarang" />
+          <EntriCppt v-else :entri="c" :sekarang="sekarang" :identitas="identitas" />
         </li>
       </ol>
       <div v-if="kueri.hasNextPage.value" class="aksi">

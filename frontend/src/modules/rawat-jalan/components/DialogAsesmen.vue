@@ -252,7 +252,7 @@ const uraian = computed(() => `${props.baris.pasien.nama} · No. RM ${formatNoRm
     <TtdModal
       v-if="asesmen"
       v-model:open="dialogTtd"
-      :objek="[{ id: asesmen.id, judul: `Asesmen awal keperawatan · ${baris.nomor_tampil}`, ringkasan: asesmen.keluhan_utama, peringatan: null }]"
+      :objek="[{ id: asesmen.id, judul: `Asesmen awal keperawatan · ${uraian}`, ringkasan: asesmen.keluhan_utama, peringatan: null }]"
       :pengguna="pengguna"
       :sesi-berlaku-sampai="sesi.pengguna?.ttd?.sesi_berlaku_sampai ?? null"
       :tandatangani="handlerTtd"

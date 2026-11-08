@@ -8,6 +8,7 @@ import TtdModal from '@/design-system/components/TtdModal.vue'
 import { tampilkanToast } from '@/design-system/components/toast'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { useSesiStore } from '@/app/sesi'
+import { perbaruiStatusTtd } from '@/modules/ttd/ttd'
 import { ApiError } from '@/shared/api/klien'
 import { formatTanggalWaktu } from '@/shared/utils/waktu'
 import { adendumCppt, sahkanCppt, ubahCppt } from '../api'
@@ -20,7 +21,8 @@ import FormSoap from './FormSoap.vue'
  * PIN T1 milik penulis sendiri (aturan UX 5.1); perbaiki entri sah ≤ 2 × 24 jam dengan alasan dan tanda tangan ulang;
  * sesudah batas, adendum bertanda tangan (B-14). Isi lama tersimpan server sebagai versi.
  */
-const props = defineProps<{ entri: Cppt; sekarang: number }>()
+/** `identitas` = nama + No. RM + tanggal lahir pasien, ditampilkan di modal tanda tangan (PRD 5.1 butir 9). */
+const props = defineProps<{ entri: Cppt; sekarang: number; identitas: string }>()
 const qc = useQueryClient()
 const sesi = useSesiStore()
 const pengguna = computed(() => ({ id: sesi.pengguna?.id ?? '', nama: sesi.pengguna?.pegawai?.nama ?? sesi.pengguna?.nama_pengguna ?? '' }))
@@ -42,6 +44,7 @@ const galat = ref<string | null>(null)
 
 function buka(m: Mode) {
   galat.value = null
+  batasLewat.value = false
   alasan.value = ''
   isiAdendum.value = ''
   if (m === 'ubah') Object.assign(f, { ...Object.fromEntries(BAGIAN.map(([, k]) => [k, e.value.isi[k] ?? ''])), label: e.value.label ?? '' })
@@ -88,6 +91,11 @@ async function tandatangani(pin: string | null, pernyataan: boolean) {
       void segarkan()
       return
     }
+    // Sama dengan useTandaTangan: status TTE di store ikut berubah sebelum galat ditafsirkan modal.
+    if (x instanceof ApiError && x.kode === 'pin_wajib') perbaruiStatusTtd({ sesi_berlaku_sampai: null })
+    if (x instanceof ApiError && x.kode === 'ttd_terkunci') {
+      perbaruiStatusTtd({ terkunci_sampai: new Date(Date.now() + (x.cobaLagiDetik ?? 900) * 1000).toISOString(), sesi_berlaku_sampai: null })
+    }
     if (x instanceof ApiError && !KODE_TTE.includes(x.kode)) throw new ApiError(x.status, x.kode, pesanCppt(x), x.rincian, x.cobaLagiDetik)
     throw x
   }
@@ -101,7 +109,7 @@ const ringkasan = computed(() => {
   return isi.length > 240 ? `${isi.slice(0, 240)}…` : isi
 })
 const judulTtd = computed(() => {
-  const dasar = `CPPT ${LABEL_PROFESI[e.value.profesi].toLowerCase()} · ${formatTanggalWaktu(e.value.dibuat_pada)}`
+  const dasar = `CPPT ${(LABEL_PROFESI[e.value.profesi] ?? e.value.profesi).toLowerCase()} · ${formatTanggalWaktu(e.value.dibuat_pada)} · ${props.identitas}`
   return tindakan.value === 'adendum' ? `Adendum ${dasar}` : tindakan.value === 'perbaiki' ? `Perbaikan ${dasar}` : dasar
 })
 
@@ -114,7 +122,7 @@ const sedangSah = computed(() => e.value.status === 'sah')
   <article class="entri" :class="{ draf: e.status === 'draf' }" :aria-labelledby="`judul-cppt-${e.id}`">
     <header class="kepala">
       <h3 :id="`judul-cppt-${e.id}`" class="judul">
-        {{ LABEL_PROFESI[e.profesi] }} · {{ e.penulis.nama }}
+        {{ LABEL_PROFESI[e.profesi] ?? e.profesi }} · {{ e.penulis.nama }}
       </h3>
       <p class="meta">
         <time :datetime="e.dibuat_pada">{{ formatTanggalWaktu(e.dibuat_pada) }}</time> · {{ e.unit.nama }} · {{ LABEL_TATANAN[e.tatanan] }}
@@ -178,7 +186,7 @@ const sedangSah = computed(() => e.value.status === 'sah')
         </template>
       </template>
       <template v-else>
-        <Tombol :disabled="simpanDraf.isPending.value || undefined" @click="mode = 'baca'">Batal</Tombol>
+        <Tombol :disabled="simpanDraf.isPending.value || undefined" @click="(mode = 'baca'), (batasLewat = false)">Batal</Tombol>
         <Tombol v-if="mode === 'ubah' && !sedangSah" varian="utama" :disabled="!adaIsi(f) || undefined" :sibuk="simpanDraf.isPending.value" @click="simpanDraf.mutate()">Simpan draf</Tombol>
         <template v-else-if="ttdAktif">
           <Tombol v-if="mode === 'ubah'" varian="utama" :disabled="!bisaKirimPerbaikan || undefined" @click="mintaTtd('perbaiki')">Simpan perbaikan dan tandatangani</Tombol>
