@@ -35,7 +35,7 @@ class AkunSintetisSeederTest extends TestCase
         $akun = Pengguna::query()->where('email', 'like', '%@contoh.invalid')->get();
         $this->assertEqualsCanonicalizing(
             ['admisi', 'perawat', 'dokter', 'terkunci', 'mfa', 'mfa.baru', 'superadmin', 'superadmin.dua', 'tanpa.peran', 'data.induk', 'sdm', 'ttd', 'ttd.baru',
-                'usulan.pengusul', 'usulan.verifikator', 'usulan.penyetuju', 'integrasi', 'rekam.medis', 'dokter.poli', 'apoteker'],
+                'usulan.pengusul', 'usulan.verifikator', 'usulan.penyetuju', 'integrasi', 'rekam.medis', 'dokter.poli', 'apoteker', 'dokter.darurat'],
             $akun->pluck('nama_pengguna')->all(),
         );
         $this->assertSame(0, Pengguna::query()->where('nama_pengguna', 'like', 'contoh.%')->count(), 'Nama lama berawalan contoh. sudah diganti.');
