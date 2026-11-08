@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { halamanAkun, pelanggaranAxe, SANDI } from './bantu'
 
 /**
- * Farmasi → Formularium (tiket 2.11) ke backend asli sebagai contoh.data.induk: tambah barang (kode ganda 422), impor CSV
+ * Farmasi → Formularium (tiket 2.11) ke backend asli sebagai data.induk: tambah barang (kode ganda 422), impor CSV
  * dengan pratinjau yang menunjuk nomor baris, tambah formularium, tambah item lewat pemilih barang, lalu nonaktifkan item.
  * Instalasi belum siap melayani (spec lain mengembalikannya lewat `--batal`), jadi formularium ditulis langsung. Kode dan
  * tanggal unik per jalan: rentang berlaku satu hari di tahun 2200-an agar tidak tumpang tindih antarjalan.
@@ -19,7 +19,7 @@ test.beforeAll(() => {
 })
 
 test('katalog barang dan formularium: tambah, kode ganda, impor pratinjau, item', async ({ browser, baseURL }) => {
-  const page = await halamanAkun(browser, new URL(baseURL ?? '').origin, 'contoh.data.induk')
+  const page = await halamanAkun(browser, new URL(baseURL ?? '').origin, 'data.induk')
   await page.goto('/farmasi/formularium')
   await expect(page.getByRole('heading', { name: 'Formularium', level: 1 })).toBeVisible()
 

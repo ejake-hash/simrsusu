@@ -31,7 +31,7 @@ beforeEach(() => {
   const tangani = server.tangani.bind(server)
   permintaan = []
   server.tangani = (r: PermintaanTiruan) => (permintaan.push(r), tangani(r))
-  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'contoh.superadmin', mfa_aktif: true })
+  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'superadmin', mfa_aktif: true })
   aturIzin([...IZIN_SDM, 'master_data.organisasi.lihat', 'pengaturan.akun.lihat', 'pengaturan.akun.input', 'pengaturan.akun.perbaiki'])
 })
 afterEach(() => {
@@ -262,8 +262,8 @@ describe('Ganti sandi', () => {
     await pasang(GantiSandiPage, {}, '/ganti-sandi?kembali=/sdm/pegawai')
     expect(document.querySelector('h1')?.textContent).toBe('Buat sandi Anda sendiri')
     await isi('Sandi dari admin', 'salah-sekali')
-    await isi('Sandi baru', 'contoh.superadmin-panjang')
-    await isi('Ulangi sandi baru', 'contoh.superadmin-panjang')
+    await isi('Sandi baru', 'superadmin-panjang')
+    await isi('Ulangi sandi baru', 'superadmin-panjang')
     await klik(document.querySelector<HTMLButtonElement>('button[type="submit"]'))
     expect(document.body.textContent).toContain('Sandi dari admin salah.')
 
@@ -297,7 +297,7 @@ describe('Nonaktif/aktif akun (Pengaturan → Akun & akses)', () => {
     expect(document.body.textContent).toContain('dinonaktifkan; sesinya diakhiri')
     expect(tombol('Aktifkan akun')).toBeTruthy()
 
-    // Pegawai contoh.dokter dicatat keluar lewat API, lalu akunnya coba diaktifkan.
+    // Pegawai dokter dicatat keluar lewat API, lalu akunnya coba diaktifkan.
     document.body.innerHTML = ''
     const { ambilPegawai, ubahPegawai } = await import('./api')
     const p = await ambilPegawai(server.sdm.contoh.dokter)

@@ -107,7 +107,7 @@ const salah = (v: unknown): v is ResponsTiruan => typeof v === 'object' && v !==
 export interface OpsiServerTiruan {
   /** Data unit dari server tiruan organisasi (cakupan `unit`, kontrak v0.3.0); tanpa ini hanya cakupan `rs`. */
   unit?: { label: (id: string) => string | null; aktif: (id: string) => boolean }
-  /** Akun yang dianggap sedang masuk (diri_sendiri). Bawaan: contoh.superadmin. */
+  /** Akun yang dianggap sedang masuk (diri_sendiri). Bawaan: superadmin. */
   penggunaId?: string
   sekarang?: () => Date
   /** Status pegawai (server tiruan SDM, 1.8d): aktifkan akun milik pegawai `keluar` → 409 pegawai_keluar. */
@@ -176,7 +176,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   tambahPeran(uid(104), 'contoh_dokter', 'Contoh Dokter', izinMenu(pohon, ['igd', 'rawat_jalan', 'rekam_medis']))
   tambahPeran(uid(105), 'contoh_kasir', 'Contoh Kasir', [...izinMenu(pohon, ['kasir']), 'kasir.tagihan.cetak', 'kasir.tagihan.lihat_rupiah'], { wajib_mfa: true })
   tambahPeran(uid(106), 'contoh_lama', 'Contoh Peran Lama', [], { status: 'nonaktif' })
-  // Pemilik data induk organisasi (1.8a-be: akun contoh.data.induk); superadmin tidak memegangnya.
+  // Pemilik data induk organisasi (1.8a-be: akun data.induk); superadmin tidak memegangnya.
   tambahPeran(uid(107), 'contoh_data_induk', 'Contoh Admin Data Induk', [
     ...['organisasi', 'jenis_tugas', 'penjamin', 'usulan', 'jadwal_praktik'].flatMap((s) => ['lihat', 'input', 'perbaiki'].map((a) => `master_data.${s}.${a}`)),
     'master_data.usulan.verifikasi', 'master_data.usulan.setujui', 'master_data.tarif.lihat',
@@ -186,7 +186,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   tambahPeran(uid(112), 'penyiap_instalasi', 'Penyiap instalasi', ['pengaturan.penyiapan.lihat', 'pengaturan.penyiapan.perbaiki', 'master_data.katalog.lihat', 'master_data.katalog.input'])
   // Pengelola integrasi (1.9): konfigurasi + pemantauan kotak keluar per tujuan + log.
   tambahPeran(uid(113), 'contoh_integrasi', 'Contoh Pengelola Integrasi', [
-    // Sama dengan seeder contoh.integrasi: lihat + perbaiki (tanpa input).
+    // Sama dengan seeder integrasi: lihat + perbaiki (tanpa input).
     ...['pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs'].flatMap((s) => ['lihat', 'perbaiki'].map((a) => `${s}.${a}`)),
     'integrasi.log.lihat',
   ])
@@ -250,16 +250,16 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
       ...isi,
     })
 
-  tambahAkun(ID_SUPERADMIN, 'contoh.superadmin', 'Contoh Superadmin', [SA], { mfa_aktif_pada: '2026-10-01T02:00:00.000Z' })
-  tambahAkun(uid(2), 'contoh.admisi', 'Contoh Petugas Admisi', [uid(102)])
-  tambahAkun(uid(3), 'contoh.perawat', 'Contoh Perawat', [uid(103)])
-  tambahAkun(uid(4), 'contoh.dokter', 'Contoh Dokter', [uid(104)])
-  tambahAkun(uid(5), 'contoh.terkunci', 'Contoh Akun Uji Kunci', [], { terkunci_sampai: '2099-01-01T00:00:00.000Z', login_terakhir_pada: null })
-  tambahAkun(uid(6), 'contoh.mfa', 'Contoh Akun MFA', [uid(104)], { wajib_mfa: true, mfa_aktif_pada: '2026-10-02T03:00:00.000Z' })
-  tambahAkun(uid(7), 'contoh.mfa.baru', 'Contoh Akun MFA Baru', [], { wajib_mfa: true, login_terakhir_pada: null })
+  tambahAkun(ID_SUPERADMIN, 'superadmin', 'Contoh Superadmin', [SA], { mfa_aktif_pada: '2026-10-01T02:00:00.000Z' })
+  tambahAkun(uid(2), 'admisi', 'Contoh Petugas Admisi', [uid(102)])
+  tambahAkun(uid(3), 'perawat', 'Contoh Perawat', [uid(103)])
+  tambahAkun(uid(4), 'dokter', 'Contoh Dokter', [uid(104)])
+  tambahAkun(uid(5), 'terkunci', 'Contoh Akun Uji Kunci', [], { terkunci_sampai: '2099-01-01T00:00:00.000Z', login_terakhir_pada: null })
+  tambahAkun(uid(6), 'mfa', 'Contoh Akun MFA', [uid(104)], { wajib_mfa: true, mfa_aktif_pada: '2026-10-02T03:00:00.000Z' })
+  tambahAkun(uid(7), 'mfa.baru', 'Contoh Akun MFA Baru', [], { wajib_mfa: true, login_terakhir_pada: null })
   tambahAkun(uid(8), 'contoh.kasir', 'Contoh Kasir', [uid(105)], { mfa_aktif_pada: '2026-10-03T03:00:00.000Z' })
   // 1.2d: superadmin kedua (penyetuju K4/K13) dan pemilik data kasir.
-  tambahAkun(ID_SUPERADMIN_DUA, 'contoh.superadmin.dua', 'Contoh Superadmin Kedua', [SA], { mfa_aktif_pada: '2026-10-01T02:00:00.000Z' })
+  tambahAkun(ID_SUPERADMIN_DUA, 'superadmin.dua', 'Contoh Superadmin Kedua', [SA], { mfa_aktif_pada: '2026-10-01T02:00:00.000Z' })
   tambahAkun(ID_KABID, 'contoh.kabid', 'Contoh Kabid Keuangan', [KABID], { mfa_aktif_pada: '2026-10-01T02:00:00.000Z' })
   // Contoh pengecualian aktif dan riwayat batal (MD-1).
   akun.get(uid(8))!.izin_khusus.push(

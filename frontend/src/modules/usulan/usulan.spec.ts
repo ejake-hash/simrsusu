@@ -28,7 +28,7 @@ beforeEach(() => {
   const tangani = server.tangani.bind(server)
   permintaan = []
   server.tangani = (r: PermintaanTiruan) => (permintaan.push(r), tangani(r))
-  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'contoh.superadmin', pegawai: { id: 'p', nama: 'Contoh Superadmin' }, ttd: server.ttd.status(ID_SUPERADMIN) })
+  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'superadmin', pegawai: { id: 'p', nama: 'Contoh Superadmin' }, ttd: server.ttd.status(ID_SUPERADMIN) })
   aturIzin(['master_data.usulan.lihat', 'master_data.usulan.input', 'master_data.usulan.verifikasi', 'master_data.usulan.setujui', 'master_data.organisasi.lihat'])
 })
 afterEach(() => {

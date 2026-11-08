@@ -353,7 +353,7 @@ describe('Reset sandi oleh admin (tiket 1.14)', () => {
 
     await klik(tombol('Selesai'))
     expect(document.body.textContent).not.toContain(sandi)
-    expect(document.body.textContent).toContain('Sandi contoh.terkunci direset')
+    expect(document.body.textContent).toContain('Sandi terkunci direset')
     expect(minta('GET', `/akun/${AKUN_TERKUNCI}`).isi.data!.terkunci_sampai).toBeNull()
   })
 
@@ -376,7 +376,7 @@ describe('HalamanModul (gerbang halaman sub-menu)', () => {
     return defineComponent({ render: () => h(HalamanModul, { izin: 'pengaturan.peran.lihat', judul: 'Peran & izin', kelasTerbatas: true }, { default: () => h('p', 'isi rahasia') }) })
   }
   beforeEach(() => {
-    useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'contoh.superadmin', mfa_aktif: true })
+    useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'superadmin', mfa_aktif: true })
   })
 
   it('dengan izin lihat: judul, navigasi sub-menu saudara, dan isi', async () => {

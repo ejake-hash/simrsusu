@@ -355,11 +355,11 @@ class TtdTest extends TestCase
         $this->seed(AkunSintetisSeeder::class);
         $this->seed(TtdSintetisSeeder::class);
         $this->seed(TtdSintetisSeeder::class);
-        $akun = Pengguna::query()->where('nama_pengguna', 'contoh.ttd')->firstOrFail();
+        $akun = Pengguna::query()->where('nama_pengguna', 'ttd')->firstOrFail();
         $k = Kredensial::query()->where('pengguna_id', $akun->id)->where('status', 'aktif')->sole();
         $lada = (string) base64_decode(substr((string) config('ttd.kunci'), 7), true);
         $this->assertNotNull(KunciTtd::buka((string) $k->kunci_privat_terbungkus, (string) $k->garam, (array) $k->parameter_kdf, self::PIN, $lada, $akun->id, (string) $k->kunci_publik));
-        $baru = Pengguna::query()->where('nama_pengguna', 'contoh.ttd.baru')->firstOrFail();
+        $baru = Pengguna::query()->where('nama_pengguna', 'ttd.baru')->firstOrFail();
         $this->assertFalse(Kredensial::query()->where('pengguna_id', $baru->id)->where('status', 'aktif')->exists());
     }
 

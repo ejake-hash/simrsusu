@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { kodeTotp } from './totp'
 
-// Akun dan rahasia dari AkunSintetisSeeder (sintetis). contoh.mfa.baru hanya bisa didaftarkan sekali
+// Akun dan rahasia dari AkunSintetisSeeder (sintetis). mfa.baru hanya bisa didaftarkan sekali
 // per seeding; jalankan ulang seeder sebelum run berikutnya.
 const SANDI = process.env.E2E_SANDI ?? ''
 const RAHASIA_MFA = process.env.E2E_MFA_RAHASIA ?? ''
@@ -28,7 +28,7 @@ async function tanpaJejakDiStorage(page: Page) {
 test('akun wajib MFA: kode salah lalu kode TOTP benar → masuk', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'Kode TOTP sekali pakai; cukup sekali per run.')
 
-  await masukSandi(page, 'contoh.mfa')
+  await masukSandi(page, 'mfa')
   await expect(page.getByRole('heading', { name: 'Masukkan kode 6 digit' })).toBeVisible()
   const kolom = page.getByLabel('Kode verifikasi')
   await expect(kolom).toBeFocused()
@@ -52,7 +52,7 @@ test('akun wajib MFA: kode salah lalu kode TOTP benar → masuk', async ({ page 
 test('MFA pertama kali: pindai/ketik kunci → aktifkan → 10 kode cadangan → masuk', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'Pendaftaran hanya sekali per seeding.')
 
-  await masukSandi(page, 'contoh.mfa.baru')
+  await masukSandi(page, 'mfa.baru')
   await expect(page.getByRole('heading', { name: 'Aktifkan verifikasi dua langkah' })).toBeVisible()
   await expect(page.getByRole('img', { name: 'Kode QR untuk aplikasi autentikator' })).toBeVisible()
 
@@ -74,7 +74,7 @@ test('MFA pertama kali: pindai/ketik kunci → aktifkan → 10 kode cadangan →
 })
 
 test('langkah kode di layar sempit: tanpa scroll samping, kembali ke langkah sandi', async ({ page }) => {
-  await masukSandi(page, 'contoh.mfa')
+  await masukSandi(page, 'mfa')
   await expect(page.getByRole('heading', { name: 'Masukkan kode 6 digit' })).toBeVisible()
 
   const lebar = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth])
@@ -87,12 +87,12 @@ test('langkah kode di layar sempit: tanpa scroll samping, kembali ke langkah san
 // Tiket 1.13: perangkat tepercaya. Dilewati bila server tidak menawarkan (sebelum 1.13-be, atau CI di luar jaringan RS).
 test('perangkat tepercaya: centang saat MFA → keluar → masuk lagi tanpa kode; cookie token tidak terbaca JavaScript', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'Kode TOTP sekali pakai; cukup sekali per run.')
-  // Uji sebelumnya memakai kode contoh.mfa: mulai di periode TOTP berikutnya.
+  // Uji sebelumnya memakai kode mfa: mulai di periode TOTP berikutnya.
   const sisa = 30_000 - (Date.now() % 30_000)
   test.info().setTimeout(test.info().timeout + sisa + 500)
   await page.waitForTimeout(sisa + 500)
 
-  await masukSandi(page, 'contoh.mfa')
+  await masukSandi(page, 'mfa')
   await expect(page.getByRole('heading', { name: 'Masukkan kode 6 digit' })).toBeVisible()
   const kotak = page.getByRole('checkbox', { name: /Percayai perangkat ini selama \d+ hari/ })
   test.skip(!(await kotak.isVisible()), 'Server tidak menawarkan percayai perangkat (sebelum 1.13-be atau di luar jaringan RS).')
@@ -114,11 +114,11 @@ test('perangkat tepercaya: centang saat MFA → keluar → masuk lagi tanpa kode
 
     await page.getByRole('button', { name: 'Keluar' }).click()
     await expect(page).toHaveURL(/\/masuk/)
-    await masukSandi(page, 'contoh.mfa')
+    await masukSandi(page, 'mfa')
     await expect(page).toHaveURL(/\/$/)
     await expect(page.getByText('Contoh Akun MFA', { exact: true })).toBeVisible()
   } finally {
-    // Cabut lagi agar spec lain tetap diminta kode MFA untuk contoh.mfa.
+    // Cabut lagi agar spec lain tetap diminta kode MFA untuk mfa.
     const daftar = await page.request.get('/api/v1/saya/perangkat', { headers: header })
     if (daftar.ok()) {
       const xsrf = decodeURIComponent((await page.context().cookies()).find((c) => c.name === 'XSRF-TOKEN')?.value ?? '')

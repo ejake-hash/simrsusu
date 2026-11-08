@@ -3,7 +3,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
 
 /**
- * SDM → Data pegawai (tiket 1.8d) ke backend asli dengan akun sintetis contoh.sdm (Contoh Admin SDM: sdm.pegawai.*,
+ * SDM → Data pegawai (tiket 1.8d) ke backend asli dengan akun sintetis sdm (Contoh Admin SDM: sdm.pegawai.*,
  * sdm.kredensial.*, pengaturan.akun.lihat/input; wajib MFA, rahasia E2E_SDM_MFA_RAHASIA). Tanpa izin bagian identitas:
  * NIK hanya tersamar. Pegawai dan akun baru memakai akhiran unik per run; semua data sintetis.
  */
@@ -21,7 +21,7 @@ test.beforeAll(({}, info) => {
   if (!SANDI || !RAHASIA_SDM) throw new Error('Set E2E_SANDI dan E2E_SDM_MFA_RAHASIA sesuai AkunSintetisSeeder.')
 })
 
-// Batas laju API 120/menit per akun berlaku di e2e; semua uji berkas ini memakai contoh.sdm (pola organisasi.spec.ts).
+// Batas laju API 120/menit per akun berlaku di e2e; semua uji berkas ini memakai sdm (pola organisasi.spec.ts).
 const BATAS_PER_MENIT = 70
 const waktuPermintaan: number[] = []
 async function jagaBatasLaju() {
@@ -38,7 +38,7 @@ test.beforeEach(async () => jagaBatasLaju())
 async function halaman(browser: Browser, asal: string, lebar = 1440, tinggi = 900): Promise<Page> {
   if (!sesi) {
     const masuk = await browser.newContext({ baseURL: asal, storageState: TANPA_SESI })
-    await masukLewatApi(masuk.request, asal, 'contoh.sdm', RAHASIA_SDM)
+    await masukLewatApi(masuk.request, asal, 'sdm', RAHASIA_SDM)
     sesi = await masuk.storageState()
     await masuk.close()
   }

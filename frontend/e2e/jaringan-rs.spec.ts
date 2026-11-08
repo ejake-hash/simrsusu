@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-// Pendaftaran MFA hanya dari jaringan RS (PRD 10.3.2, tiket 1.1c). Akun sintetis contoh.admisi
+// Pendaftaran MFA hanya dari jaringan RS (PRD 10.3.2, tiket 1.1c). Akun sintetis admisi
 // belum punya MFA. "Dari luar" ditiru dengan X-Forwarded-For: backend harus memercayai proksi Vite
 // lewat TRUSTED_PROXIES=127.0.0.1 (CI dan README frontend).
 const SANDI = process.env.E2E_SANDI ?? ''
@@ -21,7 +21,7 @@ async function masukSandi(page: Page, nama: string) {
 test('dari luar jaringan RS, akun tanpa MFA ditolak dengan arahan yang jelas', async ({ page }) => {
   await page.setExtraHTTPHeaders({ 'X-Forwarded-For': IP_LUAR })
 
-  await masukSandi(page, 'contoh.admisi')
+  await masukSandi(page, 'admisi')
 
   await expect(page.getByRole('alert')).toContainText(
     'Verifikasi dua langkah akun ini belum aktif, dan hanya bisa diaktifkan dari jaringan rumah sakit.',
@@ -46,7 +46,7 @@ test('instalasi belum disiapkan: pesan konfigurasi, bukan "sandi salah"', async 
     }),
   )
 
-  await masukSandi(page, 'contoh.admisi')
+  await masukSandi(page, 'admisi')
 
   await expect(page.getByRole('alert')).toContainText('SIMRS belum selesai disiapkan sehingga belum bisa dipakai untuk masuk.')
   await expect(page.getByRole('alert')).not.toContainText('sandi salah')

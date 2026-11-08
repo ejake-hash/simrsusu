@@ -27,7 +27,7 @@ beforeEach(() => {
   const tangani = server.tangani.bind(server)
   permintaan = []
   server.tangani = (r: PermintaanTiruan) => (permintaan.push(r), tangani(r))
-  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'contoh.superadmin', mfa_aktif: true })
+  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'superadmin', mfa_aktif: true })
   aturIzin(['master_data.jenis_tugas.lihat', 'master_data.jenis_tugas.perbaiki', 'master_data.organisasi.lihat'])
 })
 afterEach(() => {
@@ -103,7 +103,7 @@ describe('Lonceng notifikasi', () => {
     expect(latar[0]!.header['if-none-match']).toMatch(/^"/)
     expect(lonceng().getAttribute('aria-label')).toBe('Notifikasi, 3 belum dibaca')
 
-    server.notifikasi.tambahNotifikasi({ jenis: 'PERMINTAAN_AKSES', judul: 'Permintaan akses baru dari contoh.perawat' })
+    server.notifikasi.tambahNotifikasi({ jenis: 'PERMINTAAN_AKSES', judul: 'Permintaan akses baru dari perawat' })
     vi.advanceTimersByTime(30_000)
     await tenang()
     expect(lonceng().getAttribute('aria-label')).toBe('Notifikasi, 4 belum dibaca')

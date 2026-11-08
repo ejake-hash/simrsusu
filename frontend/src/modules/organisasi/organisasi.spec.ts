@@ -31,7 +31,7 @@ let qcUji: QueryClient
 beforeEach(() => {
   setActivePinia(createPinia())
   server = pasangTiruan(klien, buatServerGabungan())
-  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'contoh.superadmin', mfa_aktif: true })
+  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'superadmin', mfa_aktif: true })
   aturIzin(['master_data.organisasi.lihat', 'master_data.organisasi.input', 'master_data.organisasi.perbaiki', 'pengaturan.profil_rs.lihat', 'pengaturan.profil_rs.perbaiki', 'pengaturan.akun.input'])
 })
 afterEach(() => {

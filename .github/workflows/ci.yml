@@ -121,16 +121,16 @@ jobs:
       # Sandi akun sintetis di database CI sekali pakai; bukan rahasia.
       AKUN_SINTETIS_SANDI: e2e-ci-sintetis-kuda-biru
       E2E_SANDI: e2e-ci-sintetis-kuda-biru
-      # Rahasia TOTP sintetis akun contoh.mfa (Base32), juga sekali pakai; bukan rahasia.
+      # Rahasia TOTP sintetis akun mfa (Base32), juga sekali pakai; bukan rahasia.
       AKUN_SINTETIS_MFA_RAHASIA: KRSXG5CTMVRXEZLUKRSXG5CTMVRXEZLU
       E2E_MFA_RAHASIA: KRSXG5CTMVRXEZLUKRSXG5CTMVRXEZLU
-      # Rahasia TOTP sintetis akun contoh.superadmin (Base32), sekali pakai; bukan rahasia.
+      # Rahasia TOTP sintetis akun superadmin (Base32), sekali pakai; bukan rahasia.
       AKUN_SINTETIS_SUPERADMIN_MFA_RAHASIA: MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U
       E2E_SUPERADMIN_MFA_RAHASIA: MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U
-      # Rahasia TOTP sintetis akun contoh.superadmin.dua (Base32), sekali pakai; bukan rahasia.
+      # Rahasia TOTP sintetis akun superadmin.dua (Base32), sekali pakai; bukan rahasia.
       AKUN_SINTETIS_SUPERADMIN_DUA_MFA_RAHASIA: GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ
       E2E_SUPERADMIN_DUA_MFA_RAHASIA: GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ
-      # Rahasia TOTP sintetis akun contoh.sdm (Base32), sekali pakai; bukan rahasia.
+      # Rahasia TOTP sintetis akun sdm (Base32), sekali pakai; bukan rahasia.
       AKUN_SINTETIS_SDM_MFA_RAHASIA: ONSG2YLEMJUW4U3ENVQWI3LJNZJWI3LB
       E2E_SDM_MFA_RAHASIA: ONSG2YLEMJUW4U3ENVQWI3LJNZJWI3LB
       # TTE sintetis (tiket 1.6): kunci server dan PIN sekali pakai untuk database CI; bukan rahasia. Kunci 1 menit agar
@@ -145,7 +145,7 @@ jobs:
       # publik; DILARANG dipakai di server (lihat peringatan di atas).
       KREDENSIAL_KUNCI: base64:ZTJlLWNpLWtyZWRlbnNpYWwta3VuY2ktc2ludGV0aXM=
       INTEGRASI_SIMULATOR: "true"
-      # Rahasia TOTP sintetis akun contoh.integrasi (Base32), sekali pakai; bukan rahasia.
+      # Rahasia TOTP sintetis akun integrasi (Base32), sekali pakai; bukan rahasia.
       AKUN_SINTETIS_INTEGRASI_MFA_RAHASIA: NFXHIZLHOJQXG2LTNFXHIZLHOJQXG2LT
       E2E_INTEGRASI_MFA_RAHASIA: NFXHIZLHOJQXG2LTNFXHIZLHOJQXG2LT
       # Proksi Vite (127.0.0.1) dipercaya agar e2e bisa meniru akses dari luar jaringan RS lewat

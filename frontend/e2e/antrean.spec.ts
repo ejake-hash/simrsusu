@@ -4,7 +4,7 @@ import { artisan, bersihkanPesertaSintetis, daftarkanKunjunganJkn, halamanAdmisi
 
 /**
  * Keluar Tahap A (backlog fase 2): pasien BPJS → kunjungan poli → SEP (simulator) → nomor antrean → dipanggil petugas →
- * tampil di display, lalu aksi petugas lainnya (jeda panggilan, lewati, sisip, batal). Akun contoh.admisi; display tanpa
+ * tampil di display, lalu aksi petugas lainnya (jeda panggilan, lewati, sisip, batal). Akun admisi; display tanpa
  * sesi dengan token perangkat dari `antrean:token-display` (baris pertama keluaran). Memakai data contoh yang sama dengan
  * pendaftaran.spec.ts, jadi berjalan sesudahnya (playwright.config.ts). Seri: aksi petugas memakai nomor dari uji pertama.
  */

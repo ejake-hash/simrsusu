@@ -57,10 +57,10 @@ export function bersihkanPesertaSintetis(): void {
   php('tinker', '--execute', "$u = DB::table('akses.pengguna')->value('id'); $k = DB::table('kunjungan.kunjungan')->whereIn('pasien_id', DB::table('pasien.pasien')->where('nama', 'Peserta Sintetis BPJS')->pluck('id'))->where('status', '<>', 'batal'); $id = (clone $k)->pluck('id'); $k->update(['status' => 'batal', 'alasan_batal' => 'Bersih uji e2e', 'dibatalkan_oleh' => $u, 'dibatalkan_pada' => now()]); DB::table('kunjungan.antrean')->whereIn('kunjungan_id', $id)->whereIn('status', ['menunggu', 'dipanggil', 'dilewati'])->update(['status' => 'batal', 'alasan_batal' => 'Bersih uji e2e', 'dibatalkan_oleh' => $u, 'dibatalkan_pada' => now()]);")
 }
 
-/** Login sebagai contoh.admisi di konteks baru 1440 px (tanpa animasi supaya axe memeriksa keadaan akhir). */
+/** Login sebagai admisi di konteks baru 1440 px (tanpa animasi supaya axe memeriksa keadaan akhir). */
 export async function halamanAdmisi(browser: Browser, asal: string) {
   const masuk = await browser.newContext({ baseURL: asal })
-  await masukLewatApi(masuk.request, asal, 'contoh.admisi')
+  await masukLewatApi(masuk.request, asal, 'admisi')
   const konteks = await browser.newContext({ baseURL: asal, storageState: await masuk.storageState(), viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
   await masuk.close()
   return { konteks, page: await konteks.newPage() }

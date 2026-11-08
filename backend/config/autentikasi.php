@@ -67,13 +67,13 @@ return [
 
     // Hanya untuk AkunSintetisSeeder di lokal/staging; kosong = dibuat acak dan dicetak sekali.
     'akun_sintetis_sandi' => env('AKUN_SINTETIS_SANDI'),
-    // Rahasia TOTP sintetis (Base32) untuk akun contoh.mfa; kosong = dibuat acak dan dicetak sekali.
+    // Rahasia TOTP sintetis (Base32) untuk akun mfa; kosong = dibuat acak dan dicetak sekali.
     'akun_sintetis_mfa_rahasia' => env('AKUN_SINTETIS_MFA_RAHASIA'),
-    // Rahasia TOTP sintetis akun contoh.superadmin (tiket 1.2c, e2e Pengaturan); kosong = acak, dicetak sekali.
+    // Rahasia TOTP sintetis akun superadmin (tiket 1.2c, e2e Pengaturan); kosong = acak, dicetak sekali.
     'akun_sintetis_superadmin_mfa_rahasia' => env('AKUN_SINTETIS_SUPERADMIN_MFA_RAHASIA'),
     // Superadmin sintetis kedua (tiket 1.2d, e2e kontrol ganda); kosong = acak, dicetak sekali.
     'akun_sintetis_superadmin_dua_mfa_rahasia' => env('AKUN_SINTETIS_SUPERADMIN_DUA_MFA_RAHASIA'),
-    // Admin SDM sintetis contoh.sdm (tiket 1.8d, e2e Data pegawai); kosong = acak, dicetak sekali.
+    // Admin SDM sintetis sdm (tiket 1.8d, e2e Data pegawai); kosong = acak, dicetak sekali.
     'akun_sintetis_sdm_mfa_rahasia' => env('AKUN_SINTETIS_SDM_MFA_RAHASIA'),
     'akun_sintetis_integrasi_mfa_rahasia' => env('AKUN_SINTETIS_INTEGRASI_MFA_RAHASIA'),
 

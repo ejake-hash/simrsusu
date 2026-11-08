@@ -2,8 +2,8 @@ import { expect, test, type Page } from '@playwright/test'
 import { halamanAkun, headerTulis, pelanggaranAxe, SANDI } from './bantu'
 
 /**
- * Master Data → Buku tarif + usulan tarif (tiket 2.2) ke backend asli. contoh.data.induk mengusulkan tarif baru lewat
- * layar (harga per kelas, berlaku hari ini), contoh.usulan.verifikator memverifikasi, contoh.usulan.penyetuju
+ * Master Data → Buku tarif + usulan tarif (tiket 2.2) ke backend asli. data.induk mengusulkan tarif baru lewat
+ * layar (harga per kelas, berlaku hari ini), usulan.verifikator memverifikasi, usulan.penyetuju
  * menyetujui (tiga orang berbeda, dijaga server), lalu tarif tampil di buku tarif dengan harganya. Kelas rawat dan
  * kode tarif unik per jalan.
  */
@@ -25,7 +25,7 @@ const rincian = (page: Page) => page.locator('section.rincian')
 
 test('pengusul mengajukan tarif baru dari buku tarif', async ({ browser, baseURL }) => {
   const asal = asalDari(baseURL)
-  const page = await halamanAkun(browser, asal, 'contoh.data.induk')
+  const page = await halamanAkun(browser, asal, 'data.induk')
   await page.goto('/master-data/tarif')
   const kelas = await page.request.post('/api/v1/kelas-rawat', {
     headers: await headerTulis(page, asal),
@@ -61,8 +61,8 @@ test('pengusul mengajukan tarif baru dari buku tarif', async ({ browser, baseURL
 test('diverifikasi dan disetujui orang lain, lalu tarif berlaku di buku tarif', async ({ browser, baseURL }) => {
   const asal = asalDari(baseURL)
   for (const [akun, aksi, pesan] of [
-    ['contoh.usulan.verifikator', 'Verifikasi', /diverifikasi; diteruskan ke penyetuju\./],
-    ['contoh.usulan.penyetuju', 'Setujui', /disetujui dan langsung berlaku\./],
+    ['usulan.verifikator', 'Verifikasi', /diverifikasi; diteruskan ke penyetuju\./],
+    ['usulan.penyetuju', 'Setujui', /disetujui dan langsung berlaku\./],
   ] as const) {
     const page = await halamanAkun(browser, asal, akun)
     await page.goto(`/master-data/usulan?usulan=${usulanId}`)
@@ -72,7 +72,7 @@ test('diverifikasi dan disetujui orang lain, lalu tarif berlaku di buku tarif', 
     await page.context().close()
   }
 
-  const page = await halamanAkun(browser, asal, 'contoh.data.induk')
+  const page = await halamanAkun(browser, asal, 'data.induk')
   await page.goto('/master-data/tarif')
   await page.getByRole('searchbox', { name: 'Cari kode atau nama tarif' }).fill(KODE)
   const baris = page.getByRole('row', { name: new RegExp(KODE) })

@@ -24,7 +24,7 @@ async function pasang(kembali?: string) {
 }
 
 async function kirim(w: Awaited<ReturnType<typeof pasang>>['w']) {
-  await w.get('#nama-pengguna').setValue('contoh.dokter')
+  await w.get('#nama-pengguna').setValue('dokter')
   await w.get('#sandi').setValue('sandi-panjang-sekali')
   await w.get('form').trigger('submit')
   await flushPromises()

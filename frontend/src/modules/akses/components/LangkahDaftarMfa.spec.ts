@@ -8,7 +8,7 @@ import LangkahDaftarMfa from './LangkahDaftarMfa.vue'
 vi.mock('../api', () => ({ mintaRahasiaMfa: vi.fn(), konfirmasiDaftarMfa: vi.fn(), ambilSaya: vi.fn(), keluar: vi.fn() }))
 
 const RAHASIA = {
-  uri_otpauth: 'otpauth://totp/SIMRS:contoh.mfa.baru?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP&issuer=SIMRS',
+  uri_otpauth: 'otpauth://totp/SIMRS:mfa.baru?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP&issuer=SIMRS',
   qr_svg: '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>',
 }
 const KODE_CADANGAN = Array.from({ length: 10 }, (_, i) => `aaaa${i}-bbbb${i}`)

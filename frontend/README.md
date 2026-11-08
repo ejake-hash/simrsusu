@@ -25,7 +25,7 @@ Hanya ke lokal/CI dengan akun sintetis, atau staging. Jangan pernah dengan data 
    php artisan db:seed --class='App\Modules\Akses\Database\Seeders\AkunSintetisSeeder'
    php artisan serve
    ```
-   Seed ulang sebelum tiap run: uji "terkunci" mengunci akun khusus `contoh.terkunci` selama 15 menit.
+   Seed ulang sebelum tiap run: uji "terkunci" mengunci akun khusus `terkunci` selama 15 menit.
 2. Jalankan:
    ```bash
    npx playwright install chromium   # sekali

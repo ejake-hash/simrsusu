@@ -77,7 +77,7 @@ bila kosong, login web ditolak `503 konfigurasi_belum_lengkap`. Langkah MFA: `PO
 `…/mfa/daftar`, `…/mfa/daftar/konfirmasi` (TOTP RFC 6238 + 10 kode cadangan sekali pakai).
 **Instalasi baru:** dua superadmin bernama dibuat di server dengan `php artisan akses:superadmin-pertama`
 (sandi lewat prompt tersembunyi; URI otpauth dan 10 kode cadangan tampil sekali; ditolak bila sudah ada 2 superadmin aktif).
-Akun sintetis `contoh.mfa` (rahasia dari `AKUN_SINTETIS_MFA_RAHASIA`) dan `contoh.mfa.baru` (belum terdaftar) untuk uji lokal dan e2e.
+Akun sintetis `mfa` (rahasia dari `AKUN_SINTETIS_MFA_RAHASIA`) dan `mfa.baru` (belum terdaftar) untuk uji lokal dan e2e.
 
 ## Role database
 

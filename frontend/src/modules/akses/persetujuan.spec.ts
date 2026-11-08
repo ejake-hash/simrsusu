@@ -26,7 +26,7 @@ let router: Router
 beforeEach(() => {
   setActivePinia(createPinia())
   server = pasangTiruan(klien, buatServerTiruan())
-  masukSebagai(ID_SUPERADMIN, 'contoh.superadmin')
+  masukSebagai(ID_SUPERADMIN, 'superadmin')
 })
 afterEach(() => {
   klien.defaults.adapter = adapterAsli
@@ -123,7 +123,7 @@ describe('Rincian persetujuan (MD-4)', () => {
 
   it('akun yang tidak terkait → 404 ditampilkan sebagai tidak ditemukan', async () => {
     const p = ajukanIzinSensitif()
-    masukSebagai(uid(4), 'contoh.dokter')
+    masukSebagai(uid(4), 'dokter')
     await pasang(RincianPersetujuan, { id: p.id })
     expect(document.body.textContent).toContain('Pengajuan tidak ditemukan atau bukan untuk Anda.')
   })
@@ -144,7 +144,7 @@ describe('Rincian akun: pengajuan menunggu (1.2d)', () => {
 
   it('superadmin kedua (bukan pengaju) melihat ringkasan tanpa tombol tarik', async () => {
     server.tangani({ metode: 'POST', jalur: `/akun/${ADMISI}/penugasan`, kueri: new URLSearchParams(), header: {}, isi: { peran_id: uid(101), cakupan_jenis: 'rs', cakupan_id: null, dasar_pemberian: 'SK 9/2026' } })
-    masukSebagai(ID_SUPERADMIN_DUA, 'contoh.superadmin.dua')
+    masukSebagai(ID_SUPERADMIN_DUA, 'superadmin.dua')
     await pasang(RincianAkun, { akunId: ADMISI, indeks: indeksPohon(server.pohon) })
     const menunggu = document.querySelector('section[aria-labelledby="judul-menunggu"]')!
     expect(menunggu.textContent).toContain('Tugaskan peran Superadmin')
@@ -154,9 +154,9 @@ describe('Rincian akun: pengajuan menunggu (1.2d)', () => {
 
 describe('Permintaan akses', () => {
   it('admin menindaklanjuti dengan peran: dasar = nomor permintaan; status menjadi ditindaklanjuti', async () => {
-    masukSebagai(ADMISI, 'contoh.admisi')
+    masukSebagai(ADMISI, 'admisi')
     server.tangani({ metode: 'POST', jalur: '/permintaan-akses', kueri: new URLSearchParams(), header: {}, isi: { sasaran_jenis: 'menu', sasaran_kode: 'igd.papan', alasan: 'Bertugas di IGD bulan ini' } })
-    masukSebagai(ID_SUPERADMIN, 'contoh.superadmin')
+    masukSebagai(ID_SUPERADMIN, 'superadmin')
     await pasang(TabPermintaan)
     const baris = [...document.querySelectorAll('tbody tr')]
     expect(baris).toHaveLength(1)

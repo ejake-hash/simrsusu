@@ -25,7 +25,7 @@ function pasangServer(izinServer?: string[]) {
   const tangani = server.tangani.bind(server)
   permintaan = []
   server.tangani = (r: PermintaanTiruan) => (permintaan.push(r), tangani(r))
-  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'contoh.superadmin', mfa_aktif: true })
+  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'superadmin', mfa_aktif: true })
   return { gabungan, izinServer }
 }
 beforeEach(() => {

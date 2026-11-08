@@ -25,42 +25,42 @@ use Symfony\Component\Console\Formatter\OutputFormatter;
 final class AkunSintetisSeeder extends Seeder
 {
     /** Akun tanpa peran dan pengecualian (Beranda "belum ada modul", tiket 1.2e). */
-    public const TANPA_PERAN = 'contoh.tanpa.peran';
+    public const TANPA_PERAN = 'tanpa.peran';
 
     public const AKUN = [
-        'contoh.admisi' => 'Contoh Petugas Admisi',
-        'contoh.perawat' => 'Contoh Perawat',
-        'contoh.dokter' => 'Contoh Dokter',
+        'admisi' => 'Contoh Petugas Admisi',
+        'perawat' => 'Contoh Perawat',
+        'dokter' => 'Contoh Dokter',
         // Khusus uji penguncian (e2e): boleh dikunci kapan saja tanpa mengganggu akun lain.
-        'contoh.terkunci' => 'Contoh Akun Uji Kunci',
+        'terkunci' => 'Contoh Akun Uji Kunci',
         // MFA (tiket 1.1b): wajib MFA dengan rahasia TOTP sintetis yang diketahui e2e.
-        'contoh.mfa' => 'Contoh Akun MFA',
+        'mfa' => 'Contoh Akun MFA',
         // MFA wajib tetapi belum terdaftar: masuk → perlu_daftar_mfa. Seeding ulang mengosongkannya lagi.
-        'contoh.mfa.baru' => 'Contoh Akun MFA Baru',
+        'mfa.baru' => 'Contoh Akun MFA Baru',
         // Superadmin sintetis untuk e2e Pengaturan (tiket 1.2c), MFA aktif dengan rahasia yang diketahui e2e.
-        'contoh.superadmin' => 'Contoh Superadmin',
+        'superadmin' => 'Contoh Superadmin',
         // Superadmin kedua (tiket 1.2d): e2e kontrol ganda "superadmin A mengajukan, superadmin B menyetujui".
-        'contoh.superadmin.dua' => 'Contoh Superadmin Dua',
+        'superadmin.dua' => 'Contoh Superadmin Dua',
         // Tanpa penugasan dan tanpa wajib MFA: Beranda "belum ada modul" (tiket 1.2e). Seeding ulang
         // mengakhiri penugasan yang sempat dibuat uji lain.
         self::TANPA_PERAN => 'Contoh Akun Tanpa Peran',
         // Pemegang Master Data (organisasi, unit, KSM; tiket 1.8a), bukan superadmin (FR-54-01).
-        'contoh.data.induk' => 'Contoh Admin Data Induk',
+        'data.induk' => 'Contoh Admin Data Induk',
         // Admin SDM (tiket 1.8d): data pegawai, kredensial, dan buat akun dari pegawai. pengaturan.akun.input
         // butuh MFA, jadi MFA aktif dengan rahasia sintetis yang diketahui e2e.
-        'contoh.sdm' => 'Contoh Admin SDM',
+        'sdm' => 'Contoh Admin SDM',
         // Admin integrasi (tiket 1.9): konfigurasi, uji koneksi, kotak keluar, log. pengaturan.integrasi.perbaiki sensitif,
         // jadi MFA aktif dengan rahasia sintetis yang diketahui e2e.
-        'contoh.integrasi' => 'Contoh Admin Integrasi',
-        // TTE (tiket 1.6): contoh.ttd dengan TTE aktif (PIN sintetis, TtdSintetisSeeder); contoh.ttd.baru tanpa TTE (alur aktivasi).
-        'contoh.ttd' => 'Contoh Akun TTE',
-        'contoh.ttd.baru' => 'Contoh Akun TTE Baru',
+        'integrasi' => 'Contoh Admin Integrasi',
+        // TTE (tiket 1.6): ttd dengan TTE aktif (PIN sintetis, TtdSintetisSeeder); ttd.baru tanpa TTE (alur aktivasi).
+        'ttd' => 'Contoh Akun TTE',
+        'ttd.baru' => 'Contoh Akun TTE Baru',
         // Usulan data induk berjenjang (tiket 1.8c): tiga orang berbeda untuk e2e pemisahan tugas (dijaga server).
-        'contoh.usulan.pengusul' => 'Contoh Pengusul Usulan',
-        'contoh.usulan.verifikator' => 'Contoh Verifikator Usulan',
-        'contoh.usulan.penyetuju' => 'Contoh Penyetuju Usulan',
-        // Verifikator gabung RM (tiket 2.9): pengusul (contoh.admisi) ≠ pemverifikasi, dijaga server.
-        'contoh.rekam.medis' => 'Contoh Petugas Rekam Medis',
+        'usulan.pengusul' => 'Contoh Pengusul Usulan',
+        'usulan.verifikator' => 'Contoh Verifikator Usulan',
+        'usulan.penyetuju' => 'Contoh Penyetuju Usulan',
+        // Verifikator gabung RM (tiket 2.9): pengusul (admisi) ≠ pemverifikasi, dijaga server.
+        'rekam.medis' => 'Contoh Petugas Rekam Medis',
     ];
 
     /**
@@ -68,25 +68,25 @@ final class AkunSintetisSeeder extends Seeder
      * Variabel .env-nya = kunci config dalam huruf besar (dipakai `lokal:siapkan-env` dan `lokal:kode-mfa`, tiket 1.16).
      */
     public const RAHASIA_MFA = [
-        'contoh.mfa' => 'akun_sintetis_mfa_rahasia',
-        'contoh.superadmin' => 'akun_sintetis_superadmin_mfa_rahasia',
-        'contoh.superadmin.dua' => 'akun_sintetis_superadmin_dua_mfa_rahasia',
-        'contoh.sdm' => 'akun_sintetis_sdm_mfa_rahasia',
-        'contoh.integrasi' => 'akun_sintetis_integrasi_mfa_rahasia',
+        'mfa' => 'akun_sintetis_mfa_rahasia',
+        'superadmin' => 'akun_sintetis_superadmin_mfa_rahasia',
+        'superadmin.dua' => 'akun_sintetis_superadmin_dua_mfa_rahasia',
+        'sdm' => 'akun_sintetis_sdm_mfa_rahasia',
+        'integrasi' => 'akun_sintetis_integrasi_mfa_rahasia',
     ];
 
     /** Profesi pegawai sintetis (selain ini non_kesehatan). */
-    private const PROFESI = ['contoh.perawat' => 'perawat', 'contoh.dokter' => 'dokter'];
+    private const PROFESI = ['perawat' => 'perawat', 'dokter' => 'dokter'];
 
     /**
      * Peran contoh (tiket 1.2a) agar menu tiap akun sintetis berbeda: kode peran => [nama, akun, menu].
      * Seluruh sub-menu menu itu diberikan beserta aksi dasarnya, cakupan seluruh RS.
      */
     private const PERAN_CONTOH = [
-        'contoh_admisi' => ['Contoh Petugas Admisi', 'contoh.admisi', ['pendaftaran']],
-        'contoh_perawat' => ['Contoh Perawat', 'contoh.perawat', ['igd', 'rawat_inap']],
-        'contoh_dokter' => ['Contoh Dokter', 'contoh.dokter', ['igd', 'rawat_jalan', 'rekam_medis']],
-        'contoh_data_induk' => ['Contoh Admin Data Induk', 'contoh.data.induk', ['master_data']],
+        'contoh_admisi' => ['Contoh Petugas Admisi', 'admisi', ['pendaftaran']],
+        'contoh_perawat' => ['Contoh Perawat', 'perawat', ['igd', 'rawat_inap']],
+        'contoh_dokter' => ['Contoh Dokter', 'dokter', ['igd', 'rawat_jalan', 'rekam_medis']],
+        'contoh_data_induk' => ['Contoh Admin Data Induk', 'data.induk', ['master_data']],
     ];
 
     /**
@@ -109,19 +109,19 @@ final class AkunSintetisSeeder extends Seeder
      * Bagian data pribadi (sdm.pegawai.identitas.lihat) sengaja tidak diberikan: NIK tampil tersamar.
      */
     private const PERAN_IZIN_CONTOH = [
-        'contoh_sdm' => ['Contoh Admin SDM', 'contoh.sdm', [
+        'contoh_sdm' => ['Contoh Admin SDM', 'sdm', [
             'sdm.pegawai.lihat', 'sdm.pegawai.input', 'sdm.pegawai.perbaiki',
             'sdm.kredensial.lihat', 'sdm.kredensial.input', 'sdm.kredensial.perbaiki',
             'master_data.organisasi.lihat', 'pengaturan.akun.lihat', 'pengaturan.akun.input',
         ]],
-        'contoh_integrasi' => ['Contoh Admin Integrasi', 'contoh.integrasi', [
+        'contoh_integrasi' => ['Contoh Admin Integrasi', 'integrasi', [
             'pengaturan.integrasi.lihat', 'pengaturan.integrasi.perbaiki', 'integrasi.satusehat.lihat', 'integrasi.satusehat.perbaiki',
             'integrasi.bpjs.lihat', 'integrasi.bpjs.perbaiki', 'integrasi.log.lihat',
         ]],
-        'contoh_usulan_pengusul' => ['Contoh Pengusul Usulan', 'contoh.usulan.pengusul', self::IZIN_USULAN],
-        'contoh_usulan_verifikator' => ['Contoh Verifikator Usulan', 'contoh.usulan.verifikator', self::IZIN_USULAN],
-        'contoh_usulan_penyetuju' => ['Contoh Penyetuju Usulan', 'contoh.usulan.penyetuju', self::IZIN_USULAN],
-        'contoh_rekam_medis' => ['Contoh Petugas Rekam Medis', 'contoh.rekam.medis', ['pendaftaran.master_pasien.lihat', 'pendaftaran.master_pasien.verifikasi']],
+        'contoh_usulan_pengusul' => ['Contoh Pengusul Usulan', 'usulan.pengusul', self::IZIN_USULAN],
+        'contoh_usulan_verifikator' => ['Contoh Verifikator Usulan', 'usulan.verifikator', self::IZIN_USULAN],
+        'contoh_usulan_penyetuju' => ['Contoh Penyetuju Usulan', 'usulan.penyetuju', self::IZIN_USULAN],
+        'contoh_rekam_medis' => ['Contoh Petugas Rekam Medis', 'rekam.medis', ['pendaftaran.master_pasien.lihat', 'pendaftaran.master_pasien.verifikasi']],
     ];
 
     /** Semua aksi usulan data induk + lihat organisasi (pemilih objek); pemisahan tugas dijaga server (1.8c). */
@@ -157,6 +157,8 @@ final class AkunSintetisSeeder extends Seeder
                     'jenis_kepegawaian' => 'Sintetis', 'tanggal_keluar' => null, 'alasan_keluar' => null],
             );
             $pegawai->forceFill(['status' => 'aktif'])->save();
+            // shortcut: DB lama masih memakai nama berawalan contoh. (sebelum 8 Nov 2026); hapus setelah semua DB lokal di-seed ulang.
+            Pengguna::query()->where('nama_pengguna', 'contoh.'.$namaPengguna)->update(['nama_pengguna' => $namaPengguna]);
             Pengguna::query()->firstOrNew(['nama_pengguna' => $namaPengguna])->forceFill([
                 'pegawai_id' => $pegawai->id,
                 'email' => $namaPengguna.'@contoh.invalid',
@@ -165,7 +167,7 @@ final class AkunSintetisSeeder extends Seeder
                 // Keadaan awal yang sama tiap seeding, agar uji e2e "terkunci" dan MFA bisa diulang.
                 'percobaan_gagal' => 0,
                 'terkunci_sampai' => null,
-                'wajib_mfa' => str_starts_with($namaPengguna, 'contoh.mfa'),
+                'wajib_mfa' => str_starts_with($namaPengguna, 'mfa'),
                 'mfa_rahasia_enkripsi' => $rahasia[$namaPengguna] ?? null,
                 'mfa_aktif_pada' => isset($rahasia[$namaPengguna]) ? now() : null,
                 'mfa_langkah_terakhir' => null,
@@ -181,8 +183,8 @@ final class AkunSintetisSeeder extends Seeder
 
         $this->pasangPeranContoh();
         $this->kosongkanAkses(self::TANPA_PERAN);
-        $this->tugaskan('contoh.superadmin', Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->firstOrFail());
-        $this->tugaskan('contoh.superadmin.dua', Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->firstOrFail());
+        $this->tugaskan('superadmin', Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->firstOrFail());
+        $this->tugaskan('superadmin.dua', Peran::query()->where('kode', MenuBawaan::PERAN_SUPERADMIN)->firstOrFail());
 
         $this->command?->info('Akun sintetis: '.implode(', ', array_keys(self::AKUN)).'.');
         $sekaliTampil = array_filter([$dibuatAcak ? 'Sandi acak (hanya ditampilkan sekali): '.OutputFormatter::escape($sandi) : null]);

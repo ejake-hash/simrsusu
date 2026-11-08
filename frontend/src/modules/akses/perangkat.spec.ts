@@ -23,7 +23,7 @@ let server: ServerTiruan
 beforeEach(() => {
   setActivePinia(createPinia())
   server = pasangTiruan(klien, buatServerTiruan())
-  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'contoh.superadmin', mfa_aktif: true })
+  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'superadmin', mfa_aktif: true })
   aturIzin(['pengaturan.akun.lihat', 'pengaturan.akun.perbaiki', 'pengaturan.peran.lihat', 'pengaturan.peran.perbaiki', 'pengaturan.keamanan.lihat', 'pengaturan.keamanan.perbaiki'])
 })
 afterEach(() => {

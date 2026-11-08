@@ -19,10 +19,10 @@ use RuntimeException;
 final class TtdSintetisSeeder extends Seeder
 {
     /** Akun dengan TTE aktif: akun TTE contoh dan superadmin penyetuju e2e kontrol ganda (menandatangani keputusannya). */
-    public const AKTIF = ['contoh.ttd', 'contoh.superadmin.dua'];
+    public const AKTIF = ['ttd', 'superadmin.dua'];
 
     /** Akun tanpa TTE (alur aktivasi). */
-    public const BELUM_AKTIF = ['contoh.ttd.baru'];
+    public const BELUM_AKTIF = ['ttd.baru'];
 
     public function run(KunciServer $kunciServer): void
     {

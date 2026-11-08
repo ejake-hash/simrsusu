@@ -4,7 +4,7 @@ import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
 
 /**
  * Gateway integrasi (tiket 1.9) ke backend asli dengan simulator (INTEGRASI_SIMULATOR=true) dan akun sintetis
- * contoh.integrasi (MFA; pengaturan.integrasi.* sensitif, integrasi.satusehat/bpjs.*, integrasi.log.lihat).
+ * integrasi (MFA; pengaturan.integrasi.* sensitif, integrasi.satusehat/bpjs.*, integrasi.log.lihat).
  * Kredensial yang diketik sintetis. Kotak keluar fase fondasi kosong (kiriman nyata menyusul), jadi yang diuji:
  * kredensial tulis-saja, aktifkan, uji koneksi → log, dan layar pemantauan.
  */
@@ -23,7 +23,7 @@ test.beforeAll(({}, info) => {
 async function halaman(browser: Browser, asal: string, lebar = 1440): Promise<Page> {
   if (!sesi) {
     const masuk = await browser.newContext({ baseURL: asal, storageState: TANPA_SESI })
-    await masukLewatApi(masuk.request, asal, 'contoh.integrasi', RAHASIA)
+    await masukLewatApi(masuk.request, asal, 'integrasi', RAHASIA)
     sesi = await masuk.storageState()
     await masuk.close()
   }

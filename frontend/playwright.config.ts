@@ -32,7 +32,7 @@ export default defineConfig({
       testIgnore: LAYAR_FASE2_ATAU_BERURUTAN,
       use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
     },
-    // Mengubah akses contoh.admisi dan mereset MFA contoh.mfa yang dipakai spec lain, jadi berjalan paling akhir.
+    // Mengubah akses admisi dan mereset MFA mfa yang dipakai spec lain, jadi berjalan paling akhir.
     { name: 'pengaturan', testMatch: /pengaturan\.spec\.ts/, dependencies: ['desktop', 'seluler'], use: { ...devices['Desktop Chrome'] } },
     // 1.12-fe: semua layar fase 1 di empat lebar + axe, sesudah semua spec lain (data sintetis sudah terisi).
     { name: 'fase1', testMatch: /fase1\.spec\.ts/, dependencies: ['pengaturan'], use: { ...devices['Desktop Chrome'] } },
