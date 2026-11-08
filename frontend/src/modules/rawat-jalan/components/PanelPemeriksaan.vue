@@ -8,6 +8,7 @@ import Tombol from '@/design-system/components/Tombol.vue'
 import { tampilkanToast } from '@/design-system/components/toast'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
+import OrderPenunjang from '@/shared/components/OrderPenunjang.vue'
 import { boleh } from '@/shared/composables/usePermission'
 import { catatDiagnosis, cariKodeIcd10, daftarDiagnosis, mulaiPeriksa, ringkasanKlinis, selesaiPeriksa, ubahDiagnosis } from '../api'
 import { KUNCI_WORKLIST, LABEL_JENIS_DIAGNOSIS, pesanPemeriksaan } from '../rawatJalan'
@@ -28,11 +29,13 @@ const identitas = computed(() => `${props.baris.pasien.nama} · No. RM ${formatN
 const bisaInput = computed(() => boleh('rawat_jalan.pemeriksaan.input'))
 const bisaSelesai = computed(() => boleh('rawat_jalan.pemeriksaan.sahkan'))
 const status = ref<string | null>(null)
+const episodeId = ref<string | null>(null)
 const etag = ref<string | null>(null)
 const mulai = useMutation({
   mutationFn: () => mulaiPeriksa(kunjunganId.value),
   onSuccess: ({ data, etag: e }) => {
     status.value = data.status
+    episodeId.value = data.episode.id
     etag.value = e
     void qc.invalidateQueries({ queryKey: KUNCI_WORKLIST.semua })
   },
@@ -193,6 +196,8 @@ const tutup = useMutation({
         <Pesan v-if="galatCari" jenis="error">{{ galatCari }}</Pesan>
         <Pesan v-if="catat.isError.value" jenis="error">{{ pesanPemeriksaan(catat.error.value) }}</Pesan>
       </section>
+
+      <OrderPenunjang v-if="episodeId" :kunjungan-id="kunjunganId" :episode-id="episodeId" :bisa-pesan="dilayani && boleh('rawat_jalan.pemeriksaan.order.input')" />
 
       <div v-if="dilayani && bisaSelesai" class="selesai">
         <Pesan v-if="tutup.isError.value" jenis="error">{{ pesanPemeriksaan(tutup.error.value) }}</Pesan>
