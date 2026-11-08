@@ -26,13 +26,14 @@ final class AksesCatatan
      * Akun memegang salah satu izin di cakupan unit salah satu kunjungan yang cocok dengan filter.
      *
      * @param  list<string>  $izin
-     * @param  array{episode_id?: string, pasien_id?: list<string>}  $filter
+     * @param  array{episode_id?: string, pasien_id?: list<string>, tanpa_batal?: bool}  $filter
      */
     public function bolehBacaKunjungan(Pengguna $pengguna, array $izin, array $filter): bool
     {
         $unit = DB::table('kunjungan.kunjungan AS k')->join('inti.poliklinik AS p', 'p.id', '=', 'k.poli_id')
             ->when($filter['episode_id'] ?? null, fn ($q, $id) => $q->where('k.episode_id', $id))
             ->when($filter['pasien_id'] ?? null, fn ($q, $id) => $q->whereIn('k.pasien_id', $id))
+            ->when($filter['tanpa_batal'] ?? false, fn ($q) => $q->where('k.status', '<>', 'batal'))
             ->distinct()->limit(200)->pluck('p.unit_organisasi_id');
         $gate = Gate::forUser($pengguna);
 
