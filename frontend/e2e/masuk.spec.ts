@@ -3,10 +3,10 @@ import { expect, test, type Page } from '@playwright/test'
 // Akun dari AkunSintetisSeeder (data sintetis, bukan data pasien atau pegawai asli).
 const SANDI = process.env.E2E_SANDI ?? ''
 const AKUN = {
-  sukses: { nama: 'contoh.admisi', pegawai: 'Contoh Petugas Admisi' },
-  salah: { nama: 'contoh.perawat', pegawai: 'Contoh Perawat' },
+  sukses: { nama: 'admisi', pegawai: 'Contoh Petugas Admisi' },
+  salah: { nama: 'perawat', pegawai: 'Contoh Perawat' },
   // Akun khusus uji kunci: terkunci 15 menit setelah uji; seed ulang sebelum run berikutnya.
-  terkunci: { nama: 'contoh.terkunci' },
+  terkunci: { nama: 'terkunci' },
 }
 
 test.beforeAll(() => {

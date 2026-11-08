@@ -2,9 +2,9 @@ import { expect, test, type Page } from '@playwright/test'
 import { artisan, halamanAkun, pelanggaranAxe, SANDI } from './bantu'
 
 /**
- * Pendaftaran → duplikat pasien + Master pasien gabung RM (tiket 2.9) ke backend asli. contoh.admisi mendaftarkan dua
+ * Pendaftaran → duplikat pasien + Master pasien gabung RM (tiket 2.9) ke backend asli. admisi mendaftarkan dua
  * pasien bernama sama dan tanggal lahir sama (yang kedua memunculkan peringatan duplikat), lalu mengusulkan gabung;
- * contoh.rekam.medis (pemverifikasi, bukan pengusul) menyetujui. Nama dan tanggal lahir unik per jalan; pendaftaran
+ * rekam.medis (pemverifikasi, bukan pengusul) menyetujui. Nama dan tanggal lahir unik per jalan; pendaftaran
  * pasien butuh instalasi siap melayani (`lokal:kunjungan-contoh`).
  */
 const HURUF = Date.now().toString(36).toUpperCase().replace(/\d/g, (d) => 'QRSTUVWXYZ'[Number(d)])
@@ -42,7 +42,7 @@ async function daftarkan(page: Page, rmSebelumnya?: string): Promise<string> {
 }
 
 test('nama dan tanggal lahir sama memunculkan peringatan; pendaftaran mengusulkan gabung RM', async ({ browser, baseURL }) => {
-  const page = await halamanAkun(browser, new URL(baseURL ?? '').origin, 'contoh.admisi')
+  const page = await halamanAkun(browser, new URL(baseURL ?? '').origin, 'admisi')
   await page.goto('/pendaftaran/pasien')
   rmTetap = await daftarkan(page)
   rmLama = await daftarkan(page, rmTetap)
@@ -60,7 +60,7 @@ test('nama dan tanggal lahir sama memunculkan peringatan; pendaftaran mengusulka
   await expect(page.getByText('Usulan gabung terkirim ke Rekam Medis.')).toBeVisible()
 
   const baris = page.getByRole('row').filter({ hasText: NAMA })
-  await expect(baris).toContainText('contoh.admisi')
+  await expect(baris).toContainText('admisi')
   // Pengusul tidak bisa memverifikasi usulannya sendiri.
   await expect(baris.getByRole('button', { name: /^Verifikasi gabung/ })).toHaveCount(0)
   expect(await pelanggaranAxe(page)).toEqual([])
@@ -68,7 +68,7 @@ test('nama dan tanggal lahir sama memunculkan peringatan; pendaftaran mengusulka
 })
 
 test('Rekam Medis (bukan pengusul) menyetujui gabung', async ({ browser, baseURL }) => {
-  const page = await halamanAkun(browser, new URL(baseURL ?? '').origin, 'contoh.rekam.medis')
+  const page = await halamanAkun(browser, new URL(baseURL ?? '').origin, 'rekam.medis')
   await page.goto('/pendaftaran/master-pasien')
   const baris = page.getByRole('row').filter({ hasText: NAMA })
   await baris.getByRole('button', { name: `Verifikasi gabung ${rmLama}` }).click()

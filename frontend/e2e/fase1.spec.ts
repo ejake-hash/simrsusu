@@ -12,7 +12,7 @@ import { masukLewatApi, SANDI, tanpaGulirSamping, tungguJatahPenuh } from './ban
  * server (`/saya/menu`) agar halaman TERSEDIA yang baru tidak terlewat.
  *
  * Tangkapan layar hanya bila E2E_TANGKAPAN=1 → docs/lampiran/fase1/<layar>-<lebar>.png. Repo publik: database e2e
- * harus berisi identitas fiktif saja (paket "RS Contoh Pendidikan", akun contoh.*), tanpa data RS nyata.
+ * harus berisi identitas fiktif saja (paket "RS Contoh Pendidikan", akun sintetis), tanpa data RS nyata.
  */
 // Lebar diuji. Per-PR (DoD bertingkat) hanya 1440 lewat E2E_LEBAR=1440; e2e malam/gerbang fase memakai empat lebar
 // (bawaan). Daftar dipisah koma.
@@ -26,12 +26,12 @@ interface Akun {
   rahasia?: string
 }
 const AKUN = {
-  superadmin: { nama: 'contoh.superadmin', rahasia: process.env.E2E_SUPERADMIN_MFA_RAHASIA },
-  dataInduk: { nama: 'contoh.data.induk' },
-  pengusul: { nama: 'contoh.usulan.pengusul' },
-  sdm: { nama: 'contoh.sdm', rahasia: process.env.E2E_SDM_MFA_RAHASIA },
-  ttd: { nama: 'contoh.ttd' },
-  integrasi: { nama: 'contoh.integrasi', rahasia: process.env.E2E_INTEGRASI_MFA_RAHASIA },
+  superadmin: { nama: 'superadmin', rahasia: process.env.E2E_SUPERADMIN_MFA_RAHASIA },
+  dataInduk: { nama: 'data.induk' },
+  pengusul: { nama: 'usulan.pengusul' },
+  sdm: { nama: 'sdm', rahasia: process.env.E2E_SDM_MFA_RAHASIA },
+  ttd: { nama: 'ttd' },
+  integrasi: { nama: 'integrasi', rahasia: process.env.E2E_INTEGRASI_MFA_RAHASIA },
 } satisfies Record<string, Akun>
 
 interface Layar {

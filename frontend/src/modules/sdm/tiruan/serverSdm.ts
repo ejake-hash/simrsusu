@@ -154,11 +154,11 @@ export function buatServerSdm(opsi: OpsiServerSdm) {
     if (namaPengguna) opsi.akun.tautkan(namaPengguna, p.id)
     return p
   }
-  const sa = tambahPegawai({ nama: 'Contoh Superadmin', nip: 'SINT-0001', jabatan: 'Admin SIMRS' }, 'contoh.superadmin')
-  tambahPegawai({ nama: 'Contoh Superadmin Kedua', nip: 'SINT-0002', jabatan: 'Admin SIMRS' }, 'contoh.superadmin.dua')
-  const dokter = tambahPegawai({ nama: 'Contoh Dokter', nip: 'SINT-0101', nik: '1271000000000042', profesi: 'dokter', unit_id: opsi.unitContoh.irja, jabatan: 'Dokter spesialis penyakit dalam' }, 'contoh.dokter')
-  const perawat = tambahPegawai({ nama: 'Contoh Perawat', nip: 'SINT-0102', nik: '1271000000000043', profesi: 'perawat', unit_id: opsi.unitContoh.bpd, jabatan: 'Perawat pelaksana' }, 'contoh.perawat')
-  tambahPegawai({ nama: 'Contoh Admin Data Induk', nip: 'SINT-0103', unit_id: opsi.unitContoh.irna }, 'contoh.data.induk')
+  const sa = tambahPegawai({ nama: 'Contoh Superadmin', nip: 'SINT-0001', jabatan: 'Admin SIMRS' }, 'superadmin')
+  tambahPegawai({ nama: 'Contoh Superadmin Kedua', nip: 'SINT-0002', jabatan: 'Admin SIMRS' }, 'superadmin.dua')
+  const dokter = tambahPegawai({ nama: 'Contoh Dokter', nip: 'SINT-0101', nik: '1271000000000042', profesi: 'dokter', unit_id: opsi.unitContoh.irja, jabatan: 'Dokter spesialis penyakit dalam' }, 'dokter')
+  const perawat = tambahPegawai({ nama: 'Contoh Perawat', nip: 'SINT-0102', nik: '1271000000000043', profesi: 'perawat', unit_id: opsi.unitContoh.bpd, jabatan: 'Perawat pelaksana' }, 'perawat')
+  tambahPegawai({ nama: 'Contoh Admin Data Induk', nip: 'SINT-0103', unit_id: opsi.unitContoh.irna }, 'data.induk')
   const apoteker = tambahPegawai({ nama: 'Contoh Apoteker', nip: 'SINT-0201', profesi: 'apoteker', jabatan: 'Apoteker depo' })
   const bidan = tambahPegawai({ nama: 'Contoh Bidan Baru', profesi: 'bidan', unit_id: opsi.unitContoh.irna, tmt: null })
   const keluar = tambahPegawai({ nama: 'Contoh Pegawai Keluar', nip: 'SINT-0301', tanggal_keluar: '2026-09-30', alasan_keluar: 'Pindah tugas ke instansi lain (sintetis)' })

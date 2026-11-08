@@ -49,7 +49,7 @@ class TotpTest extends TestCase
         $this->assertSame($biner, Totp::base32Dekode(Totp::base32Enkode($biner)));
         $this->assertSame(32, strlen(Totp::rahasiaBaru()));
 
-        $uri = Totp::uriOtpauth('JBSWY3DPEHPK3PXP', 'RS Contoh', 'contoh.mfa');
-        $this->assertSame('otpauth://totp/RS%20Contoh:contoh.mfa?secret=JBSWY3DPEHPK3PXP&issuer=RS%20Contoh&algorithm=SHA1&digits=6&period=30', $uri);
+        $uri = Totp::uriOtpauth('JBSWY3DPEHPK3PXP', 'RS Contoh', 'mfa');
+        $this->assertSame('otpauth://totp/RS%20Contoh:mfa?secret=JBSWY3DPEHPK3PXP&issuer=RS%20Contoh&algorithm=SHA1&digits=6&period=30', $uri);
     }
 }

@@ -154,7 +154,7 @@ paths:
               example:
                 data:
                   id: 01a12988-9987-7242-838c-4302517cfdae
-                  nama_pengguna: contoh.dokter
+                  nama_pengguna: dokter
                   login_terakhir_pada: "2026-10-11T07:02:11+00:00"
                   mfa_aktif: false
                   pegawai: { id: 01a12988-9981-7000-8000-000000000001, nama: Contoh Dokter }

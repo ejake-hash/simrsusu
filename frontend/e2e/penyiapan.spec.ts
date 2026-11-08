@@ -3,8 +3,8 @@ import { expect, test, type APIRequestContext, type Browser, type Page } from '@
 import { headerTulis, masukLewatApi, pelanggaranAxe, SANDI, tanpaGulirSamping } from './bantu'
 
 /**
- * Pengaturan → Penyiapan instalasi (tiket 1.8f) ke backend asli dengan contoh.superadmin (penyiapan bawaan superadmin).
- * Instalasi e2e berisi akun sintetis: langkah 1 terpenuhi (contoh.superadmin + contoh.superadmin.dua ber-MFA, jaringan
+ * Pengaturan → Penyiapan instalasi (tiket 1.8f) ke backend asli dengan superadmin (penyiapan bawaan superadmin).
+ * Instalasi e2e berisi akun sintetis: langkah 1 terpenuhi (superadmin + superadmin.dua ber-MFA, jaringan
  * RS dari .env), profil RS tanpa logo (langkah 2 belum), langkah 7 menunggu fase 2. Muat paket referensi diuji di
  * unit test dan backend (butuh master_data.katalog.input, bukan izin superadmin).
  */
@@ -18,7 +18,7 @@ test.beforeAll(({}, info) => {
   test.skip(info.project.name !== 'desktop', 'satu alur akun superadmin, lebar diatur per uji')
   if (!SANDI || !RAHASIA_SUPERADMIN) throw new Error('Set E2E_SANDI dan E2E_SUPERADMIN_MFA_RAHASIA sesuai AkunSintetisSeeder.')
 })
-// Kode TOTP satu periode tidak boleh dipakai ulang; spec pengaturan (sesudah ini) juga masuk sebagai contoh.superadmin.
+// Kode TOTP satu periode tidak boleh dipakai ulang; spec pengaturan (sesudah ini) juga masuk sebagai superadmin.
 test.afterAll(async () => {
   if (!periodeMasuk) return
   const sisa = (periodeMasuk + 1) * 30_000 - Date.now()
@@ -29,7 +29,7 @@ async function halaman(browser: Browser, asal: string, lebar = 1440): Promise<Pa
   if (!sesi) {
     const masuk = await browser.newContext({ baseURL: asal, storageState: TANPA_SESI })
     periodeMasuk = Math.floor(Date.now() / 30_000)
-    await masukLewatApi(masuk.request, asal, 'contoh.superadmin', RAHASIA_SUPERADMIN)
+    await masukLewatApi(masuk.request, asal, 'superadmin', RAHASIA_SUPERADMIN)
     sesi = await masuk.storageState()
     await masuk.close()
   }

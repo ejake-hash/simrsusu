@@ -34,7 +34,7 @@ beforeEach(() => {
   waktu = SEKARANG
   gabungan = buatServerGabungan({ sekarang: () => waktu })
   pasangTiruan(klien, gabungan)
-  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'contoh.perawat', mfa_aktif: true })
+  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'perawat', mfa_aktif: true })
   POLI = gabungan.lokasi.contoh.poliAnak.id
   aturIzin(IZIN)
 })

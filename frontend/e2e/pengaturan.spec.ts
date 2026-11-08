@@ -5,12 +5,12 @@ import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
 /**
  * Pengaturan → Peran & izin, Akun & akses (tiket 1.2c) ke backend asli dengan akun sintetis AkunSintetisSeeder.
  * Proyek Playwright sendiri yang berjalan sesudah proyek lain (playwright.config.ts): uji ini mengubah akses
- * contoh.admisi dan mereset MFA contoh.mfa, yang dipakai spec lain. Jalankan ulang seeder sebelum run berikutnya.
+ * admisi dan mereset MFA mfa, yang dipakai spec lain. Jalankan ulang seeder sebelum run berikutnya.
  */
 const RAHASIA_SUPERADMIN = process.env.E2E_SUPERADMIN_MFA_RAHASIA ?? ''
 /** Superadmin kedua (tiket 1.2d): penyetuju pengajuan superadmin pertama (kontrol ganda K4/K13). */
 const RAHASIA_SUPERADMIN_DUA = process.env.E2E_SUPERADMIN_DUA_MFA_RAHASIA ?? ''
-/** contoh.sdm (peran Contoh Admin SDM) berperan sebagai pejabat PDP penyetuju label di uji 1.5. */
+/** sdm (peran Contoh Admin SDM) berperan sebagai pejabat PDP penyetuju label di uji 1.5. */
 const RAHASIA_SDM = process.env.E2E_SDM_MFA_RAHASIA ?? ''
 // Kode peran unik per run agar run lokal tanpa seeding ulang tidak bentrok kode_sudah_dipakai.
 const KODE_DASAR = `e2e_farmasi_${Date.now().toString(36)}`
@@ -23,7 +23,7 @@ test.describe.configure({ mode: 'serial' })
 /** Storage kosong: browser.newContext() di dalam uji mewarisi storageState fixture (sesi superadmin), dan masuk
  * sebagai akun lain di atas cookie itu me-regenerasi lalu menghapus sesi superadmin. */
 const TANPA_SESI = { cookies: [], origins: [] }
-/** PIN TTE sintetis contoh.superadmin.dua (TtdSintetisSeeder, AKUN_SINTETIS_TTD_PIN = E2E_TTD_PIN). */
+/** PIN TTE sintetis superadmin.dua (TtdSintetisSeeder, AKUN_SINTETIS_TTD_PIN = E2E_TTD_PIN). */
 const PIN_TTD = process.env.E2E_TTD_PIN ?? ''
 
 // Sesi akun lain dipakai ulang antar-uji: rate limit masuk per nama pengguna (10/menit) cepat habis bila tiap uji masuk.
@@ -84,12 +84,12 @@ test.beforeAll(async ({ playwright }, info) => {
   const asal = new URL(info.project.use.baseURL ?? '').origin
   const permintaan = await playwright.request.newContext({ baseURL: asal })
   // Satu kali masuk per berkas: kode TOTP tidak bisa dipakai dua kali dalam periodenya.
-  await masukLewatApi(permintaan, asal, 'contoh.superadmin', RAHASIA_SUPERADMIN)
+  await masukLewatApi(permintaan, asal, 'superadmin', RAHASIA_SUPERADMIN)
   sesiSuperadmin = await permintaan.storageState()
   await permintaan.dispose()
 })
 
-test('1440 px: halaman induk Pengaturan berisi kartu sub-menu, juga dari kartu Beranda; contoh.dokter tidak melihat Pengaturan', async ({ page, browser }, info) => {
+test('1440 px: halaman induk Pengaturan berisi kartu sub-menu, juga dari kartu Beranda; dokter tidak melihat Pengaturan', async ({ page, browser }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/pengaturan')
   await expect(page.getByRole('heading', { level: 1, name: 'Pengaturan Sistem' })).toBeVisible()
@@ -103,7 +103,7 @@ test('1440 px: halaman induk Pengaturan berisi kartu sub-menu, juga dari kartu B
   await expect(kartu.getByRole('link', { name: 'Peran & izin' })).toBeVisible()
   await expect(kartu.getByRole('link', { name: 'Akun & akses' })).toBeVisible()
 
-  const dokter = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'contoh.dokter')
+  const dokter = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'dokter')
   await dokter.page.goto('/pengaturan/peran')
   // Halaman yang ada tetapi tidak diberikan: Akses ditolak dengan Minta akses (1.2d); alurnya diuji di bawah.
   await expect(dokter.page.getByRole('heading', { level: 1, name: 'Akses ditolak' })).toBeVisible()
@@ -117,7 +117,7 @@ for (const [lebar, tinggi] of [
   [1024, 768],
   [768, 1024],
 ] as const) {
-  test(`${lebar} px: buat peran, beri sub-menu dengan dasar, tugaskan → contoh.admisi melihat menu baru`, async ({ page, browser }, info) => {
+  test(`${lebar} px: buat peran, beri sub-menu dengan dasar, tugaskan → admisi melihat menu baru`, async ({ page, browser }, info) => {
     const KODE_PERAN = `${KODE_DASAR}_${lebar}`
     const NAMA_PERAN = `${NAMA_DASAR} ${lebar}`
     await page.setViewportSize({ width: lebar, height: tinggi })
@@ -145,7 +145,7 @@ for (const [lebar, tinggi] of [
     await simpan.getByRole('button', { name: 'Simpan perubahan' }).click()
     await expect(page.getByRole('status').filter({ hasText: `Izin ${NAMA_PERAN} tersimpan: 1 ditambah, 0 dicabut` })).toBeVisible()
 
-    await pilihAkun(page, 'contoh.admisi', 'Contoh Petugas Admisi')
+    await pilihAkun(page, 'admisi', 'Contoh Petugas Admisi')
     await page.getByRole('button', { name: 'Tugaskan peran' }).click()
     const tugas = page.getByRole('dialog', { name: 'Tugaskan peran ke Contoh Petugas Admisi' })
     await tugas.getByLabel('Peran').selectOption({ label: NAMA_PERAN })
@@ -154,7 +154,7 @@ for (const [lebar, tinggi] of [
     await expect(page.getByRole('status').filter({ hasText: 'Peran ditugaskan.' })).toBeVisible()
     await expect(page.getByRole('listitem').filter({ hasText: NAMA_PERAN })).toBeVisible()
 
-    const admisi = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'contoh.admisi')
+    const admisi = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'admisi')
     await admisi.page.goto('/')
     await expect(menuUtama(admisi.page).getByRole('link', { name: /^Farmasi/ })).toBeVisible()
     await admisi.tutup()
@@ -163,7 +163,7 @@ for (const [lebar, tinggi] of [
   test(`${lebar} px: cabut per akun (cabut menang), Akhiri dengan alasan mengembalikan akses (MD-1)`, async ({ page, browser }, info) => {
     const asal = new URL(info.project.use.baseURL ?? '').origin
     await page.setViewportSize({ width: lebar, height: tinggi })
-    await pilihAkun(page, 'contoh.admisi', 'Contoh Petugas Admisi')
+    await pilihAkun(page, 'admisi', 'Contoh Petugas Admisi')
     await bukaTab(page, 'Per akun')
 
     await page.getByRole('button', { name: 'Tambah pengecualian' }).click()
@@ -175,7 +175,7 @@ for (const [lebar, tinggi] of [
     await tambah.getByRole('button', { name: 'Simpan pengecualian' }).click()
     await expect(page.getByRole('listitem').filter({ hasText: 'Dicabut' }).filter({ hasText: 'Farmasi → Stok depo' })).toBeVisible()
 
-    const admisi = await halamanAkun(browser, asal, 'contoh.admisi')
+    const admisi = await halamanAkun(browser, asal, 'admisi')
     await admisi.page.goto('/')
     await expect(menuUtama(admisi.page).getByRole('link', { name: 'Beranda' })).toBeVisible()
     await expect(menuUtama(admisi.page).getByRole('link', { name: /^Farmasi/ })).toHaveCount(0)
@@ -197,22 +197,22 @@ for (const [lebar, tinggi] of [
 
 test('Lihat sebagai menampilkan menu akun lain tanpa tautan; akun sendiri tanpa tombol ubah', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await pilihAkun(page, 'contoh.admisi', 'Contoh Petugas Admisi')
+  await pilihAkun(page, 'admisi', 'Contoh Petugas Admisi')
   await bukaTab(page, 'Lihat sebagai')
   const pratinjau = page.getByRole('navigation', { name: 'Pratinjau menu Contoh Petugas Admisi' })
   await expect(pratinjau.getByText('Farmasi')).toBeVisible()
   await expect(pratinjau.getByRole('link')).toHaveCount(0)
 
-  await pilihAkun(page, 'contoh.superadmin', 'Contoh Superadmin')
+  await pilihAkun(page, 'superadmin', 'Contoh Superadmin')
   await expect(page.getByText('Perubahan akun sendiri dilakukan superadmin lain.')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Tugaskan peran' })).toHaveCount(0)
   await bukaTab(page, 'MFA')
   await expect(page.getByRole('button', { name: 'Reset MFA' })).toHaveCount(0)
 })
 
-test('reset MFA contoh.mfa → contoh.mfa diminta mendaftar ulang saat masuk', async ({ page, browser }, info) => {
+test('reset MFA mfa → mfa diminta mendaftar ulang saat masuk', async ({ page, browser }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await pilihAkun(page, 'contoh.mfa', 'Contoh Akun MFA')
+  await pilihAkun(page, 'mfa', 'Contoh Akun MFA')
   await bukaTab(page, 'MFA')
   await expect(page.getByText('Dari luar jaringan RS, MFA selalu wajib.')).toBeVisible()
   await page.getByRole('button', { name: 'Reset MFA' }).click()
@@ -226,7 +226,7 @@ test('reset MFA contoh.mfa → contoh.mfa diminta mendaftar ulang saat masuk', a
   const konteks = await browser.newContext({ baseURL: new URL(info.project.use.baseURL ?? '').origin, storageState: TANPA_SESI })
   const mfa = await konteks.newPage()
   await mfa.goto('/masuk')
-  await mfa.getByLabel('Nama pengguna').fill('contoh.mfa')
+  await mfa.getByLabel('Nama pengguna').fill('mfa')
   const sandi = mfa.getByLabel('Kata sandi', { exact: true })
   await sandi.fill(SANDI)
   await sandi.press('Enter')
@@ -246,7 +246,7 @@ for (const [lebar, tinggi] of [
     await expect(page.getByRole('navigation', { name: 'Sub-menu Pengaturan Sistem' })).toBeVisible()
     await tanpaGulirSamping(page)
 
-    await pilihAkun(page, 'contoh.dokter', 'Contoh Dokter')
+    await pilihAkun(page, 'dokter', 'Contoh Dokter')
     await tanpaGulirSamping(page)
   })
 }
@@ -299,7 +299,7 @@ test('1440 px: profil RS — kontras diuji sebelum simpan; nama dan logo baru ta
 
 test('1440 px: penugasan ber-cakupan unit tampil dengan label unit; pemegangnya melihat pemilih unit kerja di header', async ({ page, browser }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await pilihAkun(page, 'contoh.perawat', 'Contoh Perawat')
+  await pilihAkun(page, 'perawat', 'Contoh Perawat')
   for (const [peran, kode] of [
     ['Contoh Petugas Admisi', 'RUANG-MELATI'],
     ['Contoh Dokter', 'RUANG-MAWAR'],
@@ -320,7 +320,7 @@ test('1440 px: penugasan ber-cakupan unit tampil dengan label unit; pemegangnya 
     await expect(page.getByRole('listitem').filter({ hasText: peran }).filter({ hasText: `Unit kerja · ${kode} · ` })).toBeVisible()
   }
 
-  const perawat = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'contoh.perawat')
+  const perawat = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'perawat')
   await perawat.page.goto('/')
   const pemilih = perawat.page.getByRole('combobox', { name: 'Unit kerja' })
   await expect(pemilih.getByRole('option')).toHaveText(['Ruang Mawar (contoh)', 'Ruang Melati (contoh)'])
@@ -340,13 +340,13 @@ test('1440 px: penugasan ber-cakupan unit tampil dengan label unit; pemegangnya 
 })
 
 // ── Tiket 1.2d: persetujuan dan permintaan akses ──
-// Pengajuan oleh contoh.superadmin, keputusan oleh contoh.superadmin.dua (kontrol ganda), pengaju tidak bisa menyetujui
+// Pengajuan oleh superadmin, keputusan oleh superadmin.dua (kontrol ganda), pengaju tidak bisa menyetujui
 // sendiri (MD-4), tarik pengajuan, dan permintaan akses dari layar Akses ditolak.
 
-test('1440 px: Akses ditolak → Minta akses (contoh.dokter) → superadmin melihat permintaannya lalu menolak dengan alasan', async ({ page, browser }, info) => {
+test('1440 px: Akses ditolak → Minta akses (dokter) → superadmin melihat permintaannya lalu menolak dengan alasan', async ({ page, browser }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   const alasan = `Membantu audit peran ${Date.now().toString(36)}`
-  const dokter = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'contoh.dokter')
+  const dokter = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'dokter')
   await dokter.page.goto('/pengaturan/peran')
   await expect(dokter.page.getByRole('heading', { level: 1, name: 'Akses ditolak' })).toBeVisible()
   await dokter.page.getByRole('button', { name: 'Minta akses' }).click()
@@ -448,7 +448,7 @@ test('1440 px: izin sensitif ke peran → menunggu persetujuan Superadmin; penga
 
 test('1440 px: tugaskan peran Superadmin → 202 menunggu superadmin lain, tampil di rincian akun, ditarik pengaju', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await pilihAkun(page, 'contoh.data.induk', 'Contoh Admin Data Induk')
+  await pilihAkun(page, 'data.induk', 'Contoh Admin Data Induk')
   await page.getByRole('button', { name: 'Tugaskan peran' }).click()
   const tugas = page.getByRole('dialog', { name: 'Tugaskan peran ke Contoh Admin Data Induk' })
   await tugas.getByLabel('Peran').selectOption({ label: 'Superadmin · wajib MFA · butuh persetujuan superadmin lain' })
@@ -487,7 +487,7 @@ test('1440 px: kontrol ganda — superadmin A menambah izin sensitif, superadmin
   await simpan.getByRole('button', { name: 'Simpan perubahan' }).click()
   await expect(page.getByRole('status').filter({ hasText: /2 izin sensitif menunggu persetujuan Superadmin/ })).toBeVisible()
 
-  const b = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'contoh.superadmin.dua', RAHASIA_SUPERADMIN_DUA)
+  const b = await halamanAkun(browser, new URL(info.project.use.baseURL ?? '').origin, 'superadmin.dua', RAHASIA_SUPERADMIN_DUA)
   await b.page.setViewportSize({ width: 1440, height: 900 })
   await b.page.goto('/pengaturan/persetujuan')
   const antrean = b.page.getByRole('region', { name: 'Perlu saya putuskan' })
@@ -532,7 +532,7 @@ test('1440 px: kontrol ganda — penugasan dan pengakhiran peran Superadmin berl
   await page.setViewportSize({ width: 1440, height: 900 })
   const asal = new URL(info.project.use.baseURL ?? '').origin
   const setujuiSemua = async (pola: RegExp) => {
-    const b = await halamanAkun(browser, asal, 'contoh.superadmin.dua', RAHASIA_SUPERADMIN_DUA)
+    const b = await halamanAkun(browser, asal, 'superadmin.dua', RAHASIA_SUPERADMIN_DUA)
     await b.page.setViewportSize({ width: 1440, height: 900 })
     await b.page.goto('/pengaturan/persetujuan')
     await b.page.getByRole('region', { name: 'Perlu saya putuskan' }).getByRole('button', { name: pola }).first().click()
@@ -542,7 +542,7 @@ test('1440 px: kontrol ganda — penugasan dan pengakhiran peran Superadmin berl
     await b.tutup()
   }
 
-  await pilihAkun(page, 'contoh.tanpa.peran', 'Contoh Akun Tanpa Peran')
+  await pilihAkun(page, 'tanpa.peran', 'Contoh Akun Tanpa Peran')
   await page.getByRole('button', { name: 'Tugaskan peran' }).click()
   const tugas = page.getByRole('dialog', { name: 'Tugaskan peran ke Contoh Akun Tanpa Peran' })
   await tugas.getByLabel('Peran').selectOption({ label: 'Superadmin · wajib MFA · butuh persetujuan superadmin lain' })
@@ -552,7 +552,7 @@ test('1440 px: kontrol ganda — penugasan dan pengakhiran peran Superadmin berl
   await setujuiSemua(/Tugaskan peran Superadmin ke Contoh Akun Tanpa Peran/)
 
   await page.reload()
-  await pilihAkun(page, 'contoh.tanpa.peran', 'Contoh Akun Tanpa Peran')
+  await pilihAkun(page, 'tanpa.peran', 'Contoh Akun Tanpa Peran')
   const penugasan = page.getByRole('listitem').filter({ hasText: 'Superadmin' }).filter({ hasText: 'SK Direktur E2E/9' })
   await expect(penugasan.getByRole('button', { name: 'Akhiri' })).toBeVisible()
 
@@ -565,7 +565,7 @@ test('1440 px: kontrol ganda — penugasan dan pengakhiran peran Superadmin berl
   await setujuiSemua(/Akhiri penugasan peran Superadmin untuk Contoh Akun Tanpa Peran/)
 
   await page.reload()
-  await pilihAkun(page, 'contoh.tanpa.peran', 'Contoh Akun Tanpa Peran')
+  await pilihAkun(page, 'tanpa.peran', 'Contoh Akun Tanpa Peran')
   await expect(page.getByText('Belum ada peran yang berlaku.')).toBeVisible()
 })
 
@@ -696,15 +696,15 @@ test('reset sandi: sesi lama akun putus, sandi sementara sekali tampil, masuk de
   const uji = await page.request.post(`/api/v1/akun/${saya.id}/sandi/reset`, { headers: header, data: {} })
   test.skip(uji.status() === 404, 'Backend belum punya POST /akun/{id}/sandi/reset (sebelum 1.14-be).')
 
-  await pilihAkun(page, 'contoh.superadmin', 'Contoh Superadmin')
+  await pilihAkun(page, 'superadmin', 'Contoh Superadmin')
   await expect(page.getByRole('button', { name: 'Reset sandi' })).toHaveCount(0)
 
   // Sesi lama pemilik akun yang akan direset; permintaan SPA bersesi butuh Origin/Referer (Sanctum stateful).
-  const lama = await halamanAkun(browser, asal, 'contoh.tanpa.peran')
+  const lama = await halamanAkun(browser, asal, 'tanpa.peran')
   const sayaLama = () => lama.page.request.get('/api/v1/saya', { headers: { Accept: 'application/json', Origin: asal, Referer: `${asal}/` } })
   expect((await sayaLama()).status(), 'sesi lama hidup sebelum reset').toBe(200)
 
-  await pilihAkun(page, 'contoh.tanpa.peran', 'Contoh Akun Tanpa Peran')
+  await pilihAkun(page, 'tanpa.peran', 'Contoh Akun Tanpa Peran')
   await page.getByRole('button', { name: 'Reset sandi' }).click()
   const dialog = page.getByRole('alertdialog', { name: 'Reset sandi Contoh Akun Tanpa Peran?' })
   await dialog.getByLabel('Alasan').fill('Pemilik lupa sandi, diverifikasi tatap muka (e2e)')
@@ -713,7 +713,7 @@ test('reset sandi: sesi lama akun putus, sandi sementara sekali tampil, masuk de
   const hasil = page.getByRole('alertdialog', { name: 'Sandi sementara Contoh Akun Tanpa Peran' })
   await expect(hasil.getByText('Sandi ini tidak akan ditampilkan lagi')).toBeVisible()
   await expect(hasil.locator('code.sandi')).toHaveCount(0)
-  // Soft: kegagalan di sini tidak boleh menghentikan uji sebelum sandi contoh.tanpa.peran dipulihkan di bawah.
+  // Soft: kegagalan di sini tidak boleh menghentikan uji sebelum sandi tanpa.peran dipulihkan di bawah.
   for (const lebar of [1440, 1024, 768]) {
     await page.setViewportSize({ width: lebar, height: 900 })
     const axe = await new AxeBuilder({ page }).analyze()
@@ -726,11 +726,11 @@ test('reset sandi: sesi lama akun putus, sandi sementara sekali tampil, masuk de
   await hasil.getByRole('button', { name: 'Tampilkan sandi' }).click()
   const sementara = (await hasil.locator('code.sandi').textContent()) ?? ''
   expect(sementara.length).toBeGreaterThanOrEqual(16)
-  sesiAkun.delete('contoh.tanpa.peran')
+  sesiAkun.delete('tanpa.peran')
   try {
     await hasil.getByRole('button', { name: 'Selesai' }).click()
     await expect(page.getByText(sementara)).toHaveCount(0)
-    await expect(page.getByText('Sandi contoh.tanpa.peran direset')).toBeVisible()
+    await expect(page.getByText('Sandi tanpa.peran direset')).toBeVisible()
     // Sesi lama diputus di permintaan berikutnya.
     expect((await sayaLama()).status(), 'sesi lama diputus sesudah reset').toBe(401)
   } finally {
@@ -739,7 +739,7 @@ test('reset sandi: sesi lama akun putus, sandi sementara sekali tampil, masuk de
     const tamu = await browser.newContext({ baseURL: asal, storageState: TANPA_SESI })
     const p = await tamu.newPage()
     await p.goto('/masuk')
-    await p.getByLabel('Nama pengguna').fill('contoh.tanpa.peran')
+    await p.getByLabel('Nama pengguna').fill('tanpa.peran')
     await p.getByLabel('Kata sandi', { exact: true }).fill(sementara)
     await p.getByRole('button', { name: 'Masuk', exact: true }).click()
     await expect(p).toHaveURL(/\/ganti-sandi/)
@@ -797,28 +797,28 @@ test('keamanan: masa percaya diubah lalu dipulihkan; Keamanan dan Perangkat tepe
 })
 
 // ── Tiket 1.8d: nonaktif/aktif akun dengan alasan ──
-test('1440 px: nonaktifkan akun dengan alasan lalu aktifkan kembali (contoh.terkunci); akun sendiri tanpa tombol', async ({ page }) => {
+test('1440 px: nonaktifkan akun dengan alasan lalu aktifkan kembali (terkunci); akun sendiri tanpa tombol', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/pengaturan/akun')
-  await pilihAkun(page, 'contoh.terkunci', 'Contoh Akun Uji Kunci')
+  await pilihAkun(page, 'terkunci', 'Contoh Akun Uji Kunci')
   const rincian = page.getByRole('region', { name: 'Contoh Akun Uji Kunci' })
   await rincian.getByRole('button', { name: 'Nonaktifkan akun' }).click()
-  const nonaktif = page.getByRole('alertdialog', { name: 'Nonaktifkan contoh.terkunci?' })
+  const nonaktif = page.getByRole('alertdialog', { name: 'Nonaktifkan terkunci?' })
   await nonaktif.getByRole('button', { name: 'Nonaktifkan' }).click()
   await expect(nonaktif.getByText('Isi alasan, minimal 5 karakter.')).toBeVisible()
   await nonaktif.getByLabel('Alasan').fill('Uji e2e nonaktif akun (sintetis)')
   await nonaktif.getByRole('button', { name: 'Nonaktifkan' }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'Akun contoh.terkunci dinonaktifkan; sesinya diakhiri.' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'Akun terkunci dinonaktifkan; sesinya diakhiri.' })).toBeVisible()
   await expect(rincian.getByText('Nonaktif', { exact: true })).toBeVisible()
 
   await rincian.getByRole('button', { name: 'Aktifkan akun' }).click()
-  const aktif = page.getByRole('dialog', { name: 'Aktifkan contoh.terkunci?' })
+  const aktif = page.getByRole('dialog', { name: 'Aktifkan terkunci?' })
   await aktif.getByLabel('Alasan').fill('Uji e2e selesai (sintetis)')
   await aktif.getByRole('button', { name: 'Aktifkan' }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'Akun contoh.terkunci diaktifkan.' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'Akun terkunci diaktifkan.' })).toBeVisible()
   await expect(rincian.getByRole('button', { name: 'Nonaktifkan akun' })).toBeVisible()
 
-  await pilihAkun(page, 'contoh.superadmin', 'Contoh Superadmin')
+  await pilihAkun(page, 'superadmin', 'Contoh Superadmin')
   await expect(page.getByRole('button', { name: /^(Nonaktifkan|Aktifkan) akun$/ })).toHaveCount(0)
 })
 
@@ -857,12 +857,12 @@ test('1440 px: izin label — penyetuju label disetujui superadmin lain, izin la
   await penyetuju.getByLabel('Dasar perubahan').fill('SK PDP E2E/1')
   await penyetuju.getByRole('button', { name: 'Ajukan' }).click()
   await expect(page.getByRole('status').filter({ hasText: /Penyetuju label HIV menunggu persetujuan Superadmin \(PSA-/ })).toBeVisible()
-  await setujuiLewatApi(browser, asal, 'contoh.superadmin.dua', RAHASIA_SUPERADMIN_DUA, (await pengajuanTerakhir(page, asal)).id)
+  await setujuiLewatApi(browser, asal, 'superadmin.dua', RAHASIA_SUPERADMIN_DUA, (await pengajuanTerakhir(page, asal)).id)
   await page.reload()
   await expect(page.getByRole('row', { name: /HIV/ })).toContainText('Contoh Admin SDM')
 
-  // Izin label untuk contoh.admisi: selalu menunggu pejabat PDP, berbatas waktu.
-  await pilihAkun(page, 'contoh.admisi', 'Contoh Petugas Admisi')
+  // Izin label untuk admisi: selalu menunggu pejabat PDP, berbatas waktu.
+  await pilihAkun(page, 'admisi', 'Contoh Petugas Admisi')
   await bukaTab(page, 'Label')
   await expect(page.getByText('Akun ini tidak punya izin label yang berlaku.')).toBeVisible()
   const axe = await new AxeBuilder({ page }).analyze()
@@ -881,9 +881,9 @@ test('1440 px: izin label — penyetuju label disetujui superadmin lain, izin la
 
   const izin = await pengajuanTerakhir(page, asal)
   expect(izin.jenis).toBe('izin_label')
-  await setujuiLewatApi(browser, asal, 'contoh.sdm', RAHASIA_SDM, izin.id)
+  await setujuiLewatApi(browser, asal, 'sdm', RAHASIA_SDM, izin.id)
   await page.reload()
-  await pilihAkun(page, 'contoh.admisi', 'Contoh Petugas Admisi')
+  await pilihAkun(page, 'admisi', 'Contoh Petugas Admisi')
   await bukaTab(page, 'Label')
   const berlaku = page.getByRole('list', { name: 'Izin label yang berlaku' })
   await expect(berlaku).toContainText('HIV')

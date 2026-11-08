@@ -3,9 +3,9 @@ import { expect, test, type Browser, type Page } from '@playwright/test'
 import { masukLewatApi, SANDI } from './bantu'
 
 /**
- * Tanda tangan elektronik T1 (tiket 1.6) ke backend asli, akun sintetis TtdSintetisSeeder: contoh.ttd.baru (belum
- * punya TTE, alur aktivasi) dan contoh.ttd (TTE aktif, PIN E2E_TTD_PIN; dipakai untuk penguncian, bukan
- * contoh.superadmin.dua yang dipakai e2e pengaturan). CI memakai TTD_KUNCI_MENIT=1. Pengulangan lokal butuh db:seed ulang.
+ * Tanda tangan elektronik T1 (tiket 1.6) ke backend asli, akun sintetis TtdSintetisSeeder: ttd.baru (belum
+ * punya TTE, alur aktivasi) dan ttd (TTE aktif, PIN E2E_TTD_PIN; dipakai untuk penguncian, bukan
+ * superadmin.dua yang dipakai e2e pengaturan). CI memakai TTD_KUNCI_MENIT=1. Pengulangan lokal butuh db:seed ulang.
  */
 const PIN = process.env.E2E_TTD_PIN ?? ''
 const TANPA_SESI = { cookies: [], origins: [] }
@@ -27,7 +27,7 @@ async function halaman(browser: Browser, asal: string, nama: string): Promise<Pa
 const asalDari = (baseURL: string | undefined) => new URL(baseURL ?? '').origin
 
 test('aktivasi TTE dari menu akun: sandi akun wajib, PIN lemah ditolak server; berhasil → aktif; kartu Keamanan akun ikut berubah', async ({ browser }, info) => {
-  const page = await halaman(browser, asalDari(info.project.use.baseURL), 'contoh.ttd.baru')
+  const page = await halaman(browser, asalDari(info.project.use.baseURL), 'ttd.baru')
   await page.goto('/')
   await expect(page.getByRole('region', { name: 'Keamanan akun' })).toContainText('Belum aktif')
   await page.getByRole('button', { name: 'Menu akun' }).click()
@@ -59,7 +59,7 @@ test('aktivasi TTE dari menu akun: sandi akun wajib, PIN lemah ditolak server; b
 })
 
 test('ganti PIN dengan PIN lama salah: sisa percobaan disebut; ke-5 terkunci (403 Retry-After) dan formulir nonaktif', async ({ browser }, info) => {
-  const page = await halaman(browser, asalDari(info.project.use.baseURL), 'contoh.ttd')
+  const page = await halaman(browser, asalDari(info.project.use.baseURL), 'ttd')
   await page.goto('/tanda-tangan')
   const ganti = page.getByRole('region', { name: 'Ganti PIN' })
   for (let i = 1; i <= 5; i++) {

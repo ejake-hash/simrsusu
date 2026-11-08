@@ -205,13 +205,13 @@ class SiapkanEnvTest extends TestCase
         $rahasia = Totp::rahasiaBaru();
         config(['autentikasi.akun_sintetis_superadmin_mfa_rahasia' => $rahasia]);
 
-        $this->artisan('lokal:kode-mfa', ['nama_pengguna' => 'contoh.superadmin'])->assertFailed();
+        $this->artisan('lokal:kode-mfa', ['nama_pengguna' => 'superadmin'])->assertFailed();
 
         $this->app['env'] = 'local';
         $this->travelTo(now()->setTime(10, 0, 5));
-        $this->artisan('lokal:kode-mfa', ['nama_pengguna' => 'contoh.superadmin'])
+        $this->artisan('lokal:kode-mfa', ['nama_pengguna' => 'superadmin'])
             ->expectsOutputToContain(Totp::kode($rahasia, Totp::langkah(now()->getTimestamp())))
             ->assertSuccessful();
-        $this->artisan('lokal:kode-mfa', ['nama_pengguna' => 'contoh.admisi'])->assertFailed();
+        $this->artisan('lokal:kode-mfa', ['nama_pengguna' => 'admisi'])->assertFailed();
     }
 }

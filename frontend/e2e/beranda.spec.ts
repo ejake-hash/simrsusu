@@ -3,10 +3,10 @@ import { expect, test, type APIRequestContext, type Browser, type BrowserContext
 import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
 
 /**
- * Beranda (tiket 1.2e) ke backend asli dengan akun sintetis AkunSintetisSeeder. Peran contoh: contoh.dokter →
- * IGD, Rawat Jalan, Rekam Medis; contoh.admisi → Pendaftaran (semuanya Segera hadir di APP_ENV=local) + Master Data
+ * Beranda (tiket 1.2e) ke backend asli dengan akun sintetis AkunSintetisSeeder. Peran contoh: dokter →
+ * IGD, Rawat Jalan, Rekam Medis; admisi → Pendaftaran (semuanya Segera hadir di APP_ENV=local) + Master Data
  * (lihat poli, jadwal, penjamin untuk layar kunjungan poli);
- * contoh.tanpa.peran tanpa penugasan.
+ * tanpa.peran tanpa penugasan.
  * Kartu modul aktif (Pengaturan) diuji di pengaturan.spec.ts dengan sesi superadmin.
  */
 type Sesi = Awaited<ReturnType<BrowserContext['storageState']>>
@@ -41,9 +41,9 @@ async function bukaBeranda(page: Page, nama: string) {
   await expect(page.getByRole('heading', { level: 1, name: new RegExp(`^Selamat (pagi|siang|sore|malam), ${nama}$`) })).toBeVisible()
 }
 
-test('kisi modul mengikuti peran: contoh.dokter dan contoh.admisi berbeda; kartu Segera hadir membuka SegeraHadirPage', async ({ browser }, info) => {
+test('kisi modul mengikuti peran: dokter dan admisi berbeda; kartu Segera hadir membuka SegeraHadirPage', async ({ browser }, info) => {
   const asal = asalDari(info.project.use.baseURL)
-  const dokter = await halaman(browser, asal, 'contoh.dokter')
+  const dokter = await halaman(browser, asal, 'dokter')
   await bukaBeranda(dokter, 'Contoh Dokter')
   await expect(dokter.getByText('· Contoh Dokter')).toBeVisible()
   await expect(judulKartu(dokter)).toHaveText(['IGD', 'Rawat Jalan', 'Rekam Medis'])
@@ -53,7 +53,7 @@ test('kisi modul mengikuti peran: contoh.dokter dan contoh.admisi berbeda; kartu
   await expect(dokter).toHaveURL(/\/igd\/papan$/)
   await expect(dokter.getByRole('main').getByText('Segera hadir', { exact: true })).toBeVisible()
 
-  const admisi = await halaman(browser, asal, 'contoh.admisi')
+  const admisi = await halaman(browser, asal, 'admisi')
   await bukaBeranda(admisi, 'Contoh Petugas Admisi')
   await expect(judulKartu(admisi)).toHaveText(['Pendaftaran', 'Master Data'])
   await modulSaya(admisi).getByRole('link', { name: 'Pendaftaran', exact: true }).click()
@@ -62,7 +62,7 @@ test('kisi modul mengikuti peran: contoh.dokter dan contoh.admisi berbeda; kartu
 })
 
 test('akun tanpa penugasan hanya melihat Beranda dengan keterangan siapa yang dihubungi', async ({ browser }, info) => {
-  const page = await halaman(browser, asalDari(info.project.use.baseURL), 'contoh.tanpa.peran')
+  const page = await halaman(browser, asalDari(info.project.use.baseURL), 'tanpa.peran')
   await bukaBeranda(page, 'Contoh Akun Tanpa Peran')
   await expect(modulSaya(page).getByText(/Belum ada modul yang diberikan, hubungi \S/)).toBeVisible()
   await expect(modulSaya(page).getByRole('article')).toHaveCount(0)
@@ -80,14 +80,14 @@ test('masuk dua kali: kali kedua menampilkan waktu masuk sebelumnya, bukan waktu
 
   // Akun yang tidak dipakai spec lain di proyek ini: masuk paralel akun yang sama akan mengubah "masuk terakhir".
   const pertama = await playwright.request.newContext({ baseURL: asal })
-  await masukLewatApi(pertama, asal, 'contoh.tanpa.peran')
+  await masukLewatApi(pertama, asal, 'tanpa.peran')
   const masukPertama = (await saya(pertama)).login_terakhir_pada
   await pertama.dispose()
   // Waktu masuk disimpan per detik; jeda agar masuk kedua pasti berbeda.
   await new Promise((r) => setTimeout(r, 1100))
 
   const kedua = await browser.newContext({ baseURL: asal })
-  await masukLewatApi(kedua.request, asal, 'contoh.tanpa.peran')
+  await masukLewatApi(kedua.request, asal, 'tanpa.peran')
   const isi = await saya(kedua.request)
   expect(isi.masuk_sebelumnya_pada).toBe(masukPertama)
   expect(isi.login_terakhir_pada).not.toBe(masukPertama)
@@ -104,7 +104,7 @@ test('masuk dua kali: kali kedua menampilkan waktu masuk sebelumnya, bukan waktu
 })
 
 test('Ctrl/Cmd+K hanya menemukan menu yang diizinkan dan dapat dipakai penuh dengan keyboard', async ({ browser }, info) => {
-  const page = await halaman(browser, asalDari(info.project.use.baseURL), 'contoh.dokter')
+  const page = await halaman(browser, asalDari(info.project.use.baseURL), 'dokter')
   await bukaBeranda(page, 'Contoh Dokter')
 
   // Tombol mengumumkan pintasannya sendiri (Meta+K di Apple, Control+K di lainnya, mengikuti user agent).
@@ -115,7 +115,7 @@ test('Ctrl/Cmd+K hanya menemukan menu yang diizinkan dan dapat dipakai penuh den
   const kolom = dialog.getByRole('combobox', { name: 'Nama menu atau sub-menu' })
   await expect(kolom).toBeFocused()
 
-  // Pengaturan tidak diberikan ke contoh.dokter, jadi tidak pernah muncul.
+  // Pengaturan tidak diberikan ke dokter, jadi tidak pernah muncul.
   await page.keyboard.type('akun')
   await expect(dialog.getByRole('status')).toContainText('Tidak ada menu yang cocok')
   await expect(dialog.getByRole('option')).toHaveCount(0)
@@ -142,7 +142,7 @@ for (const [lebar, tinggi] of [
   [390, 844],
 ] as const) {
   test(`${lebar} px: Beranda tanpa gulir samping dan tanpa pelanggaran axe serius/kritis`, async ({ browser }, info) => {
-    const page = await halaman(browser, asalDari(info.project.use.baseURL), 'contoh.dokter', lebar, tinggi)
+    const page = await halaman(browser, asalDari(info.project.use.baseURL), 'dokter', lebar, tinggi)
     await bukaBeranda(page, 'Contoh Dokter')
     await expect(page.getByRole('region', { name: 'Kotak kerja' })).toBeVisible()
     await expect(page.getByRole('region', { name: 'Keamanan akun' })).toBeVisible()
@@ -158,7 +158,7 @@ for (const [lebar, tinggi] of [
 
 // ── Tiket 1.7: kotak kerja, lonceng, dan preferensi notifikasi berfungsi di ponsel (PRD 5.5) ──
 test('390 px: kotak kerja ringkas, lonceng membuka panel, preferensi notifikasi disimpan; tanpa gulir samping', async ({ browser }, info) => {
-  const page = await halaman(browser, asalDari(info.project.use.baseURL), 'contoh.tanpa.peran', 390, 844)
+  const page = await halaman(browser, asalDari(info.project.use.baseURL), 'tanpa.peran', 390, 844)
   await page.goto('/')
   const kotak = page.getByRole('region', { name: 'Kotak kerja' })
   await expect(kotak.getByRole('tab', { name: 'Tugas saya (0)' })).toBeVisible()

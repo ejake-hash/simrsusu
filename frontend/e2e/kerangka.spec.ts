@@ -6,7 +6,7 @@ import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
  * sintetis; menu dari GET /saya/menu (tiket 1.2a) sesuai peran contoh_dokter di AkunSintetisSeeder:
  * IGD, Rawat Jalan, Rekam Medis, semuanya Segera hadir di APP_ENV=local.
  */
-const AKUN = { nama: 'contoh.dokter', pegawai: 'Contoh Dokter' }
+const AKUN = { nama: 'dokter', pegawai: 'Contoh Dokter' }
 
 // Masuk sekali per berkas, lalu cookie sesinya dipakai semua uji: rate limit masuk per nama
 // pengguna (10/menit) cepat habis bila tiap uji masuk sendiri.

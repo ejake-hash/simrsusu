@@ -30,7 +30,7 @@ beforeEach(() => {
   const tangani = server.tangani.bind(server)
   permintaan = []
   server.tangani = (r: PermintaanTiruan) => (permintaan.push(r), tangani(r))
-  masukSebagai(ID_SUPERADMIN, 'contoh.superadmin', 'Contoh Superadmin')
+  masukSebagai(ID_SUPERADMIN, 'superadmin', 'Contoh Superadmin')
 })
 afterEach(() => {
   klien.defaults.adapter = adapterAsli
@@ -51,7 +51,7 @@ function persetujuanDiputuskanDua(): PersetujuanAkses {
   const izin = [...(awal.isi as { data: { izin: string[] } }).data.izin, 'pengaturan.akun.lihat', 'pengaturan.akun.input']
   const r = minta('PUT', `/peran/${KASIR}/izin`, { izin, dasar_perubahan: 'SK 2/2026' }, { 'if-match': awal.header!.ETag! })
   const p = (r.isi as { perubahan: { menunggu_persetujuan: PersetujuanAkses[] } }).perubahan.menunggu_persetujuan[0]!
-  masukSebagai(ID_SUPERADMIN_DUA, 'contoh.superadmin.dua', 'Contoh Superadmin Kedua')
+  masukSebagai(ID_SUPERADMIN_DUA, 'superadmin.dua', 'Contoh Superadmin Kedua')
   expect(minta('POST', `/persetujuan-akses/${p.id}/setujui`, { catatan: null }).status).toBe(200)
   return p
 }
@@ -152,7 +152,7 @@ describe('Tanda tangan keputusan persetujuan', () => {
     const r = minta('PUT', `/peran/${KASIR}/izin`, { izin, dasar_perubahan: 'SK 4/2026' }, { 'if-match': awal.header!.ETag! })
     const p = (r.isi as { perubahan: { menunggu_persetujuan: PersetujuanAkses[] } }).perubahan.menunggu_persetujuan[0]!
     server.ttd.aktifkan(ID_SUPERADMIN)
-    masukSebagai(ID_SUPERADMIN, 'contoh.superadmin', 'Contoh Superadmin')
+    masukSebagai(ID_SUPERADMIN, 'superadmin', 'Contoh Superadmin')
     expect(minta('POST', `/persetujuan-akses/${p.id}/batalkan`, { alasan: 'Salah peran (sintetis)' }).status).toBe(200)
     await pasang(RincianPersetujuan, { id: p.id })
     expect(document.querySelector('section[aria-labelledby="judul-ttd-persetujuan"]')).toBeTruthy()
@@ -161,7 +161,7 @@ describe('Tanda tangan keputusan persetujuan', () => {
 
   it('bukan pemutus: tidak ada tombol tanda tangan, tetapi status verifikasi tetap terlihat', async () => {
     const p = persetujuanDiputuskanDua()
-    masukSebagai(ID_SUPERADMIN, 'contoh.superadmin', 'Contoh Superadmin')
+    masukSebagai(ID_SUPERADMIN, 'superadmin', 'Contoh Superadmin')
     await pasang(RincianPersetujuan, { id: p.id })
     expect(document.querySelector('section[aria-labelledby="judul-ttd-persetujuan"]')?.textContent).toContain('Belum ditandatangani.')
     expect(tombol('Tandatangani keputusan')).toBeUndefined()
@@ -177,12 +177,12 @@ describe('TtdModal', () => {
 
   it('massal: peringatan per objek tetap tampil; satu objek belum diputuskan → galat di butirnya dan tidak ada yang ditandatangani', async () => {
     const p = persetujuanDiputuskanDua()
-    masukSebagai(ID_SUPERADMIN, 'contoh.superadmin', 'Contoh Superadmin')
+    masukSebagai(ID_SUPERADMIN, 'superadmin', 'Contoh Superadmin')
     const awal = minta('GET', `/peran/${KASIR}`)
     const izin = [...(awal.isi as { data: { izin: string[] } }).data.izin, 'pengaturan.peran.lihat', 'pengaturan.peran.input']
     const r = minta('PUT', `/peran/${KASIR}/izin`, { izin, dasar_perubahan: 'SK 3/2026' }, { 'if-match': awal.header!.ETag! })
     const menunggu = (r.isi as { perubahan: { menunggu_persetujuan: PersetujuanAkses[] } }).perubahan.menunggu_persetujuan[0]!
-    masukSebagai(ID_SUPERADMIN_DUA, 'contoh.superadmin.dua', 'Contoh Superadmin Kedua')
+    masukSebagai(ID_SUPERADMIN_DUA, 'superadmin.dua', 'Contoh Superadmin Kedua')
     const objek = [
       { id: p.id, judul: p.nomor, ringkasan: p.ringkasan },
       { id: menunggu.id, judul: menunggu.nomor, ringkasan: menunggu.ringkasan, peringatan: 'Masih menunggu keputusan.' },
@@ -256,7 +256,7 @@ describe('Kolom PIN tidak disimpan pengelola sandi peramban (PRD 7.57.2)', () =>
     expect(periksa()).toBe(2)
     document.body.innerHTML = ''
     server.ttd.aktifkan(ID_SUPERADMIN)
-    masukSebagai(ID_SUPERADMIN, 'contoh.superadmin', 'Contoh Superadmin')
+    masukSebagai(ID_SUPERADMIN, 'superadmin', 'Contoh Superadmin')
     await pasang(TandaTanganPage)
     expect(periksa()).toBe(3)
     document.body.innerHTML = ''
@@ -302,7 +302,7 @@ describe('Halaman tanda tangan elektronik', () => {
 describe('Ajukan reset TTE (SDM)', () => {
   it('akun ber-TTE → 202 menunggu atasan; akun tanpa TTE → 409 tampil sebagai pesan', async () => {
     server.ttd.aktifkan(uid(3))
-    const w = await pasang(DialogResetTtd, { open: false, akun: { id: uid(3), nama_pengguna: 'contoh.perawat' }, namaPegawai: 'Contoh Perawat' })
+    const w = await pasang(DialogResetTtd, { open: false, akun: { id: uid(3), nama_pengguna: 'perawat' }, namaPegawai: 'Contoh Perawat' })
     await w.setProps({ open: true })
     await tenang()
     await klik(document.querySelector<HTMLButtonElement>('button[form="form-reset-ttd"]'))
@@ -314,7 +314,7 @@ describe('Ajukan reset TTE (SDM)', () => {
     expect(daftarToast.value.map((t) => t.pesan).some((p) => /Reset TTE PSA-\d{4}-\d+ diajukan; menunggu persetujuan Contoh Superadmin Kedua\./.test(p))).toBe(true)
     expect(server.ttd.status(uid(3)).reset_menunggu).toBe(true)
 
-    await w.setProps({ akun: { id: uid(4), nama_pengguna: 'contoh.dokter' }, open: false })
+    await w.setProps({ akun: { id: uid(4), nama_pengguna: 'dokter' }, open: false })
     await w.setProps({ open: true })
     await tenang()
     await isi('Alasan', 'Lupa PIN (sintetis)')
@@ -328,7 +328,7 @@ describe('Ajukan reset TTE (SDM)', () => {
     const r = minta('POST', `/ttd/${uid(3)}/reset`, { alasan: 'Lupa PIN (sintetis)', dasar: 'Tatap muka' })
     const p = (r.isi as { data: PersetujuanAkses }).data
     expect(p.penyetuju_pengguna?.nama).toBe('Contoh Superadmin Kedua')
-    masukSebagai(ID_SUPERADMIN_DUA, 'contoh.superadmin.dua', 'Contoh Superadmin Kedua')
+    masukSebagai(ID_SUPERADMIN_DUA, 'superadmin.dua', 'Contoh Superadmin Kedua')
     await pasang(RincianPersetujuan, { id: p.id })
     expect(document.querySelector('#judul-rincian-persetujuan')?.textContent).toBe('Reset tanda tangan elektronik Contoh Perawat')
     expect(document.body.textContent).toContain('Reset tanda tangan elektronik')
