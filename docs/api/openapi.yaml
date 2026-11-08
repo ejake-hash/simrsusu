@@ -5711,7 +5711,7 @@ paths:
             schema:
               type: object
               properties:
-                lokasi_id: { type: [string, 'null'], format: uuid, description: "Ruang/loket tempat pasien dipanggil (disebut di display dan suara); bawaan lokasi poliklinik" }
+                lokasi_id: { type: [string, 'null'], format: uuid, description: "Ruang/loket tempat pasien dipanggil (disebut di display dan suara); bawaan lokasi poliklinik. Titik `loket`: wajib (tanpa → 422 `validasi_gagal`), karena loket admisi tidak punya lokasi bawaan" }
       responses:
         '200': { $ref: '#/components/responses/AntreanSesudahAksi' }
         '401': { $ref: '#/components/responses/Error' }
@@ -5746,7 +5746,8 @@ paths:
         Izin: pendaftaran.antrean.perbaiki. `dilewati` → `menunggu`, ditempatkan sesudah N nomor menunggu berikutnya (N dari
         data induk; bila yang menunggu kurang dari N, di akhir). Hitungan panggilan mulai lagi dari 0 (FR-02-11, 7.02.1).
         - 409 `status_tidak_sesuai`: status bukan `dilewati` (`rincian: [{status}]`).
-        - 409 `sesi_berakhir`: jam praktik jadwal kunjungan itu sudah lewat; pilihan petugas tinggal batal.
+        - 409 `sesi_berakhir`: jam praktik jadwal kunjungan itu sudah lewat (titik `loket`: tanggal antrean sudah lewat,
+          zona RS); pilihan petugas tinggal batal.
         Audit `antrean.disisipkan`.
       responses:
         '200': { $ref: '#/components/responses/AntreanSesudahAksi' }
@@ -5848,7 +5849,9 @@ paths:
         - tokenPerangkat: []
       description: |
         Token kemampuan `anjungan` saja. Memuat kode dan nama lokasi perangkat, mode, `batas_diam_detik`, dan layanan yang
-        tersedia di tahap ini. Juga menandai perangkat online (`terakhir_aktif_pada`, FR-01-30). Mode selain `pendaftaran`
+        tersedia di tahap ini. Juga menandai perangkat online (`kunjungan.anjungan.terakhir_aktif_pada`, FR-01-30): kios
+        memanggilnya saat kembali ke layar awal dan setiap 60 detik selama diam; pemantauan (menyusul) menganggap perangkat
+        online bila panggilan terakhir ≤ 3 menit lalu. Mode selain `pendaftaran`
         belum didukung → 409 `mode_belum_didukung`.
       responses:
         '200':
@@ -5860,6 +5863,7 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
   /anjungan/nomor-loket:
     post:
       operationId: ambilNomorLoket
@@ -5871,7 +5875,8 @@ paths:
         kunjungan dan pasien: nomor `A-<urut>` atau, bila `prioritas`, `P-<urut>` (urut per prefiks per hari, FR-02-01).
         Prioritas (lansia, disabilitas, ibu hamil, anak dengan kondisi khusus; FR-02-07) dipilih pasien sendiri tanpa bukti;
         petugas loket yang menilai. Jam ambil tersimpan di `kunjungan.antrean_jejak` (status `menunggu`, pelaku null =
-        perangkat). Area display = area loket (data induk, bawaan `loket`). Setiap pengambilan dicatat di `sesi_anjungan`
+        perangkat). Area display = `kunjungan.anjungan.area_loket` (bawaan `loket`); `lokasi` struk = nama lokasi
+        `kunjungan.anjungan.lokasi_loket_id` (data induk lokasi, FR-54-13). Setiap pengambilan dicatat di `sesi_anjungan`
         (layanan `nomor_loket`, hasil `ke_loket`). Tanpa idempotensi: tiap permintaan satu nomor, dibatasi rate limit perangkat.
         Struk tampil di layar (cetak menyusul, FR-01-27).
       requestBody:
@@ -5901,7 +5906,8 @@ paths:
         Token kemampuan `anjungan`. `tanggal` bawaan hari ini (zona RS); boleh hari ini sampai 6 hari ke depan, selain itu →
         422 `validasi_gagal`. Hanya jadwal aktif yang jatuh pada tanggal itu (aturan sama dengan GET /jadwal-praktik
         bertanggal). Poli bertanda sensitif tampil dengan nama netral. Tidak memuat id pegawai, kuota angka, maupun alasan
-        cuti: hanya `status` (`tersedia`, `penuh`, `tidak_praktik`). Urut poli (nama tampil), jam mulai, id; kursor keyset.
+        cuti: hanya `status` (`tersedia`, `penuh`, `tidak_praktik`). Urut jam mulai, id (kursor keyset `(jam_mulai, id)`,
+        14.1.1); layar mengelompokkan per poli. Saring satu poli dengan `poli_id`.
       parameters:
         - { in: query, name: tanggal, schema: { type: string, format: date } }
         - { in: query, name: poli_id, schema: { type: string, format: uuid } }
@@ -5922,6 +5928,7 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
   /rawat-jalan/worklist:
     get:
       operationId: worklistPoli
@@ -8556,7 +8563,7 @@ components:
         alasan_prioritas:
           type: [string, 'null']
           enum: [lansia, disabilitas, ibu_hamil, anak_khusus, null]
-          description: "Wajib bila prioritas = true (FR-02-07); null bila tidak"
+          description: "Wajib bila prioritas = true (FR-02-07), selain itu null; disimpan bersama antrean untuk petugas loket, tidak masuk audit/log"
     TiketLoket:
       type: object
       required: [nomor_tampil, prioritas, tanggal, diambil_pada, menunggu_di_depan, lokasi]
@@ -9362,6 +9369,10 @@ components:
           oneOf: [{ $ref: '#/components/schemas/RingkasLokasi' }, { type: 'null' }]
         sumber: { type: string, enum: [loket, mobile_jkn, apm, web] }
         prioritas: { type: boolean }
+        alasan_prioritas:
+          type: [string, 'null']
+          enum: [lansia, disabilitas, ibu_hamil, anak_khusus, null]
+          description: "Titik `loket` (tiket 2.20): kategori prioritas pilihan pasien di anjungan, diteruskan ke petugas loket (FR-01-26, FR-02-07); disimpan di `kunjungan.antrean.alasan_prioritas`, tidak masuk audit/log (data kesehatan, UU PDP). Titik lain: null atau tidak dikirim"
         status: { $ref: '#/components/schemas/StatusAntrean' }
         panggilan_ke: { type: integer, minimum: 0, description: "Jumlah panggilan sejak terakhir menunggu" }
         panggilan_maks: { type: integer, minimum: 1, description: "Batas panggilan dari data induk" }
