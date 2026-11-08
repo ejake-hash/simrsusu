@@ -2,11 +2,14 @@
 
 namespace App\Modules\Antrean;
 
+use App\Modules\Antrean\Application\CatatTaskAntrean;
 use App\Modules\Antrean\Application\KelolaAntrean;
 use App\Modules\Antrean\Console\TokenDisplay;
+use App\Modules\Antrean\Events\AntreanBerubah;
 use App\Modules\Pendaftaran\Events\KunjunganDibatalkan;
 use App\Modules\Pendaftaran\Events\KunjunganDibuat;
 use App\Modules\RekamMedis\Events\AsesmenPerawatSelesai;
+use App\Modules\RekamMedis\Events\PemeriksaanDimulai;
 use App\Modules\RekamMedis\Events\PemeriksaanSelesai;
 use App\Modules\RekamMedis\Events\ResepDibatalkan;
 use App\Modules\RekamMedis\Events\ResepDisahkan;
@@ -32,6 +35,14 @@ class ModuleServiceProvider extends ServiceProvider
         Event::listen(PemeriksaanSelesai::class, [KelolaAntrean::class, 'selesaikanKunjungan']);
         Event::listen(ResepDisahkan::class, [KelolaAntrean::class, 'buatFarmasi']);
         Event::listen(ResepDibatalkan::class, [KelolaAntrean::class, 'batalFarmasi']);
+
+        // Task ID antrean (tiket 2.18): sesudah listener KelolaAntrean di atas, agar antrean poli/farmasi sudah ada.
+        Event::listen(KunjunganDibuat::class, [CatatTaskAntrean::class, 'kunjunganDibuat']);
+        Event::listen(AsesmenPerawatSelesai::class, [CatatTaskAntrean::class, 'asesmenPerawatSelesai']);
+        Event::listen(PemeriksaanDimulai::class, [CatatTaskAntrean::class, 'pemeriksaanDimulai']);
+        Event::listen(PemeriksaanSelesai::class, [CatatTaskAntrean::class, 'pemeriksaanSelesai']);
+        Event::listen(ResepDisahkan::class, [CatatTaskAntrean::class, 'resepDisahkan']);
+        Event::listen(AntreanBerubah::class, [CatatTaskAntrean::class, 'antreanBerubah']);
 
         // Display dihitung per token (banyak TV bisa berbagi satu IP), dengan batas per IP untuk token acak.
         RateLimiter::for('display', fn (Request $request) => [
