@@ -6,6 +6,10 @@ return [
     'sandi' => [
         'panjang_minimal' => (int) env('AUTENTIKASI_SANDI_PANJANG_MINIMAL', 12),
 
+        // Keputusan pemilik 8 Nov 2026: sandi demo pendek (min. 6, mis. 123456) di mesin pengembang. Hanya berlaku
+        // bila APP_ENV=local DAN variabel ini true; CI e2e (APP_ENV=local tanpa variabel ini) tetap aturan PRD 14.2.
+        'demo_longgar' => (bool) env('AUTENTIKASI_SANDI_DEMO_LONGGAR', false),
+
         // Daftar sandi bocor lokal (offline), lihat docs/adr/0001-cek-sandi-bocor-offline.md.
         'daftar_bocor' => env(
             'AUTENTIKASI_SANDI_DAFTAR_BOCOR',
