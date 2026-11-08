@@ -192,6 +192,16 @@ class PermintaanPemeriksaanTest extends TestCase
         $this->minta('GET', '/api/v1/data-induk/tarif?jenis=lab')->assertForbidden();
     }
 
+    public function test_versi_tarif_baru_menyalin_kategori(): void
+    {
+        $tarif = \App\Modules\MasterData\Models\Tarif::query()->findOrFail($this->tarif['UJI-LAB-1']);
+        app(\App\Modules\MasterData\Application\KelolaTarif::class)->ubah($this->dokterA, $tarif, (string) $tarif->revisi,
+            ['nama' => 'Butir sintetis ganti nama'], self::SENIN, 'Uji');
+        $this->assertSame(['lab', 'lab'], DB::table('keuangan.tarif_versi')->where('tarif_id', $tarif->id)->orderBy('versi')->pluck('kategori')->all());
+        $this->masukSebagai($this->dokterA);
+        $this->minta('GET', '/api/v1/data-induk/tarif?jenis=lab')->assertOk()->assertJsonPath('data.0.nama', 'Butir sintetis ganti nama');
+    }
+
     private function akun(): Pengguna
     {
         $akun = $this->buatPengguna(['pegawai_id' => $this->dokter()->id]);
