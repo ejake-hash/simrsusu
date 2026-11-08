@@ -137,11 +137,8 @@ class AkunSintetisSeederTest extends TestCase
         config(['autentikasi.akun_sintetis_sandi' => 'kuda-lumping-biru-29', 'autentikasi.akun_sintetis_superadmin_semua_menu' => true]);
         $evaluator = app(AccessEvaluator::class);
         $superadmin = fn () => Pengguna::query()->where('nama_pengguna', 'superadmin')->firstOrFail();
-        $bolehIgd = function () use ($evaluator, $superadmin) {
-            app(CacheHakAkses::class)->lupakanSemua();
-
-            return $evaluator->bolehMenu($superadmin(), 'igd.papan');
-        };
+        // Tanpa lupakanSemua() di sini: seeder sendiri wajib membersihkan cache hak akses.
+        $bolehIgd = fn () => $evaluator->bolehMenu($superadmin(), 'igd.papan');
 
         $this->seed(AkunSintetisSeeder::class);
         $this->assertFalse($bolehIgd(), 'Flag tanpa APP_ENV=local (testing/CI/staging) tidak berlaku: batas PRD 9.2.4.');

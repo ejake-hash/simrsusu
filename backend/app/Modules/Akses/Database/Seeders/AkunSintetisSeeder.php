@@ -243,6 +243,7 @@ final class AkunSintetisSeeder extends Seeder
             foreach (PenggunaPeran::query()->where('status', 'aktif')->whereIn('peran_id', $peranLama)->get() as $p) {
                 $p->forceFill(['status' => 'batal', 'alasan_batal' => 'Seeding ulang: demo semua menu dimatikan', 'dibatalkan_pada' => now()])->save();
             }
+            app(CacheHakAkses::class)->lupakanSemua();
 
             return;
         }
