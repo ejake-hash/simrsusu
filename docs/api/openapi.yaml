@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.24.0
+  version: 0.25.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -125,6 +125,12 @@ info:
     ditandatangani lewat POST /ttd/tandatangani objek `catatan_klinis` (AsesmenAwal.ditandatangani_pada). Error baru:
     409 `sudah_disahkan`, `belum_disahkan`, `masih_bisa_diperbaiki`; 403 `profesi_tidak_dikenali`. Hanya kontrak; kode
     menyusul di tiket BE.
+    v0.25.0: Pemeriksaan dokter rawat jalan (tiket 2.15; FR-07-03, FR-07-05, FR-02-09, 7.02.1): POST /kunjungan/{id}/mulai-periksa
+    (`terdaftar` → `dilayani`), POST /kunjungan/{id}/selesai (`dilayani` → `selesai`, syarat diagnosis utama + CPPT dokter tanpa
+    draf), GET|POST /kunjungan/{id}/diagnosis, PATCH /diagnosis/{id} (ganti jenis atau batal), GET /pasien/{id}/ringkasan-klinis,
+    GET /paket-referensi/{sistem}/kode (cari kode terminologi yang dimuat RS, K7). Error
+    baru: 409 `paket_referensi_belum_dimuat`, `diagnosis_utama_sudah_ada`,
+    `diagnosis_sudah_tercatat`, `syarat_selesai_belum_lengkap`. Hanya kontrak; kode menyusul di tiket BE.
 servers:
   - url: /api/v1
 security:
@@ -3723,6 +3729,37 @@ paths:
   #   KFA dan referensi BPJS ditarik lewat API di 1.9; SNOMED CT tidak dikemas.
   # - Juga lewat konsol: `php artisan referensi:muat <sistem> <berkas> --versi= --sumber=` (aturan dan validasi sama).
   # ---------------------------------------------------------------------------
+  /paket-referensi/{sistem}/kode:
+    parameters:
+      - { in: path, name: sistem, required: true, schema: { type: string, enum: [icd10, icd9cm, loinc, ucum] } }
+    get:
+      operationId: cariKodeReferensi
+      summary: Cari kode terminologi aktif dari paket yang dimuat RS (paginasi kursor)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.lihat (pembaca lain ditambah tiketnya). Sumber `inti.terminologi` hasil POST
+        /paket-referensi/{sistem}/muat; isi tidak dikemas produk (K7), jadi tidak ada kode bawaan. Belum ada paket `sistem`
+        yang dimuat → 409 `paket_referensi_belum_dimuat` (layar menunjuk langkah 4 penyiapan). `q` dicocokkan ke kode dan
+        tampilan tanpa beda huruf besar/kecil (pg_trgm), minimal 2 karakter (422 `validasi_gagal`). Hanya kode aktif. Urut
+        kode, kursor keyset `(kode, id)`. Bukan data pasien: tanpa audit.
+      parameters:
+        - { in: query, name: q, required: true, schema: { type: string, minLength: 2, maxLength: 100 } }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman kode (bisa kosong)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/KodeReferensi' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /paket-referensi/{sistem}/muat:
     parameters:
       - { in: path, name: sistem, required: true, schema: { $ref: '#/components/schemas/SistemReferensi' } }
@@ -6172,6 +6209,199 @@ paths:
         '412': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '428': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/mulai-periksa:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: mulaiPeriksa
+      summary: Dokter membuka RM pasien dan memulai pemeriksaan (terdaftar → dilayani)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.input, cakupan unit kunjungan (selain itu 403). Instalasi belum siap melayani → 409
+        `instalasi_belum_siap`.
+        - `terdaftar` → `dilayani`; `mulai_periksa_pada` = jam server; kejadian `PemeriksaanDimulai` (task ID 4, 7.02.1;
+          dipakai 2.18). Audit `kunjungan.pemeriksaan_dimulai` + id.
+        - Sudah `dilayani` → 200 tanpa perubahan (dokter membuka RM lagi; kejadian dan audit tidak diulang).
+        - `selesai` atau `batal` → 409 `status_tidak_sesuai`.
+        Tidak mensyaratkan asesmen awal perawat selesai (pasien bisa langsung ke dokter). Tidak memberi relasi perawatan baru.
+      responses:
+        '200':
+          description: Kunjungan berstatus dilayani
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Kunjungan' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/selesai:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: selesaiPeriksa
+      summary: Selesaikan kunjungan poli (dilayani → selesai)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.sahkan, cakupan unit kunjungan. Wajib If-Match (ETag kunjungan; 412/428).
+        - Bukan `dilayani` → 409 `status_tidak_sesuai` (belum mulai periksa, sudah selesai, atau batal).
+        - Syarat belum lengkap → 409 `syarat_selesai_belum_lengkap`, `rincian` memuat semua yang kurang sekaligus:
+          `{"kolom": "diagnosis_utama", "pesan": …}` bila tidak ada diagnosis utama berstatus aktif, dan
+          `{"kolom": "cppt_dokter_draf", "pesan": …, "id": [<id cppt>]}` bila masih ada CPPT profesi dokter berstatus draf di
+          kunjungan ini (milik siapa pun).
+        Berhasil: `selesai`, `selesai_pada` = jam server; kejadian `PemeriksaanSelesai` (task ID 5); relasi perawatan yang
+        lahir dari kunjungan ini diakhiri (`KelolaRelasiPerawatan`, aturan 2.6); antrean poli kunjungan ini → `selesai`
+        (worklist tahap `selesai`). Diagnosis dan CPPT sesudahnya tidak bisa ditambah lewat kunjungan ini (perbaikan CPPT sah
+        tetap lewat PATCH/adendum). Audit `kunjungan.pemeriksaan_selesai` + id.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: Kunjungan selesai
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Kunjungan' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/diagnosis:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: daftarDiagnosisKunjungan
+      summary: Diagnosis satu kunjungan (paginasi kursor)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.lihat, cakupan unit kunjungan. Urut `dicatat_pada`, id (terlama dulu). Bawaan hanya
+        `aktif`; `status=batal` menampilkan yang dibatalkan saja.
+      parameters:
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/StatusDiagnosis' } }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman diagnosis
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Diagnosis' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: catatDiagnosis
+      summary: Catat diagnosis ICD-10 kunjungan ini (utama/sekunder)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.input, cakupan unit kunjungan. Kunjungan bukan `dilayani` → 409 `status_tidak_sesuai`.
+        Paket ICD-10 belum dimuat → 409 `paket_referensi_belum_dimuat`. `kode` harus kode ICD-10 aktif di paket yang dimuat
+        RS (selain itu 422 `validasi_gagal` kolom `kode`); server tidak mengarang atau melengkapi kode. Sudah ada diagnosis
+        utama aktif dan `jenis` = utama → 409 `diagnosis_utama_sudah_ada` (ganti dulu yang lama lewat PATCH). Kode yang sama
+        sudah aktif di kunjungan ini → 409 `diagnosis_sudah_tercatat`. `sumber` = dokter. Audit `klinis.diagnosis_dicatat`
+        hanya memuat id diagnosis dan kunjungan (kode diagnosis tidak masuk log/audit).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kode, jenis]
+              properties:
+                kode: { type: string, minLength: 1, maxLength: 20 }
+                jenis: { $ref: '#/components/schemas/JenisDiagnosis' }
+      responses:
+        '201':
+          description: Diagnosis tercatat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Diagnosis' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /diagnosis/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      operationId: ubahDiagnosis
+      summary: Ganti jenis diagnosis atau batalkan (tidak dihapus)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.perbaiki, cakupan unit kunjungan. Wajib If-Match (412/428). Kunjungan bukan `dilayani`
+        → 409 `status_tidak_sesuai` (sesudah selesai, perbaikan koding lewat casemix, Tahap D). Diagnosis sudah `batal` → 409
+        `status_tidak_sesuai` (catat diagnosis baru). Isi tepat satu dari:
+        - `jenis`: utama ↔ sekunder; menjadikan utama saat ada utama aktif lain → 409 `diagnosis_utama_sudah_ada`.
+        - `status: batal` + `alasan_batal` (wajib): baris tetap tersimpan dengan `dibatalkan_oleh`/`dibatalkan_pada`.
+        Kode tidak bisa diganti (batalkan lalu catat kode yang benar). Audit `klinis.diagnosis_diubah` + id.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [jenis]
+                  additionalProperties: false
+                  properties:
+                    jenis: { $ref: '#/components/schemas/JenisDiagnosis' }
+                - type: object
+                  required: [status, alasan_batal]
+                  additionalProperties: false
+                  properties:
+                    status: { type: string, const: batal }
+                    alasan_batal: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200':
+          description: Diagnosis sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Diagnosis' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /pasien/{id}/ringkasan-klinis:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: ringkasanKlinisPasien
+      summary: Ringkasan klinis pasien untuk dokter (FR-07-03, data yang sudah ada)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.lihat. Hanya dari data yang sudah ada di Fase 2: diagnosis aktif dan kunjungan terakhir.
+        Alergi memakai GET /pasien/{id}/alergi; hasil lab, obat rutin, risiko jatuh, dan program menyusul tiketnya (Tahap C).
+        - `diagnosis_aktif`: diagnosis berstatus aktif dari kunjungan pasien yang tidak batal, satu baris per kode (yang
+          terbaru), terbaru dulu, paling banyak 20.
+        - `kunjungan_terakhir`: kunjungan tidak batal, terbaru dulu, paling banyak 5, dengan diagnosis utama aktifnya.
+        Privasi (9.2.5, 5.1): kunjungan di poli bertanda sensitif (punya nama netral di data induk) tidak menyumbang diagnosis
+        ke ringkasan, dan di `kunjungan_terakhir` tampil dengan nama netral poli dan `diagnosis_utama` null. Bukan daftar
+        berhalaman (batas tetap di atas). `Cache-Control: no-store`.
+      responses:
+        '200':
+          description: Ringkasan klinis
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/RingkasanKlinis' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
   /pasien/{id}/alergi:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -8821,6 +9051,90 @@ components:
         id: { type: string, format: uuid }
         terbatas: { type: boolean, const: true }
         dibuat_pada: { type: string, format: date-time }
+    KodeReferensi:
+      type: object
+      required: [id, sistem, kode, tampilan, kode_induk]
+      properties:
+        id: { type: string, format: uuid }
+        sistem: { type: string, enum: [icd10, icd9cm, loinc, ucum] }
+        kode: { type: string }
+        tampilan: { type: string }
+        kode_induk: { type: [string, 'null'] }
+    JenisDiagnosis:
+      type: string
+      enum: [utama, sekunder]
+      description: "Diisi dokter (FR-07-05). Nilai `komplikasi`/`komorbid` di `klinis.diagnosis` milik koder (Tahap D), menyusul tanpa memecah klien"
+    StatusDiagnosis:
+      type: string
+      enum: [aktif, batal]
+    Diagnosis:
+      type: object
+      required: [id, kunjungan_id, sistem, kode, tampilan, jenis, sumber, status, dicatat_oleh, dicatat_pada, alasan_batal,
+        dibatalkan_oleh, dibatalkan_pada, dapat, versi, diubah_pada]
+      properties:
+        id: { type: string, format: uuid }
+        kunjungan_id: { type: string, format: uuid }
+        sistem: { type: string, enum: [icd10] }
+        kode: { type: string, description: "Kode dari paket ICD-10 yang dimuat RS (K7)" }
+        tampilan: { type: string, description: "Tampilan kode di paket (kode yang kemudian dinonaktifkan tetap terbaca)" }
+        jenis: { $ref: '#/components/schemas/JenisDiagnosis' }
+        sumber: { type: string, enum: [dokter] }
+        status: { $ref: '#/components/schemas/StatusDiagnosis' }
+        dicatat_oleh: { $ref: '#/components/schemas/Pelaku' }
+        dicatat_pada: { type: string, format: date-time }
+        alasan_batal: { type: [string, 'null'] }
+        dibatalkan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        dibatalkan_pada: { type: [string, 'null'], format: date-time }
+        dapat:
+          type: object
+          required: [ubah]
+          description: "true bila akun ini punya izin perbaiki, kunjungan masih `dilayani`, dan diagnosis aktif"
+          properties:
+            ubah: { type: boolean }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    RingkasanKlinis:
+      type: object
+      required: [pasien_id, diagnosis_aktif, kunjungan_terakhir]
+      properties:
+        pasien_id: { type: string, format: uuid }
+        diagnosis_aktif:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [kode, tampilan, jenis, kunjungan_id, tanggal]
+            properties:
+              kode: { type: string }
+              tampilan: { type: string }
+              jenis: { $ref: '#/components/schemas/JenisDiagnosis' }
+              kunjungan_id: { type: string, format: uuid }
+              tanggal: { type: string, format: date, description: "Tanggal kunjungan" }
+        kunjungan_terakhir:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            required: [kunjungan_id, tanggal, poliklinik, dokter, status, diagnosis_utama]
+            properties:
+              kunjungan_id: { type: string, format: uuid }
+              tanggal: { type: string, format: date }
+              poliklinik:
+                type: object
+                required: [id, nama]
+                properties:
+                  id: { type: string, format: uuid }
+                  nama: { type: string, description: "Nama netral bila poli bertanda sensitif" }
+              dokter: { $ref: '#/components/schemas/RingkasPegawai' }
+              status: { $ref: '#/components/schemas/StatusKunjungan' }
+              diagnosis_utama:
+                oneOf:
+                  - type: 'null'
+                  - type: object
+                    required: [kode, tampilan]
+                    properties:
+                      kode: { type: string }
+                      tampilan: { type: string }
     JenisAlergi:
       type: string
       enum: [obat, makanan, lingkungan, lainnya]
