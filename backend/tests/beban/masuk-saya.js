@@ -6,7 +6,7 @@ import { check, fail, sleep } from 'k6'
 const BASE = __ENV.SIMRS_URL || 'http://127.0.0.1:8000'
 // Origin SPA yang terdaftar di SANCTUM_STATEFUL_DOMAINS, agar permintaan diperlakukan sebagai SPA bercookie.
 const ORIGIN = __ENV.SIMRS_ORIGIN || 'http://localhost:5173'
-const NAMA = __ENV.K6_NAMA_PENGGUNA || 'contoh.admisi'
+const NAMA = __ENV.K6_NAMA_PENGGUNA || 'admisi'
 const SANDI = __ENV.K6_SANDI
 const DURASI = __ENV.DURASI || '2m'
 // Profil acuan 800 pengguna aktif serentak; bawaan 5% = 40 VU.

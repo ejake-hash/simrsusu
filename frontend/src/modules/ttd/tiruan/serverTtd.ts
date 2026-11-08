@@ -15,7 +15,7 @@ const error = (status: number, kode: string, pesan: string, rincian: Record<stri
 const ok = (isi: unknown, status = 200): ResponsTiruan => ({ status, isi, header: { 'Cache-Control': 'no-store' } })
 type Isi = Record<string, unknown>
 
-/** PIN sintetis akun tiruan yang sudah aktif (contoh.superadmin.dua). */
+/** PIN sintetis akun tiruan yang sudah aktif (superadmin.dua). */
 export const PIN_TIRUAN = '482916'
 const BATAS_SALAH = 5
 const MENIT_KUNCI = 15
@@ -81,7 +81,7 @@ export function buatServerTtd(opsi: OpsiServerTtd) {
     }
     return k
   }
-  /** Aktifkan TTE sintetis (mis. contoh.superadmin.dua seperti TtdSintetisSeeder). */
+  /** Aktifkan TTE sintetis (mis. superadmin.dua seperti TtdSintetisSeeder). */
   function aktifkan(akunId: string, pin = PIN_TIRUAN) {
     Object.assign(ambil(akunId), { aktif: true, pin, diaktifkanPada: '2026-10-01T02:00:00.000Z', dicabutPada: null })
   }

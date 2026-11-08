@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 import { artisan, bersihkanPesertaSintetis, circuitBreaker, daftarkanKunjunganJkn, halamanAdmisi, masukLewatApi, pastikanPasienBpjs, php, SANDI, simulatorVclaim } from './bantu'
 
 /**
- * Pendaftaran pasien baru → kunjungan poli dengan akun contoh.admisi (izin pendaftaran + lihat poli/jadwal/penjamin).
+ * Pendaftaran pasien baru → kunjungan poli dengan akun admisi (izin pendaftaran + lihat poli/jadwal/penjamin).
  * Pendaftaran butuh instalasi siap melayani, yang tidak bisa dicapai data sintetis lewat wizard; `lokal:kunjungan-contoh`
  * menyiapkan poli, dokter, dan jadwal sintetis lalu menandai siap, dan `--batal` mengembalikannya sesudah uji. Karena
  * penanda itu mengubah perilaku layar lain, proyek ini berjalan paling akhir (playwright.config.ts).
@@ -23,7 +23,7 @@ test.afterAll(() => {
 test('petugas admisi mencari pasien, mendaftarkan pasien baru, lalu mendaftarkan kunjungan poli', async ({ browser }, info) => {
   const asal = new URL(info.project.use.baseURL ?? '').origin
   const masuk = await browser.newContext({ baseURL: asal })
-  await masukLewatApi(masuk.request, asal, 'contoh.admisi')
+  await masukLewatApi(masuk.request, asal, 'admisi')
   // Tanpa animasi: axe memeriksa keadaan akhir, bukan toast yang masih memudar masuk.
   const konteks = await browser.newContext({ baseURL: asal, storageState: await masuk.storageState(), viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
   await masuk.close()

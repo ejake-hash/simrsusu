@@ -36,7 +36,7 @@ describe('useSesiStore.pastikan', () => {
   })
 
   it('sesi aktif memuat pengguna', async () => {
-    vi.mocked(ambilSaya).mockResolvedValue(penggunaTiruan({ nama_pengguna: 'contoh.admisi' }))
+    vi.mocked(ambilSaya).mockResolvedValue(penggunaTiruan({ nama_pengguna: 'admisi' }))
     const sesi = useSesiStore()
 
     await sesi.pastikan()

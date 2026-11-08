@@ -4,8 +4,8 @@ import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
 
 /**
  * Master Data → Usulan perubahan (tiket 1.8c) ke backend asli dengan tiga akun sintetis berbeda (AkunSintetisSeeder:
- * contoh.usulan.pengusul|verifikator|penyetuju, semua memegang semua aksi usulan; pemisahan tugas dijaga server).
- * Objek awal (gedung → lantai → ruang, kode unik per run) diimpor contoh.data.induk lewat API /lokasi/impor.
+ * usulan.pengusul|verifikator|penyetuju, semua memegang semua aksi usulan; pemisahan tugas dijaga server).
+ * Objek awal (gedung → lantai → ruang, kode unik per run) diimpor data.induk lewat API /lokasi/impor.
  * Alur: ajukan ubah nama ruang → dikembalikan dengan catatan → diperbaiki dan dikirim ulang → diverifikasi →
  * pengusul menyetujui sendiri ditolak 403 → penyetuju menyetujui → langsung berlaku (berlaku_dari = hari ini).
  */
@@ -56,7 +56,7 @@ async function bukaUsulan(page: Page) {
 
 test.beforeAll(async ({ browser }, info) => {
   const asal = asalDari(info.project.use.baseURL)
-  const page = await halaman(browser, asal, 'contoh.data.induk')
+  const page = await halaman(browser, asal, 'data.induk')
   await page.goto('/')
   const csv = ['jenis,kode,induk,nama,fungsi,unit,bangsal,kelas_rawat,kapasitas_maksimum,ekstra', `gedung,${SEG},,Gedung Usulan ${SEG},,,,,,`,
     `lantai,1,${SEG},Lantai 1,,,,,,`, `ruang,101,${SEG}-1,Ruang Arsip ${SEG},administrasi,,,,,`].join('\n')
@@ -69,7 +69,7 @@ test.beforeAll(async ({ browser }, info) => {
 })
 
 test('pengusul mengajukan ubah ruang lewat layar; tidak ada tombol verifikasi/setujui untuk usulannya sendiri', async ({ browser }, info) => {
-  const page = await halaman(browser, asalDari(info.project.use.baseURL), 'contoh.usulan.pengusul')
+  const page = await halaman(browser, asalDari(info.project.use.baseURL), 'usulan.pengusul')
   await page.goto('/master-data/usulan')
   await expect(page.getByRole('heading', { name: 'Usulan perubahan data induk' })).toBeVisible()
   await page.getByRole('button', { name: 'Ajukan usulan' }).click()
@@ -103,7 +103,7 @@ test('pengusul mengajukan ubah ruang lewat layar; tidak ada tombol verifikasi/se
 
 test('pemverifikasi mengembalikan dengan catatan wajib; pengusul memperbaiki dan mengirim ulang (putaran 2)', async ({ browser }, info) => {
   const asal = asalDari(info.project.use.baseURL)
-  const verifikator = await halaman(browser, asal, 'contoh.usulan.verifikator')
+  const verifikator = await halaman(browser, asal, 'usulan.verifikator')
   await verifikator.goto('/master-data/usulan')
   await verifikator.getByRole('radio', { name: 'Perlu saya' }).check()
   await expect(verifikator.getByRole('row', { name: new RegExp(`^${nomor} .*Menunggu verifikasi$`) })).toBeVisible()
@@ -116,7 +116,7 @@ test('pemverifikasi mengembalikan dengan catatan wajib; pengusul memperbaiki dan
   await dialog(verifikator).getByRole('button', { name: 'Kembalikan', exact: true }).click()
   await expect(verifikator.getByText(/dikembalikan ke pengusul\./)).toBeVisible()
 
-  const pengusul = await halaman(browser, asal, 'contoh.usulan.pengusul', 390)
+  const pengusul = await halaman(browser, asal, 'usulan.pengusul', 390)
   await bukaUsulan(pengusul)
   await expect(pengusul.getByText('“Lengkapi nomor memo”')).toBeVisible()
   await tanpaGulirSamping(pengusul)
@@ -130,7 +130,7 @@ test('pemverifikasi mengembalikan dengan catatan wajib; pengusul memperbaiki dan
 
 test('diverifikasi; pengusul menyetujui sendiri → 403; penyetuju menyetujui → langsung berlaku', async ({ browser }, info) => {
   const asal = asalDari(info.project.use.baseURL)
-  const verifikator = await halaman(browser, asal, 'contoh.usulan.verifikator')
+  const verifikator = await halaman(browser, asal, 'usulan.verifikator')
   await bukaUsulan(verifikator)
   await expect(rincian(verifikator).getByText(/putaran 2/).first()).toBeVisible()
   await rincian(verifikator).getByRole('button', { name: 'Verifikasi', exact: true }).click()
@@ -139,13 +139,13 @@ test('diverifikasi; pengusul menyetujui sendiri → 403; penyetuju menyetujui �
   // Pemverifikasi tidak boleh juga menyetujui (tiga orang berbeda).
   await expect(rincian(verifikator).getByRole('button', { name: 'Setujui', exact: true })).toHaveCount(0)
 
-  const pengusul = await halaman(browser, asal, 'contoh.usulan.pengusul')
+  const pengusul = await halaman(browser, asal, 'usulan.pengusul')
   await bukaUsulan(pengusul)
   await expect(rincian(pengusul).getByRole('button', { name: 'Setujui', exact: true })).toHaveCount(0)
   const tolak = await pengusul.request.post(`/api/v1/usulan-data-induk/${usulanId}/setujui`, { headers: await header(pengusul, asal), data: { catatan: null } })
   expect(tolak.status()).toBe(403)
 
-  const penyetuju = await halaman(browser, asal, 'contoh.usulan.penyetuju')
+  const penyetuju = await halaman(browser, asal, 'usulan.penyetuju')
   await bukaUsulan(penyetuju)
   await rincian(penyetuju).getByRole('button', { name: 'Setujui', exact: true }).click()
   await dialog(penyetuju).getByRole('button', { name: 'Setujui', exact: true }).click()

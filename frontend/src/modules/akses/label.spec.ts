@@ -31,7 +31,7 @@ beforeEach(() => {
   jawabMfaUlang(false)
   setActivePinia(createPinia())
   server = pasangTiruan(klien, buatServerTiruan())
-  masukSebagai(ID_SUPERADMIN, 'contoh.superadmin')
+  masukSebagai(ID_SUPERADMIN, 'superadmin')
 })
 afterEach(() => {
   terpasang.splice(0).forEach((w) => w.unmount())
@@ -115,7 +115,7 @@ describe('Penyetuju label sensitivitas', () => {
     await klik(tombol('Ajukan', document.querySelector('[role="dialog"]')!))
     expect(daftarToast.value.map((t) => t.pesan).join(' ')).toMatch(/Penyetuju label HIV menunggu persetujuan Superadmin \(PSA-/)
 
-    setujuiSebagai(ID_SUPERADMIN_DUA, 'contoh.superadmin.dua', persetujuanTerakhir().id)
+    setujuiSebagai(ID_SUPERADMIN_DUA, 'superadmin.dua', persetujuanTerakhir().id)
     const label = (minta('GET', '/label-sensitivitas').isi as { data: { kode: string; penyetuju_peran: { id: string } | null }[] }).data
     expect(label.find((l) => l.kode === 'hiv')?.penyetuju_peran?.id).toBe(KABID)
   })
@@ -124,8 +124,8 @@ describe('Penyetuju label sensitivitas', () => {
 describe('Izin label akun', () => {
   it('ajukan → menunggu pejabat PDP → disetujui berlaku → cabut dengan alasan menjadi riwayat', async () => {
     minta('PUT', '/label-sensitivitas/hiv/penyetuju', { peran_id: KABID, dasar_perubahan: 'SK PDP 1/2026' })
-    setujuiSebagai(ID_SUPERADMIN_DUA, 'contoh.superadmin.dua', persetujuanTerakhir().id)
-    masukSebagai(ID_SUPERADMIN, 'contoh.superadmin')
+    setujuiSebagai(ID_SUPERADMIN_DUA, 'superadmin.dua', persetujuanTerakhir().id)
+    masukSebagai(ID_SUPERADMIN, 'superadmin')
 
     await pasang(RincianAkun, { akunId: ADMISI, indeks: indeksPohon(server.pohon) })
     await bukaTab('Label')
@@ -160,7 +160,7 @@ describe('Izin label akun', () => {
     const izinLabel = persetujuanTerakhir()
     expect(izinLabel.jenis).toBe('izin_label')
     setujuiSebagai(ID_KABID, 'contoh.kabid', izinLabel.id)
-    masukSebagai(ID_SUPERADMIN, 'contoh.superadmin')
+    masukSebagai(ID_SUPERADMIN, 'superadmin')
     terpasang.splice(0).forEach((w) => w.unmount())
     document.body.innerHTML = ''
     await pasang(RincianAkun, { akunId: ADMISI, indeks: indeksPohon(server.pohon) })

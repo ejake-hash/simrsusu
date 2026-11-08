@@ -3,7 +3,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
 
 /**
- * Master Data → Organisasi, Unit, Ruang & Tempat Tidur (tiket 1.8a) ke backend asli dengan akun sintetis contoh.data.induk (pemegang
+ * Master Data → Organisasi, Unit, Ruang & Tempat Tidur (tiket 1.8a) ke backend asli dengan akun sintetis data.induk (pemegang
  * master_data, bukan superadmin) dan data OrganisasiSintetisSeeder: IRJ (POLI-PD, POLI-ANAK), IRNA (RUANG-MELATI,
  * RUANG-MAWAR), IGD, FARMASI (DEPO-RJ); KSM-IPD/ANAK/BEDAH. Unit baru memakai kode unik per run.
  */
@@ -35,7 +35,7 @@ test.beforeEach(async () => jagaBatasLaju())
 async function halaman(browser: Browser, asal: string, lebar = 1440, tinggi = 900): Promise<Page> {
   if (!sesi) {
     const masuk = await browser.newContext({ baseURL: asal })
-    await masukLewatApi(masuk.request, asal, 'contoh.data.induk')
+    await masukLewatApi(masuk.request, asal, 'data.induk')
     sesi = await masuk.storageState()
     await masuk.close()
   }
@@ -161,7 +161,7 @@ for (const [lebar, tinggi] of [
 test('akun tanpa master_data: Akses ditolak (1.2d) dan daftar unit ditolak server', async ({ browser }, info) => {
   const asal = asalDari(info.project.use.baseURL)
   const masuk = await browser.newContext({ baseURL: asal, storageState: { cookies: [], origins: [] } })
-  await masukLewatApi(masuk.request, asal, 'contoh.dokter')
+  await masukLewatApi(masuk.request, asal, 'dokter')
   const page = await masuk.newPage()
   await page.goto('/master-data/organisasi')
   await expect(page.getByRole('heading', { level: 1, name: 'Akses ditolak' })).toBeVisible()

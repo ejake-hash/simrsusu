@@ -20,7 +20,7 @@ function pasang(lanjut: (l: Langkah) => Promise<void> = vi.fn().mockResolvedValu
   })
 }
 
-async function isiDanKirim(w: ReturnType<typeof pasang>, nama = 'contoh.perawat', sandi = 'sandi-panjang-sekali') {
+async function isiDanKirim(w: ReturnType<typeof pasang>, nama = 'perawat', sandi = 'sandi-panjang-sekali') {
   await w.get('#nama-pengguna').setValue(nama)
   await w.get('#sandi').setValue(sandi)
   await w.get('form').trigger('submit')
@@ -91,7 +91,7 @@ describe('LangkahSandi', () => {
 
     expect(w.get('[role="alert"]').text()).toContain('Nama pengguna atau sandi salah.')
     expect((w.get('#sandi').element as HTMLInputElement).value).toBe('')
-    expect((w.get('#nama-pengguna').element as HTMLInputElement).value).toBe('contoh.perawat')
+    expect((w.get('#nama-pengguna').element as HTMLInputElement).value).toBe('perawat')
     expect(document.activeElement).toBe(w.get('#sandi').element)
   })
 

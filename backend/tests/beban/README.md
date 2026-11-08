@@ -47,7 +47,7 @@ Variabel:
 - `MASUK_PER_MENIT`;
 - `DEBUG=1` untuk mencetak isi respons yang gagal.
 
-Untuk `masuk-saya.js`: `K6_NAMA_PENGGUNA` (bawaan `contoh.admisi`) dan `SKALA`.
+Untuk `masuk-saya.js`: `K6_NAMA_PENGGUNA` (bawaan `admisi`) dan `SKALA`.
 
 **Jangan menjalankan k6 dalam kontainer Docker Desktop di Mac** terhadap server di host atau di kontainer lain.
 Koneksi baru yang menembus batas VM gagal dibuka di bawah beban (timeout 60 detik, 502), sehingga yang terukur adalah

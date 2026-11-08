@@ -4,7 +4,7 @@ import type { Pengguna } from '../api'
 export function penggunaTiruan(isi: Partial<Pengguna> = {}): Pengguna {
   return {
     id: 'p-1',
-    nama_pengguna: 'contoh.dokter',
+    nama_pengguna: 'dokter',
     login_terakhir_pada: null,
     mfa_aktif: false,
     pegawai: null,

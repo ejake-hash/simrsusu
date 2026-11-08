@@ -21,7 +21,7 @@ const SENIN = '2026-10-19'
 beforeEach(() => {
   setActivePinia(createPinia())
   server = pasangTiruan(klien, buatServerGabungan({ sekarang: () => new Date('2026-10-19T03:00:00Z') }))
-  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'contoh.superadmin', mfa_aktif: true })
+  useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'superadmin', mfa_aktif: true })
   aturIzin(['lihat', 'input', 'perbaiki'].flatMap((a) => [`master_data.jadwal_praktik.${a}`]).concat(['master_data.organisasi.lihat', 'sdm.pegawai.lihat']))
 })
 afterEach(() => {

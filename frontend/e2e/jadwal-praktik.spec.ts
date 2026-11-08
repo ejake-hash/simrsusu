@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { artisan, halamanAkun, pelanggaranAxe, php, SANDI } from './bantu'
 
 /**
- * Master Data → Jadwal praktik + cuti (tiket 2.4) ke backend asli sebagai contoh.data.induk, di poli `lokal:kunjungan-contoh`.
+ * Master Data → Jadwal praktik + cuti (tiket 2.4) ke backend asli sebagai data.induk, di poli `lokal:kunjungan-contoh`.
  * Dokternya Contoh Dokter (SIP sintetis di sini): dokter poli contoh sudah berjadwal 24 jam tiap hari, jadi selalu tumpang tindih.
  */
 const ZONA = 'Asia/Jakarta'
@@ -15,14 +15,14 @@ test.beforeAll(() => {
   if (!SANDI) throw new Error('Set E2E_SANDI sama dengan AKUN_SINTETIS_SANDI saat seeding.')
   artisan()
   // SIP sintetis untuk Contoh Dokter; jadwal sisa jalan sebelumnya (bila gagal di tengah) dinonaktifkan agar tidak tumpang tindih.
-  php('tinker', '--execute', "$p = DB::table('akses.pengguna')->where('nama_pengguna', 'contoh.dokter')->value('pegawai_id'); App\\Modules\\Sdm\\Models\\IzinPraktik::query()->updateOrCreate(['pegawai_id' => $p, 'jenis' => 'sip', 'nomor' => 'SIP/CONTOH/E2E'], ['terbit' => '2020-01-01', 'berlaku_sampai' => '2040-01-01', 'status' => 'aktif']); App\\Modules\\MasterData\\Models\\JadwalPraktik::query()->where('pegawai_id', $p)->update(['status' => 'nonaktif']);")
+  php('tinker', '--execute', "$p = DB::table('akses.pengguna')->where('nama_pengguna', 'dokter')->value('pegawai_id'); App\\Modules\\Sdm\\Models\\IzinPraktik::query()->updateOrCreate(['pegawai_id' => $p, 'jenis' => 'sip', 'nomor' => 'SIP/CONTOH/E2E'], ['terbit' => '2020-01-01', 'berlaku_sampai' => '2040-01-01', 'status' => 'aktif']); App\\Modules\\MasterData\\Models\\JadwalPraktik::query()->where('pegawai_id', $p)->update(['status' => 'nonaktif']);")
 })
 test.afterAll(() => {
   artisan('--batal')
 })
 
 test('tambah jadwal, cuti membuat slot tidak tersedia, batal cuti, nonaktifkan', async ({ browser, baseURL }) => {
-  const page = await halamanAkun(browser, new URL(baseURL ?? '').origin, 'contoh.data.induk')
+  const page = await halamanAkun(browser, new URL(baseURL ?? '').origin, 'data.induk')
   await page.goto('/master-data/jadwal-praktik')
   await expect(page.getByRole('heading', { name: 'Jadwal praktik dan kuota poli', level: 1 })).toBeVisible()
 

@@ -18,7 +18,7 @@ const adapterAsli = klien.defaults.adapter
 let permintaan: PermintaanTiruan[]
 let gabungan: ReturnType<typeof buatServerGabungan>
 const IZIN_PENUH = ['pendaftaran.pasien.lihat', 'pendaftaran.pasien.input', 'pendaftaran.pasien.perbaiki', 'pendaftaran.pasien.identitas.lihat']
-/** Akun contoh.admisi (uid 2): peran Petugas Admisi tanpa bagian identitas → server mengirim NIK termasking. */
+/** Akun admisi (uid 2): peran Petugas Admisi tanpa bagian identitas → server mengirim NIK termasking. */
 const ID_ADMISI = uid(2)
 
 function pasangServer() {

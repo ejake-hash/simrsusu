@@ -3,10 +3,10 @@ import { artisan, bersihkanPesertaSintetis, daftarkanKunjunganJkn, halamanAdmisi
 
 /**
  * Tiket 2.13-fe: pasien terdaftar (admisi) → muncul di worklist tahap perawat → perawat memanggil → asesmen draf dengan
- * alergi → selesai → tahap dokter; lalu perbaikan beralasan dengan sisa waktu. Akun contoh.perawat (peran contoh_perawat),
+ * alergi → selesai → tahap dokter; lalu perbaikan beralasan dengan sisa waktu. Akun perawat (peran contoh_perawat),
  * data contoh yang sama dengan pendaftaran.spec.ts, jadi berjalan sesudah proyek fase2 (playwright.config.ts). Seri: tiap
  * langkah memakai nomor dari langkah sebelumnya. Hanya 1440 px + axe; empat lebar di workflow malam.
- * Tiket 2.14-fe: CPPT kunjungan yang sama ditulis, disahkan dengan PIN T1 contoh.perawat sendiri (TtdSintetisSeeder,
+ * Tiket 2.14-fe: CPPT kunjungan yang sama ditulis, disahkan dengan PIN T1 perawat sendiri (TtdSintetisSeeder,
  * E2E_TTD_PIN), diperbaiki dengan alasan dan tanda tangan ulang, lalu disaring per profesi dan episode.
  */
 const kartu = '9990000000001'
@@ -32,13 +32,13 @@ test('pasien terdaftar masuk worklist, dipanggil, asesmen draf + alergi, selesai
   test.setTimeout(150_000)
   const asal = new URL(info.project.use.baseURL ?? '').origin
   const { konteks, page: admisi } = await halamanAdmisi(browser, asal)
-  // contoh.admisi baru dipakai beruntun oleh proyek sebelumnya; 429 di /saya membuat SPA kembali ke halaman masuk.
+  // admisi baru dipakai beruntun oleh proyek sebelumnya; 429 di /saya membuat SPA kembali ke halaman masuk.
   await tungguJatahPenuh(konteks.request, asal)
   await pastikanPasienBpjs(admisi, nama, kartu)
   await daftarkanKunjunganJkn(admisi, nama, kartu)
   await konteks.close()
 
-  const page = await halamanAkun(browser, asal, 'contoh.perawat')
+  const page = await halamanAkun(browser, asal, 'perawat')
   await page.goto('/rawat-jalan/worklist')
   await expect(page.getByRole('heading', { name: 'Worklist poliklinik', level: 1 })).toBeVisible()
   await page.getByRole('combobox', { name: 'Poliklinik' }).selectOption({ label: poli })
@@ -105,7 +105,7 @@ test('pasien terdaftar masuk worklist, dipanggil, asesmen draf + alergi, selesai
 
 test('sub-menu Asesmen perawat menampilkan pasien yang menunggu perawat', async ({ browser }, info) => {
   const asal = new URL(info.project.use.baseURL ?? '').origin
-  const page = await halamanAkun(browser, asal, 'contoh.perawat')
+  const page = await halamanAkun(browser, asal, 'perawat')
   await page.goto('/rawat-jalan/asesmen-perawat')
   await expect(page.getByRole('heading', { name: 'Asesmen perawat', level: 1 })).toBeVisible()
   await expect(page.getByRole('combobox', { name: 'Tahap' })).toHaveValue('perawat')
@@ -117,7 +117,7 @@ test('CPPT: tulis SOAP polos, sahkan dengan PIN sendiri, perbaiki beralasan, sar
   test.setTimeout(120_000)
   if (!PIN) throw new Error('Set E2E_TTD_PIN sama dengan AKUN_SINTETIS_TTD_PIN saat seeding.')
   const asal = new URL(info.project.use.baseURL ?? '').origin
-  const page = await halamanAkun(browser, asal, 'contoh.perawat')
+  const page = await halamanAkun(browser, asal, 'perawat')
   await page.goto('/rawat-jalan/cppt')
   await expect(page.getByRole('heading', { name: 'CPPT episode', level: 1 })).toBeVisible()
   await page.getByRole('combobox', { name: 'Poliklinik' }).selectOption({ label: poli })
