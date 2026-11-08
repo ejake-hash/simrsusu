@@ -212,7 +212,7 @@ final class AkunSintetisSeeder extends Seeder
             foreach (Izin::query()->whereIn('menu_id', $subMenu)->pluck('id') as $izinId) {
                 $this->aktifkan('akses.peran_izin', ['peran_id' => $peran->id, 'izin_id' => $izinId]);
             }
-            $this->beriIzin($peran, self::IZIN_TAMBAHAN_CONTOH[$kode] ?? []);
+            $this->beriIzin($peran, self::IZIN_TAMBAHAN_CONTOH[$kode]);
             app(CacheHakAkses::class)->lupakanSemua();
 
             $this->tugaskan($namaPengguna, $peran);
