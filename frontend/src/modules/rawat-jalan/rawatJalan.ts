@@ -1,4 +1,5 @@
 import { ApiError } from '@/shared/api/klien'
+import type { JenisPeringatanResep } from '@/shared/api/resep'
 import type { JenisAlergi, JenisDiagnosis, ProfesiCatatan, StatusAsesmen, TahapWorklist, TatananCatatan, TingkatAlergi } from './tipe'
 
 export const KUNCI_WORKLIST = {
@@ -9,6 +10,7 @@ export const KUNCI_WORKLIST = {
   cppt: ['rawat-jalan', 'cppt'] as const,
   diagnosis: (kunjunganId: string) => ['rawat-jalan', 'diagnosis', kunjunganId] as const,
   ringkasan: (pasienId: string) => ['rawat-jalan', 'ringkasan', pasienId] as const,
+  resep: (kunjunganId: string) => ['rawat-jalan', 'resep', kunjunganId] as const,
 }
 
 export const LABEL_TAHAP: Record<TahapWorklist, string> = { perawat: 'Menunggu perawat', dokter: 'Menunggu dokter', selesai: 'Selesai' }
@@ -97,6 +99,27 @@ export function pesanPemeriksaan(e: unknown): string {
     default:
       if (e.status === 412 || e.status === 428) return 'Data sudah berubah sejak Anda membukanya. Muat ulang, lalu ulangi.'
       return e.message
+  }
+}
+
+export const LABEL_PERINGATAN_RESEP: Record<JenisPeringatanResep, string> = { alergi: 'Alergi', duplikasi: 'Duplikasi zat aktif', non_fornas: 'Di luar formularium' }
+
+/** Galat e-resep (kontrak v0.27.0) dengan langkah berikutnya untuk dokter. */
+export function pesanResep(e: unknown): string {
+  if (!(e instanceof ApiError)) return 'Terjadi kesalahan. Coba lagi.'
+  switch (e.kode) {
+    case 'peringatan_belum_ditanggapi':
+      return 'Ada peringatan baru sejak resep dibuka. Muat ulang, baca peringatannya, lalu isi alasan untuk setiap peringatan.'
+    case 'izin_praktik_tidak_berlaku':
+      return 'SIP/SPK Anda tidak berlaku hari ini, jadi resep tidak bisa disahkan. Hubungi bagian SDM untuk memperbarui izin praktik.'
+    case 'bukan_dokter_kunjungan':
+      return 'Hanya dokter jadwal kunjungan ini yang bisa mengesahkan resep. Resep tetap draf.'
+    case 'sudah_disahkan':
+      return 'Resep sudah sah dan tidak bisa diubah. Batalkan, lalu tulis resep baru.'
+    case 'validasi_gagal':
+      return e.rincian.some((r) => r.kolom?.startsWith('item.')) ? 'Sebagian obat tidak aktif lagi atau bukan obat/BMHP. Hapus lalu pilih ulang.' : e.message
+    default:
+      return pesanPemeriksaan(e)
   }
 }
 
