@@ -94,6 +94,8 @@ const ubah = useMutation({
   },
 })
 const sasaran = ref<Diagnosis | null>(null)
+// Galat pembatalan tampil di kolom alasan; galat ganti jenis tampil di bawah daftar.
+const batalGagal = computed(() => ubah.isError.value && 'status' in (ubah.variables.value?.isian ?? {}))
 const alasan = ref('')
 function mulaiBatal(d: Diagnosis) {
   sasaran.value = d
@@ -169,10 +171,10 @@ const tutup = useMutation({
             </div>
           </li>
         </ul>
-        <Pesan v-if="ubah.isError.value && !sasaran" jenis="error">{{ pesanPemeriksaan(ubah.error.value) }}</Pesan>
+        <Pesan v-if="ubah.isError.value && !batalGagal" jenis="error">{{ pesanPemeriksaan(ubah.error.value) }}</Pesan>
 
         <form v-if="sasaran" class="form" @submit.prevent="ubah.mutate({ d: sasaran, isian: { status: 'batal', alasan_batal: alasan.trim() } })">
-          <KolomIsian v-slot="k" :label="`Alasan membatalkan diagnosis ${sasaran.kode}`" wajib petunjuk="Minimal 5 karakter. Diagnosis tidak dihapus; alasan dan pelakunya tersimpan." :error="ubah.isError.value ? pesanPemeriksaan(ubah.error.value) : undefined">
+          <KolomIsian v-slot="k" :label="`Alasan membatalkan diagnosis ${sasaran.kode}`" wajib petunjuk="Minimal 5 karakter. Diagnosis tidak dihapus; alasan dan pelakunya tersimpan." :error="batalGagal ? pesanPemeriksaan(ubah.error.value) : undefined">
             <textarea v-bind="k" v-model="alasan" class="isian" rows="2" maxlength="500"></textarea>
           </KolomIsian>
           <div class="aksi">
