@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.25.0
+  version: 0.26.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -131,6 +131,11 @@ info:
     GET /paket-referensi/{sistem}/kode (cari kode terminologi yang dimuat RS, K7). Error
     baru: 409 `paket_referensi_belum_dimuat`, `diagnosis_utama_sudah_ada`,
     `diagnosis_sudah_tercatat`, `syarat_selesai_belum_lengkap`. Hanya kontrak; kode menyusul di tiket BE.
+    v0.26.0: Order penunjang bersama (tiket 2.16; FR-00-08, FR-07-09, FR-07-27, 7.00.5 butir 1 dan 3): POST
+    /kunjungan/{id}/permintaan-pemeriksaan (lab/rad, rutin/cito, indikasi wajib, peringatan order ganda), GET
+    /episode/{id}/permintaan-pemeriksaan, POST /permintaan-pemeriksaan/{id}/batal. Bagian izin baru
+    `rawat_jalan.pemeriksaan.order` (input, batal). Tarif.kategori (lab/rad, opsional) dan filter GET /data-induk/tarif?jenis=
+    sebagai katalog order (izin tetap master_data.tarif.lihat). Error baru: 409 `order_ganda`. Hanya kontrak; kode menyusul di tiket BE.
 servers:
   - url: /api/v1
 security:
@@ -4459,7 +4464,8 @@ paths:
       operationId: daftarTarif
       summary: Daftar buku tarif (paginasi kursor)
       description: |
-        Izin: master_data.tarif.lihat, cakupan `rs`. Urut: kode (unik); kursor keyset `(kode, id)`. `harga` = harga yang berlaku pada `tanggal` (bawaan hari ini
+        Izin: master_data.tarif.lihat, cakupan `rs`. Katalog order penunjang (tiket 2.16) memakai endpoint dan izin yang sama
+        dengan `jenis` terisi; RS memberi izin lihat ini ke peran pemesan lewat Peran & izin. Urut: kode (unik); kursor keyset `(kode, id)`. `harga` = harga yang berlaku pada `tanggal` (bawaan hari ini
         zona RS), per kelas rawat. Tidak ada endpoint tulis tarif: menambah atau mengubah tarif = usulan 1.8c
         (POST /usulan-data-induk, `jenis_data` `tarif`; izin master_data.usulan.*). Perubahan terjadwal yang sudah disahkan
         tampil di `akan_berlaku`. Pengisian awal saat penyiapan (sebelum siap melayani) bukan bagian kontrak ini.
@@ -4470,6 +4476,7 @@ paths:
         - { in: query, name: cari, schema: { type: string, maxLength: 100 }, description: "Cocok sebagian pada kode atau nama" }
         - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
         - { in: query, name: kelompok, schema: { type: string, maxLength: 50 } }
+        - { in: query, name: jenis, schema: { $ref: '#/components/schemas/JenisPermintaanPemeriksaan' }, description: "Hanya butir yang `kategori` versi berlakunya = jenis ini (katalog order penunjang)" }
         - { in: query, name: kelas_rawat_id, schema: { type: string, format: uuid }, description: "Hanya butir yang punya harga untuk kelas ini; `harga` hanya memuat kelas itu" }
         - { in: query, name: tanggal, schema: { type: string, format: date }, description: "Tanggal harga berlaku; bawaan hari ini zona RS" }
       responses:
@@ -6379,6 +6386,124 @@ paths:
         '412': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '428': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/permintaan-pemeriksaan:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: buatPermintaanPemeriksaan
+      summary: Order penunjang (lab/radiologi) dari kunjungan ini (7.00.5)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.order.input (bagian, 9.2.1), cakupan unit kunjungan (selain itu 403). Komponen order
+        bersama (FR-00-08): pos lain (IGD, rawat inap) memakai endpoint yang sama dengan izin bagian pos itu di tiketnya.
+        - Kunjungan bukan `dilayani` → 409 `status_tidak_sesuai`.
+        - Satu permintaan = satu `jenis`; order lab dan radiologi sekaligus = dua permintaan.
+        - `item`: 1–50 `tarif_id` berbeda; setiap butir harus berstatus aktif pada hari ini (zona RS) dan `kategori` versi
+          berlakunya = `jenis` (selain itu 422 `validasi_gagal`, kolom `item.<n>.tarif_id`). `kode_item` disalin dari kode
+          tarif saat dipesan.
+        - Terikat kunjungan **dan** episode kunjungan saat dipesan (`episode_id` diisi server, 7.00.5 butir 1); pemindahan
+          pasien sesudahnya tidak mengubahnya.
+        - Order ganda (FR-07-27): butir yang sama sudah dipesan untuk pasien ini hari ini (zona RS, permintaan dan butir
+          tidak batal, pemesan siapa pun termasuk akun ini, kunjungan mana pun) dan `alasan_ganda` kosong → 409 `order_ganda`,
+          tanpa menyimpan apa pun. Order dari kunjungan di poli bertanda sensitif (punya nama netral) yang unitnya di luar
+          cakupan akun tidak dihitung (9.2.5, sama dengan GET daftar episode).
+          `rincian` satu objek per butir ganda `{"kolom": "item.<n>.tarif_id", "tarif_id", "nama", "dipesan_pada"}`
+          (tanpa pemesan atau poli asalnya). Kirim ulang dengan `alasan_ganda` untuk tetap memesan; alasan disimpan di
+          permintaan.
+        Berhasil: status `dipesan`; kejadian `PermintaanPemeriksaanDibuat` (id permintaan) terbit untuk penunjang (Tahap C).
+        Audit `permintaan.pemeriksaan_dibuat` hanya memuat id permintaan dan kunjungan (indikasi dan alasan tidak masuk
+        log/audit).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [jenis, prioritas, diagnosis_kerja, item]
+              additionalProperties: false
+              properties:
+                jenis: { $ref: '#/components/schemas/JenisPermintaanPemeriksaan' }
+                prioritas: { $ref: '#/components/schemas/PrioritasPermintaan' }
+                diagnosis_kerja: { type: string, minLength: 3, maxLength: 500, description: "Indikasi klinis (teks bebas, wajib)" }
+                catatan: { type: [string, 'null'], maxLength: 1000 }
+                alasan_ganda: { type: [string, 'null'], minLength: 5, maxLength: 500 }
+                item:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    type: object
+                    required: [tarif_id]
+                    additionalProperties: false
+                    properties:
+                      tarif_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Permintaan tersimpan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PermintaanPemeriksaan' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /episode/{id}/permintaan-pemeriksaan:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: daftarPermintaanPemeriksaanEpisode
+      summary: Order penunjang satu episode (semua kunjungan episode, terbaru dulu)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.lihat, cakupan unit salah satu kunjungan episode ini (selain itu 403). Episode tidak
+        ada → 404. Urut `(dipesan_pada, id)` terbaru dulu; bawaan semua status, `status=` menyaring. Order dari kunjungan
+        di poli bertanda sensitif (punya nama netral) hanya dikirim bila unit kunjungan itu dalam cakupan akun (9.2.5).
+      parameters:
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/StatusPermintaanPemeriksaan' } }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman order (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/PermintaanPemeriksaan' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /permintaan-pemeriksaan/{id}/batal:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: batalPermintaanPemeriksaan
+      summary: Batalkan order penunjang sebelum diterima penunjang (tidak dihapus)
+      description: |
+        Izin: rawat_jalan.pemeriksaan.order.batal, cakupan unit kunjungan permintaan. Hanya status `dipesan` (belum diterima
+        penunjang; selain itu 409 `status_tidak_sesuai`). Permintaan dan semua butirnya → `batal`, `alasan_batal`,
+        `dibatalkan_oleh`, `dibatalkan_pada`; baris tetap tersimpan. Boleh sesudah kunjungan selesai selama masih
+        `dipesan`. Audit `permintaan.pemeriksaan_dibatalkan` + id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PermintaanBatal' }
+      responses:
+        '200':
+          description: Permintaan sesudah dibatalkan
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PermintaanPemeriksaan' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /pasien/{id}/ringkasan-klinis:
     parameters:
       - $ref: '#/components/parameters/Id'
@@ -7802,6 +7927,7 @@ components:
         kode: { type: string }
         nama: { type: string }
         kelompok: { type: string, description: "Pengelompokan buku tarif (mis. jenis layanan), teks bebas dari data RS" }
+        kategori: { type: [string, 'null'], enum: [lab, rad, null], description: "Sejak v0.26.0 (tiket 2.16): butir yang bisa dipesan lewat order penunjang jenis itu; null = bukan butir penunjang" }
         status: { type: string, enum: [aktif, nonaktif] }
         berlaku_dari: { type: string, format: date, description: "Mulai berlaku versi yang tampil pada `tanggal`" }
         harga: { type: array, items: { $ref: '#/components/schemas/HargaTarif' } }
@@ -9168,3 +9294,54 @@ components:
         alasan_batal: { type: [string, 'null'] }
         dibatalkan_oleh: { $ref: '#/components/schemas/Pelaku' }
         dibatalkan_pada: { type: [string, 'null'], format: date-time }
+    JenisPermintaanPemeriksaan:
+      type: string
+      enum: [lab, rad]
+      description: "Tiket 2.16: lab dan radiologi. Nilai lain PRD 11.2 (pa, gizi, rehab, darah, konsul, tindakan) menyusul tiketnya tanpa memecah klien"
+    PrioritasPermintaan:
+      type: string
+      enum: [rutin, cito]
+    StatusPermintaanPemeriksaan:
+      type: string
+      enum: [dipesan, batal]
+      description: "Tahap penerimaan, sampling, dan hasil (Tahap C) menambah nilai tanpa memecah klien"
+    StatusPermintaanItem:
+      type: string
+      enum: [dipesan, batal]
+      description: "Status per butir; tahap penunjang (Tahap C) menambah nilai tanpa memecah klien"
+    PermintaanPemeriksaan:
+      type: object
+      required: [id, kunjungan_id, episode_id, jenis, prioritas, diagnosis_kerja, catatan, alasan_ganda, status, pemesan,
+        dipesan_pada, item, alasan_batal, dibatalkan_oleh, dibatalkan_pada, dapat]
+      properties:
+        id: { type: string, format: uuid }
+        kunjungan_id: { type: string, format: uuid }
+        episode_id: { type: string, format: uuid, description: "Episode kunjungan saat dipesan (7.00.5 butir 1)" }
+        jenis: { $ref: '#/components/schemas/JenisPermintaanPemeriksaan' }
+        prioritas: { $ref: '#/components/schemas/PrioritasPermintaan' }
+        diagnosis_kerja: { type: string, description: "Indikasi klinis" }
+        catatan: { type: [string, 'null'] }
+        alasan_ganda: { type: [string, 'null'], description: "Terisi bila dipesan walau ada order ganda (FR-07-27)" }
+        status: { $ref: '#/components/schemas/StatusPermintaanPemeriksaan' }
+        pemesan: { $ref: '#/components/schemas/Pelaku' }
+        dipesan_pada: { type: string, format: date-time }
+        item:
+          type: array
+          items:
+            type: object
+            required: [id, tarif_id, kode_item, nama, status]
+            properties:
+              id: { type: string, format: uuid }
+              tarif_id: { type: string, format: uuid }
+              kode_item: { type: string, description: "Kode tarif saat dipesan" }
+              nama: { type: string, description: "Nama versi tarif yang berlaku saat dipesan" }
+              status: { $ref: '#/components/schemas/StatusPermintaanItem' }
+        alasan_batal: { type: [string, 'null'] }
+        dibatalkan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        dibatalkan_pada: { type: [string, 'null'], format: date-time }
+        dapat:
+          type: object
+          required: [batal]
+          description: "true bila akun punya rawat_jalan.pemeriksaan.order.batal dalam cakupan unit kunjungan dan status `dipesan`"
+          properties:
+            batal: { type: boolean }
