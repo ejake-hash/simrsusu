@@ -27,13 +27,15 @@ use Illuminate\Support\Str;
 final class MesinUsulan
 {
     /** Objek yang boleh ada di satu usulan per jenis data (dua jenis tidak boleh bercampur). */
-    private const OBJEK_PER_JENIS = ['ruang_tt' => ['ruang', 'kamar', 'tempat_tidur'], 'tarif' => ['tarif'], 'formularium' => ['formularium', 'formularium_item']];
+    private const OBJEK_PER_JENIS = ['ruang_tt' => ['ruang', 'kamar', 'tempat_tidur'], 'tarif' => ['tarif'], 'formularium' => ['formularium', 'formularium_item'],
+        'matriks_perpindahan' => [ButirMatriksPerpindahan::OBJEK]];
 
     public function __construct(
         private readonly CatatAktivitas $audit,
         private readonly ButirRuangTt $butir,
         private readonly ButirTarif $butirTarif,
         private readonly ButirFormularium $butirFormularium,
+        private readonly ButirMatriksPerpindahan $butirMatriks,
         private readonly CatatVersi $versi,
     ) {}
 
@@ -399,7 +401,7 @@ final class MesinUsulan
             return "{$nama}: {$sebelum} → ".($sebelum + $tambah - (count($butir) - $tambah)).' TT';
         }
         $label = ['tempat_tidur' => 'TT', 'kamar' => 'kamar', 'ruang' => 'ruang', 'tarif' => 'tarif', 'formularium' => 'formularium',
-            'formularium_item' => 'item formularium'];
+            'formularium_item' => 'item formularium', ButirMatriksPerpindahan::OBJEK => 'sel matriks perpindahan'];
         $hitung = [];
         foreach ($butir as $b) {
             $kunci = ucfirst($b['aksi']).' '.$label[$b['objek_jenis']];
@@ -410,11 +412,12 @@ final class MesinUsulan
     }
 
     /** @param  array<string, mixed>  $butir */
-    public function pilih(array $butir): ButirRuangTt|ButirTarif|ButirFormularium
+    public function pilih(array $butir): ButirRuangTt|ButirTarif|ButirFormularium|ButirMatriksPerpindahan
     {
         return match ($butir['objek_jenis'] ?? null) {
             'tarif' => $this->butirTarif,
             'formularium', 'formularium_item' => $this->butirFormularium,
+            ButirMatriksPerpindahan::OBJEK => $this->butirMatriks,
             default => $this->butir,
         };
     }

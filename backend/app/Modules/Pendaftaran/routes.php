@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Pendaftaran\Http\Controllers\DisposisiController;
 use App\Modules\Pendaftaran\Http\Controllers\GabungPasienController;
 use App\Modules\Pendaftaran\Http\Controllers\KunjunganController;
 use App\Modules\Pendaftaran\Http\Controllers\KunjunganIgdController;
@@ -36,6 +37,10 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::get('kunjungan/{kunjungan}/triase', [TriaseController::class, 'index'])->middleware('can.rs:igd.triase.lihat');
     Route::post('kunjungan/{kunjungan}/triase', [TriaseController::class, 'store'])->middleware('can.rs:igd.triase.input');
     Route::get('instrumen-triase', [TriaseController::class, 'instrumen'])->middleware('can.rs:igd.triase.lihat');
+
+    // Disposisi IGD = perintah perpindahan menurut matriks 7.00.3 (tiket 2.26); izin sel matriks diperiksa sesudah tujuan dibaca.
+    Route::get('kunjungan/{kunjungan}/disposisi', [DisposisiController::class, 'index'])->middleware('can.rs:igd.disposisi.lihat');
+    Route::post('kunjungan/{kunjungan}/disposisi', [DisposisiController::class, 'store'])->middleware('can.rs:igd.disposisi.input');
 
     // Kepesertaan, rujukan, SEP (tiket 2.7): nomor di header X-Nomor, bukan URL.
     Route::get('bpjs/peserta', [SepController::class, 'peserta']);

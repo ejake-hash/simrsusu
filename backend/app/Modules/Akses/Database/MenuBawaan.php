@@ -96,7 +96,9 @@ final class MenuBawaan
      * Izin bersyarat klinis (lapis 5, 9.2.2): SIP/SPK harus berlaku hari ini. pasang() hanya menyalakan tanda ini, tidak
      * pernah mematikannya.
      */
-    public const IZIN_KLINIS = ['rawat_jalan.pemeriksaan.resep.sahkan', 'rawat_jalan.cppt.darurat'];
+    public const IZIN_KLINIS = ['rawat_jalan.pemeriksaan.resep.sahkan', 'rawat_jalan.cppt.darurat',
+        // Tiket 2.26: perintah perpindahan klinis hanya dari dokter atau tenaga berwenang (PRD 7.00.3 butir 1).
+        'igd.disposisi.input'];
 
     /**
      * Izin data pribadi yang sensitif tanpa penyetuju bawaan: tidak bisa diberikan sampai RS menetapkan pemilik datanya
@@ -143,6 +145,8 @@ final class MenuBawaan
                 'papan' => ['Papan pasien IGD', 3],
                 // Tiket 2.24: triase dan ulang triase (FR-03-02).
                 'triase' => ['Triase', 3],
+                // Tiket 2.26: disposisi IGD = perintah perpindahan menurut matriks 7.00.3 (FR-03-09, FR-00-02).
+                'disposisi' => ['Disposisi', 3],
                 'cppt' => ['CPPT episode', 26],
                 'rujukan' => ['Rujukan SISRUTE', 4],
             ]],
@@ -265,6 +269,8 @@ final class MenuBawaan
                 'jadwal_praktik' => ['Jadwal praktik', 54],
                 // Tiket 2.24: instrumen triase IGD sebagai data induk RS (FR-03-02, aturan Tahap C).
                 'instrumen_triase' => ['Instrumen triase', 54],
+                // Tiket 2.26: matriks perpindahan antar-pos (FR-00-02); diubah lewat usulan data induk.
+                'matriks_perpindahan' => ['Matriks perpindahan', 54],
             ]],
             'pengaturan' => ['Pengaturan Sistem', 1, 54, [
                 'akun' => ['Akun & akses', 54],

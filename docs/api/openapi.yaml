@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.32.0
+  version: 0.33.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -166,6 +166,14 @@ info:
     kunjungan (POST /kunjungan/{id}/cppt, /asesmen-awal, /permintaan-pemeriksaan) dan POST /kunjungan/{id}/batal mengunci
     pasien lalu kunjungan dan membaca episode dari baris terkunci (tinjauan #191); No. RM yang digabung tepat di antara
     keduanya → 409 `pasien_digabung` (ulangi).
+    v0.33.0: Matriks perpindahan dan disposisi IGD (tiket 2.26; FR-00-02, FR-00-03, FR-03-09, PRD 7.00.3): GET
+    /data-induk/matriks-perpindahan (hanya baca; isi awal = tabel 7.00.3 asal IGD dan poliklinik + APS/DOA FR-03-09),
+    perubahan lewat usulan data induk (`jenis_data` baru `matriks_perpindahan`, `objek_jenis` baru `aturan_perpindahan`).
+    POST dan GET /kunjungan/{id}/disposisi: perintah hanya ditambah, tujuan harus ada di matriks aktif (422
+    `perpindahan_di_luar_matriks`; pos matriks yang bukan disposisi → 422 `tujuan_bukan_disposisi`), pemberi perintah memegang izin sel matriks (403; `igd.disposisi.input` bersyarat SIP/SPK
+    berlaku). Pulang/APS/meninggal/DOA/rujuk keluar menutup kunjungan IGD (episode IGD > 6 jam ikut selesai); rawat inap →
+    `menunggu_kamar` (permintaan kamar, tanpa penempatan; 2.28), kamar operasi → `menunggu_kamar_operasi`. Sub-menu baru
+    `igd.disposisi` dan `master_data.matriks_perpindahan` (lihat, input, perbaiki).
 servers:
   - url: /api/v1
 security:
@@ -4603,6 +4611,38 @@ paths:
         '412': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '428': { $ref: '#/components/responses/Error' }
+  # Matriks perpindahan antar-pos (tiket 2.26, v0.33.0; FR-00-02, PRD 7.00.3, PRD 11.2 `aturan_perpindahan`). Hanya baca;
+  # perubahan lewat usulan data induk berjenjang (`jenis_data` `matriks_perpindahan`, objek `aturan_perpindahan`).
+  /data-induk/matriks-perpindahan:
+    get:
+      operationId: daftarMatriksPerpindahan
+      summary: Sel matriks perpindahan antar-pos (paginasi kursor, urut pos asal)
+      description: |
+        Izin: master_data.matriks_perpindahan.lihat ATAU igd.disposisi.lihat (layar disposisi memilih tujuan), cakupan `rs`;
+        tanpa keduanya → 403 sebelum isian dibaca. Satu sel = pasangan pos asal → pos tujuan yang boleh diperintahkan dan
+        kode izin yang wajib dipegang pemberi perintah. Isi awal dari tabel PRD 7.00.3 (asal IGD dan poliklinik) ditambah
+        APS dan DOA dari FR-03-09; RS menyesuaikannya lewat usulan data induk (tidak ada endpoint tulis langsung). Sel
+        `nonaktif` = perintah ke tujuan itu ditolak.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: pos_asal, schema: { $ref: '#/components/schemas/PosAsalPerpindahan' } }
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
+      responses:
+        '200':
+          description: Satu halaman sel matriks
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AturanPerpindahan' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /data-induk/tarif:
     get:
       operationId: daftarTarif
@@ -5737,6 +5777,77 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Triase' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/disposisi:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: daftarDisposisiKunjungan
+      summary: Riwayat perintah disposisi satu kunjungan (terbaru dulu)
+      description: |
+        Izin: igd.disposisi.lihat, cakupan rs. Kunjungan tidak ada → 404. Urut `(diputuskan_pada, id)` terbaru dulu (kursor
+        keyset). Kunjungan tanpa disposisi → daftar kosong.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman riwayat disposisi (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Disposisi' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatDisposisi
+      summary: Perintah disposisi IGD menurut matriks perpindahan (baris baru; jam server dan pemutus dari sesi)
+      description: |
+        Izin rute: igd.disposisi.input, cakupan rs (403 sebelum isian dibaca); izin ini bersyarat SIP/SPK berlaku hari
+        ini (lapis 5, 403 `izin_praktik_tidak_berlaku`). Perintah = baris baru yang tidak pernah diubah (FR-00-02/03,
+        7.00.3): pemutus, alasan, pos asal `igd` dan tujuan, serah terima, status episode, jam server.
+        - `tujuan` di luar PosTujuanPerpindahan → 422 `validasi_gagal`. Pos tujuan matriks yang bukan disposisi FR-03-09
+          (`poli_lain`, `penunjang`, `igd`, `icu_hcu`; alurnya konsul, order, atau rawat inap) → 422 `tujuan_bukan_disposisi`,
+          `rincian` = `[{kolom: tujuan, pos_tujuan, pesan}]`.
+        - Tujuan harus punya sel aktif di matriks perpindahan untuk pos asal `igd` (GET /data-induk/matriks-perpindahan);
+          selain itu 422 `perpindahan_di_luar_matriks`, `rincian` = `[{kolom: tujuan, pos_asal, pos_tujuan, pesan}]`.
+        - Pemberi perintah harus memegang `izin_perintah` sel itu (cakupan rs, termasuk syarat lapis 5) → selain itu 403.
+        - `serah_terima` wajib untuk `rawat_inap` dan `kamar_operasi` (perpindahan antar-ruang, RM-15); opsional lainnya.
+        - Akibat: `pulang`, `aps`, `meninggal`, `doa`, `rujuk_keluar` → kunjungan IGD `selesai` (keluar dari daftar IGD
+          aktif, `lebih_6_jam` false); episode `igd_lebih_6_jam` ikut `selesai` (7.00.2), dan kunjungan yang sudah lewat
+          6 jam tetapi belum dipindah lebih dulu dibentukkan episode itu; episode `rawat_jalan_harian` tidak diubah.
+          `rawat_inap` → status `menunggu_kamar`: permintaan kamar saja, pasien tidak ditempatkan dan kunjungan tetap di
+          IGD (SPRI, antrean, alokasi TT di 2.28). `kamar_operasi` → `menunggu_kamar_operasi`, kunjungan tetap di IGD.
+        - Perintah yang sama masih menunggu (rawat inap atau kamar operasi) → 409 `perintah_sudah_menunggu`.
+        - Kunjungan bukan IGD, atau IGD yang sudah `selesai`/`batal` → 409 `status_tidak_sesuai`, `rincian` =
+          `[{jenis_kunjungan, status}]`.
+        - 409 `pasien_digabung`, 409 `instalasi_belum_siap`: seperti triase.
+        Baris pasien lalu kunjungan dikunci (urutan pendaftaran). Audit `kunjungan.disposisi` (id kunjungan, tujuan, status,
+        episode; tanpa alasan, serah terima, dan identitas pasien). Kejadian internal `DisposisiDicatat` (semua tujuan) dan
+        `DisposisiRawatInap` (rawat inap).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianDisposisi' }
+      responses:
+        '201':
+          description: Perintah tersimpan
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Disposisi' } } }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
@@ -8326,12 +8437,12 @@ components:
             diperiksa_pada: { type: string, format: date-time }
     JenisDataInduk:
       type: string
-      enum: [ruang_tt, tarif, formularium]
-      description: "Kelompok data induk dengan satu alur usulan (pemilik/pemverifikasi/penyetuju): ruang_tt = ruang & TT (FR-08-16); tarif = buku tarif (FR-28-12, 2.2); formularium = formularium dan itemnya (FR-54-02, 2.12)"
+      enum: [ruang_tt, tarif, formularium, matriks_perpindahan]
+      description: "Kelompok data induk dengan satu alur usulan (pemilik/pemverifikasi/penyetuju): ruang_tt = ruang & TT (FR-08-16); tarif = buku tarif (FR-28-12, 2.2); formularium = formularium dan itemnya (FR-54-02, 2.12); matriks_perpindahan = matriks perpindahan antar-pos (FR-00-02, 2.26, v0.33.0)"
     ObjekDataInduk:
       type: string
-      enum: [ruang, kamar, tempat_tidur, tarif, formularium, formularium_item]
-      description: "ruang = lokasi jenis ruang (1.8b); tarif = satu butir buku tarif (2.2, jenis_data `tarif`); formularium dan formularium_item = jenis_data `formularium` (2.12)"
+      enum: [ruang, kamar, tempat_tidur, tarif, formularium, formularium_item, aturan_perpindahan]
+      description: "ruang = lokasi jenis ruang (1.8b); tarif = satu butir buku tarif (2.2, jenis_data `tarif`); formularium dan formularium_item = jenis_data `formularium` (2.12); aturan_perpindahan = satu sel matriks perpindahan (2.26, jenis_data `matriks_perpindahan`)"
     TahapUsulan:
       type: string
       enum: [diusulkan, diverifikasi, disetujui, berlaku, dikembalikan, gagal_diterapkan]
@@ -8370,7 +8481,12 @@ components:
         - formularium_item `tambah` (objek_id null): formularium_id (formularium yang sudah ada, bukan yang ditambah di usulan
           yang sama), barang_id, restriksi, maks_per_resep, kronis (aturan POST /data-induk/formularium/{id}/item);
         - formularium_item `ubah`: restriksi, maks_per_resep, kronis (minimal satu);
-        - formularium_item `tutup`: alasan (item `nonaktif` mulai `berlaku_dari`; tidak dihapus).
+        - formularium_item `tutup`: alasan (item `nonaktif` mulai `berlaku_dari`; tidak dihapus);
+        - aturan_perpindahan `tambah` (objek_id null): pos_asal (PosAsalPerpindahan), pos_tujuan (PosTujuanPerpindahan),
+          izin_perintah (kode izin yang ada di akses.izin), keterangan; pasangan yang sudah ada → `pasangan_sudah_ada`
+          (ubah sel yang ada);
+        - aturan_perpindahan `ubah`: izin_perintah, keterangan, status (aktif/nonaktif; minimal satu);
+        - aturan_perpindahan `tutup`: alasan (sel `nonaktif`: perintah ke tujuan itu ditolak; tidak dihapus).
         Sampai tanggal efektif, resep dan layar memakai formularium/item lama (penerapan 00.00 zona RS).
         Satu usulan hanya memuat objek dari satu `jenis_data` (422 `perubahan_tidak_valid`, kode `jenis_campur`).
       items:
@@ -9560,6 +9676,65 @@ components:
         ditriase_pada: { type: string, format: date-time, description: "Jam server saat triase dicatat" }
         petugas: { $ref: '#/components/schemas/Pelaku' }
         berlaku: { type: boolean, description: "true hanya untuk triase terbaru kunjungan ini" }
+    PosAsalPerpindahan:
+      type: string
+      enum: [pendaftaran, poliklinik, igd, penunjang, kamar_operasi, icu_hcu, rawat_inap, farmasi, kasir]
+      description: "Baris tabel PRD 7.00.3 (v0.33.0)"
+    PosTujuanPerpindahan:
+      type: string
+      enum: [poli_lain, penunjang, igd, kamar_operasi, icu_hcu, rawat_inap, rujuk_keluar, pulang, meninggal, aps, doa]
+      description: "Kolom tabel PRD 7.00.3, ditambah `aps` (pulang atas permintaan sendiri) dan `doa` dari FR-03-09 (v0.33.0)"
+    AturanPerpindahan:
+      type: object
+      required: [id, pos_asal, pos_tujuan, izin_perintah, keterangan, status, versi, diubah_pada]
+      description: "Satu sel matriks perpindahan (kunjungan.aturan_perpindahan, data induk RS; v0.33.0)."
+      properties:
+        id: { type: string, format: uuid }
+        pos_asal: { $ref: '#/components/schemas/PosAsalPerpindahan' }
+        pos_tujuan: { $ref: '#/components/schemas/PosTujuanPerpindahan' }
+        izin_perintah: { type: string, description: "Kode izin yang wajib dipegang pemberi perintah (cakupan rs)", examples: [igd.disposisi.input] }
+        keterangan: { type: [string, 'null'], description: "Sumber/catatan aturan, mis. baris PRD 7.00.3" }
+        status: { type: string, enum: [aktif, nonaktif] }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    TujuanDisposisi:
+      type: string
+      enum: [pulang, rawat_inap, kamar_operasi, rujuk_keluar, aps, meninggal, doa]
+      description: "Disposisi IGD FR-03-09 (= kode pos tujuan matriks). ICU/HCU lewat rawat_inap (ruang dipilih saat alokasi kamar, 2.28)."
+    IsianDisposisi:
+      type: object
+      required: [tujuan, alasan]
+      additionalProperties: false
+      properties:
+        tujuan: { $ref: '#/components/schemas/TujuanDisposisi', description: "Pos tujuan matriks lain yang bukan disposisi → 422 `tujuan_bukan_disposisi`" }
+        alasan: { type: string, minLength: 5, maxLength: 1000, description: "Alasan keputusan (klinis; tidak masuk log/audit)" }
+        serah_terima: { type: [string, 'null'], minLength: 5, maxLength: 4000, description: "Catatan serah terima (bagian data RM-15); wajib untuk rawat_inap dan kamar_operasi (klinis; tidak masuk log/audit)" }
+    Disposisi:
+      type: object
+      required: [id, kunjungan_id, episode, pos_asal, tujuan, aturan_perpindahan_id, alasan, serah_terima, status, diputuskan_oleh, diputuskan_pada]
+      description: "Perintah perpindahan (kunjungan.perpindahan_pos; hanya ditambah, v0.33.0)."
+      properties:
+        id: { type: string, format: uuid }
+        kunjungan_id: { type: string, format: uuid }
+        episode:
+          type: object
+          required: [id, jenis, status]
+          description: "Potret episode sesudah perintah (tidak ikut berubah sesudahnya)"
+          properties:
+            id: { type: string, format: uuid }
+            jenis: { type: string, enum: [rawat_jalan_harian, igd_lebih_6_jam] }
+            status: { type: string, enum: [aktif, selesai] }
+        pos_asal: { $ref: '#/components/schemas/PosAsalPerpindahan' }
+        tujuan: { $ref: '#/components/schemas/PosTujuanPerpindahan' }
+        aturan_perpindahan_id: { type: string, format: uuid, description: "Sel matriks yang mengesahkan perintah ini" }
+        alasan: { type: string }
+        serah_terima: { type: [string, 'null'] }
+        status:
+          type: string
+          enum: [selesai, menunggu_kamar, menunggu_kamar_operasi]
+          description: "Akibat pada kunjungan asal saat perintah: selesai = kunjungan IGD ditutup; menunggu_kamar = permintaan kamar rawat inap (kelanjutannya di permintaan tempat tidur 2.28); menunggu_kamar_operasi = menunggu diterima kamar operasi"
+        diputuskan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        diputuskan_pada: { type: string, format: date-time, description: "Jam server" }
     RingkasPenjamin:
       type: object
       required: [id, kode, nama, jenis]

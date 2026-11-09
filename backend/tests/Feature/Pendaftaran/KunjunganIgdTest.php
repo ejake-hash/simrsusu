@@ -320,7 +320,9 @@ class KunjunganIgdTest extends TestCase
         $ada = collect(DB::select("SELECT c.table_schema || '.' || c.table_name AS tabel FROM information_schema.columns c
             JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name AND t.table_type = 'BASE TABLE'
             WHERE c.column_name = 'episode_id'"))->pluck('tabel')->sort()->values()->all();
-        $tercakup = collect([...BentukEpisodeIgd::TABEL_AKTIVITAS, 'kunjungan.kunjungan'])->sort()->values()->all();
+        // kunjungan.perpindahan_pos dikecualikan dengan sengaja (2.26): hanya ditambah, episode_id = potret saat perintah, dan
+        // kunjungan yang punya perintah menunggu pindah tidak dipindah tugas terjadwal.
+        $tercakup = collect([...BentukEpisodeIgd::TABEL_AKTIVITAS, 'kunjungan.kunjungan', 'kunjungan.perpindahan_pos'])->sort()->values()->all();
 
         $this->assertSame($tercakup, $ada, 'Tabel ber-episode_id baru: tambahkan ke BentukEpisodeIgd::TABEL_AKTIVITAS.');
     }
