@@ -9,11 +9,14 @@ import { tampilkanToast } from '@/design-system/components/toast'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { pesanError } from '@/modules/akses/pengaturan'
 import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
+import type { AksesDarurat } from '@/shared/api/aksesDarurat'
+import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
 import { formatTanggalWaktu } from '@/shared/utils/waktu'
 import { linimasaCppt, tulisCppt } from '../api'
 import { adaIsi, isiSoap, KUNCI_WORKLIST, LABEL_PROFESI, LABEL_TATANAN, pesanCppt, soapKosong } from '../rawatJalan'
 import { cpptTerbatas, type BarisWorklist, type Cppt, type CpptTerbatas, type ProfesiCatatan, type TatananCatatan } from '../tipe'
+import DialogAksesDarurat from './DialogAksesDarurat.vue'
 import EntriCppt from './EntriCppt.vue'
 import FormSoap from './FormSoap.vue'
 
@@ -63,6 +66,17 @@ const tulis = useMutation({
 })
 
 const identitas = computed(() => `${props.baris.pasien.nama} · No. RM ${formatNoRm(props.baris.pasien.no_rm)} · lahir ${formatTanggal(props.baris.pasien.tanggal_lahir)}`)
+// Akses darurat (2.21, UC-33): hanya akun berizin yang melihat tawarannya; server tetap penentu. Status aktif hanya diingat selama layar terbuka.
+const bisaDarurat = computed(() => boleh('rawat_jalan.cppt.darurat'))
+const dialogDarurat = ref(false)
+const aksesDarurat = ref<AksesDarurat | null>(null)
+const aksesAktif = computed(() => aksesDarurat.value && Date.parse(aksesDarurat.value.berakhir_pada) > sekarang.value && aksesDarurat.value.pasien.id === props.baris.pasien.id ? aksesDarurat.value : null)
+const ditolak = computed(() => kueri.error.value instanceof ApiError && kueri.error.value.status === 403 && kueri.error.value.kode === 'akses_ditolak')
+function aksesTerbuka(a: AksesDarurat) {
+  aksesDarurat.value = a
+  tampilkanToast('Akses darurat terbuka. Setiap pembacaan tercatat dan akan ditinjau.', 'ok')
+  void qc.invalidateQueries({ queryKey: KUNCI_WORKLIST.cppt })
+}
 const adaFilter = computed(() => Boolean(profesi.value || tatanan.value))
 </script>
 
@@ -108,10 +122,12 @@ const adaFilter = computed(() => Boolean(profesi.value || tatanan.value))
     </div>
 
     <div class="isi">
+      <Pesan v-if="aksesAktif" jenis="peringatan">Akses darurat aktif sampai {{ formatTanggalWaktu(aksesAktif.berakhir_pada) }}. Pembacaan tercatat atas nama Anda dan ditinjau.</Pesan>
       <p v-if="kueri.isPending.value" class="ket" role="status">Memuat linimasa CPPT…</p>
       <Pesan v-else-if="kueri.isError.value" jenis="error">
         Linimasa tidak dapat dimuat: {{ pesanError(kueri.error.value) }}
-        <Tombol varian="tautan" @click="kueri.refetch()">Coba lagi</Tombol>
+        <Tombol v-if="ditolak && bisaDarurat" varian="utama" @click="dialogDarurat = true">Buka akses darurat</Tombol>
+        <Tombol v-else varian="tautan" @click="kueri.refetch()">Coba lagi</Tombol>
       </Pesan>
       <KeadaanKosong
         v-else-if="!entri.length"
@@ -123,6 +139,7 @@ const adaFilter = computed(() => Boolean(profesi.value || tatanan.value))
           <div v-if="cpptTerbatas(c)" class="terbatas">
             <time :datetime="c.dibuat_pada" class="ket">{{ formatTanggalWaktu(c.dibuat_pada) }}</time>
             <PenandaTerbatas />
+            <Tombol v-if="bisaDarurat && !aksesAktif" @click="dialogDarurat = true">Buka akses darurat</Tombol>
           </div>
           <EntriCppt v-else :entri="c" :sekarang="sekarang" :identitas="identitas" />
         </li>
@@ -131,6 +148,7 @@ const adaFilter = computed(() => Boolean(profesi.value || tatanan.value))
         <Tombol :sibuk="kueri.isFetchingNextPage.value" @click="kueri.fetchNextPage()">Muat catatan lebih lama</Tombol>
       </div>
     </div>
+    <DialogAksesDarurat v-if="bisaDarurat" v-model:open="dialogDarurat" :pasien-id="baris.pasien.id" :identitas="identitas" @terbuka="aksesTerbuka" />
   </section>
 </template>
 

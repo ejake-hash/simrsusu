@@ -4,7 +4,7 @@
  * (tsconfig.node) tanpa menarik klien API.
  */
 import type { IzinMenunggu, PersetujuanAkses, RingkasPeran } from './tipePersetujuan'
-export type JenisAksi = 'lihat' | 'input' | 'perbaiki' | 'sahkan' | 'verifikasi' | 'setujui' | 'batal' | 'ekspor' | 'cetak' | 'lihat_rupiah' | 'usul'
+export type JenisAksi = 'lihat' | 'input' | 'perbaiki' | 'sahkan' | 'verifikasi' | 'setujui' | 'batal' | 'ekspor' | 'cetak' | 'lihat_rupiah' | 'usul' | 'darurat' | 'tinjau'
 
 export type TingkatNode = 'menu' | 'sub_menu' | 'bagian'
 

@@ -82,6 +82,15 @@ final class KunjunganContoh extends Command
             // ditautkan ke dokter jadwal poli contoh.
             Pengguna::query()->where('nama_pengguna', 'dokter.poli')->update(['pegawai_id' => $dokter->id]);
 
+            // Akses darurat (2.21): `dokter.darurat` tanpa relasi pasien, tetapi SIP-nya berlaku (lapis 5).
+            $darurat = Pengguna::query()->where('nama_pengguna', 'dokter.darurat')->first()?->pegawai_id;
+            if ($darurat) {
+                IzinPraktik::query()->updateOrCreate(
+                    ['pegawai_id' => $darurat, 'jenis' => 'sip', 'nomor' => 'SIP/CONTOH/DARURAT'],
+                    ['terbit' => '2020-01-01', 'berlaku_sampai' => '2040-01-01', 'status' => 'aktif'],
+                );
+            }
+
             // SEP (2.7): pemetaan BPJS, kode PPK sintetis, penjamin BPJS, dan kredensial VClaim sintetis (dijawab simulator).
             $poli->forceFill(['kode_poli_bpjs' => 'INT'])->save();
             Penjamin::query()->updateOrCreate(['kode' => 'CONTOH-BPJS'], ['nama' => 'BPJS Kesehatan (contoh)', 'jenis' => 'bpjs', 'status' => 'aktif']);

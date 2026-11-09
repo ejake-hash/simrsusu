@@ -241,7 +241,7 @@ for (const [lebar, tinggi] of [
   test(`${lebar} px: Peran & izin dan Akun & akses tanpa gulir samping halaman; navigasi sub-menu di halaman`, async ({ page }) => {
     await page.setViewportSize({ width: lebar, height: tinggi })
     await page.goto('/pengaturan/peran')
-    await page.getByRole('button', { name: /Contoh Dokter/ }).click()
+    await page.getByRole('button', { name: /Contoh Dokter(?! Akses)/ }).click()
     await expect(page.getByRole('region', { name: 'Matriks izin peran' })).toBeVisible()
     await expect(page.getByRole('navigation', { name: 'Sub-menu Pengaturan Sistem' })).toBeVisible()
     await tanpaGulirSamping(page)

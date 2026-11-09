@@ -204,7 +204,7 @@ status mount ikut dipantau ([proses-dan-jadwal.md §6](proses-dan-jadwal.md#6-pe
 | `APP_DEBUG=true`, `SESSION_SECURE_COOKIE=false` | Aplikasi menolak boot (`PemeriksaanProduksi`). |
 | `APP_ENV` selain `production` di server produksi | Pemeriksaan boot, jumlah pekerja Horizon, dan penolakan simulator/seeder bergantung pada nilai ini. |
 | `INTEGRASI_SIMULATOR=true` | Simulator hanya untuk lokal/CI/staging (K8). |
-| `AKUN_SINTETIS_*` (`AKUN_SINTETIS_SANDI`, `_MFA_RAHASIA`, `_SUPERADMIN_MFA_RAHASIA`, `_SUPERADMIN_DUA_MFA_RAHASIA`, `_SDM_MFA_RAHASIA`, `_INTEGRASI_MFA_RAHASIA`, `_TTD_PIN`) | Hanya untuk seeder lokal/staging. Hapus barisnya dari `.env` produksi. `php artisan db:seed` dilarang. |
+| `AKUN_SINTETIS_*` (`AKUN_SINTETIS_SANDI`, `_MFA_RAHASIA`, `_SUPERADMIN_MFA_RAHASIA`, `_SUPERADMIN_DUA_MFA_RAHASIA`, `_SDM_MFA_RAHASIA`, `_DOKTER_DARURAT_MFA_RAHASIA`, `_INTEGRASI_MFA_RAHASIA`, `_TTD_PIN`) | Hanya untuk seeder lokal/staging. Hapus barisnya dari `.env` produksi. `php artisan db:seed` dilarang. |
 | `TTD_KDF=minimum` | Biaya KDF PIN untuk tes saja. |
 | Kunci uji dari `backend/phpunit.xml` dan `.github/workflows/ci.yml` (`TTD_KUNCI`, `KREDENSIAL_KUNCI`, rahasia TOTP sintetis) | Nilainya **publik**. Server membuat kuncinya sendiri. |
 | `AUTENTIKASI_MFA_JARINGAN_RS` berisi loopback saja, atau `0.0.0.0/0` | Loopback saja = semua klien dianggap di luar RS: MFA selalu diminta dan akun yang belum punya MFA tidak bisa mendaftar MFA (hanya akun yang sudah punya MFA, mis. superadmin dari konsol, yang bisa masuk). `0.0.0.0/0` = semua klien dianggap di dalam RS, sehingga MFA untuk akses dari luar tidak pernah diminta (`KebijakanMfa::wajib`). |
