@@ -3,9 +3,11 @@
 namespace App\Core\Lokal\Console;
 
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Antrean\Models\Anjungan;
 use App\Modules\Integrasi\Application\KelolaKredensial;
 use App\Modules\Integrasi\Domain\SistemIntegrasi;
 use App\Modules\MasterData\Models\JadwalPraktik;
+use App\Modules\MasterData\Models\Lokasi;
 use App\Modules\MasterData\Models\Penjamin;
 use App\Modules\MasterData\Models\Poliklinik;
 use App\Modules\MasterData\Models\UnitOrganisasi;
@@ -17,7 +19,7 @@ use Illuminate\Support\Str;
 
 /**
  * `php artisan lokal:kunjungan-contoh` (e2e pendaftaran): poli (berkode poli BPJS, prefiks antrean `PD`, area display `poli-pd`), penjamin BPJS, kredensial VClaim dan kode PPK sintetis (SEP, tiket 2.7), dokter ber-SIP, dan jadwal praktik sintetis setiap hari
- * 00.00–23.59, lalu instalasi ditandai siap melayani. Penanda itu biasanya terkunci lewat wizard penyiapan langkah 1–6,
+ * 00.00–23.59, anjungan sintetis `apm-contoh` (tiket 2.20), lalu instalasi ditandai siap melayani. Penanda itu biasanya terkunci lewat wizard penyiapan langkah 1–6,
  * yang tidak bisa dilengkapi data sintetis, jadi perintah ini memasang nilai tetap `SEJAK`. `--batal` mengosongkannya lagi
  * (hanya bila nilainya masih `SEJAK`, bukan hasil wizard) agar spec penyiapan tetap bisa diulang, dan menonaktifkan poli
  * `POLI-PD` beserta jadwalnya (data induk dirujuk kunjungan: tidak dihapus). Paket ICD-10 sintetis (2.15) dan butir tarif penunjang sintetis (2.16), dan obat sintetis (2.17) tetap tinggal.
@@ -124,6 +126,13 @@ final class KunjunganContoh extends Command
                         'generik_paten' => 'generik', 'zat_aktif' => $zat, 'satuan_terkecil' => 'tablet']);
                 }
             }
+
+            // Anjungan (2.20): perangkat SINTETIS `apm-contoh` di lobi contoh, nomor loket ke loket contoh (area display `loket`).
+            // Token tidak disimpan di repo: php artisan antrean:token-anjungan apm-contoh.
+            [$lobi, $loket] = array_map(fn (array $l) => Lokasi::query()->updateOrCreate(['kode_lengkap' => $l[0]], ['jenis' => 'ruang', 'fungsi' => 'administrasi',
+                'kode' => $l[0], 'nama' => $l[1], 'status' => 'aktif', 'status_berlaku_dari' => '2026-01-01'])->id,
+                [['CTHLOBI', 'Lobi Rawat Jalan (contoh)'], ['CTHLOKET', 'Loket Pendaftaran 1 (contoh)']]);
+            Anjungan::query()->updateOrCreate(['kode' => 'apm-contoh'], ['lokasi_id' => $lobi, 'lokasi_loket_id' => $loket]);
 
             $profil = DB::table('inti.profil_rs')->first(['id', 'siap_melayani_sejak']);
             if ($profil === null) {

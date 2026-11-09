@@ -4,6 +4,7 @@ namespace App\Modules\Antrean;
 
 use App\Modules\Antrean\Application\CatatTaskAntrean;
 use App\Modules\Antrean\Application\KelolaAntrean;
+use App\Modules\Antrean\Console\TokenAnjungan;
 use App\Modules\Antrean\Console\TokenDisplay;
 use App\Modules\Antrean\Events\AntreanBerubah;
 use App\Modules\Pendaftaran\Events\KunjunganDibatalkan;
@@ -26,7 +27,7 @@ class ModuleServiceProvider extends ServiceProvider
         $this->loadRoutesFrom(__DIR__.'/routes.php');
         $this->loadMigrationsFrom(__DIR__.'/Database/migrations');
         if ($this->app->runningInConsole()) {
-            $this->commands([TokenDisplay::class]);
+            $this->commands([TokenDisplay::class, TokenAnjungan::class]);
         }
 
         Event::listen(KunjunganDibuat::class, [KelolaAntrean::class, 'buatPoli']);
@@ -48,6 +49,12 @@ class ModuleServiceProvider extends ServiceProvider
         RateLimiter::for('display', fn (Request $request) => [
             Limit::perMinute((int) config('rate_limit.display.per_perangkat_per_menit'))->by('display:'.hash('sha256', (string) $request->bearerToken())),
             Limit::perMinute((int) config('rate_limit.display.per_ip_per_menit'))->by('display-ip:'.$request->ip()),
+        ]);
+        // Anjungan (tiket 2.20) sepola display: throttle berjalan sebelum token dicek (prioritas middleware Laravel), jadi kunci
+        // perangkat = hash token; satu perangkat hanya punya satu token aktif. Batas per IP untuk token acak.
+        RateLimiter::for('anjungan', fn (Request $request) => [
+            Limit::perMinute((int) config('rate_limit.anjungan.per_perangkat_per_menit'))->by('anjungan:'.hash('sha256', (string) $request->bearerToken())),
+            Limit::perMinute((int) config('rate_limit.anjungan.per_ip_per_menit'))->by('anjungan-ip:'.$request->ip()),
         ]);
     }
 }

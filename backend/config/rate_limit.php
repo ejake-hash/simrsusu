@@ -20,6 +20,12 @@ return [
         'per_ip_per_menit' => (int) env('RATE_LIMIT_DISPLAY_PER_IP_PER_MENIT', 600),
     ],
 
+    // /api/v1/anjungan/*: satu sesi pasien ± beberapa permintaan, ditambah GET /anjungan tiap 60 detik (tiket 2.20).
+    'anjungan' => [
+        'per_perangkat_per_menit' => (int) env('RATE_LIMIT_ANJUNGAN_PER_PERANGKAT_PER_MENIT', 30),
+        'per_ip_per_menit' => (int) env('RATE_LIMIT_ANJUNGAN_PER_IP_PER_MENIT', 600),
+    ],
+
     // GET /api/v1/siap untuk penyeimbang beban dan pemantau.
     'siap' => [
         'per_ip_per_menit' => (int) env('RATE_LIMIT_SIAP_PER_IP_PER_MENIT', 60),

@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * GET /api/v1/display/{area} (tiket 2.8; FR-02-04, FR-02-15). Perangkat display dengan token perangkat (middleware
- * TokenPerangkatDisplay). Hanya nomor tampil dan inisial; poli sensitif memakai nama netral; teks suara tanpa nama; tidak
+ * TokenPerangkat:display). Hanya nomor tampil dan inisial; poli sensitif memakai nama netral; teks suara tanpa nama; tidak
  * ada id pasien, kunjungan, antrean, No. RM, atau tanggal lahir. ETag dari isi tanpa `waktu_server` → 304 bila sama.
  */
 final class DisplayController
@@ -23,7 +23,10 @@ final class DisplayController
     {
         $poli = Poliklinik::query()->whereRaw(KelolaAntrean::SQL_AREA_POLI.' = ?', [$area])->orderBy('kode')
             ->get(['id', 'kode', 'nama', 'nama_netral', 'antrean_area']);
-        if ($poli->isEmpty()) {
+        // Area loket admisi (tiket 2.20): nama dari lokasi loket anjungan yang mengisi area itu; nomor loket tanpa pasien.
+        $loket = DB::table('kunjungan.anjungan AS j')->join('inti.lokasi AS l', 'l.id', '=', DB::raw('coalesce(j.lokasi_loket_id, j.lokasi_id)'))
+            ->where('j.area_loket', $area)->distinct()->orderBy('l.nama')->pluck('l.nama');
+        if ($poli->isEmpty() && $loket->isEmpty()) {
             throw new ApiError(404, 'tidak_ditemukan', 'Area display tidak dikenal.');
         }
         $namaPoli = $poli->mapWithKeys(fn (Poliklinik $p) => [$p->id => $p->nama_netral ?? $p->nama]);
@@ -55,7 +58,7 @@ final class DisplayController
             ->map(fn ($b) => ['nomor_tampil' => $b->nomor_tampil, 'inisial' => self::inisial($b)])->all();
 
         $isi = [
-            'area' => ['kode' => $area, 'nama' => $namaPoli->unique()->implode(', ')],
+            'area' => ['kode' => $area, 'nama' => $namaPoli->toBase()->unique()->merge($loket)->implode(', ')],
             'dipanggil' => $dipanggil,
             'berikutnya' => $berikutnya,
             'interval_detik' => max(5, min(10, (int) config('antrean.display.interval_detik'))),
