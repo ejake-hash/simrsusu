@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 
 /**
- * Bentuk kontrak v0.20.0 `Kunjungan` (tiket 2.6). Ringkasan pasien hanya dua penanda identitas (nama + No. RM/tanggal
+ * Bentuk kontrak `Kunjungan` (v0.20.0 tiket 2.6; `tiba_pada`, `lebih_6_jam` v0.31.0 tiket 2.23). Ringkasan pasien hanya dua penanda identitas (nama + No. RM/tanggal
  * lahir, 5.1 butir 9); NIK dan alamat tidak dikirim. Relasi dimuat per halaman, bukan per baris.
  */
 final class KunjunganResource
@@ -34,9 +34,10 @@ final class KunjunganResource
             return [];
         }
         $baris = (new EloquentCollection($baris->all()))->load(['pasien', 'episode']);
-        $poli = Poliklinik::query()->whereIn('id', $baris->pluck('poli_id')->unique())->get(['id', 'kode', 'nama'])->keyBy('id');
+        // Kunjungan IGD (2.23) tanpa poli dan dokter: keduanya null.
+        $poli = Poliklinik::query()->whereIn('id', $baris->pluck('poli_id')->filter()->unique())->get(['id', 'kode', 'nama'])->keyBy('id');
         $penjamin = Penjamin::query()->whereIn('id', $baris->pluck('penjamin_id')->filter()->unique())->get(['id', 'kode', 'nama', 'jenis'])->keyBy('id');
-        $dokter = $this->pegawai->ringkas($baris->pluck('pegawai_id')->unique());
+        $dokter = $this->pegawai->ringkas($baris->pluck('pegawai_id')->filter()->unique());
         $akun = Pengguna::query()->whereIn('id', $baris->pluck('dibuat_oleh')->merge($baris->pluck('dibatalkan_oleh'))->filter()->unique())
             ->get(['id', 'pegawai_id', 'nama_pengguna']);
         $namaPegawai = $this->pegawai->nama($akun->pluck('pegawai_id')->filter());
@@ -53,9 +54,11 @@ final class KunjunganResource
                     'tanggal_lahir' => $p->tanggal_lahir?->toDateString()],
                 'episode' => ['id' => $k->episode->id, 'jenis' => $k->episode->jenis, 'mulai_tanggal' => $k->episode->mulai_tanggal->toDateString()],
                 'jenis_kunjungan' => $k->jenis_kunjungan,
-                'poliklinik' => ['id' => $k->poli_id, 'kode' => $poli[$k->poli_id]->kode, 'nama' => $poli[$k->poli_id]->nama],
-                'dokter' => $dokter[$k->pegawai_id] ?? null,
+                'poliklinik' => $k->poli_id === null ? null : ['id' => $k->poli_id, 'kode' => $poli[$k->poli_id]->kode, 'nama' => $poli[$k->poli_id]->nama],
+                'dokter' => $k->pegawai_id === null ? null : ($dokter[$k->pegawai_id] ?? null),
                 'tanggal' => $k->tanggal->toDateString(),
+                'tiba_pada' => $k->tiba_pada?->toIso8601String(),
+                'lebih_6_jam' => $k->lebihEnamJam(),
                 'cara_bayar' => $k->cara_bayar,
                 'penjamin' => $j === null ? null : ['id' => $j->id, 'kode' => $j->kode, 'nama' => $j->nama, 'jenis' => $j->jenis],
                 'status' => $k->status,

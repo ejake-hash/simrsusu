@@ -56,6 +56,10 @@ final class KelolaSep
         if ($kunjungan->cara_bayar !== 'jkn') {
             throw new ApiError(422, 'bukan_jkn', 'SEP hanya untuk kunjungan dengan cara bayar JKN.');
         }
+        // SEP IGD (tanpa poli tujuan) menyusul; tanpa penjaga ini kodePoli(null) menjadi error 500.
+        if ($kunjungan->poli_id === null) {
+            throw new ApiError(422, 'jenis_belum_didukung', 'SEP kunjungan IGD belum didukung.');
+        }
         $noKartu = $kunjungan->pasien->nilaiIdentitas('no_kartu_bpjs');
         if ($noKartu === null) {
             throw new ApiError(422, 'no_kartu_wajib', 'Pasien belum punya No. kartu BPJS. Lengkapi data pasien dulu.');

@@ -552,6 +552,8 @@ Dirinci 9 Nov 2026 dari PRD 7.00.2–7.00.5, 7.03, 7.04, 7.05, 7.08, 7.19, 7.20,
 - Hasil penunjang mengikuti pasien (7.00.5 butir 2, FR-00-09): penerima = pemesan **dan** DPJP/ruang tempat pasien berada saat hasil keluar,
   lewat kotak kerja/notifikasi 7.53 yang sudah ada.
 - Hasil, ekspertise, telaah, dan resume yang sudah disahkan tidak diubah; koreksi lewat adendum bertanda (FR-26-06), pola 2.14.
+- Keputusan pemilik 9 Nov 2026: episode IGD > 6 jam dibentuk otomatis sesudah 6 jam dan aktivitas kunjungan IGD (order, resep,
+  catatan) ikut pindah ke episode baru; ini menyimpang dari PRD 7.00.5 butir 1 dan diselaraskan saat penyelarasan PRD per fase.
 
 | No | Tiket | Jalur | Ukuran | Prasyarat · Status |
 |---|---|---|---|---|
@@ -601,6 +603,10 @@ Uji    :
 - Ulang triase menambah baris dengan jam server dan petugas; triase berlaku = terbaru; riwayat tetap tampil.
 - Triase hanya untuk kunjungan IGD aktif; kunjungan selesai/batal → 409.
 Di luar: skor EWS (FR-08-10, data induk belum ada).
+Catatan tinjauan #191 (wajib sebelum jalur klinis dibuka untuk IGD): penulis aktivitas (`KelolaCppt`, `KelolaAsesmenAwal`) membaca
+`episode_id` dari kunjungan di luar transaksi; baca bersama kunci di dalam transaksi agar tidak tertinggal di episode lama saat
+`kunjungan:episode-igd` memindahkan kunjungan. `KelolaPermintaanPemeriksaan` mengunci kunjungan → pasien (terbalik dari pasien →
+kunjungan di pendaftaran dan pemindahan episode): samakan urutannya agar tidak deadlock.
 
 ### 2.25 · Papan pasien IGD (polling)
 Tujuan : dokter dan perawat IGD melihat semua pasien IGD dengan triase, waktu tanggap, dan lama di IGD dalam satu layar.

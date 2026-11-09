@@ -128,6 +128,9 @@ class AkunSintetisSeederTest extends TestCase
         $this->assertFalse($evaluator->boleh($akun('admisi'), 'master_data.jadwal_praktik.input'));
         $this->assertTrue($evaluator->boleh($akun('dokter'), 'rawat_jalan.pemeriksaan.input'));
         $this->assertTrue($evaluator->bolehMenu($akun('perawat'), 'rawat_inap.pemberian_obat'));
+        // Tiket 2.23: perawat (seluruh menu IGD) mendaftarkan pasien IGD; admisi poli tidak.
+        $this->assertTrue($evaluator->boleh($akun('perawat'), 'igd.pendaftaran.input'));
+        $this->assertFalse($evaluator->bolehMenu($akun('admisi'), 'igd.pendaftaran'));
         $this->assertFalse($evaluator->bolehMenu($akun('mfa'), 'igd.papan'));
         $this->assertSame(1, PenggunaPeran::query()->where('pengguna_id', $akun('dokter')->id)->count());
     }
