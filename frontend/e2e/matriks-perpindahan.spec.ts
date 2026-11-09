@@ -37,7 +37,7 @@ test('data induk melihat matriks dan mengusulkan penonaktifan sel lewat usulan',
   await expect(d).toContainText('Usulkan perubahan sel IGD → DOA')
   await d.getByLabel('Jenis perubahan').selectOption('tutup')
   await d.getByLabel('Alasan penutupan').fill('Uji e2e: diusulkan lalu dikembalikan')
-  await d.getByLabel('Dasar', { exact: true }).fill('Memo uji e2e 2.26')
+  await d.getByRole('textbox', { name: /^Dasar/ }).fill('Memo uji e2e 2.26')
   await d.getByLabel('Alasan usulan').fill('Uji alur usulan matriks (sintetis)')
   expect(await pelanggaranAxe(page)).toEqual([])
   await d.getByRole('button', { name: 'Ajukan usulan' }).click()
