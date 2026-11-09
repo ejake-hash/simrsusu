@@ -9,6 +9,7 @@ use App\Modules\Akses\Models\Peran;
 use App\Modules\Akses\Models\PeranIzin;
 use App\Modules\Akses\Models\PeranMenu;
 use App\Modules\Antrean\Models\Antrean;
+use App\Modules\Pendaftaran\Application\BentukEpisodeIgd;
 use App\Modules\Pendaftaran\Application\KelolaKunjungan;
 use App\Modules\Pendaftaran\Events\EpisodeIgdDibentuk;
 use App\Modules\Pendaftaran\Events\KunjunganDibuat;
@@ -311,6 +312,17 @@ class KunjunganIgdTest extends TestCase
         $daftar = $this->minta('GET', '/api/v1/kunjungan-igd')->assertOk()->assertJsonCount(2, 'data')
             ->assertJsonPath('data.0.episode.jenis', 'igd_lebih_6_jam')->assertJsonPath('data.0.lebih_6_jam', true);
         $this->assertSesuaiKontrak($daftar, 'GET', '/kunjungan-igd');
+    }
+
+    /** Tabel baru ber-`episode_id` wajib ikut dipindah (atau dikecualikan dengan sengaja di sini), supaya tidak tertinggal di episode lama. */
+    public function test_semua_tabel_ber_episode_id_tercakup_pemindahan_igd(): void
+    {
+        $ada = collect(DB::select("SELECT c.table_schema || '.' || c.table_name AS tabel FROM information_schema.columns c
+            JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name AND t.table_type = 'BASE TABLE'
+            WHERE c.column_name = 'episode_id'"))->pluck('tabel')->sort()->values()->all();
+        $tercakup = collect([...BentukEpisodeIgd::TABEL_AKTIVITAS, 'kunjungan.kunjungan'])->sort()->values()->all();
+
+        $this->assertSame($tercakup, $ada, 'Tabel ber-episode_id baru: tambahkan ke BentukEpisodeIgd::TABEL_AKTIVITAS.');
     }
 
     public function test_sep_kunjungan_igd_ditolak_422(): void

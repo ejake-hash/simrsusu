@@ -603,6 +603,10 @@ Uji    :
 - Ulang triase menambah baris dengan jam server dan petugas; triase berlaku = terbaru; riwayat tetap tampil.
 - Triase hanya untuk kunjungan IGD aktif; kunjungan selesai/batal → 409.
 Di luar: skor EWS (FR-08-10, data induk belum ada).
+Catatan tinjauan #191 (wajib sebelum jalur klinis dibuka untuk IGD): penulis aktivitas (`KelolaCppt`, `KelolaAsesmenAwal`) membaca
+`episode_id` dari kunjungan di luar transaksi; baca bersama kunci di dalam transaksi agar tidak tertinggal di episode lama saat
+`kunjungan:episode-igd` memindahkan kunjungan. `KelolaPermintaanPemeriksaan` mengunci kunjungan → pasien (terbalik dari pasien →
+kunjungan di pendaftaran dan pemindahan episode): samakan urutannya agar tidak deadlock.
 
 ### 2.25 · Papan pasien IGD (polling)
 Tujuan : dokter dan perawat IGD melihat semua pasien IGD dengan triase, waktu tanggap, dan lama di IGD dalam satu layar.

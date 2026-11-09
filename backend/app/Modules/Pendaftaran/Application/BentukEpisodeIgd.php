@@ -66,7 +66,9 @@ final class BentukEpisodeIgd
         }
         Pasien::query()->whereKey($pasienId)->lockForUpdate()->first();
         $kunjungan = Kunjungan::query()->whereKey($kunjunganId)->lockForUpdate()->first();
-        if ($kunjungan === null || $kunjungan->jenis_kunjungan !== Kunjungan::IGD || $kunjungan->tiba_pada === null
+        // Gabung RM yang commit di antara baca dan kunci memindahkan kunjungan ke pasien lain: kunci yang dipegang salah
+        // pasien, jadi lewati; putaran berikutnya mengulang dengan pasien yang benar.
+        if ($kunjungan === null || $kunjungan->pasien_id !== $pasienId || $kunjungan->jenis_kunjungan !== Kunjungan::IGD || $kunjungan->tiba_pada === null
             || ! in_array($kunjungan->status, Kunjungan::STATUS_AKTIF, true) || ! $kunjungan->tiba_pada->lessThan(self::ambang())) {
             return false;
         }
