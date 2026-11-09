@@ -173,6 +173,8 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
     'rawat_jalan.worklist.lihat', ...['lihat', 'input', 'perbaiki'].map((a) => `rawat_jalan.asesmen_perawat.${a}`),
     'pendaftaran.antrean.lihat', 'pendaftaran.antrean.perbaiki', 'master_data.organisasi.lihat',
     ...['lihat', 'input', 'perbaiki', 'sahkan'].map((a) => `rawat_jalan.cppt.${a}`),
+    // 2.23-fe: Pendaftaran IGD memakai pencarian pasien dan pilihan penjamin BPJS (lihat saja).
+    'pendaftaran.pasien.lihat', 'master_data.penjamin.lihat',
   ])
   tambahPeran(uid(104), 'contoh_dokter', 'Contoh Dokter', izinMenu(pohon, ['igd', 'rawat_jalan', 'rekam_medis']))
   tambahPeran(uid(105), 'contoh_kasir', 'Contoh Kasir', [...izinMenu(pohon, ['kasir']), 'kasir.tagihan.cetak', 'kasir.tagihan.lihat_rupiah'], { wajib_mfa: true })

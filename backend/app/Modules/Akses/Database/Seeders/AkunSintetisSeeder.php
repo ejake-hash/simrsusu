@@ -115,6 +115,9 @@ final class AkunSintetisSeeder extends Seeder
             'pendaftaran.antrean.lihat', 'pendaftaran.antrean.perbaiki', 'master_data.organisasi.lihat',
             // Tiket 2.14: perawat menulis CPPT dan mengesahkannya dengan PIN sendiri.
             'rawat_jalan.cppt.lihat', 'rawat_jalan.cppt.input', 'rawat_jalan.cppt.perbaiki', 'rawat_jalan.cppt.sahkan',
+            // Tiket 2.23-fe: Pendaftaran IGD mencari pasien (2.5) dan memilih penjamin BPJS; lihat saja, bukan izin sensitif
+            // atau data pribadi (NIK tetap tersamar, tanpa bagian pendaftaran.pasien.identitas).
+            'pendaftaran.pasien.lihat', 'master_data.penjamin.lihat',
         ],
     ];
 

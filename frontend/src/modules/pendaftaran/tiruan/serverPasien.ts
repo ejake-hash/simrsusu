@@ -360,7 +360,10 @@ export function buatServerPasien(opsi: OpsiServerPasien) {
     return { id: t.id, no_rm: t.no_rm, nama: v.nama ?? namaSementara(v.jenis_kelamin), jenis_kelamin: v.jenis_kelamin, tanggal_lahir: v.tanggal_lahir ?? null }
   }
 
-  return { tangani, ringkas, contoh: { satu: daftar[0]!, dua: daftar[1]!, tiga: daftar[2]! } }
+  /** RM sudah digabung ke RM lain (409 pasien_digabung saat mendaftarkan kunjungan IGD, 2.23). */
+  const digabung = (id: string) => Boolean(daftar.find((x) => x.id === id)?.digabung_ke)
+
+  return { tangani, ringkas, digabung, contoh: { satu: daftar[0]!, dua: daftar[1]!, tiga: daftar[2]! } }
 }
 
 export type ServerPasien = ReturnType<typeof buatServerPasien>

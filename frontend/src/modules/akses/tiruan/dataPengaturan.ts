@@ -20,7 +20,7 @@ const POHON: [kode: string, label: string | null, menu: DefMenu[]][] = [
     'Pelayanan',
     [
       ['pendaftaran', 'Pendaftaran', 2, [['pasien', 'Pendaftaran pasien'], ['admisi', 'Admisi rawat inap'], ['antrean', 'Antrean & display'], ['sep', 'SEP & surat kontrol'], ['master_pasien', 'Master pasien'], ['persetujuan_umum', 'Persetujuan umum']]],
-      ['igd', 'IGD', 2, [['papan', 'Papan pasien IGD'], ['triase', 'Triase'], ['cppt', 'CPPT episode'], ['rujukan', 'Rujukan SISRUTE']]],
+      ['igd', 'IGD', 2, [['pendaftaran', 'Pendaftaran IGD'], ['papan', 'Papan pasien IGD'], ['triase', 'Triase'], ['cppt', 'CPPT episode'], ['rujukan', 'Rujukan SISRUTE']]],
       ['rawat_jalan', 'Rawat Jalan', 2, [['worklist', 'Worklist poliklinik'], ['pemeriksaan', 'Pemeriksaan'], ['cppt', 'CPPT episode'], ['asesmen_perawat', 'Asesmen perawat'], ['supervisi', 'Supervisi peserta didik'], ['jadwal', 'Jadwal praktik']]],
       ['rawat_inap', 'Rawat Inap', 2, [['peta_tempat_tidur', 'Peta tempat tidur'], ['pasien', 'Pasien ruangan'], ['cppt', 'CPPT & instruksi'], ['pemberian_obat', 'Pemberian obat'], ['asesmen', 'Asesmen & EWS'], ['pemulangan', 'Pemulangan']]],
       ['kamar_operasi', 'Kamar Operasi', 3, [['jadwal', 'Jadwal kamar operasi'], ['ceklis', 'Ceklis keselamatan'], ['pengajuan', 'Ajukan jadwal'], ['anestesi', 'Anestesi & pemulihan'], ['cppt', 'CPPT episode'], ['laporan', 'Laporan operasi']]],
@@ -76,7 +76,7 @@ const BAGIAN: Record<string, [kode: string, label: string, ikutInduk: boolean][]
 }
 const AKSI_BAGIAN: Record<string, JenisAksi[]> = { 'sdm.pegawai.identitas': ['lihat'], 'pendaftaran.pasien.identitas': ['lihat'] }
 
-export const TERSEDIA = new Set(['beranda', 'pendaftaran.pasien', 'pendaftaran.master_pasien', 'pendaftaran.antrean', 'rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat', 'rawat_jalan.cppt', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.penjamin', 'master_data.usulan', 'master_data.jadwal_praktik', 'master_data.tarif', 'sdm.pegawai', 'farmasi.formularium'])
+export const TERSEDIA = new Set(['beranda', 'pendaftaran.pasien', 'pendaftaran.master_pasien', 'pendaftaran.antrean', 'rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat', 'rawat_jalan.cppt', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.penjamin', 'master_data.usulan', 'master_data.jadwal_praktik', 'master_data.tarif', 'sdm.pegawai', 'farmasi.formularium', 'igd.pendaftaran'])
 /** Modul yang dimatikan di instalasi contoh, agar penanda "modul nonaktif" ikut teruji. */
 const MODUL_NONAKTIF = new Set(['kamar_operasi'])
 

@@ -3,7 +3,10 @@ import type { RingkasPegawai } from '@/modules/jadwal-praktik/tipe'
 import type { JenisPenjamin } from '@/modules/penjamin/tipe'
 import type { JenisKelaminPasien } from './tipe'
 
-/** Bentuk respons kunjungan poli (docs/api/openapi.yaml v0.20.0, tiket 2.6). Tanpa impor nilai agar dipakai data tiruan. */
+/**
+ * Bentuk respons kunjungan poli (docs/api/openapi.yaml v0.20.0, tiket 2.6) dan IGD (v0.31.0, tiket 2.23). Tanpa impor
+ * nilai agar dipakai data tiruan.
+ */
 
 export type JenisKunjungan = 'poliklinik' | 'igd' | 'rawat_inap_elektif' | 'penunjang_langsung' | 'mcu' | 'terjadwal_rutin' | 'telekonsultasi' | 'kemoterapi_sehari'
 export type CaraBayar = 'jkn' | 'non_jkn'
@@ -19,7 +22,8 @@ export interface RingkasPasienKunjungan {
 }
 export interface RingkasEpisode {
   id: string
-  jenis: 'rawat_jalan_harian'
+  /** `igd_lebih_6_jam`: kunjungan IGD > 6 jam tanpa rawat inap dipindah ke episode ini (7.00.2, v0.31.0). */
+  jenis: 'rawat_jalan_harian' | 'igd_lebih_6_jam'
   mulai_tanggal: string
 }
 export interface RingkasPenjaminKunjungan {
@@ -39,9 +43,15 @@ export interface Kunjungan {
   pasien: RingkasPasienKunjungan
   episode: RingkasEpisode
   jenis_kunjungan: JenisKunjungan
-  poliklinik: { id: string; kode: string; nama: string }
-  dokter: RingkasPegawai
+  /** null untuk kunjungan IGD (tanpa poli, v0.31.0). */
+  poliklinik: { id: string; kode: string; nama: string } | null
+  /** null untuk kunjungan IGD (dokter belum ditetapkan saat registrasi). */
+  dokter: RingkasPegawai | null
   tanggal: string
+  /** Jam tiba IGD = jam server saat registrasi; null untuk poliklinik (v0.31.0). */
+  tiba_pada?: string | null
+  /** IGD masih terdaftar/dilayani dan sudah lebih dari 6 jam sejak tiba; selalu false untuk poliklinik (v0.31.0). */
+  lebih_6_jam?: boolean
   cara_bayar: CaraBayar
   penjamin: RingkasPenjaminKunjungan | null
   status: StatusKunjungan
@@ -59,6 +69,13 @@ export interface IsianKunjungan {
   jadwal_praktik_id: string
   tanggal: string
   jenis_kunjungan?: JenisKunjungan
+  cara_bayar: CaraBayar
+  penjamin_id?: string | null
+  keluhan?: string | null
+}
+/** Isian minimal registrasi cepat IGD (FR-03-01, v0.31.0). Jam tiba tidak diisi: jam server. */
+export interface IsianKunjunganIgd {
+  pasien_id: string
   cara_bayar: CaraBayar
   penjamin_id?: string | null
   keluhan?: string | null

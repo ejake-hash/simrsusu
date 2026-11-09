@@ -106,6 +106,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     boleh: akses.bolehSaya,
     jadwal: { ambil: jadwal.ambil, keterisian: jadwal.keterisian, konsumsi: jadwal.konsumsi, slotPoli: jadwal.slotPoli },
     pasien: pasien.ringkas,
+    pasienDigabung: pasien.digabung,
     penjamin: penjamin.ringkas,
     pelaku: () => ({ id: opsi.penggunaId ?? ID_SUPERADMIN, nama: 'Contoh Superadmin' }),
     sekarang: opsi.sekarang,

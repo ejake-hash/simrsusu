@@ -9,22 +9,20 @@ import Pesan from '@/design-system/components/Pesan.vue'
 import Tombol from '@/design-system/components/Tombol.vue'
 import { tampilkanToast } from '@/design-system/components/toast'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
-import Ikon from '@/design-system/ikon/Ikon.vue'
 import HalamanModul from '@/layouts/HalamanModul.vue'
 import { errorKolom, pesanError } from '@/modules/akses/pengaturan'
 import { daftarJadwal } from '@/modules/jadwal-praktik/api'
 import { hariIniLokal, labelHari, LABEL_ALASAN, nadaSisa } from '@/modules/jadwal-praktik/jadwal'
 import type { JadwalPraktik } from '@/modules/jadwal-praktik/tipe'
 import { daftarPoliklinik } from '@/modules/organisasi/apiLokasi'
-import { daftarPenjamin } from '@/modules/penjamin/api'
 import { ApiError } from '@/shared/api/klien'
-import { refDebounced } from '@/shared/composables/refDebounced'
 import { boleh } from '@/shared/composables/usePermission'
-import { cariPasien } from '../api'
 import { KUNCI_KUNJUNGAN, LABEL_CARA_BAYAR, LABEL_STATUS, NADA_STATUS } from '../kunjungan'
 import { formatNoRm, formatTanggal } from '../pasien'
 import type { Pasien } from '../tipe'
+import CariPasien from '../components/CariPasien.vue'
 import PanelSep from '../components/PanelSep.vue'
+import PilihCaraBayar from '../components/PilihCaraBayar.vue'
 import { batalkanKunjungan, buatKunjungan, daftarKunjungan } from '../apiKunjungan'
 import type { CaraBayar, Kunjungan, SlotTerdekat } from '../tipeKunjungan'
 
@@ -64,42 +62,7 @@ const sisaTerpilih = computed(() => {
   return caraBayar.value === 'jkn' ? k.sisa_jkn : k.sisa_non_jkn
 })
 
-// ── Penjamin BPJS untuk cara bayar JKN ──
-const penjaminBpjs = useQuery({
-  queryKey: ['kunjungan', 'penjamin-bpjs'],
-  queryFn: async () => (await daftarPenjamin({ status: 'aktif', jenis: 'bpjs' }, null, 200)).data,
-  enabled: computed(() => caraBayar.value === 'jkn'),
-  staleTime: 60_000,
-})
-// Bila hanya satu penjamin BPJS, pilih otomatis supaya petugas tidak menebak.
-watch([() => caraBayar.value, () => penjaminBpjs.data.value], () => {
-  const d = penjaminBpjs.data.value ?? []
-  if (caraBayar.value === 'jkn' && !penjaminId.value && d.length === 1) penjaminId.value = d[0]!.id
-  if (caraBayar.value !== 'jkn') penjaminId.value = ''
-})
-
-// ── Pencarian pasien ──
-const cariKata = ref('')
-const cariTunda = refDebounced(cariKata, 350)
-const kataPasien = computed(() => cariTunda.value.trim())
-const pasienKueri = useQuery({
-  queryKey: computed(() => ['kunjungan', 'cari-pasien', kataPasien.value]),
-  queryFn: () => cariPasien(kataPasien.value),
-  enabled: computed(() => kataPasien.value.length > 0 && !pasienDipilih.value),
-})
-const hasilPasien = computed<Pasien[]>(() => pasienKueri.data.value?.data ?? [])
-const pesanBentukPasien = computed(() => {
-  const e = pasienKueri.error.value
-  return e instanceof ApiError && (e.kode === 'kata_cari_tidak_dikenali' || e.kode === 'kata_cari_wajib') ? e.message : null
-})
-function pilihPasien(p: Pasien) {
-  pasienDipilih.value = p
-  cariKata.value = ''
-}
-function gantiPasien() {
-  pasienDipilih.value = null
-}
-const jk = (p: { jenis_kelamin: string }) => (p.jenis_kelamin === 'laki_laki' ? 'L' : p.jenis_kelamin === 'perempuan' ? 'P' : '—')
+// Penjamin BPJS (PilihCaraBayar) dan pencarian pasien (CariPasien) dipakai bersama layar Pendaftaran IGD (2.23).
 
 // Ganti poli/tanggal → lepas jadwal terpilih; ganti cara bayar → bersihkan error.
 watch([poliId, tanggal], () => {
@@ -258,48 +221,12 @@ const batal = useMutation({
       <!-- Pilih pasien -->
       <div class="blok">
         <h3 class="blok-judul">Pasien</h3>
-        <div v-if="pasienDipilih" class="pasien-terpilih">
-          <div>
-            <b>{{ pasienDipilih.nama }}</b>
-            <span class="ket">No. RM {{ formatNoRm(pasienDipilih.no_rm) }} · {{ formatTanggal(pasienDipilih.tanggal_lahir) }} · {{ jk(pasienDipilih) }}</span>
-          </div>
-          <Tombol varian="tautan" @click="gantiPasien">Ganti pasien</Tombol>
-        </div>
-        <template v-else>
-          <div class="cari-baris">
-            <Ikon nama="cari" :ukuran="18" />
-            <label class="sr-only" for="cari-pasien-kunjungan">Cari pasien</label>
-            <input id="cari-pasien-kunjungan" v-model="cariKata" type="search" class="isian isian-cari" autocomplete="off" placeholder="Cari pasien: NIK, No. RM, No. kartu BPJS, atau nama + tanggal lahir" />
-          </div>
-          <p v-if="pesanBentukPasien" class="tafsir" role="status">{{ pesanBentukPasien }}</p>
-          <ul v-else-if="kataPasien && hasilPasien.length" class="hasil-pasien">
-            <li v-for="p in hasilPasien" :key="p.id">
-              <button type="button" class="baris-pasien" @click="pilihPasien(p)">
-                <span class="baris-pasien-utama"><b>{{ p.nama }}</b><Lencana v-if="p.meninggal_pada" jenis="netral" class="tanda">Meninggal</Lencana></span>
-                <span class="ket">No. RM {{ formatNoRm(p.no_rm) }} · {{ formatTanggal(p.tanggal_lahir) }} · {{ jk(p) }}</span>
-              </button>
-            </li>
-          </ul>
-          <p v-else-if="kataPasien && !pasienKueri.isPending.value" class="tafsir" role="status">Tidak ada pasien yang cocok. Daftarkan pasien baru di layar Pendaftaran pasien lebih dulu.</p>
-          <p v-else class="tafsir">Mulai dengan mencari pasien yang sudah terdaftar.</p>
-        </template>
+        <CariPasien v-model="pasienDipilih" id-isian="cari-pasien-kunjungan" />
       </div>
 
       <!-- Cara bayar & keluhan -->
       <div class="baris-filter">
-        <fieldset class="kolom-bayar">
-          <legend class="kolom-label">Cara bayar <span class="kolom-wajib" aria-hidden="true">*</span></legend>
-          <label v-for="(label, nilai) in LABEL_CARA_BAYAR" :key="nilai" class="radio">
-            <input v-model="caraBayar" type="radio" name="cara-bayar" :value="nilai" />
-            <span>{{ label }}</span>
-          </label>
-        </fieldset>
-        <KolomIsian v-if="caraBayar === 'jkn'" v-slot="a" label="Penjamin (BPJS)" wajib :error="errorKolomBuat.penjamin_id ?? galatPilihan(penjaminBpjs.error.value, 'penjamin')">
-          <select v-bind="a" v-model="penjaminId" class="isian">
-            <option value="" disabled>Pilih penjamin…</option>
-            <option v-for="pj in penjaminBpjs.data.value ?? []" :key="pj.id" :value="pj.id">{{ pj.nama }}</option>
-          </select>
-        </KolomIsian>
+        <PilihCaraBayar v-model:cara-bayar="caraBayar" v-model:penjamin-id="penjaminId" nama="cara-bayar" :error-penjamin="errorKolomBuat.penjamin_id" />
       </div>
       <KolomIsian v-slot="a" label="Keluhan awal (opsional)" petunjuk="Alasan kunjungan, bukan diagnosis. Maksimal 500 karakter.">
         <textarea v-bind="a" v-model="keluhan" class="isian" rows="2" maxlength="500"></textarea>
@@ -363,7 +290,7 @@ const batal = useMutation({
           <b>{{ k.pasien.nama }}</b>
           <span class="ket">No. RM {{ formatNoRm(k.pasien.no_rm) }} · {{ formatTanggal(k.pasien.tanggal_lahir) }}</span>
         </template>
-        <template #sel-dokter="{ baris: k }">{{ k.dokter.nama }}</template>
+        <template #sel-dokter="{ baris: k }">{{ k.dokter?.nama ?? '—' }}</template>
         <template #sel-cara_bayar="{ baris: k }">{{ LABEL_CARA_BAYAR[k.cara_bayar] }}</template>
         <template #sel-status="{ baris: k }">
           <Lencana :jenis="NADA_STATUS[k.status]">{{ LABEL_STATUS[k.status] }}</Lencana>
@@ -404,76 +331,15 @@ const batal = useMutation({
   font-size: 14px;
   color: var(--muted);
 }
-.cari-baris {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--muted);
-}
-.isian-cari {
-  flex: 1;
-  min-width: 0;
-}
 .tafsir {
   margin: var(--space-2) 0 0;
   font-size: 13px;
   color: var(--muted);
 }
-.hasil-pasien {
-  list-style: none;
-  margin: var(--space-2) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-.baris-pasien {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  text-align: left;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-input);
-  cursor: pointer;
-}
-.baris-pasien:hover {
-  border-color: var(--accent);
-}
-.baris-pasien-utama {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.pasien-terpilih {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  background: var(--bg);
-  border-radius: var(--radius-input);
-}
 .ket {
   display: block;
   font-size: 12px;
   color: var(--muted);
-}
-.kolom-bayar {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.radio {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: 14px;
 }
 .slot-alternatif {
   margin: var(--space-1) 0 0;
