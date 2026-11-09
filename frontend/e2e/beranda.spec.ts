@@ -41,17 +41,18 @@ async function bukaBeranda(page: Page, nama: string) {
   await expect(page.getByRole('heading', { level: 1, name: new RegExp(`^Selamat (pagi|siang|sore|malam), ${nama}$`) })).toBeVisible()
 }
 
-test('kisi modul mengikuti peran: dokter dan admisi berbeda; kartu Segera hadir membuka SegeraHadirPage', async ({ browser }, info) => {
+test('kisi modul mengikuti peran: dokter dan admisi berbeda; sub-menu kartu membuka halamannya', async ({ browser }, info) => {
   const asal = asalDari(info.project.use.baseURL)
   const dokter = await halaman(browser, asal, 'dokter')
   await bukaBeranda(dokter, 'Contoh Dokter')
   await expect(dokter.getByText('· Contoh Dokter')).toBeVisible()
   await expect(judulKartu(dokter)).toHaveText(['IGD', 'Rawat Jalan', 'Rekam Medis'])
   await expect(modulSaya(dokter).getByRole('article', { name: 'IGD' }).getByText(/^Segera hadir · fase \d$/)).toBeVisible()
-  // Sub-menu bisa diklik langsung dari kartu (CPPT episode IGD belum dibangun; Papan pasien IGD sudah, tiket 2.25).
-  await modulSaya(dokter).getByRole('article', { name: 'IGD' }).getByRole('link', { name: 'CPPT episode', exact: true }).click()
-  await expect(dokter).toHaveURL(/\/igd\/cppt$/)
-  await expect(dokter.getByRole('main').getByText('Segera hadir', { exact: true })).toBeVisible()
+  // Sub-menu bisa diklik langsung dari kartu (tiga pertama; Papan pasien IGD sudah dibangun sejak 2.25, halaman Segera
+  // hadir untuk sub-menu yang belum dibangun diuji di kerangka.spec).
+  await modulSaya(dokter).getByRole('article', { name: 'IGD' }).getByRole('link', { name: 'Papan pasien IGD' }).click()
+  await expect(dokter).toHaveURL(/\/igd\/papan$/)
+  await expect(dokter.getByRole('heading', { level: 1, name: 'Papan pasien IGD' })).toBeVisible()
 
   const admisi = await halaman(browser, asal, 'admisi')
   await bukaBeranda(admisi, 'Contoh Petugas Admisi')
