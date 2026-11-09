@@ -6,16 +6,32 @@ import Ikon from '@/design-system/ikon/Ikon.vue'
  * Dialog modal untuk konfirmasi tindakan berisiko (PRD 5.1 butir 6, 11, 17): fokus pindah ke dialog dan
  * terjebak di dalamnya, Esc dan klik di luar menutup KECUALI saat `sibuk` atau `tutupLewatTombol`, fokus kembali ke pemicu.
  * `peringatan` = role alertdialog (aksi yang mengubah akses/keamanan). `tutupLewatTombol` = Esc dan klik di luar tidak menutup
- * (mis. selama sandi sekali tampil terlihat), hanya tombol tutup/aksi.
+ * (mis. selama sandi sekali tampil terlihat), hanya tombol tutup/aksi. `fokusSesudahTutup` = tujuan fokus lain sesudah tutup bila
+ * pemicunya hilang karena aksi berhasil (mis. pesan hasil); mengembalikan null = fokus kembali ke pemicu seperti biasa.
  */
 const props = withDefaults(
-  defineProps<{ judul: string; uraian?: string; sibuk?: boolean; peringatan?: boolean; lebar?: 'sedang' | 'lebar'; tutupLewatTombol?: boolean }>(),
-  { uraian: undefined, sibuk: false, peringatan: false, lebar: 'sedang', tutupLewatTombol: false },
+  defineProps<{
+    judul: string
+    uraian?: string
+    sibuk?: boolean
+    peringatan?: boolean
+    lebar?: 'sedang' | 'lebar'
+    tutupLewatTombol?: boolean
+    fokusSesudahTutup?: () => HTMLElement | null | undefined
+  }>(),
+  { uraian: undefined, sibuk: false, peringatan: false, lebar: 'sedang', tutupLewatTombol: false, fokusSesudahTutup: undefined },
 )
 const buka = defineModel<boolean>('open', { required: true })
 
 function tahanTutupLuar(e: Event) {
   if (props.sibuk || props.tutupLewatTombol) e.preventDefault()
+}
+function arahkanFokus(e: Event) {
+  const tujuan = props.fokusSesudahTutup?.()
+  if (tujuan?.isConnected) {
+    e.preventDefault()
+    tujuan.focus()
+  }
 }
 </script>
 
@@ -31,6 +47,7 @@ function tahanTutupLuar(e: Event) {
         v-bind="uraian ? {} : { 'aria-describedby': undefined }"
         @escape-key-down="tahanTutupLuar"
         @interact-outside="tahanTutupLuar"
+        @close-auto-focus="arahkanFokus"
       >
         <header class="dialog-kepala">
           <div>

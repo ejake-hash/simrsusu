@@ -72,6 +72,11 @@ const dialogDarurat = ref(false)
 const aksesDarurat = ref<AksesDarurat | null>(null)
 const aksesAktif = computed(() => aksesDarurat.value && Date.parse(aksesDarurat.value.berakhir_pada) > sekarang.value && aksesDarurat.value.pasien.id === props.baris.pasien.id ? aksesDarurat.value : null)
 const ditolak = computed(() => kueri.error.value instanceof ApiError && kueri.error.value.status === 403 && kueri.error.value.kode === 'akses_ditolak')
+// Akses berlaku per pasien, jadi tawarannya satu tombol di atas linimasa, bukan per entri. Sesudah terbuka, tombol hilang dan
+// fokus pindah ke pesan "aktif sampai" (bukan jatuh ke body).
+const adaTerbatas = computed(() => entri.value.some(cpptTerbatas))
+const pesanAktif = ref<HTMLElement | null>(null)
+const fokusSesudahDarurat = () => (aksesAktif.value ? pesanAktif.value : null)
 function aksesTerbuka(a: AksesDarurat) {
   aksesDarurat.value = a
   tampilkanToast('Akses darurat terbuka. Setiap pembacaan tercatat dan akan ditinjau.', 'ok')
@@ -122,11 +127,17 @@ const adaFilter = computed(() => Boolean(profesi.value || tatanan.value))
     </div>
 
     <div class="isi">
-      <Pesan v-if="aksesAktif" jenis="peringatan">Akses darurat aktif sampai {{ formatTanggalWaktu(aksesAktif.berakhir_pada) }}. Pembacaan tercatat atas nama Anda dan ditinjau.</Pesan>
+      <div v-if="aksesAktif" ref="pesanAktif" tabindex="-1" class="pesan-aktif">
+        <Pesan jenis="peringatan">Akses darurat aktif sampai {{ formatTanggalWaktu(aksesAktif.berakhir_pada) }}. Pembacaan tercatat atas nama Anda dan ditinjau.</Pesan>
+      </div>
+      <Pesan v-else-if="bisaDarurat && adaTerbatas">
+        Sebagian catatan pasien ini terbatas untuk akun Anda.
+        <Tombol @click="dialogDarurat = true">Buka akses darurat</Tombol>
+      </Pesan>
       <p v-if="kueri.isPending.value" class="ket" role="status">Memuat linimasa CPPT…</p>
       <Pesan v-else-if="kueri.isError.value" jenis="error">
         Linimasa tidak dapat dimuat: {{ pesanError(kueri.error.value) }}
-        <Tombol v-if="ditolak && bisaDarurat" varian="utama" @click="dialogDarurat = true">Buka akses darurat</Tombol>
+        <Tombol v-if="ditolak && bisaDarurat && !aksesAktif" varian="utama" @click="dialogDarurat = true">Buka akses darurat</Tombol>
         <Tombol v-else varian="tautan" @click="kueri.refetch()">Coba lagi</Tombol>
       </Pesan>
       <KeadaanKosong
@@ -139,7 +150,6 @@ const adaFilter = computed(() => Boolean(profesi.value || tatanan.value))
           <div v-if="cpptTerbatas(c)" class="terbatas">
             <time :datetime="c.dibuat_pada" class="ket">{{ formatTanggalWaktu(c.dibuat_pada) }}</time>
             <PenandaTerbatas />
-            <Tombol v-if="bisaDarurat && !aksesAktif" @click="dialogDarurat = true">Buka akses darurat</Tombol>
           </div>
           <EntriCppt v-else :entri="c" :sekarang="sekarang" :identitas="identitas" />
         </li>
@@ -148,7 +158,7 @@ const adaFilter = computed(() => Boolean(profesi.value || tatanan.value))
         <Tombol :sibuk="kueri.isFetchingNextPage.value" @click="kueri.fetchNextPage()">Muat catatan lebih lama</Tombol>
       </div>
     </div>
-    <DialogAksesDarurat v-if="bisaDarurat" v-model:open="dialogDarurat" :pasien-id="baris.pasien.id" :identitas="identitas" @terbuka="aksesTerbuka" />
+    <DialogAksesDarurat v-if="bisaDarurat" v-model:open="dialogDarurat" :pasien-id="baris.pasien.id" :identitas="identitas" :fokus-sesudah-tutup="fokusSesudahDarurat" @terbuka="aksesTerbuka" />
   </section>
 </template>
 
@@ -181,6 +191,11 @@ const adaFilter = computed(() => Boolean(profesi.value || tatanan.value))
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.pesan-aktif:focus {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--radius-input);
 }
 .terbatas {
   display: flex;
