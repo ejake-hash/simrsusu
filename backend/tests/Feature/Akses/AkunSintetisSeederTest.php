@@ -135,6 +135,9 @@ class AkunSintetisSeederTest extends TestCase
             $this->assertTrue($evaluator->boleh($akun('perawat'), $kode), $kode);
         }
         $this->assertFalse($evaluator->bolehMenu($akun('admisi'), 'igd.triase'));
+        // Instrumen triase dikelola admin data induk (seluruh menu master_data), bukan perawat.
+        $this->assertTrue($evaluator->boleh($akun('data.induk'), 'master_data.instrumen_triase.perbaiki'));
+        $this->assertFalse($evaluator->bolehMenu($akun('perawat'), 'master_data.instrumen_triase'));
         // 2.23-fe: cari pasien dan pilih penjamin dari layar Pendaftaran IGD, tanpa NIK utuh dan tanpa ubah data induk.
         foreach (['pendaftaran.pasien.lihat', 'master_data.penjamin.lihat'] as $kode) {
             $this->assertTrue($evaluator->boleh($akun('perawat'), $kode), $kode);

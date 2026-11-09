@@ -29,8 +29,7 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::post('kunjungan/{kunjungan}/batal', [KunjunganController::class, 'batal']);
 
     // Registrasi cepat IGD (tiket 2.23); izin igd.pendaftaran.* cakupan rs seperti rute pendaftaran lain.
-    // GET: igd.pendaftaran.lihat ATAU igd.triase.lihat (layar Triase 2.24), diperiksa di controller sebelum isian.
-    Route::get('kunjungan-igd', [KunjunganIgdController::class, 'index']);
+    Route::get('kunjungan-igd', [KunjunganIgdController::class, 'index'])->middleware('can.rs:igd.pendaftaran.lihat');
     Route::post('kunjungan-igd', [KunjunganIgdController::class, 'store'])->middleware('can.rs:igd.pendaftaran.input');
 
     // Triase dan ulang triase (tiket 2.24); instrumen dari data induk RS.

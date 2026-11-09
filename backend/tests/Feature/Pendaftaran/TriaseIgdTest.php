@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Pendaftaran;
 
+use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
@@ -179,13 +180,22 @@ class TriaseIgdTest extends TestCase
         // Pendaftaran IGD tanpa izin triase: daftar IGD tanpa field triase (bagian tanpa izin tidak dikirim).
         $this->minta('GET', '/api/v1/kunjungan-igd')->assertOk()->assertJsonMissingPath('data.0.triase');
 
-        // Triase saja (tanpa igd.pendaftaran): daftar IGD tetap terbuka untuk memilih pasien.
+        // Triase saja (tanpa igd.pendaftaran): daftar IGD tetap tertutup (keputusan pemilik 9 Nov 2026), triase boleh.
         $triaseSaja = $this->buatPengguna();
         $this->tugaskan($triaseSaja, $this->buatPeran(['igd.triase']));
         $this->masukSebagai($triaseSaja);
-        $this->minta('GET', '/api/v1/kunjungan-igd')->assertOk()->assertJsonPath('data.0.id', $kunjungan)->assertJsonPath('data.0.triase', null);
+        $this->minta('GET', '/api/v1/kunjungan-igd')->assertForbidden();
+        // Izin ditolak sebelum isian divalidasi: filter ngawur tetap 403, bukan 422.
+        $this->assertSesuaiKontrak($this->minta('GET', '/api/v1/kunjungan-igd?status=ngawur')->assertForbidden(), 'GET', '/kunjungan-igd');
         $this->triase($kunjungan)->assertCreated();
         $this->minta('POST', '/api/v1/kunjungan-igd', ['pasien_id' => $this->pasien()->id, 'cara_bayar' => 'non_jkn'])->assertForbidden();
+
+        // Izin pendaftaran IGD bercakupan unit: bukan cakupan rs → 403.
+        $unit = $this->buatPengguna();
+        $this->tugaskan($unit, $this->buatPeran(['igd.pendaftaran', 'igd.triase']), cakupan: new Cakupan('unit', $this->poli->unit_organisasi_id));
+        $this->masukSebagai($unit);
+        $this->minta('GET', '/api/v1/kunjungan-igd')->assertForbidden();
+        $this->minta('GET', $url)->assertForbidden();
 
         // Lihat saja: riwayat boleh, mencatat tidak.
         $lihat = $this->buatPengguna();

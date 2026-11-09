@@ -4,6 +4,7 @@ use App\Modules\MasterData\Http\Controllers\BangsalController;
 use App\Modules\MasterData\Http\Controllers\BarangController;
 use App\Modules\MasterData\Http\Controllers\FormulariumController;
 use App\Modules\MasterData\Http\Controllers\ImporLokasiController;
+use App\Modules\MasterData\Http\Controllers\InstrumenTriaseController;
 use App\Modules\MasterData\Http\Controllers\JadwalPengecualianController;
 use App\Modules\MasterData\Http\Controllers\JadwalPraktikController;
 use App\Modules\MasterData\Http\Controllers\KamarController;
@@ -23,7 +24,7 @@ use Illuminate\Support\Facades\Route;
 
 // Organisasi, unit & KSM (tiket 1.8a). Izin dan lapis 3 diperiksa di controller lewat Gate → AccessEvaluator:
 // daftar unit boleh untuk dua izin (data induk ATAU pengelola akun), dan cakupan `unit` = subpohon.
-Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->whereUuid(['unit', 'ksm', 'lokasi', 'bangsal', 'kamar', 'tempatTidur', 'kelasRawat', 'penjamin', 'tarif', 'jadwal', 'pengecualian', 'poliklinik', 'usulan', 'objekId', 'barang', 'formularium', 'item'])->group(function () {
+Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->whereUuid(['unit', 'ksm', 'lokasi', 'bangsal', 'kamar', 'tempatTidur', 'kelasRawat', 'penjamin', 'tarif', 'jadwal', 'pengecualian', 'poliklinik', 'usulan', 'objekId', 'barang', 'formularium', 'item', 'instrumen'])->group(function () {
     Route::get('unit-organisasi', [UnitOrganisasiController::class, 'index']);
     Route::post('unit-organisasi', [UnitOrganisasiController::class, 'store'])->middleware('can:master_data.organisasi.input');
     Route::get('unit-organisasi/{unit}', [UnitOrganisasiController::class, 'show']);
@@ -78,6 +79,12 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::post('data-induk/penjamin', [PenjaminController::class, 'store']);
     Route::get('data-induk/penjamin/{penjamin}', [PenjaminController::class, 'show']);
     Route::patch('data-induk/penjamin/{penjamin}', [PenjaminController::class, 'update']);
+
+    // Instrumen triase IGD (tiket 2.24): izin master_data.instrumen_triase.* cakupan rs, diperiksa di controller.
+    Route::get('data-induk/instrumen-triase', [InstrumenTriaseController::class, 'index']);
+    Route::post('data-induk/instrumen-triase', [InstrumenTriaseController::class, 'store']);
+    Route::get('data-induk/instrumen-triase/{instrumen}', [InstrumenTriaseController::class, 'show']);
+    Route::patch('data-induk/instrumen-triase/{instrumen}', [InstrumenTriaseController::class, 'update']);
 
     // Katalog obat dan formularium (tiket 2.11): izin farmasi.formularium.* cakupan rs, diperiksa di controller.
     Route::get('data-induk/barang', [BarangController::class, 'index']);

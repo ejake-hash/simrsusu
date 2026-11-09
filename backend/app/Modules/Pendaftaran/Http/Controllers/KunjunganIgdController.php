@@ -15,25 +15,21 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 /**
- * /api/v1/kunjungan-igd (kontrak v0.31.0, tiket 2.23; field `triase` v0.32.0, tiket 2.24). Izin cakupan rs diperiksa
- * sebelum isian dibaca: POST lewat middleware rute (can.rs:igd.pendaftaran.input), GET di index. Respons `no-store`.
+ * /api/v1/kunjungan-igd (kontrak v0.31.0, tiket 2.23; field `triase` v0.32.0, tiket 2.24). Izin igd.pendaftaran.{lihat,input}
+ * cakupan rs diperiksa middleware rute (can.rs) sebelum isian dibaca. Respons `no-store`.
  */
 final class KunjunganIgdController
 {
     public function __construct(private readonly KunjunganResource $resource) {}
 
     /**
-     * Kunjungan IGD; bawaan yang masih di IGD (terdaftar/dilayani), urut jam tiba terlama dulu. Dipakai layar
-     * Pendaftaran IGD dan Triase (2.24), jadi cukup salah satu izin lihat. Field `triase` (triase berlaku) hanya untuk
-     * pemegang igd.triase.lihat: bagian tanpa izin tidak dikirim.
+     * Kunjungan IGD; bawaan yang masih di IGD (terdaftar/dilayani), urut jam tiba terlama dulu. Izin igd.pendaftaran.lihat
+     * dari middleware rute (keputusan pemilik 9 Nov 2026: layar Triase tidak melonggarkannya). Field `triase` (triase
+     * berlaku, 2.24) hanya untuk pemegang igd.triase.lihat cakupan rs: bagian tanpa izin tidak dikirim.
      */
     public function index(Request $request): JsonResponse
     {
-        // Penolakan lewat authorize agar kode lapis 5 tidak tertelan (pola MenuController).
         $bolehTriase = Gate::allows('igd.triase.lihat', Cakupan::rs());
-        if (! $bolehTriase) {
-            Gate::authorize('igd.pendaftaran.lihat', Cakupan::rs());
-        }
         $filter = $request->validate(['status' => ['nullable', Rule::in(Kunjungan::STATUS)]]);
         $query = Kunjungan::query()->where('jenis_kunjungan', Kunjungan::IGD)
             ->when($filter['status'] ?? null, fn ($q, $s) => $q->where('status', $s), fn ($q) => $q->whereIn('status', Kunjungan::STATUS_AKTIF));

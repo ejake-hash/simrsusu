@@ -29,7 +29,7 @@ final class MenuBawaan
     public const IZIN_PENYIAP = ['pengaturan.penyiapan.lihat', 'pengaturan.penyiapan.perbaiki', 'master_data.katalog.lihat', 'master_data.katalog.input'];
 
     /** Halaman yang sudah dibangun; menu lain tampil sebagai Segera hadir atau disembunyikan. */
-    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.usulan', 'master_data.penjamin', 'master_data.tarif', 'master_data.jadwal_praktik', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'pendaftaran.pasien', 'pendaftaran.master_pasien', 'pendaftaran.antrean', 'rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat', 'rawat_jalan.cppt', 'rawat_jalan.pemeriksaan', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'sdm.pegawai', 'farmasi.formularium', 'farmasi.resep', 'rekam_medis.akses_darurat', 'igd.pendaftaran', 'igd.triase'];
+    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.usulan', 'master_data.penjamin', 'master_data.tarif', 'master_data.jadwal_praktik', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'pendaftaran.pasien', 'pendaftaran.master_pasien', 'pendaftaran.antrean', 'rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat', 'rawat_jalan.cppt', 'rawat_jalan.pemeriksaan', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'sdm.pegawai', 'farmasi.formularium', 'farmasi.resep', 'rekam_medis.akses_darurat', 'igd.pendaftaran', 'igd.triase', 'master_data.instrumen_triase'];
 
     /** Aksi dasar Permenkes 24/2022 Ps. 30 ayat 3 untuk setiap sub-menu (FR-09-03). */
     public const AKSI_DASAR = ['lihat', 'input', 'perbaiki'];
@@ -263,6 +263,8 @@ final class MenuBawaan
                 'penjamin' => ['Penjamin', 54],
                 'tarif' => ['Buku tarif', 54],
                 'jadwal_praktik' => ['Jadwal praktik', 54],
+                // Tiket 2.24: instrumen triase IGD sebagai data induk RS (FR-03-02, aturan Tahap C).
+                'instrumen_triase' => ['Instrumen triase', 54],
             ]],
             'pengaturan' => ['Pengaturan Sistem', 1, 54, [
                 'akun' => ['Akun & akses', 54],
