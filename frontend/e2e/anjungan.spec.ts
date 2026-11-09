@@ -88,10 +88,14 @@ test('petugas loket melihat nomor prioritas dari anjungan beserta alasannya, lal
   await expect(baris).toContainText('Prioritas')
   await expect(baris).toContainText('Ibu hamil')
   await expect(baris).toContainText('Menunggu')
+  // Loket admisi tidak punya lokasi bawaan: panggil baru bisa sesudah petugas memilih lokasinya.
+  await expect(baris.getByRole('button', { name: `Panggil ${nomor}` })).toBeDisabled()
   expect(await pelanggaranAxe(page)).toEqual([])
+  await page.getByRole('combobox', { name: /Loket Anda/ }).selectOption({ label: 'Loket Pendaftaran 1 (contoh)' })
   await baris.getByRole('button', { name: `Panggil ${nomor}` }).click()
   await expect(page.getByText(`Nomor ${nomor} dipanggil.`)).toBeVisible()
   await expect(baris).toContainText('Dipanggil')
+  await expect(baris).toContainText('Loket Pendaftaran 1 (contoh)')
   await konteks.close()
 })
 

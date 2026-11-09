@@ -13,7 +13,7 @@ import HalamanModul from '@/layouts/HalamanModul.vue'
 import { pesanError } from '@/modules/akses/pengaturan'
 import { daftarJadwal } from '@/modules/jadwal-praktik/api'
 import { hariIniLokal } from '@/modules/jadwal-praktik/jadwal'
-import { daftarPoliklinik } from '@/modules/organisasi/apiLokasi'
+import { daftarPoliklinik, semuaRuangAktif } from '@/modules/organisasi/apiLokasi'
 import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
 import { boleh } from '@/shared/composables/usePermission'
 import { LABEL_ALASAN_PRIORITAS } from '../anjungan'
@@ -47,6 +47,36 @@ watch([poliId, tanggal], () => {
 })
 const galatPilihan = (e: unknown, apa: string) => (e ? `Daftar ${apa} tidak dapat dimuat: ${pesanError(e)}` : undefined)
 
+// Loket admisi tidak punya lokasi bawaan: petugas memilih loketnya (ruang aktif berfungsi administrasi) dan pilihan itu dikirim
+// sebagai lokasi panggil (disebut di display dan suara). Diingat per peramban karena satu meja = satu loket.
+const KUNCI_LOKET = 'karsitara.antrean.loket'
+const bacaLoket = () => {
+  try {
+    return localStorage.getItem(KUNCI_LOKET) ?? ''
+  } catch {
+    return ''
+  }
+}
+const loketId = ref(bacaLoket())
+watch(loketId, (id) => {
+  try {
+    localStorage.setItem(KUNCI_LOKET, id)
+  } catch {
+    // Penyimpanan diblokir: pilihan berlaku sampai halaman ditutup.
+  }
+})
+const ruangLoket = useQuery({
+  queryKey: ['antrean', 'ruang-loket'],
+  queryFn: async () => (await semuaRuangAktif()).filter((l) => l.fungsi === 'administrasi'),
+  enabled: loket,
+  staleTime: 60_000,
+})
+// Pilihan tersimpan yang sudah tidak ada (ruang dinonaktifkan) tidak dipakai.
+watch(ruangLoket.data, (daftar) => {
+  if (daftar && loketId.value && !daftar.some((l) => l.id === loketId.value)) loketId.value = ''
+})
+const perluLoket = computed(() => loket.value && !loketId.value)
+
 // Loket: tanpa poli/dokter (server menolak 422 bila dikirim).
 const filter = computed<FilterAntrean>(() =>
   loket.value
@@ -78,7 +108,8 @@ const bolehUbah = computed(() => boleh('pendaftaran.antrean.perbaiki'))
 const BISA_BATAL: StatusAntrean[] = ['menunggu', 'dipanggil', 'dilewati']
 
 const kerjakan = useMutation({
-  mutationFn: (v: { a: Antrean; aksi: AksiAntrean; alasan?: string }) => aksiAntrean(v.a.id, v.aksi, v.alasan),
+  mutationFn: (v: { a: Antrean; aksi: AksiAntrean; alasan?: string }) =>
+    aksiAntrean(v.a.id, v.aksi, v.alasan, v.aksi === 'panggil' && v.a.titik === 'loket' ? loketId.value : undefined),
   onSuccess: (hasil, v) => {
     const kata = { panggil: 'dipanggil', lewati: 'dilewati', sisip: 'disisipkan kembali', batal: 'dibatalkan' }[v.aksi]
     tampilkanToast(`Nomor ${hasil.nomor_tampil} ${kata}.`, 'ok')
@@ -122,6 +153,12 @@ const identitas = (a: Antrean) =>
         </KolomIsian>
         <KolomIsian v-slot="a" label="Tanggal" wajib>
           <input v-bind="a" v-model="tanggal" type="date" class="isian" />
+        </KolomIsian>
+        <KolomIsian v-if="loket" v-slot="a" label="Loket Anda" wajib petunjuk="Disebut di display saat nomor dipanggil." :error="galatPilihan(ruangLoket.error.value, 'loket')">
+          <select v-bind="a" v-model="loketId" class="isian">
+            <option value="" disabled>Pilih loket…</option>
+            <option v-for="l in ruangLoket.data.value ?? []" :key="l.id" :value="l.id">{{ l.nama }}</option>
+          </select>
         </KolomIsian>
         <KolomIsian v-if="!loket" v-slot="a" label="Poliklinik" wajib :error="galatPilihan(poli.error.value, 'poliklinik')">
           <select v-bind="a" v-model="poliId" class="isian">
@@ -187,7 +224,7 @@ const identitas = (a: Antrean) =>
         </template>
         <template #sel-aksi="{ baris: a }">
           <div v-if="bolehUbah" class="aksi-baris">
-            <Tombol v-if="a.status === 'menunggu' || a.status === 'dipanggil'" varian="utama" :sibuk="sibukId === a.id" :aria-label="`${a.status === 'dipanggil' ? 'Panggil ulang' : 'Panggil'} ${a.nomor_tampil}`" @click="kerjakan.mutate({ a, aksi: 'panggil' })">
+            <Tombol v-if="a.status === 'menunggu' || a.status === 'dipanggil'" varian="utama" :disabled="(perluLoket && a.titik === 'loket') || undefined" :sibuk="sibukId === a.id" :aria-label="`${a.status === 'dipanggil' ? 'Panggil ulang' : 'Panggil'} ${a.nomor_tampil}`" @click="kerjakan.mutate({ a, aksi: 'panggil' })">
               {{ a.status === 'dipanggil' ? 'Panggil ulang' : 'Panggil' }}
             </Tombol>
             <Tombol v-if="a.status === 'dipanggil'" :sibuk="sibukId === a.id" :aria-label="`Lewati ${a.nomor_tampil}`" @click="kerjakan.mutate({ a, aksi: 'lewati' })">Lewati</Tombol>
