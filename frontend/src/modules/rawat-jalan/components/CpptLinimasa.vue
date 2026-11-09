@@ -70,7 +70,7 @@ const identitas = computed(() => `${props.baris.pasien.nama} · No. RM ${formatN
 const bisaDarurat = computed(() => boleh('rawat_jalan.cppt.darurat'))
 const dialogDarurat = ref(false)
 const aksesDarurat = ref<AksesDarurat | null>(null)
-const aksesAktif = computed(() => aksesDarurat.value && aksesDarurat.value.aktif && aksesDarurat.value.pasien.id === props.baris.pasien.id ? aksesDarurat.value : null)
+const aksesAktif = computed(() => aksesDarurat.value && Date.parse(aksesDarurat.value.berakhir_pada) > sekarang.value && aksesDarurat.value.pasien.id === props.baris.pasien.id ? aksesDarurat.value : null)
 const ditolak = computed(() => kueri.error.value instanceof ApiError && kueri.error.value.status === 403 && kueri.error.value.kode === 'akses_ditolak')
 function aksesTerbuka(a: AksesDarurat) {
   aksesDarurat.value = a

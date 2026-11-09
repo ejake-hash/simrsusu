@@ -14,7 +14,8 @@ const props = defineProps<{ akses: AksesDarurat | null }>()
 const buka = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ selesai: [] }>()
 
-const hasil = ref<HasilTinjauan>('wajar')
+// Tanpa bawaan: hasil tidak bisa diubah sesudah disimpan, jadi peninjau harus memilih sendiri.
+const hasil = ref<HasilTinjauan | ''>('')
 const catatan = ref('')
 const kesalahan = ref<Record<string, string>>({})
 const error = ref<string | null>(null)
@@ -22,7 +23,7 @@ const sibuk = ref(false)
 
 watch(buka, (b) => {
   if (!b) return
-  hasil.value = 'wajar'
+  hasil.value = ''
   catatan.value = ''
   kesalahan.value = {}
   error.value = null
@@ -30,11 +31,11 @@ watch(buka, (b) => {
 
 async function kirim() {
   if (!props.akses) return
-  if (catatan.value.trim().length < 5) {
-    kesalahan.value = { catatan: 'Tulis catatan tinjauan, minimal 5 karakter.' }
-    return
-  }
-  kesalahan.value = {}
+  const e: Record<string, string> = {}
+  if (!hasil.value) e.hasil = 'Pilih hasil tinjauan.'
+  if (catatan.value.trim().length < 5) e.catatan = 'Tulis catatan tinjauan, minimal 5 karakter.'
+  kesalahan.value = e
+  if (Object.keys(e).length || !hasil.value) return
   sibuk.value = true
   error.value = null
   try {
@@ -57,6 +58,7 @@ async function kirim() {
       <p v-if="akses" class="alasan"><b>{{ LABEL_KATEGORI_ALASAN[akses.kategori_alasan] }}.</b> {{ akses.alasan }}</p>
       <KolomIsian v-slot="a" label="Hasil tinjauan" wajib :error="kesalahan.hasil" petunjuk="Tidak wajar ditindaklanjuti di luar sistem ini.">
         <select v-bind="a" v-model="hasil" class="isian">
+          <option value="" disabled>Pilih hasil…</option>
           <option value="wajar">Wajar</option>
           <option value="tidak_wajar">Tidak wajar</option>
         </select>
