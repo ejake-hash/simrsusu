@@ -76,6 +76,8 @@ interface TriaseT {
   kategori: KategoriTriase
   instrumen: InstrumenTriase | null
   skala: string | null
+  /** Salinan label skala saat triase (riwayat tidak ikut berubah bila data induk diedit). */
+  skala_label: string | null
   keluhan: string | null
   ditriase_pada: string
   petugas: Pelaku
@@ -267,7 +269,7 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
   const bentukTriase = (t: TriaseT, k: KunjunganT, berlakuId: string | undefined): Triase => ({
     id: t.id, kunjungan_id: t.kunjungan_id, kategori: t.kategori,
     instrumen: t.instrumen ? { id: t.instrumen.id, kode: t.instrumen.kode, nama: t.instrumen.nama } : null,
-    skala: t.skala === null ? null : { kode: t.skala, label: t.instrumen?.skala.find((s) => s.kode === t.skala)?.label ?? t.skala },
+    skala: t.skala === null ? null : { kode: t.skala, label: t.skala_label ?? t.skala },
     keluhan: t.keluhan, tiba_pada: k.tiba_pada, ditriase_pada: t.ditriase_pada, petugas: t.petugas, berlaku: t.id === berlakuId,
   })
   const validasi = (kolom: string, pesan: string) => error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom, pesan }])
@@ -292,7 +294,7 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
       if (ins.skala.length && (!skala || !ins.skala.some((s) => s.kode === skala))) return validasi('skala', 'Pilih skala dari instrumen triase ini.')
     }
     const t: TriaseT = {
-      id: uid('d000', ++trN), kunjungan_id: k.id, kategori, instrumen: ins, skala, keluhan: typeof isi.keluhan === 'string' && isi.keluhan.trim() ? isi.keluhan.trim() : null,
+      id: uid('d000', ++trN), kunjungan_id: k.id, kategori, instrumen: ins ? { ...ins, skala: [...ins.skala] } : null, skala, skala_label: ins?.skala.find((s) => s.kode === skala)?.label ?? null, keluhan: typeof isi.keluhan === 'string' && isi.keluhan.trim() ? isi.keluhan.trim() : null,
       ditriase_pada: iso(), petugas: opsi.pelaku(),
     }
     triase.push(t)

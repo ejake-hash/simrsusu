@@ -8,6 +8,7 @@ use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\PeranIzin;
 use App\Modules\Akses\Models\PeranMenu;
 use App\Modules\MasterData\Models\InstrumenTriase;
+use Illuminate\Support\Str;
 use Tests\Support\AksesUji;
 use Tests\Support\KlienSpa;
 use Tests\Support\KontrakApi;
@@ -119,6 +120,9 @@ class InstrumenTriaseTest extends TestCase
             $this->minta('GET', self::URL.'?status=ngawur')->assertForbidden();
             $this->minta('POST', self::URL, [])->assertForbidden();
             $this->mintaDenganVersi('PATCH', self::URL."/{$instrumen->id}", '0', [])->assertForbidden();
+            // Izin diperiksa sebelum id dicari: id tak dikenal tetap 403, bukan 404.
+            $this->minta('GET', self::URL.'/'.Str::uuid7())->assertForbidden();
+            $this->mintaDenganVersi('PATCH', self::URL.'/'.Str::uuid7(), '0', [])->assertForbidden();
         }
 
         // Lihat saja: daftar dan rincian boleh, tambah/ubah tidak.
@@ -130,9 +134,36 @@ class InstrumenTriaseTest extends TestCase
         $this->tugaskan($lihat, $peran);
         $this->masukSebagai($lihat);
         $this->minta('GET', self::URL)->assertOk()->assertJsonPath('data.0.kode', 'CONTOH-I');
+        $this->assertSesuaiKontrak($this->minta('GET', self::URL.'/'.Str::uuid7())->assertNotFound(), 'GET', '/data-induk/instrumen-triase/{id}');
         $this->minta('POST', self::URL, ['kode' => 'CONTOH-J', 'nama' => 'Instrumen contoh J', 'dasar_perubahan' => self::DASAR])->assertForbidden();
         $this->mintaDenganVersi('PATCH', self::URL."/{$instrumen->id}", '0', ['status' => 'nonaktif', 'dasar_perubahan' => self::DASAR])->assertForbidden();
         $this->assertSame('aktif', $instrumen->fresh()?->status);
+    }
+
+    /** Tinjauan ulang #193: riwayat triase menyimpan salinan label; edit data induk hanya berlaku untuk triase berikutnya. */
+    public function test_ubah_label_skala_tidak_mengubah_riwayat_triase(): void
+    {
+        $this->siapkanKunjungan();
+        $perawat = $this->buatPengguna();
+        $this->tugaskan($perawat, $this->buatPeran(['igd.pendaftaran', 'igd.triase', 'master_data.instrumen_triase']));
+        $this->masukSebagai($perawat);
+        $id = (string) $this->minta('POST', self::URL, ['kode' => 'CONTOH-L', 'nama' => 'Instrumen contoh L', 'skala' => [['kode' => 'C1', 'label' => 'Label X']], 'dasar_perubahan' => self::DASAR])
+            ->assertCreated()->json('data.id');
+        $kunjungan = (string) $this->minta('POST', '/api/v1/kunjungan-igd', ['pasien_id' => $this->pasien()->id, 'cara_bayar' => 'non_jkn'])->assertCreated()->json('data.id');
+        $this->minta('POST', "/api/v1/kunjungan/$kunjungan/triase", ['kategori' => 'kuning', 'instrumen_triase_id' => $id, 'skala' => 'C1'])
+            ->assertCreated()->assertJsonPath('data.skala', ['kode' => 'C1', 'label' => 'Label X']);
+
+        $this->mintaDenganVersi('PATCH', self::URL."/$id", '0', ['kode' => 'CONTOH-L2', 'nama' => 'Instrumen contoh L revisi',
+            'skala' => [['kode' => 'C1', 'label' => 'Label Y']], 'dasar_perubahan' => self::DASAR])->assertOk();
+
+        $this->travel(5)->minutes();
+        $baru = $this->minta('POST', "/api/v1/kunjungan/$kunjungan/triase", ['kategori' => 'merah', 'instrumen_triase_id' => $id, 'skala' => 'C1'])
+            ->assertCreated()->assertJsonPath('data.skala.label', 'Label Y')->assertJsonPath('data.instrumen.kode', 'CONTOH-L2');
+        $this->assertSesuaiKontrak($baru, 'POST', '/kunjungan/{id}/triase');
+        $riwayat = $this->minta('GET', "/api/v1/kunjungan/$kunjungan/triase")->assertOk()
+            ->assertJsonPath('data.*.skala.label', ['Label Y', 'Label X'])
+            ->assertJsonPath('data.1.instrumen', ['id' => $id, 'kode' => 'CONTOH-L', 'nama' => 'Instrumen contoh L']);
+        $this->assertSesuaiKontrak($riwayat, 'GET', '/kunjungan/{id}/triase');
     }
 
     public function test_instrumen_nonaktif_tidak_dipakai_triase_baru_dan_triase_lama_tetap_terbaca(): void

@@ -9,7 +9,7 @@ import { pasangTiruan } from '@/modules/akses/tiruan/pasangTiruan'
 import { penggunaTiruan } from '@/modules/akses/tiruan/pengguna'
 import { buatServerGabungan } from '@/modules/akses/tiruan/serverGabungan'
 import { ID_SUPERADMIN } from '@/modules/akses/tiruan/serverTiruan'
-import { daftarInstrumenTriase } from '@/modules/pendaftaran/apiKunjungan'
+import { buatKunjunganIgd, catatTriase, daftarInstrumenTriase, daftarTriase } from '@/modules/pendaftaran/apiKunjungan'
 import { klien } from '@/shared/api/klien'
 import { aturIzin, vCan } from '@/shared/composables/usePermission'
 import { ambilInstrumenTriase, buatInstrumenTriase, daftarInstrumenTriaseDataInduk, ubahInstrumenTriase } from './api'
@@ -20,9 +20,12 @@ const adapterAsli = klien.defaults.adapter
 const IZIN = ['master_data.instrumen_triase.lihat', 'master_data.instrumen_triase.input', 'master_data.instrumen_triase.perbaiki']
 const DASAR = 'SK komite contoh'
 
+let gabungan: ReturnType<typeof buatServerGabungan>
+
 beforeEach(() => {
   setActivePinia(createPinia())
-  pasangTiruan(klien, buatServerGabungan({ sekarang: () => new Date('2026-11-02T03:00:00Z') }))
+  gabungan = buatServerGabungan({ sekarang: () => new Date('2026-11-02T03:00:00Z') })
+  pasangTiruan(klien, gabungan)
   useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, nama_pengguna: 'contoh.data.induk', mfa_aktif: true })
   aturIzin(IZIN)
 })
@@ -45,6 +48,16 @@ describe('instrumen triase: server tiruan kontrak v0.32.0', () => {
     await ubahInstrumenTriase(data.id, (await ambilInstrumenTriase(data.id)).etag, { status: 'nonaktif', dasar_perubahan: DASAR })
     expect((await daftarInstrumenTriase()).map((i) => i.kode)).toEqual(['CONTOH-TRIASE'])
     expect((await daftarInstrumenTriaseDataInduk({ status: 'nonaktif' })).data.map((i) => i.kode)).toEqual(['CONTOH-B'])
+  })
+
+  it('ubah label skala hanya berlaku untuk triase berikutnya; riwayat memakai salinan', async () => {
+    const { data, etag } = await buatInstrumenTriase({ kode: 'CONTOH-L', nama: 'Instrumen contoh L', skala: [{ kode: 'C1', label: 'Label X' }], dasar_perubahan: DASAR })
+    const k = (await buatKunjunganIgd({ pasien_id: gabungan.pasien.contoh.dua.id, cara_bayar: 'non_jkn' })).data
+    await catatTriase(k.id, { kategori: 'kuning', instrumen_triase_id: data.id, skala: 'C1' })
+    await ubahInstrumenTriase(data.id, etag, { nama: 'Instrumen contoh L revisi', skala: [{ kode: 'C1', label: 'Label Y' }], dasar_perubahan: DASAR })
+    await catatTriase(k.id, { kategori: 'merah', instrumen_triase_id: data.id, skala: 'C1' })
+    const riwayat = (await daftarTriase(k.id)).data
+    expect(riwayat.map((t) => [t.skala?.label, t.instrumen?.nama])).toEqual([['Label Y', 'Instrumen contoh L revisi'], ['Label X', 'Instrumen contoh L']])
   })
 
   it('validasi: kode skala unik, kode instrumen ganda, tanpa izin 403', async () => {

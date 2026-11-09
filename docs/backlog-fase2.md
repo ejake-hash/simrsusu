@@ -558,7 +558,7 @@ Dirinci 9 Nov 2026 dari PRD 7.00.2–7.00.5, 7.03, 7.04, 7.05, 7.08, 7.19, 7.20,
 | No | Tiket | Jalur | Ukuran | Prasyarat · Status |
 |---|---|---|---|---|
 | 2.23 | Kunjungan IGD: registrasi cepat + episode | BE+FE | M | — · **Selesai** (BE+kontrak #191 v0.31.0: `/kunjungan-igd`, jam tiba server, episode rawat jalan harian, satu IGD aktif per pasien; episode IGD > 6 jam dibentuk otomatis beserta aktivitasnya, keputusan pemilik 9 Nov 2026; FE #192: layar Pendaftaran IGD) |
-| 2.24 | Triase IGD dan ulang triase | BE+FE | S | 2.23 · **Selesai** (satu PR kontrak+BE+FE v0.32.0: `/kunjungan/{id}/triase` hanya ditambah, berlaku = terbaru; data induk `inti.instrumen_triase` tanpa isi produksi + layar Master Data → Instrumen triase (`/data-induk/instrumen-triase`, edit langsung berizin + dasar + audit, pola penjamin; keputusan pemilik 9 Nov); field `triase` di `/kunjungan-igd` hanya bagi `igd.triase.lihat`, izin daftar tetap `igd.pendaftaran.lihat` (keputusan pemilik 9 Nov); layar IGD → Triase; perbaikan tinjauan #191: `KunciKunjungan` satu sumber urutan kunci pasien → kunjungan (CPPT, asesmen awal, order penunjang, batal kunjungan, episode IGD > 6 jam). Asumsi: `tiba_pada` dibaca dari `kunjungan.tiba_pada`, tidak disalin ke `kunjungan.triase` walau PRD 11.2 mencantumkannya) |
+| 2.24 | Triase IGD dan ulang triase | BE+FE | S | 2.23 · **Selesai** (satu PR kontrak+BE+FE v0.32.0: `/kunjungan/{id}/triase` hanya ditambah, berlaku = terbaru, riwayat menyimpan salinan kode/nama instrumen dan label skala saat triase; data induk `inti.instrumen_triase` tanpa isi produksi + layar Master Data → Instrumen triase (`/data-induk/instrumen-triase`, edit langsung berizin + dasar + audit, pola penjamin; keputusan pemilik 9 Nov); field `triase` di `/kunjungan-igd` hanya bagi `igd.triase.lihat`, izin daftar tetap `igd.pendaftaran.lihat` (keputusan pemilik 9 Nov); layar IGD → Triase; perbaikan tinjauan #191: `KunciKunjungan` satu sumber urutan kunci pasien → kunjungan (CPPT, asesmen awal, order penunjang, batal kunjungan, episode IGD > 6 jam). Asumsi: `tiba_pada` dibaca dari `kunjungan.tiba_pada`, tidak disalin ke `kunjungan.triase` walau PRD 11.2 mencantumkannya) |
 | 2.25 | Papan pasien IGD (polling) | BE+FE | M | 2.24 · Siap |
 | 2.26 | Matriks perpindahan sebagai data induk + disposisi IGD | BE+FE | M | 2.23 · Siap |
 | 2.27 | Peta tempat tidur dan status TT | BE+FE | M | — · Siap |
@@ -809,6 +809,11 @@ Uji    : dokter poli membuat konsul ke poli lain dengan alasan; hari yang sama �
   Asumsi kecuali pemilik menetapkan lain.
 - Gelang pasien, verifikasi DPJP, dan TBaK (kerangka C) belum dirinci: gelang butuh keputusan cetak/printer (FR-01-27 juga menunggu),
   verifikasi DPJP/TBaK butuh `dpjp_id`/`pemeriksa_id` di kunjungan (pertanyaan Tahap B). Mode farmasi APM menunggu 2.37.
+- Instrumen triase berisi nilai klinis tetapi dikelola peran data induk (2.24): batasi `master_data.instrumen_triase.input/perbaiki`
+  ke komite medik/keperawatan atau tandai butuh MFA? (ingat jebakan 2 untuk akun sintetis: izin sensitif memaksa MFA saat masuk.)
+
+Utang 2.24: `jamWib`/`waktuTriase` (FE) mengunci zona Asia/Jakarta dan label "WIB"; produk generik (PRD 3.4) perlu zona dari profil
+RS (`instalasi.zona_waktu` sudah ada di backend). Instrumen e2e `E2E-TRIASE-*` nonaktif tertinggal di basis data e2e (sengaja; tidak dihapus).
 
 ## Kerangka tahap berikutnya (dirinci kemudian)
 - **C — Penunjang, IGD, rawat inap**: dirinci di bagian "Tahap C · tiket" di atas (2.23–2.41); sisa: gelang, verifikasi DPJP dan TBaK,

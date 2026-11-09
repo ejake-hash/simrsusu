@@ -4570,9 +4570,9 @@ paths:
       summary: Ubah nama/kode/skala, atau nonaktifkan instrumen triase
       description: |
         Izin: master_data.instrumen_triase.perbaiki. Wajib If-Match (412 `versi_berubah`, 428 `if_match_wajib`). Validasi
-        sama dengan POST. `skala` dikirim = daftar skala diganti utuh (urutan = urutan tampil); triase lama menyimpan kode
-        skalanya dan tetap tampil (label dari data induk saat ini, atau kode apa adanya bila kodenya sudah dihapus dari
-        daftar). Tidak dihapus: nonaktifkan lewat `status`.
+        sama dengan POST. `skala` dikirim = daftar skala diganti utuh (urutan = urutan tampil). Kode, nama, dan label baru
+        hanya berlaku untuk triase berikutnya: triase lama menyimpan salinan kode/nama instrumen dan kode/label skala saat
+        ditriase, jadi riwayatnya tidak berubah. Tidak dihapus: nonaktifkan lewat `status`.
       parameters:
         - $ref: '#/components/parameters/IfMatch'
       requestBody:
@@ -9547,12 +9547,13 @@ components:
         instrumen:
           type: [object, 'null']
           required: [id, kode, nama]
+          description: "Kode dan nama = salinan saat ditriase (tidak ikut berubah bila data induk diedit sesudahnya)"
           properties:
             id: { type: string, format: uuid }
             kode: { type: string }
             nama: { type: string }
         skala:
-          description: "Label dari data induk instrumen saat ini; kode yang sudah tidak ada di data induk tampil apa adanya"
+          description: "Kode dan label = salinan saat ditriase (tidak ikut berubah bila data induk diedit sesudahnya)"
           oneOf: [{ $ref: '#/components/schemas/SkalaTriase' }, { type: 'null' }]
         keluhan: { type: [string, 'null'] }
         tiba_pada: { type: [string, 'null'], format: date-time, description: "Jam tiba dari kunjungan (tidak disalin ke baris triase)" }

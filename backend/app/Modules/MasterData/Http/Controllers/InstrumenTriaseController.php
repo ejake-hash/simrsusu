@@ -2,6 +2,7 @@
 
 namespace App\Modules\MasterData\Http\Controllers;
 
+use App\Core\Http\ApiError;
 use App\Core\Http\IfMatch;
 use App\Core\Http\Paginasi;
 use App\Modules\Akses\Domain\Cakupan;
@@ -43,11 +44,12 @@ final class InstrumenTriaseController
             bentuk: fn ($baris) => $baris->map(fn (InstrumenTriase $i) => self::bentuk($i))->values()->all());
     }
 
-    public function show(InstrumenTriase $instrumen): JsonResponse
+    /** Id dari rute dicari sesudah izin (bukan route-model binding): akun tanpa izin selalu 403, juga untuk id tak dikenal. */
+    public function show(string $instrumen): JsonResponse
     {
         $this->izin('lihat');
 
-        return $this->satu($instrumen);
+        return $this->satu($this->cari($instrumen));
     }
 
     public function store(Request $request, KelolaInstrumenTriase $kelola): JsonResponse
@@ -63,9 +65,10 @@ final class InstrumenTriaseController
         return $this->satu($kelola->buat($request->user(), $isi), 201);
     }
 
-    public function update(Request $request, InstrumenTriase $instrumen, KelolaInstrumenTriase $kelola): JsonResponse
+    public function update(Request $request, string $instrumen, KelolaInstrumenTriase $kelola): JsonResponse
     {
         $this->izin('perbaiki');
+        $data = $this->cari($instrumen);
         $isi = $request->validate([
             'kode' => ['sometimes', ...IsianOrganisasi::KODE_DATA],
             'nama' => ['sometimes', 'string', 'min:2', 'max:150'],
@@ -78,7 +81,13 @@ final class InstrumenTriaseController
             throw ValidationException::withMessages(['dasar_perubahan' => 'Isi minimal satu perubahan.']);
         }
 
-        return $this->satu($kelola->ubah($request->user(), $instrumen, IfMatch::versi($request), $isi));
+        return $this->satu($kelola->ubah($request->user(), $data, IfMatch::versi($request), $isi));
+    }
+
+    /** Rute sudah whereUuid, jadi id selalu berbentuk UUID di sini. */
+    private function cari(string $id): InstrumenTriase
+    {
+        return InstrumenTriase::query()->find($id) ?? throw new ApiError(404, 'tidak_ditemukan', 'Instrumen triase tidak ditemukan.');
     }
 
     private function izin(string $aksi): void

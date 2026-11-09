@@ -32,6 +32,10 @@ return new class extends Migration
             $table->text('kategori')->comment('merah | kuning | hijau | hitam');
             $table->foreignUuid('instrumen_triase_id')->nullable()->constrained('inti.instrumen_triase')->restrictOnDelete();
             $table->text('skala')->nullable()->comment('Kode skala dari instrumen_triase.skala saat ditriase');
+            // Salinan saat triase: riwayat tidak berubah arti bila data induk instrumen diedit sesudahnya.
+            $table->text('instrumen_kode')->nullable()->comment('Salinan kode instrumen saat ditriase');
+            $table->text('instrumen_nama')->nullable()->comment('Salinan nama instrumen saat ditriase');
+            $table->text('skala_label')->nullable()->comment('Salinan label skala saat ditriase');
             $table->text('keluhan')->nullable()->comment('KLINIS: keluhan saat triase; tidak pernah di log/audit');
             $table->timestampTz('ditriase_pada')->comment('Jam server');
             $table->foreignUuid('petugas_id')->comment('akses.pengguna.id')->constrained('akses.pengguna')->restrictOnDelete();
@@ -39,7 +43,7 @@ return new class extends Migration
 
             $table->index(['kunjungan_id', 'ditriase_pada', 'id']);
         });
-        DB::statement("ALTER TABLE kunjungan.triase ADD CONSTRAINT triase_cek CHECK (kategori IN ('merah', 'kuning', 'hijau', 'hitam') AND (skala IS NULL OR instrumen_triase_id IS NOT NULL))");
+        DB::statement("ALTER TABLE kunjungan.triase ADD CONSTRAINT triase_cek CHECK (kategori IN ('merah', 'kuning', 'hijau', 'hitam') AND (skala IS NULL OR instrumen_triase_id IS NOT NULL) AND ((instrumen_triase_id IS NULL) = (instrumen_nama IS NULL) AND (instrumen_triase_id IS NULL) = (instrumen_kode IS NULL)) AND ((skala IS NULL) = (skala_label IS NULL)))");
         // Hanya ditambah (pola kunjungan.antrean_jejak): riwayat triase tidak bisa diubah simrs_app.
         DB::statement('REVOKE UPDATE ON kunjungan.triase FROM simrs_app');
     }

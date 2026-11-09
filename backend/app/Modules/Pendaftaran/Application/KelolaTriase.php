@@ -37,7 +37,8 @@ final class KelolaTriase
                 throw new ApiError(409, 'status_tidak_sesuai', 'Triase hanya untuk kunjungan IGD yang masih terdaftar atau dilayani.',
                     [['jenis_kunjungan' => $k->jenis_kunjungan, 'status' => $k->status]]);
             }
-            [$instrumenId, $skala] = $this->periksaInstrumen($isi['instrumen_triase_id'] ?? null, $isi['skala'] ?? null);
+            $instrumen = $this->periksaInstrumen($isi['instrumen_triase_id'] ?? null, $isi['skala'] ?? null);
+            $instrumenId = $instrumen['instrumen_triase_id'];
             $keluhan = isset($isi['keluhan']) && trim($isi['keluhan']) !== '' ? trim($isi['keluhan']) : null;
 
             // Kunjungan terkunci: triase serentak kunjungan yang sama berurutan, jadi `ulang` dan urutan riwayat tetap benar.
@@ -47,8 +48,7 @@ final class KelolaTriase
             // Format eksplisit: binding Carbon bawaan membuang mikrodetik, padahal urutan riwayat memakai jam ini.
             $sekarang = now()->utc()->format('Y-m-d H:i:s.uP');
             DB::table('kunjungan.triase')->insert([
-                'id' => $id, 'kunjungan_id' => $k->id, 'kategori' => $isi['kategori'], 'instrumen_triase_id' => $instrumenId,
-                'skala' => $skala, 'keluhan' => $keluhan, 'ditriase_pada' => $sekarang, 'petugas_id' => $petugas->id, 'dibuat_pada' => $sekarang,
+                'id' => $id, 'kunjungan_id' => $k->id, 'kategori' => $isi['kategori'], ...$instrumen, 'keluhan' => $keluhan, 'ditriase_pada' => $sekarang, 'petugas_id' => $petugas->id, 'dibuat_pada' => $sekarang,
             ]);
 
             $this->audit->catat('kunjungan.ditriase', $petugas->id, 'kunjungan.triase', $id, [
@@ -83,9 +83,10 @@ final class KelolaTriase
 
     /**
      * Instrumen wajib bila RS punya instrumen aktif; skala wajib dan harus salah satu kode skala instrumen bila instrumen
-     * itu punya daftar skala.
+     * itu punya daftar skala. Mengembalikan kolom baris triase, termasuk salinan kode/nama instrumen dan label skala saat ini
+     * (riwayat tidak berubah arti bila data induk diedit sesudahnya).
      *
-     * @return array{0: string|null, 1: string|null}
+     * @return array{instrumen_triase_id: string|null, instrumen_kode: string|null, instrumen_nama: string|null, skala: string|null, skala_label: string|null}
      */
     private function periksaInstrumen(?string $instrumenId, ?string $skala): array
     {
@@ -98,22 +99,25 @@ final class KelolaTriase
                 throw ValidationException::withMessages(['skala' => 'Skala hanya diisi bersama instrumen triase.']);
             }
 
-            return [null, null];
+            return ['instrumen_triase_id' => null, 'instrumen_kode' => null, 'instrumen_nama' => null, 'skala' => null, 'skala_label' => null];
         }
 
-        $instrumen = DB::table('inti.instrumen_triase')->where('id', $instrumenId)->where('status', 'aktif')->first(['id', 'skala']);
+        $instrumen = DB::table('inti.instrumen_triase')->where('id', $instrumenId)->where('status', 'aktif')->first(['id', 'kode', 'nama', 'skala']);
         if ($instrumen === null) {
             throw ValidationException::withMessages(['instrumen_triase_id' => 'Instrumen triase tidak ditemukan atau tidak aktif.']);
         }
-        $kode = array_column(self::daftarSkala($instrumen->skala), 'kode');
-        if ($kode === [] && $skala !== null) {
+        $label = array_column(self::daftarSkala($instrumen->skala), 'label', 'kode');
+        if ($label === [] && $skala !== null) {
             throw ValidationException::withMessages(['skala' => 'Instrumen ini tidak memakai skala.']);
         }
-        if ($kode !== [] && ($skala === null || ! in_array($skala, $kode, true))) {
+        if ($label !== [] && ($skala === null || ! array_key_exists($skala, $label))) {
             throw ValidationException::withMessages(['skala' => 'Pilih skala dari instrumen triase ini.']);
         }
 
-        return [$instrumen->id, $skala];
+        return [
+            'instrumen_triase_id' => (string) $instrumen->id, 'instrumen_kode' => (string) $instrumen->kode, 'instrumen_nama' => (string) $instrumen->nama,
+            'skala' => $skala, 'skala_label' => $skala === null ? null : $label[$skala],
+        ];
     }
 
     /**
