@@ -253,6 +253,8 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
   - `POST nomor-loket` tidak idempoten (ketuk dua kali = dua nomor): `Idempotency-Key` per sesi layar, bisa bersama 2.20-fe.
   - PRD 7.01.1 "jejak audit per sesi": `sesi_anjungan` hanya mencatat nomor loket, penelusuran jadwal tidak tercatat. Asumsi tahap 1:
     cukup, karena tanpa data pasien.
+- Tinjauan 2.20-fe (9 Nov 2026), saran yang belum dikerjakan: tombol kios yang dinonaktifkan saat `sibuk` (`AnjunganPage.vue`) kehilangan
+  fokus ke body bagi pengguna keyboard; pakai `aria-disabled` + penjaga di handler. Kios utamanya layar sentuh, jadi kecil.
 
 ## Tahap B — tiket (rawat jalan + RME)
 
@@ -284,7 +286,7 @@ Kolom tabel = PRD 11.2; kolom yang belum perlu boleh ditunda, kolom baru di luar
 | 2.17 | E-resep rawat jalan → antrean farmasi | BE+FE | M | 2.11, 2.14 · **Selesai** (kontrak #175 v0.27.0; BE #176: `farmasi.resep`/`_item`/`peringatan_resep`, bagian izin `rawat_jalan.pemeriksaan.resep` (sahkan bersyarat SIP), peringatan alergi/duplikasi/non_fornas, antrean farmasi `F-` lewat `ResepDisahkan`, objek TTE `resep`, akun sintetis `apoteker`; PR FE: panel Resep di Pemeriksaan (draf, alasan peringatan, sahkan PIN T1), sub-menu `farmasi.resep` TERSEDIA: Farmasi → Antrean resep per depo, e2e `rawat-jalan.spec.ts`) |
 | 2.18 | Task ID antrean 1–7 tercatat internal | BE | S | 2.15, 2.17 · **Selesai** (PR 2.18: `kunjungan.antrean_task` + `pemetaan_task_antrean` sebagai data, pelanggan 6 kejadian, `GET /kunjungan/{id}/task-antrean` v0.28.0; kiriman outbox ditunda ke 2.19) |
 | 2.19 | [Perlu pemilik] Adapter Antrean RS BPJS + simulator | BE | M | 2.18 + dokumen katalog Antrean RS · Terhambat |
-| 2.20 | APM tahap 1: anjungan, nomor loket, cek jadwal | BE+FE | M | — · Siap |
+| 2.20 | APM tahap 1: anjungan, nomor loket, cek jadwal | BE+FE | M | — · **Selesai** (kontrak #181 v0.30.0; BE #183: `kunjungan.anjungan`/`sesi_anjungan`, token perangkat `antrean:token-anjungan`, nomor loket `A-`/`P-`, jadwal anjungan, `GET /antrean?titik=loket`; tinjauan keamanan susulan #186. PR FE: layar kios `/anjungan` tanpa akun (token lewat `#token=`, sesi diam kembali ke awal, tombol ≥ 64 px, teks ≥ 20 px), pilihan titik Loket di Pendaftaran → Antrean & display dengan alasan prioritas; e2e `anjungan.spec.ts` @1440 + 1024 px + axe) |
 | 2.21 | Akses darurat (break-glass) + `audit.log_akses` | BE+FE | M | 2.14 · **Selesai** (kontrak #179 v0.29.0; BE #180: `akses.akses_darurat`, `audit.log_akses`, izin `rawat_jalan.cppt.darurat`, tinjauan Kepala RM/DPO; PR FE #182: tawaran "Buka akses darurat" di CPPT, sub-menu `rekam_medis.akses_darurat` TERSEDIA: Rekam Medis → Tinjauan akses darurat, akun sintetis `dokter.darurat`, e2e `akses-darurat.spec.ts`) |
 | 2.22 | [Perlu pemilik] Pencarian KFA via SATUSEHAT (simulator) | BE+FE | S | 2.11 + dokumen respons KFA v2 · Terhambat |
 

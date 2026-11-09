@@ -39,6 +39,8 @@ async function semua<T>(jalur: string, filter: object): Promise<T[]> {
 // ── Lokasi ──
 export const daftarLokasi = (filter: FilterLokasi, kursor: string | null = null, batas = 50) => halaman<Lokasi>('/lokasi', filter, kursor, batas)
 export const semuaAnakLokasi = (indukId: string | null) => semua<Lokasi>('/lokasi', indukId ? { induk_id: indukId } : { akar: true })
+/** Semua ruang aktif (pemilih loket panggil antrean, tiket 2.20); penyaringan fungsi di klien. */
+export const semuaRuangAktif = () => semua<Lokasi>('/lokasi', { jenis: 'ruang', status: 'aktif' })
 export const ambilLokasi = async (id: string) => berversi<Lokasi>(await klien.get(`/lokasi/${id}`))
 export const buatLokasi = async (isian: IsianLokasi) => berversi<Lokasi>(await klien.post('/lokasi', isian))
 export const ubahLokasi = async (id: string, etag: string, isian: UbahLokasi) => berversi<Lokasi>(await klien.patch(`/lokasi/${id}`, isian, ifMatch(etag)))

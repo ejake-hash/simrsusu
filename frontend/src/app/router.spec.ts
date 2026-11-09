@@ -33,4 +33,9 @@ describe('Rute display antrean', () => {
     expect(r.name).toBe('display-antrean')
     expect(r.meta).toMatchObject({ publik: true, tanpaSesi: true })
   })
+  it('anjungan juga publik tanpa cek sesi (kios tanpa akun, tiket 2.20)', () => {
+    const r = router.resolve('/anjungan')
+    expect(r.name).toBe('anjungan')
+    expect(r.meta).toMatchObject({ publik: true, tanpaSesi: true })
+  })
 })
