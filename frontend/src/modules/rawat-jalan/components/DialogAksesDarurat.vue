@@ -9,7 +9,7 @@ import { LABEL_KATEGORI_ALASAN, pesanBukaAksesDarurat } from '@/modules/rekam-me
 import { type AksesDarurat, bukaAksesDarurat, type KategoriAlasanAksesRm } from '@/shared/api/aksesDarurat'
 
 /** Buka akses darurat RM satu pasien (UC-33, FR-26-12, FR-26-26): kategori dan uraian alasan wajib; akses terbatas waktu dan ditinjau. */
-const props = defineProps<{ pasienId: string; identitas: string }>()
+const props = defineProps<{ pasienId: string; identitas: string; fokusSesudahTutup?: () => HTMLElement | null | undefined }>()
 const buka = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ terbuka: [akses: AksesDarurat] }>()
 
@@ -50,7 +50,7 @@ async function kirim() {
 </script>
 
 <template>
-  <Dialog v-model:open="buka" judul="Buka akses darurat" :uraian="`${identitas}. Akses berlaku terbatas waktu dan hanya untuk pasien ini.`" :sibuk="sibuk" peringatan>
+  <Dialog v-model:open="buka" judul="Buka akses darurat" :uraian="`${identitas}. Akses berlaku terbatas waktu dan hanya untuk pasien ini.`" :sibuk="sibuk" :fokus-sesudah-tutup="fokusSesudahTutup" peringatan>
     <form id="form-akses-darurat" novalidate class="form" @submit.prevent="kirim">
       <p class="ket">Setiap pembacaan selama akses darurat tercatat atas nama Anda, lalu ditinjau Kepala Rekam Medis atau pejabat pelindungan data pribadi.</p>
       <KolomIsian v-slot="a" label="Kategori alasan" wajib :error="kesalahan.kategori_alasan">

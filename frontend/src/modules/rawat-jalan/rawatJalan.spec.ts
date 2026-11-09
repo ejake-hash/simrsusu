@@ -1,5 +1,5 @@
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
@@ -17,6 +17,7 @@ import CpptLinimasa from './components/CpptLinimasa.vue'
 import DialogAksesDarurat from './components/DialogAksesDarurat.vue'
 import DialogAsesmen from './components/DialogAsesmen.vue'
 import PanelPemeriksaan from './components/PanelPemeriksaan.vue'
+import { pesanBukaAksesDarurat, pesanTinjauAksesDarurat } from '@/modules/rekam-medis/aksesDarurat'
 import { ringkasItemResep } from '@/shared/api/resep'
 import { lamaMenunggu, pesanCppt, pesanKlinis, pesanPemeriksaan, pesanResep, sisaPerbaikan } from './rawatJalan'
 import type { Cppt } from './tipe'
@@ -80,6 +81,22 @@ describe('pembantu tampilan', () => {
     const barang = { id: 'b', kode: 'K', nama: 'Obat contoh', zat_aktif: null, kekuatan: '500 mg', sediaan: null, satuan_terkecil: 'tablet' }
     expect(ringkasItemResep({ id: 'i', barang, dosis: null, frekuensi_per_hari: 3, jumlah_per_pakai: 1, hari: 5, jumlah: 15, rute: 'oral', aturan_pakai: null, catatan: null }))
       .toBe('Obat contoh 500 mg · 3× sehari 1 tablet, 5 hari · oral · jumlah 15 tablet')
+  })
+})
+
+describe('pesan akses darurat', () => {
+  const galat = (status: number, k: string) => new ApiError(status, k, `pesan server ${k}`)
+  it('buka: tiap kode server punya pesan sendiri, selain itu pesan server', () => {
+    expect(pesanBukaAksesDarurat(galat(403, 'izin_praktik_tidak_berlaku'))).toContain('izin praktik')
+    expect(pesanBukaAksesDarurat(galat(403, 'mfa_belum_terdaftar'))).toContain('verifikasi dua langkah')
+    expect(pesanBukaAksesDarurat(galat(403, 'akses_ditolak'))).toContain('tidak berwenang')
+    expect(pesanBukaAksesDarurat(galat(422, 'lain'))).toBe('pesan server lain')
+    expect(pesanBukaAksesDarurat(new Error('x'))).toBe('Terjadi kesalahan. Coba lagi.')
+  })
+  it('tinjau: sudah ditinjau dan diri sendiri punya pesan sendiri', () => {
+    expect(pesanTinjauAksesDarurat(galat(409, 'sudah_ditinjau'))).toContain('sudah ditinjau')
+    expect(pesanTinjauAksesDarurat(galat(403, 'diri_sendiri'))).toContain('buka sendiri')
+    expect(pesanTinjauAksesDarurat(galat(422, 'lain'))).toBe('pesan server lain')
   })
 })
 
@@ -221,6 +238,10 @@ describe('CPPT (server tiruan v0.24.0)', () => {
 })
 
 describe('CpptLinimasa — layar', () => {
+  // Lepas tiap layar sebelum body dikosongkan: layar yang tertinggal ikut bereaksi saat uji berikutnya mengubah izin global
+  // (mis. dialog akses darurat terpasang/terlepas) dan gagal melepas simpul yang sudah dihapus.
+  const terpasang: VueWrapper[] = []
+  afterEach(() => terpasang.splice(0).forEach((w) => w.unmount()))
   async function tenang() {
     for (let i = 0; i < 8; i++) {
       await flushPromises()
@@ -235,6 +256,7 @@ describe('CpptLinimasa — layar', () => {
       props: { baris },
       global: { plugins: [router, [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]], directives: { can: vCan } },
     })
+    terpasang.push(wrapper)
     await tenang()
     return wrapper
   }
@@ -261,6 +283,20 @@ describe('CpptLinimasa — layar', () => {
     expect(document.body.textContent).not.toContain('Rahasia klinis')
     expect(tombol('Buka akses darurat')).toBeUndefined()
     expect((await linimasaCppt('pasien', b!.pasien.id, { profesi: 'perawat' })).data).toHaveLength(0)
+  })
+
+  it('pemegang izin darurat melihat satu tombol akses darurat per pasien, bukan per entri Terbatas', async () => {
+    waktu = new Date()
+    aturIzin([...IZIN, 'rawat_jalan.cppt.darurat'])
+    const [b] = await worklist()
+    for (const subjektif of ['Rahasia satu', 'Rahasia dua']) {
+      const { data } = await tulisCppt(b!.kunjungan_id, { subjektif, objektif: null, asesmen: null, plan: null, label: 'psikiatri' })
+      Object.assign(gabungan.rawatJalan.contoh.cppt.find((x: Cppt) => x.id === data.id)!, { status: 'sah', terbatasBagiSaya: true })
+    }
+    await pasang(b!)
+    expect(document.querySelectorAll('[role="note"]').length).toBeGreaterThanOrEqual(2)
+    expect([...document.querySelectorAll('button')].filter((x) => x.textContent?.trim() === 'Buka akses darurat')).toHaveLength(1)
+    expect(document.body.textContent).toContain('Sebagian catatan pasien ini terbatas untuk akun Anda.')
   })
 
   it('dialog akses darurat menolak uraian pendek tanpa memanggil server', async () => {
