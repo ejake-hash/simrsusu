@@ -5,16 +5,18 @@ import { IKON_KATEGORI, LABEL_KATEGORI } from '../triase'
 
 /**
  * Penanda kategori triase: warna token `--triase-*` (PRD 5.3.2, hanya layar IGD/triase) selalu disertai ikon dan teks,
- * jadi tetap terbaca tanpa warna. `null` = belum ditriase.
+ * jadi tetap terbaca tanpa warna. `null` = belum ditriase; `undefined` = server tidak mengirim triase untuk akun ini
+ * (tanpa igd.triase.lihat cakupan rs atau MFA belum ulang), jadi "Tidak tersedia", bukan "Belum ditriase".
  */
-defineProps<{ kategori: KategoriTriase | null | undefined }>()
+defineProps<{ kategori?: KategoriTriase | null }>()
 </script>
 
 <template>
   <span v-if="kategori" class="triase" :class="`triase-${kategori}`">
     <Ikon :nama="IKON_KATEGORI[kategori]" :ukuran="14" />{{ LABEL_KATEGORI[kategori] }}
   </span>
-  <span v-else class="triase triase-belum">Belum ditriase</span>
+  <span v-else-if="kategori === null" class="triase triase-belum">Belum ditriase</span>
+  <span v-else class="triase triase-tidak">Tidak tersedia</span>
 </template>
 
 <style scoped>
@@ -47,6 +49,10 @@ defineProps<{ kategori: KategoriTriase | null | undefined }>()
 }
 .triase-belum {
   border: 1px dashed var(--border-input);
+  color: var(--muted);
+  font-weight: var(--font-weight-regular);
+}
+.triase-tidak {
   color: var(--muted);
   font-weight: var(--font-weight-regular);
 }

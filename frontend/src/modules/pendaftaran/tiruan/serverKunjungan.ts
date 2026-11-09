@@ -66,8 +66,8 @@ export interface OpsiServerKunjungan {
   penjamin: (id: string) => RingkasPenjaminKunjungan | null
   pelaku: () => Pelaku
   sekarang?: () => Date
-  /** Instrumen triase data induk (v0.32.0). Bawaan: satu instrumen sintetis berlabel contoh, seperti `lokal:kunjungan-contoh`. */
-  instrumenTriase?: InstrumenTriase[]
+  /** Instrumen triase aktif dari data induk (v0.32.0, server instrumen-triase). Bawaan: satu instrumen sintetis berlabel contoh. */
+  instrumenTriase?: () => InstrumenTriase[]
 }
 
 interface TriaseT {
@@ -126,7 +126,7 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
   /** Riwayat triase, urut dicatat (hanya ditambah). */
   const triase: TriaseT[] = []
   let trN = 0
-  const instrumen = opsi.instrumenTriase ?? INSTRUMEN_TRIASE_CONTOH
+  const instrumenAktif = () => opsi.instrumenTriase?.() ?? INSTRUMEN_TRIASE_CONTOH
 
   const episodeHarian = (pasienId: string, tanggal: string): RingkasEpisode => {
     const kunci = `${pasienId}|${tanggal}`
@@ -283,10 +283,10 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
     const skala = typeof isi.skala === 'string' && isi.skala.trim() ? isi.skala.trim() : null
     let ins: InstrumenTriase | null = null
     if (!instrumenId) {
-      if (instrumen.length) return validasi('instrumen_triase_id', 'Pilih instrumen triase.')
+      if (instrumenAktif().length) return validasi('instrumen_triase_id', 'Pilih instrumen triase.')
       if (skala) return validasi('skala', 'Skala hanya diisi bersama instrumen triase.')
     } else {
-      ins = instrumen.find((i) => i.id === instrumenId) ?? null
+      ins = instrumenAktif().find((i) => i.id === instrumenId) ?? null
       if (!ins) return validasi('instrumen_triase_id', 'Instrumen triase tidak ditemukan atau tidak aktif.')
       if (!ins.skala.length && skala) return validasi('skala', 'Instrumen ini tidak memakai skala.')
       if (ins.skala.length && (!skala || !ins.skala.some((s) => s.kode === skala))) return validasi('skala', 'Pilih skala dari instrumen triase ini.')
@@ -318,9 +318,9 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
     const metode = r.metode.toUpperCase()
     if (bagian[0] === 'kunjungan-igd' && !bagian[1]) {
       if (metode === 'GET') {
-        // v0.32.0: layar Triase memakai daftar yang sama; field `triase` hanya untuk pemegang igd.triase.lihat.
+        // v0.32.0: izin tetap igd.pendaftaran.lihat; field `triase` hanya untuk pemegang igd.triase.lihat.
+        if (!opsi.boleh('igd.pendaftaran.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak melihat kunjungan IGD.')
         const bolehTriase = opsi.boleh('igd.triase.lihat')
-        if (!opsi.boleh('igd.pendaftaran.lihat') && !bolehTriase) return error(403, 'akses_ditolak', 'Anda tidak berhak melihat kunjungan IGD.')
         const status = r.kueri.get('status') as StatusKunjungan | null
         const hasil = daftar
           .filter((k) => k.jenis === 'igd' && (status ? k.status === status : aktif(k)))
@@ -343,7 +343,7 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
     }
     if (bagian[0] === 'instrumen-triase' && !bagian[1] && metode === 'GET') {
       if (!opsi.boleh('igd.triase.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak melihat instrumen triase.')
-      return { status: 200, header: NO_STORE, isi: { data: [...instrumen].sort((a, b) => a.kode.localeCompare(b.kode)) } }
+      return { status: 200, header: NO_STORE, isi: { data: [...instrumenAktif()].sort((a, b) => a.kode.localeCompare(b.kode)) } }
     }
     if (bagian[0] !== 'kunjungan') return null
     const id = bagian[1]

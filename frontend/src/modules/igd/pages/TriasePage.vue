@@ -19,7 +19,7 @@ import type { KategoriTriase, Kunjungan, Triase } from '@/modules/pendaftaran/ti
 import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
 import LencanaTriase from '../components/LencanaTriase.vue'
-import { IKON_KATEGORI, KATEGORI_TRIASE, KUNCI_TRIASE, LABEL_KATEGORI } from '../triase'
+import { IKON_KATEGORI, KATEGORI_TRIASE, kategoriBerlaku, KUNCI_TRIASE, LABEL_KATEGORI, waktuTriase } from '../triase'
 
 /**
  * IGD → Triase (tiket 2.24, kontrak v0.32.0; FR-03-02). Perawat memilih pasien dari daftar IGD aktif, memilih kategori
@@ -29,12 +29,15 @@ import { IKON_KATEGORI, KATEGORI_TRIASE, KUNCI_TRIASE, LABEL_KATEGORI } from '..
 const qc = useQueryClient()
 
 // ── Daftar pasien IGD aktif ──
+// Daftar IGD butuh igd.pendaftaran.lihat (keputusan pemilik 9 Nov 2026: layar Triase tidak melonggarkan izin itu).
+const bolehDaftarIgd = computed(() => boleh('igd.pendaftaran.lihat'))
 const kueriIgd = useInfiniteQuery({
   queryKey: KUNCI_KUNJUNGAN.igd,
   queryFn: ({ pageParam }) => daftarKunjunganIgd(null, pageParam),
   initialPageParam: null as string | null,
   getNextPageParam: (h) => h.meta.kursor_berikutnya,
   refetchInterval: 15_000,
+  enabled: bolehDaftarIgd,
 })
 const pasienIgd = computed<Kunjungan[]>(() => kueriIgd.data.value?.pages.flatMap((h) => h.data) ?? [])
 const kolom: KolomTabel[] = [
@@ -133,7 +136,11 @@ const sudahDitriase = computed(() => riwayat.value.length > 0 || Boolean(terpili
             <p>Pilih pasien untuk triase. Urut jam tiba terlama; diperbarui otomatis tiap 15 detik.</p>
           </div>
         </div>
+        <div v-if="!bolehDaftarIgd" class="kartu-isi">
+          <Pesan jenis="peringatan">Butuh izin melihat Pendaftaran IGD; minta lewat Pengaturan peran.</Pesan>
+        </div>
         <DataTable
+          v-else
           :kolom="kolom"
           :baris="pasienIgd"
           :kunci-baris="(k: Kunjungan) => k.id"
@@ -157,7 +164,7 @@ const sudahDitriase = computed(() => riwayat.value.length > 0 || Boolean(terpili
             {{ k.tiba_pada ? jamWib(k.tiba_pada) : '-' }}
             <span class="ket angka">{{ lamaDiIgd(k.tiba_pada, sekarang) }}</span>
           </template>
-          <template #sel-triase="{ baris: k }"><LencanaTriase :kategori="k.triase?.kategori" /></template>
+          <template #sel-triase="{ baris: k }"><LencanaTriase :kategori="kategoriBerlaku(k)" /></template>
         </DataTable>
       </section>
 
@@ -235,7 +242,7 @@ const sudahDitriase = computed(() => riwayat.value.length > 0 || Boolean(terpili
                 <div class="riwayat-kepala">
                   <LencanaTriase :kategori="t.kategori" />
                   <Lencana v-if="t.berlaku" jenis="info">Berlaku</Lencana>
-                  <span class="ket-baris angka">Pukul {{ jamWib(t.ditriase_pada) }}</span>
+                  <span class="ket-baris angka">{{ waktuTriase(t.ditriase_pada, sekarang) }}</span>
                 </div>
                 <p v-if="t.instrumen" class="ket-baris">{{ t.instrumen.nama }}<template v-if="t.skala">: {{ t.skala.label }}</template></p>
                 <p v-if="t.keluhan" class="ket-baris">Keluhan: {{ t.keluhan }}</p>

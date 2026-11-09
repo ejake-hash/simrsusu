@@ -15,12 +15,14 @@ import { klien } from '@/shared/api/klien'
 import { aturIzin, vCan } from '@/shared/composables/usePermission'
 import PendaftaranIgdPage from './pages/PendaftaranIgdPage.vue'
 import TriasePage from './pages/TriasePage.vue'
+import LencanaTriase from './components/LencanaTriase.vue'
+import { kategoriBerlaku, waktuTriase } from './triase'
 
 /** Tiket 2.24: server tiruan kontrak v0.32.0 (triase hanya ditambah) dan layar IGD → Triase. Data sintetis. */
 const adapterAsli = klien.defaults.adapter
 let gabungan: ReturnType<typeof buatServerGabungan>
 let jam = new Date('2026-11-02T03:00:00Z')
-const IZIN = ['igd.triase.lihat', 'igd.triase.input']
+const IZIN = ['igd.pendaftaran.lihat', 'igd.triase.lihat', 'igd.triase.input']
 const INSTRUMEN = INSTRUMEN_TRIASE_CONTOH[0]!
 
 let PASIEN1: string
@@ -145,7 +147,7 @@ describe('TriasePage: layar', () => {
   it('tanpa izin input: riwayat tampil, formulir tidak', async () => {
     const k = (await buatKunjunganIgd({ pasien_id: PASIEN2, cara_bayar: 'non_jkn' })).data
     await catatTriase(k.id, { kategori: 'hijau', instrumen_triase_id: INSTRUMEN.id, skala: 'C3' })
-    aturIzin(['igd.triase.lihat'])
+    aturIzin(['igd.pendaftaran.lihat', 'igd.triase.lihat'])
     await pasang()
     await pilihPasien('Contoh Pasien Dua')
     expect(document.querySelector('input[name="kategori-triase"]')).toBeNull()
@@ -165,5 +167,63 @@ describe('TriasePage: layar', () => {
     aturIzin(['igd.pendaftaran.lihat'])
     await pasang(PendaftaranIgdPage)
     expect([...document.querySelectorAll('thead th')].map((th) => th.textContent?.trim())).not.toContain('Triase')
+  })
+
+  it('tanpa igd.pendaftaran.lihat: pesan izin, daftar IGD tidak diminta (keputusan pemilik 9 Nov)', async () => {
+    await buatKunjunganIgd({ pasien_id: PASIEN2, cara_bayar: 'non_jkn' })
+    aturIzin(['igd.triase.lihat', 'igd.triase.input'])
+    await pasang()
+    expect(document.body.textContent).toContain('Butuh izin melihat Pendaftaran IGD; minta lewat Pengaturan peran.')
+    expect(document.querySelector('table')).toBeNull()
+  })
+})
+
+describe('penanda triase: tidak tersedia vs belum ditriase, waktu riwayat', () => {
+  const kunjungan = async () => (await buatKunjunganIgd({ pasien_id: PASIEN2, cara_bayar: 'non_jkn' })).data
+
+  it('field triase tidak dikirim → Tidak tersedia; null → Belum ditriase', async () => {
+    const k = await kunjungan()
+    const { triase: _, ...tanpaField } = k
+    expect(kategoriBerlaku(tanpaField)).toBeUndefined()
+    expect(kategoriBerlaku({ ...k, triase: null })).toBeNull()
+    expect(kategoriBerlaku({ ...k, triase: { kategori: 'kuning', ditriase_pada: jam.toISOString() } })).toBe('kuning')
+
+    expect(mount(LencanaTriase, { props: {} }).text()).toBe('Tidak tersedia')
+    expect(mount(LencanaTriase, { props: { kategori: null } }).text()).toBe('Belum ditriase')
+    const hijau = mount(LencanaTriase, { props: { kategori: 'hijau' } })
+    expect(hijau.text()).toBe('Hijau')
+  })
+
+  it('Pendaftaran IGD: server tidak mengirim triase walau layar memegang izin lihat → Tidak tersedia', async () => {
+    await kunjungan()
+    aturIzin(['igd.pendaftaran.lihat', 'igd.triase.lihat'])
+    // Server menolak bagian triase (mis. cakupan unit): field tidak dikirim.
+    const asli = klien.defaults.adapter
+    klien.defaults.adapter = async (config) => {
+      const r = await (asli as (c: typeof config) => Promise<{ data: unknown }>)(config)
+      if (config.url?.startsWith('/kunjungan-igd') && config.method === 'get') {
+        const isi = (typeof r.data === 'string' ? JSON.parse(r.data) : r.data) as { data: Record<string, unknown>[] }
+        isi.data.forEach((k) => delete k.triase)
+        r.data = isi
+      }
+      return r as never
+    }
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] })
+    mount(PendaftaranIgdPage, { attachTo: document.body, global: { plugins: [router, [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]], directives: { can: vCan } } })
+    for (let i = 0; i < 6; i++) {
+      await flushPromises()
+      await new Promise((r) => setTimeout(r, 10))
+    }
+    const sel = document.querySelector('tbody')!.textContent
+    expect(sel).toContain('Tidak tersedia')
+    expect(sel).not.toContain('Belum ditriase')
+  })
+
+  it('waktu riwayat: jam saja bila hari ini, dengan tanggal bila bukan', () => {
+    const sekarang = new Date('2026-11-02T03:00:00Z')
+    expect(waktuTriase('2026-11-02T02:30:00Z', sekarang)).toBe('Pukul 09.30 WIB')
+    // Batas hari mengikuti zona RS: 00.30 WIB masih hari ini, 23.30 WIB kemarin tidak.
+    expect(waktuTriase('2026-11-01T17:30:00Z', sekarang)).toBe('Pukul 00.30 WIB')
+    expect(waktuTriase('2026-11-01T16:30:00Z', sekarang)).toBe('1 November 2026, pukul 23.30 WIB')
   })
 })

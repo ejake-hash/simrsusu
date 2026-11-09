@@ -51,6 +51,7 @@ export const router = createRouter({
         { path: 'rawat-jalan/asesmen-perawat', name: 'rawat-jalan-asesmen-perawat', component: () => import('@/modules/rawat-jalan/pages/WorklistPage.vue'), props: { mode: 'asesmen' }, meta: { judul: 'Asesmen perawat' } },
         { path: 'pendaftaran/kunjungan', name: 'pendaftaran-kunjungan', component: () => import('@/modules/pendaftaran/pages/KunjunganPage.vue'), meta: { judul: 'Pendaftaran kunjungan poli' } },
         { path: 'igd/pendaftaran', name: 'igd-pendaftaran', component: () => import('@/modules/igd/pages/PendaftaranIgdPage.vue'), meta: { judul: 'Pendaftaran IGD' } },
+        { path: 'master-data/instrumen-triase', name: 'master-data-instrumen-triase', component: () => import('@/modules/instrumen-triase/pages/InstrumenTriasePage.vue'), meta: { judul: 'Instrumen triase' } },
         { path: 'igd/triase', name: 'igd-triase', component: () => import('@/modules/igd/pages/TriasePage.vue'), meta: { judul: 'Triase' } },
         // Gerbang izin di HalamanModul (tanpa <menu>.<sub>.lihat → Akses ditolak + Minta akses, tiket 1.2d).
         { path: 'pengaturan/peran', name: 'pengaturan-peran', component: () => import('@/modules/akses/pages/PeranPage.vue'), meta: { judul: 'Peran & izin' } },

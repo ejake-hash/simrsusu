@@ -23,6 +23,7 @@ import type { CaraBayar, Kunjungan } from '@/modules/pendaftaran/tipeKunjungan'
 import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
 import LencanaTriase from '../components/LencanaTriase.vue'
+import { kategoriBerlaku } from '../triase'
 
 /**
  * IGD → Pendaftaran IGD (tiket 2.23, kontrak v0.31.0; FR-03-01). Registrasi cepat dengan isian minimal: pasien dari
@@ -185,7 +186,7 @@ onBeforeUnmount(() => clearInterval(detak))
           <b>{{ k.pasien.nama }}</b>
           <span class="ket">No. RM {{ formatNoRm(k.pasien.no_rm) }} · {{ formatTanggal(k.pasien.tanggal_lahir) }}</span>
         </template>
-        <template #sel-triase="{ baris: k }"><LencanaTriase :kategori="k.triase?.kategori" /></template>
+        <template #sel-triase="{ baris: k }"><LencanaTriase :kategori="kategoriBerlaku(k)" /></template>
         <template #sel-tiba="{ baris: k }">
           {{ k.tiba_pada ? jamWib(k.tiba_pada) : '—' }}
           <span class="ket">{{ formatTanggal(k.tanggal) }}</span>
