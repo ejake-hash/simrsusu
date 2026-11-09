@@ -63,14 +63,15 @@ test('menu segera → Segera hadir dengan fase; sub-menu tampil di bawah menu ak
   await expect(page.getByText('tersedia pada fase 2')).toBeVisible()
   await expect(page).toHaveTitle('IGD · Karsitara')
 
-  await menu(page).getByRole('link', { name: 'Papan pasien IGD' }).click()
-  await expect(page).toHaveURL(/\/igd\/papan$/)
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('IGD · Papan pasien IGD')
-  await expect(menu(page).getByRole('link', { name: 'Papan pasien IGD' })).toHaveAttribute('aria-current', 'page')
+  // Sub-menu yang halamannya belum dibangun (Papan pasien IGD sudah ada sejak 2.25).
+  await menu(page).getByRole('link', { name: 'CPPT episode', exact: true }).click()
+  await expect(page).toHaveURL(/\/igd\/cppt$/)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('IGD · CPPT episode')
+  await expect(menu(page).getByRole('link', { name: 'CPPT episode', exact: true })).toHaveAttribute('aria-current', 'page')
 
   await page.getByRole('link', { name: 'Kembali ke Beranda' }).click()
   await expect(page).toHaveURL(/\/$/)
-  await expect(menu(page).getByRole('link', { name: 'Papan pasien IGD' })).toHaveCount(0)
+  await expect(menu(page).getByRole('link', { name: 'CPPT episode', exact: true })).toHaveCount(0)
 })
 
 test('jalur di luar menu → Halaman tidak ditemukan', async ({ page }) => {

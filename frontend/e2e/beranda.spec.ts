@@ -48,9 +48,9 @@ test('kisi modul mengikuti peran: dokter dan admisi berbeda; kartu Segera hadir 
   await expect(dokter.getByText('· Contoh Dokter')).toBeVisible()
   await expect(judulKartu(dokter)).toHaveText(['IGD', 'Rawat Jalan', 'Rekam Medis'])
   await expect(modulSaya(dokter).getByRole('article', { name: 'IGD' }).getByText(/^Segera hadir · fase \d$/)).toBeVisible()
-  // Sub-menu bisa diklik langsung dari kartu.
-  await modulSaya(dokter).getByRole('article', { name: 'IGD' }).getByRole('link', { name: 'Papan pasien IGD' }).click()
-  await expect(dokter).toHaveURL(/\/igd\/papan$/)
+  // Sub-menu bisa diklik langsung dari kartu (CPPT episode IGD belum dibangun; Papan pasien IGD sudah, tiket 2.25).
+  await modulSaya(dokter).getByRole('article', { name: 'IGD' }).getByRole('link', { name: 'CPPT episode', exact: true }).click()
+  await expect(dokter).toHaveURL(/\/igd\/cppt$/)
   await expect(dokter.getByRole('main').getByText('Segera hadir', { exact: true })).toBeVisible()
 
   const admisi = await halaman(browser, asal, 'admisi')
