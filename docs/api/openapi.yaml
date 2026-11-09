@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.33.0
+  version: 0.34.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -174,6 +174,16 @@ info:
     berlaku). Pulang/APS/meninggal/DOA/rujuk keluar menutup kunjungan IGD (episode IGD > 6 jam ikut selesai); rawat inap →
     `menunggu_kamar` (permintaan kamar, tanpa penempatan; 2.28), kamar operasi → `menunggu_kamar_operasi`. Sub-menu baru
     `igd.disposisi` dan `master_data.matriks_perpindahan` (lihat, input, perbaiki).
+    v0.34.0: Papan pasien IGD (tiket 2.25; FR-03-03, FR-03-04, FR-03-05 bagian papan, FR-00-06, K1): GET /igd/papan
+    (izin igd.papan.lihat, polling ETag/If-None-Match → 304, `no-store`, batas laju layar kerja) berisi pasien IGD yang
+    masih terdaftar/dilayani, urut belum ditriase → merah → kuning → hijau → hitam lalu jam tiba, dengan area, lama di
+    IGD, tanda waktu tanggap, tanda mendekati/lebih 6 jam, dan disposisi yang masih menunggu kamar/kamar operasi beserta
+    sejak kapan. PUT /kunjungan/{id}/area-igd (izin igd.papan.input) menempatkan pasien di area. Data induk baru (sub-menu
+    `master_data.papan_igd`, edit langsung + dasar perubahan + audit, pola instrumen triase): GET/POST
+    /data-induk/area-igd, PATCH /data-induk/area-igd/{id}, GET/PATCH /data-induk/aturan-papan-igd (batas tanggap dan
+    ambang mendekati 6 jam). Keputusan pemilik 9 Nov 2026: tanggap tanpa tahap peringatan (menunggu → lewat_batas; batas
+    bawaan 5 menit dari PRD), waktu tanggap berakhir saat dokter mulai mengisi asesmen awal IGD, ambang mendekati 6 jam
+    kosong sampai RS mengisi (kosong = tanda mati), belum ditriase di atas. Skema lama tidak berubah.
 servers:
   - url: /api/v1
 security:
@@ -4611,6 +4621,148 @@ paths:
         '412': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '428': { $ref: '#/components/responses/Error' }
+  # Data induk papan IGD (tiket 2.25, v0.34.0): area IGD (FR-03-03) dan batas waktu papan (FR-03-04, FR-03-05, FR-00-06).
+  # Izin master_data.papan_igd.* cakupan `rs`, diperiksa sebelum isian; edit langsung + dasar perubahan + audit (pola
+  # instrumen triase). Tidak dihapus: area dinonaktifkan.
+  /data-induk/area-igd:
+    get:
+      operationId: daftarAreaIgd
+      summary: Daftar area IGD (paginasi kursor, urut kode)
+      description: "Izin: master_data.papan_igd.lihat. Papan memuat area aktif di `meta.area` GET /igd/papan (izin igd.papan.lihat)."
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
+      responses:
+        '200':
+          description: Satu halaman area
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AreaIgdDataInduk' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatAreaIgd
+      summary: Tambah area IGD (aktif)
+      description: "Izin: master_data.papan_igd.input. `kode` sudah dipakai → 422 `validasi_gagal` (rincian `kode`). Audit `master_data.area_igd_dibuat`."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kode, nama, dasar_perubahan]
+              additionalProperties: false
+              properties:
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 2, maxLength: 100 }
+                urutan: { type: integer, minimum: 0, maximum: 999, description: "Urut tampil di papan (kecil dulu); bawaan 0" }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '201':
+          description: Area dibuat
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AreaIgdDataInduk' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /data-induk/area-igd/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      operationId: ubahAreaIgd
+      summary: Ubah kode/nama/urutan, atau nonaktifkan area IGD
+      description: |
+        Izin: master_data.papan_igd.perbaiki. Wajib If-Match (412 `versi_berubah`, 428 `if_match_wajib`). Validasi sama
+        dengan POST. Area nonaktif tidak bisa dipilih untuk penempatan baru; pasien yang sudah ditempatkan tetap tampil
+        dengan area itu. Audit `master_data.area_igd_diubah` (sebelum/sesudah).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              additionalProperties: false
+              properties:
+                kode: { $ref: '#/components/schemas/KodeData' }
+                nama: { type: string, minLength: 2, maxLength: 100 }
+                urutan: { type: integer, minimum: 0, maximum: 999 }
+                status: { type: string, enum: [aktif, nonaktif] }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Area sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AreaIgdDataInduk' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /data-induk/aturan-papan-igd:
+    get:
+      operationId: bacaAturanPapanIgd
+      summary: Batas waktu papan IGD (satu set per RS)
+      description: "Izin: master_data.papan_igd.lihat. ETag = `versi`."
+      responses:
+        '200':
+          description: Batas waktu berlaku
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AturanPapanIgd' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: ubahAturanPapanIgd
+      summary: Ubah batas waktu papan IGD
+      description: |
+        Izin: master_data.papan_igd.perbaiki. Wajib If-Match (412 `versi_berubah`, 428 `if_match_wajib`). Kirim minimal satu
+        nilai. `peringatan_lama_igd_menit` null = kosongkan ambang (tanda `mendekati_6_jam` mati). Tidak ada lebar
+        peringatan tanggap (keputusan pemilik 9 Nov 2026). Berlaku untuk isi papan berikutnya. Audit
+        `master_data.aturan_papan_igd_diubah` (sebelum/sesudah).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              additionalProperties: false
+              properties:
+                batas_tanggap_menit: { type: integer, minimum: 1, maximum: 1440 }
+                peringatan_lama_igd_menit: { type: [integer, 'null'], minimum: 1, maximum: 359 }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Batas waktu sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AturanPapanIgd' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
   # Matriks perpindahan antar-pos (tiket 2.26, v0.33.0; FR-00-02, PRD 7.00.3, PRD 11.2 `aturan_perpindahan`). Hanya baca;
   # perubahan lewat usulan data induk berjenjang (`jenis_data` `matriks_perpindahan`, objek `aturan_perpindahan`).
   /data-induk/matriks-perpindahan:
@@ -5848,6 +6000,79 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Disposisi' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /igd/papan:
+    get:
+      operationId: bacaPapanIgd
+      summary: Papan pasien IGD (polling ETag; urut triase lalu jam tiba)
+      description: |
+        Izin: igd.papan.lihat, cakupan rs (403 sebelum isian dibaca). Layar kerja yang dipolling (K1, sampai Reverb
+        diputuskan): batas laju layar kerja; ETag = sidik isi tanpa `meta.waktu_server`, If-None-Match yang sama → 304
+        tanpa isi; selalu `Cache-Control: no-store`. Isi berubah paling sedikit tiap menit karena lama di IGD dihitung server.
+        - Baris = kunjungan IGD `terdaftar`/`dilayani` (pasien yang selesai disposisi atau batal tidak tampil), paling
+          banyak 200 baris (`meta.terpotong` true bila lebih). Bukan daftar berkursor: urutannya prioritas klinis.
+        - Urut (FR-03-03): belum ditriase paling atas (belum dinilai; keputusan pemilik 9 Nov 2026), lalu triase berlaku
+          merah → kuning → hijau → hitam, lalu jam tiba terlama dulu.
+        - Pembulatan: tanda waktu dibandingkan per detik; menit (`lama_di_igd_menit`, `tanggap.menit`) dibulatkan ke atas,
+          jadi menit > batas selalu sama dengan tanda lewat/terlambat/lebih.
+        - `area_id` menyaring satu area; id tak dikenal → daftar kosong.
+        - Data pasien (dua penanda identitas, keluhan klinis) hanya untuk pemegang izin ini; keluhan tidak masuk log/audit.
+      parameters:
+        - { in: query, name: area_id, schema: { type: string, format: uuid } }
+        - { in: header, name: If-None-Match, schema: { type: string } }
+      responses:
+        '200':
+          description: Isi papan
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/BarisPapanIgd' } }
+                  meta: { $ref: '#/components/schemas/MetaPapanIgd' }
+        '304': { description: "Tidak berubah sejak ETag yang dikirim" }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/area-igd:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      operationId: tempatkanAreaIgd
+      summary: Tempatkan pasien IGD di area (pindah area = panggil lagi)
+      description: |
+        Izin: igd.papan.input, cakupan rs (403 sebelum isian dibaca). Satu penempatan berlaku per kunjungan; pindah area
+        mengganti penempatan itu dan tercatat di audit `kunjungan.area_igd_ditempatkan` (id kunjungan, nomor, area sesudah
+        dan sebelum; tanpa identitas pasien). Area yang sama dengan penempatan sekarang → 200 tanpa perubahan.
+        - `area_igd_id` bukan area aktif di data induk → 422 `validasi_gagal` (rincian `area_igd_id`).
+        - Kunjungan bukan IGD, atau IGD yang sudah `selesai`/`batal` → 409 `status_tidak_sesuai`, `rincian` =
+          `[{jenis_kunjungan, status}]`. 409 `pasien_digabung`, 409 `instalasi_belum_siap`: seperti triase.
+        - Kunjungan tidak ada → 404.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [area_igd_id]
+              additionalProperties: false
+              properties:
+                area_igd_id: { type: string, format: uuid, description: "Area aktif dari `meta.area` GET /igd/papan" }
+      responses:
+        '200':
+          description: Penempatan berlaku
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PenempatanAreaIgd' } } }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
@@ -9735,6 +9960,106 @@ components:
           description: "Akibat pada kunjungan asal saat perintah: selesai = kunjungan IGD ditutup; menunggu_kamar = permintaan kamar rawat inap (kelanjutannya di permintaan tempat tidur 2.28); menunggu_kamar_operasi = menunggu diterima kamar operasi"
         diputuskan_oleh: { $ref: '#/components/schemas/Pelaku' }
         diputuskan_pada: { type: string, format: date-time, description: "Jam server" }
+    RingkasAreaIgd:
+      type: object
+      required: [id, kode, nama]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+    AreaIgdDataInduk:
+      type: object
+      required: [id, kode, nama, urutan, status, versi, diubah_pada]
+      description: "Area IGD di layar data induk (inti.area_igd, v0.34.0), termasuk yang nonaktif. Isinya ditetapkan RS."
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+        urutan: { type: integer, description: "Urut tampil di papan (kecil dulu)" }
+        status: { type: string, enum: [aktif, nonaktif] }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    AturanPapanIgd:
+      type: object
+      required: [batas_tanggap_menit, peringatan_lama_igd_menit, versi, diubah_pada]
+      description: |
+        Batas waktu papan IGD (inti.aturan_papan_igd, satu set per RS; v0.34.0). Angka awal instalasi: batas tanggap 5
+        menit (sumber PRD FR-03-04, KPI FR-03-05), tanpa lebar peringatan sebelum batas; ambang mendekati 6 jam kosong
+        sampai RS mengisi (PRD FR-00-06 tanpa angka). Keputusan pemilik 9 Nov 2026. Batas 6 jam sendiri aturan INA-CBG
+        (7.00.2), bukan data induk.
+      properties:
+        batas_tanggap_menit: { type: integer, minimum: 1, description: "Batas waktu tanggap: jam tiba → dokter mulai mengisi asesmen awal" }
+        peringatan_lama_igd_menit: { type: [integer, 'null'], minimum: 1, description: "Tanda `mendekati_6_jam` bila sisa waktu sampai 6 jam ≤ angka ini; null = tanda tidak dipakai" }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    TanggapPapanIgd:
+      type: object
+      required: [asesmen_dokter_pada, menit, menunggu_asesmen, tanda]
+      description: |
+        Waktu tanggap (FR-03-04; keputusan pemilik 9 Nov 2026) = jam tiba → dokter (atau PPDS) MULAI mengisi asesmen awal
+        IGD (catatan pertama, draf ikut dihitung). Tanpa tahap peringatan: selama belum ada, `menunggu_asesmen` true,
+        `menit` null, `tanda` menunggu (sampai tepat batas) lalu lewat_batas. Sesudah ada: `tanda` tercapai (≤ batas) atau
+        terlambat. Pembulatan: tanda dibandingkan per detik; `menit` dibulatkan ke atas (5 menit 1 detik → 6), jadi
+        `menit` > batas ⇔ terlambat. Layar menampilkan tanda dengan teks/ikon, bukan hanya warna (5.1 butir 4).
+      properties:
+        asesmen_dokter_pada: { type: [string, 'null'], format: date-time, description: "Saat dokter mulai mengisi asesmen awal IGD" }
+        menit: { type: [integer, 'null'], minimum: 0, description: "Menit dari jam tiba sampai mulai mengisi asesmen awal, dibulatkan ke atas" }
+        menunggu_asesmen: { type: boolean }
+        tanda: { type: string, enum: [menunggu, lewat_batas, tercapai, terlambat] }
+    BarisPapanIgd:
+      type: object
+      required: [kunjungan_id, nomor, status, pasien, keluhan, triase, area, tiba_pada, lama_di_igd_menit, tanda_lama_igd, lebih_6_jam, tanggap, disposisi_menunggu]
+      description: "Satu pasien IGD aktif di papan (v0.34.0). Semua angka dan tanda waktu dihitung server saat respons dibuat."
+      properties:
+        kunjungan_id: { type: string, format: uuid }
+        nomor: { type: string, description: "Nomor kunjungan IGD" }
+        status: { type: string, enum: [terdaftar, dilayani] }
+        pasien: { $ref: '#/components/schemas/RingkasPasienKunjungan' }
+        keluhan: { type: [string, 'null'], description: "Keluhan triase berlaku bila diisi, selain itu keluhan saat registrasi (klinis)" }
+        triase:
+          description: "Triase berlaku; null = belum ditriase"
+          oneOf: [{ $ref: '#/components/schemas/RingkasTriase' }, { type: 'null' }]
+        area:
+          description: "Area penempatan; null = belum ditempatkan"
+          oneOf: [{ $ref: '#/components/schemas/RingkasAreaIgd' }, { type: 'null' }]
+        tiba_pada: { type: string, format: date-time }
+        lama_di_igd_menit: { type: integer, minimum: 0, description: "Menit sejak tiba, dibulatkan ke atas (361 = lebih dari 6 jam)" }
+        tanda_lama_igd:
+          type: string
+          enum: [aman, mendekati_6_jam, lebih_6_jam]
+          description: "FR-00-06: mendekati_6_jam bila sisa sampai 6 jam ≤ `peringatan_lama_igd_menit` (ambang kosong → tidak pernah muncul); lebih_6_jam sejak lewat 6 jam (7.00.2)"
+        lebih_6_jam: { type: boolean, description: "Sama dengan `Kunjungan.lebih_6_jam`" }
+        tanggap: { $ref: '#/components/schemas/TanggapPapanIgd' }
+        disposisi_menunggu:
+          type: [object, 'null']
+          required: [status, sejak]
+          description: "Perintah disposisi yang masih menunggu (2.26); null = tidak ada"
+          properties:
+            status: { type: string, enum: [menunggu_kamar, menunggu_kamar_operasi] }
+            sejak: { type: string, format: date-time, description: "Jam perintah disposisi (PRD 11.2 `menunggu_kamar_sejak`)" }
+    MetaPapanIgd:
+      type: object
+      required: [area, aturan, terpotong, waktu_server]
+      properties:
+        area: { type: array, items: { $ref: '#/components/schemas/RingkasAreaIgd' }, description: "Area aktif urut tampil (pilihan penempatan)" }
+        aturan:
+          type: object
+          required: [batas_tanggap_menit, batas_lama_igd_menit, peringatan_lama_igd_menit]
+          description: "Batas yang dipakai menghitung tanda baris ini"
+          properties:
+            batas_tanggap_menit: { type: integer }
+            batas_lama_igd_menit: { type: integer, const: 360 }
+            peringatan_lama_igd_menit: { type: [integer, 'null'], description: "null = tanda mendekati 6 jam tidak dipakai" }
+        terpotong: { type: boolean, description: "true bila pasien aktif lebih dari 200 (hanya 200 pertama dikirim)" }
+        waktu_server: { type: string, format: date-time, description: "Jam server saat respons; tidak ikut sidik ETag" }
+    PenempatanAreaIgd:
+      type: object
+      required: [kunjungan_id, area, ditempatkan_pada, ditempatkan_oleh]
+      properties:
+        kunjungan_id: { type: string, format: uuid }
+        area: { $ref: '#/components/schemas/RingkasAreaIgd' }
+        ditempatkan_pada: { type: string, format: date-time, description: "Jam server penempatan terakhir" }
+        ditempatkan_oleh: { $ref: '#/components/schemas/Pelaku' }
     RingkasPenjamin:
       type: object
       required: [id, kode, nama, jenis]

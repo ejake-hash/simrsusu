@@ -14,6 +14,7 @@ use App\Modules\MasterData\Http\Controllers\KsmController;
 use App\Modules\MasterData\Http\Controllers\LokasiController;
 use App\Modules\MasterData\Http\Controllers\MatriksPerpindahanController;
 use App\Modules\MasterData\Http\Controllers\PaketReferensiController;
+use App\Modules\MasterData\Http\Controllers\PapanIgdDataIndukController;
 use App\Modules\MasterData\Http\Controllers\PenjaminController;
 use App\Modules\MasterData\Http\Controllers\PoliklinikController;
 use App\Modules\MasterData\Http\Controllers\RiwayatVersiController;
@@ -25,7 +26,7 @@ use Illuminate\Support\Facades\Route;
 
 // Organisasi, unit & KSM (tiket 1.8a). Izin dan lapis 3 diperiksa di controller lewat Gate → AccessEvaluator:
 // daftar unit boleh untuk dua izin (data induk ATAU pengelola akun), dan cakupan `unit` = subpohon.
-Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->whereUuid(['unit', 'ksm', 'lokasi', 'bangsal', 'kamar', 'tempatTidur', 'kelasRawat', 'penjamin', 'tarif', 'jadwal', 'pengecualian', 'poliklinik', 'usulan', 'objekId', 'barang', 'formularium', 'item', 'instrumen'])->group(function () {
+Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->whereUuid(['unit', 'ksm', 'lokasi', 'bangsal', 'kamar', 'tempatTidur', 'kelasRawat', 'penjamin', 'tarif', 'jadwal', 'pengecualian', 'poliklinik', 'usulan', 'objekId', 'barang', 'formularium', 'item', 'instrumen', 'area'])->group(function () {
     Route::get('unit-organisasi', [UnitOrganisasiController::class, 'index']);
     Route::post('unit-organisasi', [UnitOrganisasiController::class, 'store'])->middleware('can:master_data.organisasi.input');
     Route::get('unit-organisasi/{unit}', [UnitOrganisasiController::class, 'show']);
@@ -86,6 +87,13 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::post('data-induk/instrumen-triase', [InstrumenTriaseController::class, 'store']);
     Route::get('data-induk/instrumen-triase/{instrumen}', [InstrumenTriaseController::class, 'show']);
     Route::patch('data-induk/instrumen-triase/{instrumen}', [InstrumenTriaseController::class, 'update']);
+
+    // Area IGD dan batas waktu papan IGD (tiket 2.25): izin master_data.papan_igd.* cakupan rs, diperiksa di controller.
+    Route::get('data-induk/area-igd', [PapanIgdDataIndukController::class, 'indexArea']);
+    Route::post('data-induk/area-igd', [PapanIgdDataIndukController::class, 'storeArea']);
+    Route::patch('data-induk/area-igd/{area}', [PapanIgdDataIndukController::class, 'updateArea']);
+    Route::get('data-induk/aturan-papan-igd', [PapanIgdDataIndukController::class, 'showAturan']);
+    Route::patch('data-induk/aturan-papan-igd', [PapanIgdDataIndukController::class, 'updateAturan']);
 
     // Matriks perpindahan antar-pos (tiket 2.26): hanya baca; perubahan lewat usulan data induk `matriks_perpindahan`.
     Route::get('data-induk/matriks-perpindahan', [MatriksPerpindahanController::class, 'index']);
