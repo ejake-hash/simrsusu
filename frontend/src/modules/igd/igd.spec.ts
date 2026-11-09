@@ -63,8 +63,10 @@ describe('kunjungan IGD — server tiruan kontrak v0.31.0', () => {
     expect((await buatKunjunganIgd({ pasien_id: PASIEN2, cara_bayar: 'non_jkn' })).data.status).toBe('terdaftar')
   })
 
-  it('JKN wajib penjamin BPJS (422 penjamin_wajib)', async () => {
+  it('JKN wajib penjamin BPJS (422 penjamin_wajib); penjamin tak dikenal dan keluhan > 1000 karakter → 422 validasi_gagal', async () => {
     await expect(buatKunjunganIgd({ pasien_id: PASIEN1, cara_bayar: 'jkn' })).rejects.toMatchObject({ kode: 'penjamin_wajib' })
+    await expect(buatKunjunganIgd({ pasien_id: PASIEN1, cara_bayar: 'jkn', penjamin_id: '00000000-0000-7000-8000-00000000ffff' })).rejects.toMatchObject({ status: 422, kode: 'validasi_gagal' })
+    await expect(buatKunjunganIgd({ pasien_id: PASIEN1, cara_bayar: 'non_jkn', keluhan: 'x'.repeat(1001) })).rejects.toMatchObject({ status: 422, kode: 'validasi_gagal' })
     const bpjs = (await daftarPenjamin({ status: 'aktif', jenis: 'bpjs' }, null, 200)).data[0]!
     expect((await buatKunjunganIgd({ pasien_id: PASIEN1, cara_bayar: 'jkn', penjamin_id: bpjs.id })).data.penjamin?.jenis).toBe('bpjs')
   })
@@ -138,8 +140,9 @@ describe('PendaftaranIgdPage — layar', () => {
     await pilihPasien(wrapper, gabungan.pasien.contoh.dua.no_rm)
     tombolDaftar()!.click()
     await tenang()
-    expect(document.body.textContent).toContain('Pasien ini masih tercatat di IGD')
-    const baris = [...document.querySelectorAll('tr.terpilih')]
+    expect(document.body.textContent).toContain('ditandai "Kunjungan aktif pasien ini" di daftar Pasien di IGD')
+    // Penanda berupa teks (Lencana), bukan hanya latar baris.
+    const baris = [...document.querySelectorAll('tbody tr')].filter((tr) => tr.textContent?.includes('Kunjungan aktif pasien ini'))
     expect(baris).toHaveLength(1)
     expect(baris[0]!.textContent).toContain(aktif.nomor)
   })

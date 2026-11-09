@@ -59,10 +59,14 @@ const daftar = useMutation({
     }),
   onSuccess: (hasil) => {
     const k = hasil.data
-    tampilkanToast(`${k.pasien.nama} terdaftar di IGD: ${k.nomor}, tiba ${k.tiba_pada ? jamWib(k.tiba_pada) : '-'}.`, 'ok')
+    tampilkanToast(`${k.pasien.nama} terdaftar di IGD: ${k.nomor}, tiba ${k.tiba_pada ? jamWib(k.tiba_pada) : '—'}.`, 'ok')
     pasienDipilih.value = null
     keluhan.value = ''
     void qc.invalidateQueries({ queryKey: KUNCI_KUNJUNGAN.igd })
+  },
+  // Kunjungan aktif yang menolak registrasi bisa didaftarkan loket lain sesudah daftar terakhir dimuat.
+  onError: (e) => {
+    if (e instanceof ApiError && e.kode === 'kunjungan_igd_aktif') void qc.invalidateQueries({ queryKey: KUNCI_KUNJUNGAN.igd })
   },
 })
 watch([pasienDipilih, caraBayar, penjaminId], () => daftar.reset())
@@ -88,6 +92,7 @@ const kueri = useInfiniteQuery({
   refetchInterval: 15_000,
 })
 const baris = computed<Kunjungan[]>(() => kueri.data.value?.pages.flatMap((h) => h.data) ?? [])
+const igdAktifTermuat = computed(() => igdAktifSama.value !== null && baris.value.some((k) => k.id === igdAktifSama.value))
 const kolom: KolomTabel[] = [
   { kunci: 'nomor', label: 'No. kunjungan', lebar: '190px' },
   { kunci: 'pasien', label: 'Pasien' },
@@ -134,11 +139,12 @@ onBeforeUnmount(() => clearInterval(detak))
         </KolomIsian>
       </div>
 
-      <div v-if="galat" class="blok">
+      <div v-if="galat && (kodeGalat === 'kunjungan_igd_aktif' || !errorPenjamin)" class="blok">
         <Pesan v-if="kodeGalat === 'kunjungan_igd_aktif'" jenis="peringatan">
-          Pasien ini masih tercatat di IGD dan ditandai di daftar IGD aktif. Lanjutkan kunjungan itu; tidak perlu didaftarkan ulang.
+          <template v-if="igdAktifTermuat">Pasien ini masih tercatat di IGD dan ditandai "Kunjungan aktif pasien ini" di daftar Pasien di IGD. Lanjutkan kunjungan itu; tidak perlu didaftarkan ulang.</template>
+          <template v-else>Pasien ini masih tercatat di IGD. Lanjutkan kunjungan yang aktif (lihat daftar Pasien di IGD, muat lagi bila belum tampil); tidak perlu didaftarkan ulang.</template>
         </Pesan>
-        <Pesan v-else jenis="error">{{ pesanError(galat) }}</Pesan>
+        <Pesan v-else-if="!errorPenjamin" jenis="error">{{ pesanError(galat) }}</Pesan>
       </div>
 
       <div class="aksi-kirim">
@@ -161,7 +167,7 @@ onBeforeUnmount(() => clearInterval(detak))
         :kolom="kolom"
         :baris="baris"
         :kunci-baris="(k: Kunjungan) => k.id"
-        label="Pasien di IGD"
+        label="Tabel pasien di IGD"
         :terpilih="igdAktifSama"
         :memuat="kueri.isPending.value"
         :memuat-lagi="kueri.isFetchingNextPage.value"
@@ -186,6 +192,7 @@ onBeforeUnmount(() => clearInterval(detak))
           <span class="lencana-tumpuk">
             <Lencana :jenis="NADA_STATUS[k.status]">{{ LABEL_STATUS[k.status] }}</Lencana>
             <Lencana v-if="k.lebih_6_jam" jenis="peringatan">Lebih dari 6 jam</Lencana>
+            <Lencana v-if="k.id === igdAktifSama" jenis="info">Kunjungan aktif pasien ini</Lencana>
           </span>
         </template>
       </DataTable>

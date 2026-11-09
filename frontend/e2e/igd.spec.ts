@@ -5,20 +5,28 @@ import { artisan, halamanAdmisi, halamanAkun, headerTulis, pelanggaranAxe, php, 
  * 2.23-fe: Pendaftaran IGD ke backend asli @1440 px + axe. Akun `perawat` (peran contoh_perawat: seluruh menu IGD, lihat
  * pasien dan penjamin). Pasien SINTETIS "Uji IGD …" didaftarkan admisi lewat API (perawat tidak boleh membuat pasien),
  * lalu perawat mendaftarkannya ke IGD dan mencoba lagi (409 kunjungan_igd_aktif). Registrasi butuh instalasi siap
- * melayani (`lokal:kunjungan-contoh`), jadi berjalan sesudah anjungan (playwright.config.ts). afterAll membatalkan
- * kunjungan IGD aktif pasien uji agar jalan ulang tidak kena 409.
+ * melayani (`lokal:kunjungan-contoh`), jadi berjalan sesudah anjungan (playwright.config.ts). beforeAll dan afterAll
+ * membatalkan kunjungan IGD aktif pasien uji agar jalan ulang tidak kena 409.
  */
 const akhiran = Date.now().toString(36).replace(/\d/g, (d) => 'abcdefghij'[Number(d)]!)
 const nama = `Uji IGD ${akhiran}`
+
+/** Batalkan kunjungan IGD aktif pasien uji (sisa jalan sebelumnya yang gagal, atau jalan ini) agar tidak kena 409. */
+const bersihkanIgdUji = () =>
+  php('tinker', '--execute', "$u = DB::table('akses.pengguna')->value('id'); DB::table('kunjungan.kunjungan')->where('jenis_kunjungan', 'igd')->whereIn('status', ['terdaftar', 'dilayani'])->whereIn('pasien_id', DB::table('pasien.pasien')->where('nama', 'like', 'Uji IGD %')->pluck('id'))->update(['status' => 'batal', 'alasan_batal' => 'Bersih uji e2e', 'dibatalkan_oleh' => $u, 'dibatalkan_pada' => now()]);")
 
 test.describe.configure({ mode: 'serial' })
 test.beforeAll(() => {
   if (!SANDI) throw new Error('Set E2E_SANDI sama dengan AKUN_SINTETIS_SANDI saat seeding.')
   artisan()
+  bersihkanIgdUji()
 })
 test.afterAll(() => {
-  php('tinker', '--execute', "$u = DB::table('akses.pengguna')->value('id'); DB::table('kunjungan.kunjungan')->where('jenis_kunjungan', 'igd')->whereIn('status', ['terdaftar', 'dilayani'])->whereIn('pasien_id', DB::table('pasien.pasien')->where('nama', 'like', 'Uji IGD %')->pluck('id'))->update(['status' => 'batal', 'alasan_batal' => 'Bersih uji e2e', 'dibatalkan_oleh' => $u, 'dibatalkan_pada' => now()]);")
-  artisan('--batal')
+  try {
+    bersihkanIgdUji()
+  } finally {
+    artisan('--batal')
+  }
 })
 
 test('perawat mendaftarkan pasien ke IGD; daftar IGD aktif; pendaftaran ulang ditolak dengan penanda', async ({ browser }, info) => {
@@ -51,7 +59,7 @@ test('perawat mendaftarkan pasien ke IGD; daftar IGD aktif; pendaftaran ulang di
   await daftarkan.click()
 
   await expect(page.getByText(new RegExp(`^${nama} terdaftar di IGD: IGD-\\d{8}-\\d{4}, tiba \\d{2}\\.\\d{2} WIB\\.$`))).toBeVisible()
-  const tabel = page.getByRole('region', { name: 'Pasien di IGD' })
+  const tabel = page.getByRole('region', { name: 'Tabel pasien di IGD' })
   const baris = tabel.getByRole('row', { name: new RegExp(nama) })
   await expect(baris).toContainText('Terdaftar')
   await expect(baris).toContainText(`No. RM`)
@@ -64,7 +72,7 @@ test('perawat mendaftarkan pasien ke IGD; daftar IGD aktif; pendaftaran ulang di
   await page.getByRole('button', { name: new RegExp(nama) }).click()
   await daftarkan.click()
   await expect(page.getByText('Pasien ini masih tercatat di IGD', { exact: false })).toBeVisible()
-  await expect(tabel.locator('tr.terpilih')).toContainText(nama)
+  await expect(tabel.getByRole('row', { name: /Kunjungan aktif pasien ini/ })).toContainText(nama)
   await expect(tabel.getByRole('row', { name: new RegExp(nama) })).toHaveCount(1)
   expect(await pelanggaranAxe(page)).toEqual([])
   await page.context().close()

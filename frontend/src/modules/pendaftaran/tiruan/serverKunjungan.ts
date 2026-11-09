@@ -118,17 +118,18 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
     didaftarkan_oleh: k.didaftarkan_oleh, versi: String(k.v), dibuat_pada: k.dibuat_pada, diubah_pada: iso(),
   })
 
-  /** Penjamin sesuai cara bayar (aturan sama dengan POST /kunjungan); ResponsTiruan = error. */
+  /** Penjamin IGD sesuai cara bayar; ResponsTiruan = error. Penjamin tak dikenal = 422 validasi_gagal pada kolomnya. */
   function periksaPenjamin(caraBayar: CaraBayar, penjaminId: string | null): RingkasPenjaminKunjungan | null | ResponsTiruan {
+    const tidakDikenal = () => error(422, 'validasi_gagal', 'Penjamin tidak ditemukan.', [{ kolom: 'penjamin_id', pesan: 'Penjamin tidak ditemukan.' }])
     if (caraBayar === 'jkn') {
       if (!penjaminId) return error(422, 'penjamin_wajib', 'Cara bayar JKN wajib menyertakan penjamin BPJS.', [{ kolom: 'penjamin_id' }])
       const p = opsi.penjamin(penjaminId)
-      if (!p) return error(404, 'tidak_ditemukan', 'Penjamin tidak ditemukan.')
+      if (!p) return tidakDikenal()
       if (p.jenis !== 'bpjs') return error(422, 'penjamin_tidak_sesuai', 'Cara bayar JKN membutuhkan penjamin berjenis BPJS.', [{ kolom: 'penjamin_id' }])
       return p
     }
     if (!penjaminId) return null
-    return opsi.penjamin(penjaminId) ?? error(404, 'tidak_ditemukan', 'Penjamin tidak ditemukan.')
+    return opsi.penjamin(penjaminId) ?? tidakDikenal()
   }
   const responsError = (x: unknown): x is ResponsTiruan => typeof x === 'object' && x !== null && 'status' in x && 'isi' in x
 
@@ -137,7 +138,10 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
     const pasienId = isi.pasien_id as string | undefined
     const caraBayar = isi.cara_bayar as CaraBayar | undefined
     const penjaminId = (isi.penjamin_id as string | null | undefined) ?? null
-    const keluhan = typeof isi.keluhan === 'string' && isi.keluhan.trim() ? isi.keluhan.trim().slice(0, 1000) : null
+    if (typeof isi.keluhan === 'string' && isi.keluhan.length > 1000) {
+      return error(422, 'validasi_gagal', 'Keluhan maksimal 1.000 karakter.', [{ kolom: 'keluhan', pesan: 'Keluhan maksimal 1.000 karakter.' }])
+    }
+    const keluhan = typeof isi.keluhan === 'string' && isi.keluhan.trim() ? isi.keluhan.trim() : null
     if (!pasienId) return error(422, 'validasi_gagal', 'Pilih pasien.', [{ kolom: 'pasien_id' }])
     if (caraBayar !== 'jkn' && caraBayar !== 'non_jkn') return error(422, 'validasi_gagal', 'Pilih cara bayar.', [{ kolom: 'cara_bayar' }])
 
