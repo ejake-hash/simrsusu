@@ -150,6 +150,9 @@ final class AkunSintetisSeeder extends Seeder
             // Tiket 2.17: e-resep; pemilih obat dari katalog barang (GET /data-induk/barang, farmasi.formularium.lihat).
             'rawat_jalan.pemeriksaan.resep.lihat', 'rawat_jalan.pemeriksaan.resep.input', 'rawat_jalan.pemeriksaan.resep.sahkan',
             'rawat_jalan.pemeriksaan.resep.batal', 'farmasi.formularium.lihat',
+            // Tiket 2.26-fe: dokter ber-SIP (lokal:kunjungan-contoh) memberi disposisi IGD; daftar pasien IGD dari Pendaftaran IGD.
+            // igd.disposisi.input = IZIN_KLINIS (syarat SIP/SPK lapis 5), bukan izin sensitif: tidak memaksa MFA.
+            'igd.pendaftaran.lihat', 'igd.disposisi.lihat', 'igd.disposisi.input',
         ]],
         // Tiket 2.21: akses darurat CPPT (izin sensitif, klinis, butuh MFA); worklist dan CPPT dibaca dari layar rawat jalan.
         'contoh_dokter_darurat' => ['Contoh Dokter Akses Darurat', 'dokter.darurat', [

@@ -104,6 +104,8 @@ const kolom = computed<KolomTabel[]>(() => [
   { kunci: 'lama', label: 'Lama di IGD', lebar: '150px', prioritas: 2 as const },
   { kunci: 'cara_bayar', label: 'Cara bayar', prioritas: 3, lebar: '150px' },
   { kunci: 'status', label: 'Status', lebar: '200px' },
+  // 2.26: pintasan ke Disposisi bagi pemegang igd.disposisi.lihat.
+  ...(boleh('igd.disposisi.lihat') ? [{ kunci: 'aksi', label: 'Aksi', rata: 'kanan' as const, lebar: '120px' }] : []),
 ])
 
 // Lama di IGD ikut berjalan di antara penyegaran data.
@@ -199,6 +201,9 @@ onBeforeUnmount(() => clearInterval(detak))
             <Lencana v-if="k.lebih_6_jam" jenis="peringatan">Lebih dari 6 jam</Lencana>
             <Lencana v-if="k.id === igdAktifSama" jenis="info">Kunjungan aktif pasien ini</Lencana>
           </span>
+        </template>
+        <template #sel-aksi="{ baris: k }">
+          <RouterLink class="tombol" :to="{ path: '/igd/disposisi', query: { kunjungan: k.id } }" :aria-label="`Disposisi ${k.pasien.nama}`">Disposisi</RouterLink>
         </template>
       </DataTable>
     </section>

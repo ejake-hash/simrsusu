@@ -6,10 +6,13 @@ import { artisan, halamanAdmisi, halamanAkun, headerTulis, pelanggaranAxe, php, 
  * pasien dan penjamin). Pasien SINTETIS "Uji IGD …" didaftarkan admisi lewat API (perawat tidak boleh membuat pasien),
  * lalu perawat mendaftarkannya ke IGD dan mencoba lagi (409 kunjungan_igd_aktif). Registrasi butuh instalasi siap
  * melayani (`lokal:kunjungan-contoh`), jadi berjalan sesudah anjungan (playwright.config.ts). beforeAll dan afterAll
- * membatalkan kunjungan IGD aktif pasien uji agar jalan ulang tidak kena 409.
+ * membatalkan kunjungan IGD aktif pasien uji agar jalan ulang tidak kena 409. 2.26: disposisi oleh `dokter.poli` (dokter ber-SIP
+ * sintetis; peran contoh memegang igd.disposisi.* dan igd.pendaftaran.lihat).
  */
 const akhiran = Date.now().toString(36).replace(/\d/g, (d) => 'abcdefghij'[Number(d)]!)
 const nama = `Uji IGD ${akhiran}`
+/** Pasien uji dari tes pertama; didaftarkan ulang ke IGD sesudah disposisi pulang (2.26). */
+let pasienId = ''
 
 /** Batalkan kunjungan IGD aktif pasien uji (sisa jalan sebelumnya yang gagal, atau jalan ini) agar tidak kena 409. */
 const bersihkanIgdUji = () =>
@@ -40,7 +43,8 @@ test('perawat mendaftarkan pasien ke IGD; daftar IGD aktif; pendaftaran ulang di
   const lahir = new Date(Date.UTC(1940, 0, 1) + (Date.now() % 23_000) * 86_400_000).toISOString().slice(0, 10)
   const r = await admisi.request.post('/api/v1/pasien', { data: { nama, tanggal_lahir: lahir, jenis_kelamin: 'perempuan' }, headers: await headerTulis(admisi, asal) })
   expect(r.status(), await r.text()).toBe(201)
-  const noRm = ((await r.json()) as { data: { no_rm: string } }).data.no_rm
+  const { no_rm: noRm, id } = ((await r.json()) as { data: { no_rm: string; id: string } }).data
+  pasienId = id
   await konteks.close()
 
   const page = await halamanAkun(browser, asal, 'perawat')
@@ -121,6 +125,85 @@ test('perawat mentriase pasien IGD lalu ulang triase; riwayat dua baris, yang te
   // Pendaftaran IGD ikut menampilkan triase berlaku.
   await page.goto('/igd/pendaftaran')
   await expect(page.getByRole('region', { name: 'Tabel pasien di IGD' }).getByRole('row', { name: new RegExp(nama) })).toContainText('Merah')
+  await page.context().close()
+})
+
+// 2.26: dokter ber-SIP (akun `dokter.poli`, SIP sintetis dari lokal:kunjungan-contoh) memberi disposisi menurut matriks
+// perpindahan. Pasien uji masih di IGD dari tes sebelumnya (serial).
+test('dokter memberi disposisi pulang: konfirmasi menyebut pasien, kunjungan ditutup dan keluar dari daftar IGD aktif', async ({ browser }, info) => {
+  test.setTimeout(120_000)
+  const asal = new URL(info.project.use.baseURL ?? '').origin
+  const page = await halamanAkun(browser, asal, 'dokter.poli')
+  await tungguJatahPenuh(page.context().request, asal)
+  await page.goto('/igd/disposisi')
+  await expect(page.getByRole('heading', { level: 1, name: 'Disposisi' })).toBeVisible()
+
+  const tabel = page.getByRole('region', { name: 'Tabel pasien di IGD untuk disposisi' })
+  const baris = tabel.getByRole('row', { name: new RegExp(nama) })
+  await baris.click()
+  await expect(page.getByRole('heading', { level: 2, name: `Disposisi ${nama}` })).toBeVisible()
+  await expect(page.getByText('Belum ada disposisi untuk kunjungan ini.')).toBeVisible()
+
+  // Tujuan dari sel matriks aktif asal IGD: konsul dan order penunjang tidak ditawarkan.
+  const tujuan = page.getByRole('group', { name: /Tujuan/ })
+  await expect(tujuan.getByRole('radio', { name: 'Pulang', exact: true })).toBeVisible()
+  await expect(tujuan.getByRole('radio', { name: /Penunjang|Poli lain/ })).toHaveCount(0)
+  const simpan = page.getByRole('button', { name: 'Simpan disposisi' })
+  await tujuan.getByRole('radio', { name: 'Pulang', exact: true }).check()
+  // Alasan wajib.
+  await expect(simpan).toBeDisabled()
+  await page.getByRole('textbox', { name: /^Alasan/ }).fill('Keluhan membaik, tanda vital stabil (uji sintetis)')
+  expect(await pelanggaranAxe(page)).toEqual([])
+  await simpan.click()
+
+  const konfirmasi = page.getByRole('alertdialog', { name: `Simpan disposisi Pulang untuk ${nama}?` })
+  await expect(konfirmasi).toContainText(/No\. RM [\d.]+, lahir/)
+  await expect(konfirmasi).toContainText('Kunjungan IGD ditutup')
+  expect(await pelanggaranAxe(page)).toEqual([])
+  await konfirmasi.getByRole('button', { name: 'Ya, simpan disposisi' }).click()
+
+  await expect(page.getByText(new RegExp(`^Disposisi Pulang tersimpan untuk ${nama}, pukul \\d{2}\\.\\d{2} WIB\\. Status: Selesai\\.$`))).toBeVisible()
+  await expect(baris).toHaveCount(0)
+  await expect(page.getByText('Kunjungan IGD pasien ini sudah ditutup', { exact: false })).toBeVisible()
+  const riwayat = page.getByRole('list', { name: 'Riwayat disposisi, terbaru di atas' }).getByRole('listitem')
+  await expect(riwayat).toHaveCount(1)
+  await expect(riwayat.first()).toContainText('Pulang')
+  await expect(riwayat.first()).toContainText('Selesai')
+  expect(await pelanggaranAxe(page)).toEqual([])
+  await page.context().close()
+})
+
+test('disposisi rawat inap: serah terima wajib, status Menunggu kamar, pasien tetap di IGD', async ({ browser }, info) => {
+  test.setTimeout(120_000)
+  const asal = new URL(info.project.use.baseURL ?? '').origin
+  // Pasien yang sama sudah keluar dari IGD, jadi boleh didaftarkan lagi (perawat, lewat API).
+  const perawat = await halamanAkun(browser, asal, 'perawat')
+  await perawat.goto('/')
+  const r = await perawat.request.post('/api/v1/kunjungan-igd', { data: { pasien_id: pasienId, cara_bayar: 'non_jkn' }, headers: await headerTulis(perawat, asal) })
+  expect(r.status(), await r.text()).toBe(201)
+  await perawat.context().close()
+
+  const page = await halamanAkun(browser, asal, 'dokter.poli')
+  await tungguJatahPenuh(page.context().request, asal)
+  await page.goto('/igd/disposisi')
+  const baris = page.getByRole('region', { name: 'Tabel pasien di IGD untuk disposisi' }).getByRole('row', { name: new RegExp(nama) })
+  await baris.click()
+  await page.getByRole('group', { name: /Tujuan/ }).getByRole('radio', { name: 'Rawat inap' }).check()
+  await page.getByRole('textbox', { name: /^Alasan/ }).fill('Perlu observasi rawat inap (uji sintetis)')
+  const simpan = page.getByRole('button', { name: 'Simpan disposisi' })
+  await expect(simpan).toBeDisabled()
+  await expect(page.getByText('Isi catatan serah terima, minimal 5 karakter.')).toBeVisible()
+  await page.getByRole('textbox', { name: /^Serah terima/ }).fill('Infus terpasang, pantau tanda vital tiap jam (uji sintetis)')
+  await simpan.click()
+  const konfirmasi = page.getByRole('dialog', { name: `Simpan disposisi Rawat inap untuk ${nama}?` })
+  await expect(konfirmasi).toContainText('Permintaan kamar rawat inap dibuat')
+  await konfirmasi.getByRole('button', { name: 'Ya, simpan disposisi' }).click()
+
+  const riwayat = page.getByRole('list', { name: 'Riwayat disposisi, terbaru di atas' }).getByRole('listitem')
+  await expect(riwayat.first()).toContainText('Menunggu kamar')
+  await expect(riwayat.first()).toContainText('Serah terima: Infus terpasang')
+  await expect(baris).toHaveCount(1)
+  expect(await pelanggaranAxe(page)).toEqual([])
   await page.context().close()
 })
 

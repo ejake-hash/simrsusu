@@ -1,10 +1,13 @@
 import { berversi } from '@/modules/organisasi/api'
 import { klien } from '@/shared/api/klien'
 import type {
+  Disposisi,
   FilterKunjungan,
+  HalamanDisposisi,
   HalamanKunjungan,
   HalamanTriase,
   InstrumenTriase,
+  IsianDisposisi,
   IsianKunjungan,
   IsianKunjunganIgd,
   IsianTriase,
@@ -55,5 +58,19 @@ export async function catatTriase(kunjunganId: string, isian: IsianTriase): Prom
 }
 export async function daftarInstrumenTriase(): Promise<InstrumenTriase[]> {
   const { data } = await klien.get<{ data: InstrumenTriase[] }>('/instrumen-triase')
+  return data.data
+}
+
+/**
+ * Disposisi IGD (kontrak v0.33.0, tiket 2.26). Perintah hanya ditambah; tujuan harus punya sel aktif di matriks
+ * perpindahan asal IGD. Pulang/APS/meninggal/DOA/rujuk keluar menutup kunjungan IGD; rawat inap dan kamar operasi
+ * menunggu (kunjungan tetap di IGD).
+ */
+export async function daftarDisposisi(kunjunganId: string, kursor: string | null = null, batas = 50): Promise<HalamanDisposisi> {
+  const { data } = await klien.get<HalamanDisposisi>(`${JALUR}/${kunjunganId}/disposisi`, { params: { kursor: kursor ?? undefined, batas } })
+  return data
+}
+export async function catatDisposisi(kunjunganId: string, isian: IsianDisposisi): Promise<Disposisi> {
+  const { data } = await klien.post<{ data: Disposisi }>(`${JALUR}/${kunjunganId}/disposisi`, isian)
   return data.data
 }

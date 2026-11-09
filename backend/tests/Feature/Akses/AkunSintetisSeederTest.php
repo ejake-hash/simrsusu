@@ -146,6 +146,16 @@ class AkunSintetisSeederTest extends TestCase
         $this->assertFalse($evaluator->boleh($akun('perawat'), 'pendaftaran.pasien.input'));
         $this->assertFalse($evaluator->bolehMenu($akun('admisi'), 'igd.pendaftaran'));
         $this->assertFalse($evaluator->bolehMenu($akun('mfa'), 'igd.papan'));
+        // 2.26-fe: dokter poli contoh (SIP dari lokal:kunjungan-contoh) membuka Disposisi IGD dan daftar pasien IGD; izin
+        // input bersyarat SIP (lapis 5), jadi di sini cukup diperiksa terpasang di perannya, tanpa izin sensitif.
+        foreach (['igd.pendaftaran.lihat', 'igd.disposisi.lihat'] as $kode) {
+            $this->assertTrue($evaluator->boleh($akun('dokter.poli'), $kode), $kode);
+        }
+        $this->assertTrue(DB::table('akses.peran_izin')->join('akses.peran', 'akses.peran.id', '=', 'akses.peran_izin.peran_id')
+            ->join('akses.izin', 'akses.izin.id', '=', 'akses.peran_izin.izin_id')->where('akses.peran.kode', 'contoh_dokter_poli')
+            ->where('akses.izin.kode', 'igd.disposisi.input')->where('akses.peran_izin.status', 'aktif')->exists());
+        $this->assertFalse((bool) DB::table('akses.izin')->where('kode', 'igd.disposisi.input')->value('sensitif'));
+        $this->assertFalse($evaluator->bolehMenu($akun('dokter.poli'), 'igd.triase'));
         $this->assertSame(1, PenggunaPeran::query()->where('pengguna_id', $akun('dokter')->id)->count());
     }
 

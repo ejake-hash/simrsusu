@@ -1,6 +1,7 @@
 import { buatServerNotifikasi } from '../../notifikasi/tiruan/serverNotifikasi'
 import { buatServerInstrumenTriase } from '../../instrumen-triase/tiruan/serverInstrumenTriase'
 import { buatServerKunjungan } from '../../pendaftaran/tiruan/serverKunjungan'
+import { buatServerMatriks } from '../../matriks-perpindahan/tiruan/serverMatriks'
 import { buatServerPasien } from '../../pendaftaran/tiruan/serverPasien'
 import { buatServerFormularium } from '../../formularium/tiruan/serverFormularium'
 import { buatServerRawatJalan } from '../../rawat-jalan/tiruan/serverRawatJalan'
@@ -80,6 +81,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     sekarang: opsi.sekarang,
   })
   let usulanTerbuka: (objekId: string) => { id: string; nomor: string } | null = () => null
+  const matriks = buatServerMatriks({ boleh: akses.bolehSaya, sekarang: opsi.sekarang })
   const tarif = buatServerTarif({
     boleh: akses.bolehSaya,
     kelas: () => [lokasi.contoh.k1.id, lokasi.contoh.k3.id].map((kid) => ({ id: kid, label: lokasi.labelNilai('kelas_rawat_id', kid) ?? kid })),
@@ -88,10 +90,11 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
   })
   const usulan = buatServerUsulan({
     tarif,
+    matriks,
     penggunaSaatIni: akses.penggunaSaatIni,
     namaAkun: akses.namaAkunUntukTtd,
     boleh: akses.bolehSaya,
-    potret: (jenis, id) => (jenis === 'tarif' ? tarif.potret(id) : jenis === 'formularium' || jenis === 'formularium_item' ? null : lokasi.potretObjek(jenis, id)),
+    potret: (jenis, id) => (jenis === 'tarif' ? tarif.potret(id) : jenis === 'formularium' || jenis === 'formularium_item' || jenis === 'aturan_perpindahan' ? null : lokasi.potretObjek(jenis, id)),
     labelNilai: lokasi.labelNilai,
     sudahTtd: (objekId, akunId) => ttd.sudahTtd(objekId, akunId),
     contoh: { kamarA: lokasi.contoh.km101.id, kamarB: lokasi.contoh.km102.id, ruangB: lokasi.contoh.r102.id, kelas: lokasi.contoh.k1.id },
@@ -106,6 +109,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
   const instrumenTriase = buatServerInstrumenTriase({ boleh: akses.bolehSaya, sekarang: opsi.sekarang })
   const kunjungan = buatServerKunjungan({
     instrumenTriase: instrumenTriase.aktif,
+    matriks,
     boleh: akses.bolehSaya,
     jadwal: { ambil: jadwal.ambil, keterisian: jadwal.keterisian, konsumsi: jadwal.konsumsi, slotPoli: jadwal.slotPoli },
     pasien: pasien.ringkas,
@@ -157,12 +161,13 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     pasien,
     kunjungan,
     instrumenTriase,
+    matriks,
     rawatJalan,
     tangani: (r: PermintaanTiruan): ResponsTiruan | Promise<ResponsTiruan> | null => {
       if (akses.wajibGantiSandi() && !bebasGantiSandi(r)) {
         return { status: 403, isi: { error: { kode: 'wajib_ganti_sandi', pesan: 'Ganti sandi awal Anda lebih dulu.', rincian: [] } } }
       }
-      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r) ?? instrumenTriase.tangani(r) ?? formularium.tangani(r) ?? pasien.tangani(r) ?? kunjungan.tangani(r) ?? rawatJalan.tangani(r)
+      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? matriks.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r) ?? instrumenTriase.tangani(r) ?? formularium.tangani(r) ?? pasien.tangani(r) ?? kunjungan.tangani(r) ?? rawatJalan.tangani(r)
     },
   }
 }

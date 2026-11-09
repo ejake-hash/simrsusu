@@ -1,9 +1,9 @@
 import type { MetaKursor, Pelaku } from '@/modules/akses/tipePengaturan'
 
-/** Tipe usulan perubahan data induk berjenjang (docs/api/openapi.yaml v0.9.0, tiket 1.8c; jenis `tarif` v0.18.0, tiket 2.2; jenis `formularium` v0.24.0, tiket 2.12). */
+/** Tipe usulan perubahan data induk berjenjang (docs/api/openapi.yaml v0.9.0, tiket 1.8c; jenis `tarif` v0.18.0, tiket 2.2; jenis `formularium` v0.24.0, tiket 2.12; jenis `matriks_perpindahan` v0.33.0, tiket 2.26). */
 
-export type JenisDataInduk = 'ruang_tt' | 'tarif' | 'formularium'
-export type ObjekDataInduk = 'ruang' | 'kamar' | 'tempat_tidur' | 'tarif' | 'formularium' | 'formularium_item'
+export type JenisDataInduk = 'ruang_tt' | 'tarif' | 'formularium' | 'matriks_perpindahan'
+export type ObjekDataInduk = 'ruang' | 'kamar' | 'tempat_tidur' | 'tarif' | 'formularium' | 'formularium_item' | 'aturan_perpindahan'
 export type AksiUsulan = 'tambah' | 'ubah' | 'tutup'
 /** `berlaku` dan `gagal_diterapkan` final. */
 export type TahapUsulan = 'diusulkan' | 'diverifikasi' | 'disetujui' | 'berlaku' | 'dikembalikan' | 'gagal_diterapkan'
