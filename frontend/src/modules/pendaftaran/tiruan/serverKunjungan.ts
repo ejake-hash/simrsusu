@@ -3,7 +3,9 @@ import type { KeterisianJadwal, RingkasPegawai } from '../../jadwal-praktik/tipe
 import type { CaraBayar, Kunjungan, Pelaku, RingkasEpisode, RingkasPasienKunjungan, RingkasPenjaminKunjungan, SlotTerdekat, StatusKunjungan } from '../tipeKunjungan'
 
 /**
- * Server tiruan kontrak v0.20.0 (tiket 2.6): POST /kunjungan (episode rawat jalan harian terbentuk/digabung otomatis
+ * Server tiruan kontrak v0.20.0 (tiket 2.6) dan v0.31.0 (2.23: GET/POST /kunjungan-igd, IGD aktif per pasien satu, tanda
+ * `lebih_6_jam` dari jam `sekarang`; pemindahan ke episode `igd_lebih_6_jam` tidak ditiru).
+ * POST /kunjungan (episode rawat jalan harian terbentuk/digabung otomatis
  * dari No. RM + tanggal, 7.00.2), POST /kunjungan/{id}/batal (status batal, kuota dikembalikan), GET /kunjungan
  * (papan per poli per hari). Kuota dipinjam dari server jadwal (tiket 2.4) lewat `konsumsi`, jadi sisa di layar jadwal
  * ikut berkurang. Keadaan di memori; aturan dari kontrak termasuk 404/409/422. Semua data sintetis; bukan sumber aturan.
@@ -45,6 +47,8 @@ export interface OpsiServerKunjungan {
     slotPoli: (poliId: string, tanggal: string, kecualiId: string) => SlotTerdekat[]
   }
   pasien: (id: string) => RingkasPasienKunjungan | null
+  /** RM sudah digabung (409 pasien_digabung, IGD). Bawaan: tidak pernah. */
+  pasienDigabung?: (id: string) => boolean
   penjamin: (id: string) => RingkasPenjaminKunjungan | null
   pelaku: () => Pelaku
   sekarang?: () => Date
@@ -53,12 +57,15 @@ export interface OpsiServerKunjungan {
 interface KunjunganT {
   id: string
   nomor: string
+  jenis: 'poliklinik' | 'igd'
   pasien: RingkasPasienKunjungan
   episode: RingkasEpisode
-  jadwal_praktik_id: string
-  poli: { id: string; kode: string; nama: string }
-  dokter: RingkasPegawai
+  /** null untuk IGD (tanpa jadwal, poli, dan dokter). */
+  jadwal_praktik_id: string | null
+  poli: { id: string; kode: string; nama: string } | null
+  dokter: RingkasPegawai | null
   tanggal: string
+  tiba_pada: string | null
   cara_bayar: CaraBayar
   penjamin: RingkasPenjaminKunjungan | null
   status: StatusKunjungan
@@ -93,19 +100,68 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
     }
     return ep
   }
-  const nomorKunjungan = (tanggal: string): string => {
+  /** Nomor dari penghitung harian yang sama untuk poli (RJ-) dan IGD (IGD-), seperti kontrak v0.31.0. */
+  const nomorKunjungan = (tanggal: string, awalan = 'RJ'): string => {
     const padat = tanggal.replace(/-/g, '')
     const urut = (urutHarian.get(padat) ?? 0) + 1
     urutHarian.set(padat, urut)
-    return `RJ-${padat}-${String(urut).padStart(4, '0')}`
+    return `${awalan}-${padat}-${String(urut).padStart(4, '0')}`
   }
+  const ENAM_JAM = 6 * 60 * 60 * 1000
+  const aktif = (k: KunjunganT) => k.status === 'terdaftar' || k.status === 'dilayani'
+  const lebih6Jam = (k: KunjunganT) => k.jenis === 'igd' && aktif(k) && k.tiba_pada !== null && sekarang().getTime() - new Date(k.tiba_pada).getTime() > ENAM_JAM
 
   const bentuk = (k: KunjunganT): Kunjungan => ({
-    id: k.id, nomor: k.nomor, pasien: k.pasien, episode: k.episode, jenis_kunjungan: 'poliklinik', poliklinik: k.poli,
-    dokter: k.dokter, tanggal: k.tanggal, cara_bayar: k.cara_bayar, penjamin: k.penjamin, status: k.status, keluhan: k.keluhan,
-    alasan_batal: k.alasan_batal, dibatalkan_oleh: k.dibatalkan_oleh, dibatalkan_pada: k.dibatalkan_pada,
+    id: k.id, nomor: k.nomor, pasien: k.pasien, episode: k.episode, jenis_kunjungan: k.jenis, poliklinik: k.poli,
+    dokter: k.dokter, tanggal: k.tanggal, tiba_pada: k.tiba_pada, lebih_6_jam: lebih6Jam(k), cara_bayar: k.cara_bayar, penjamin: k.penjamin,
+    status: k.status, keluhan: k.keluhan, alasan_batal: k.alasan_batal, dibatalkan_oleh: k.dibatalkan_oleh, dibatalkan_pada: k.dibatalkan_pada,
     didaftarkan_oleh: k.didaftarkan_oleh, versi: String(k.v), dibuat_pada: k.dibuat_pada, diubah_pada: iso(),
   })
+
+  /** Penjamin IGD sesuai cara bayar; ResponsTiruan = error. Penjamin tak dikenal = 422 validasi_gagal pada kolomnya. */
+  function periksaPenjamin(caraBayar: CaraBayar, penjaminId: string | null): RingkasPenjaminKunjungan | null | ResponsTiruan {
+    const tidakDikenal = () => error(422, 'validasi_gagal', 'Penjamin tidak ditemukan.', [{ kolom: 'penjamin_id', pesan: 'Penjamin tidak ditemukan.' }])
+    if (caraBayar === 'jkn') {
+      if (!penjaminId) return error(422, 'penjamin_wajib', 'Cara bayar JKN wajib menyertakan penjamin BPJS.', [{ kolom: 'penjamin_id' }])
+      const p = opsi.penjamin(penjaminId)
+      if (!p) return tidakDikenal()
+      if (p.jenis !== 'bpjs') return error(422, 'penjamin_tidak_sesuai', 'Cara bayar JKN membutuhkan penjamin berjenis BPJS.', [{ kolom: 'penjamin_id' }])
+      return p
+    }
+    if (!penjaminId) return null
+    return opsi.penjamin(penjaminId) ?? tidakDikenal()
+  }
+  const responsError = (x: unknown): x is ResponsTiruan => typeof x === 'object' && x !== null && 'status' in x && 'isi' in x
+
+  /** POST /kunjungan-igd (v0.31.0): isian minimal, jam tiba = jam server, episode rawat jalan harian hari tiba. */
+  function buatIgd(isi: Record<string, unknown>): ResponsTiruan {
+    const pasienId = isi.pasien_id as string | undefined
+    const caraBayar = isi.cara_bayar as CaraBayar | undefined
+    const penjaminId = (isi.penjamin_id as string | null | undefined) ?? null
+    if (typeof isi.keluhan === 'string' && isi.keluhan.length > 1000) {
+      return error(422, 'validasi_gagal', 'Keluhan maksimal 1.000 karakter.', [{ kolom: 'keluhan', pesan: 'Keluhan maksimal 1.000 karakter.' }])
+    }
+    const keluhan = typeof isi.keluhan === 'string' && isi.keluhan.trim() ? isi.keluhan.trim() : null
+    if (!pasienId) return error(422, 'validasi_gagal', 'Pilih pasien.', [{ kolom: 'pasien_id' }])
+    if (caraBayar !== 'jkn' && caraBayar !== 'non_jkn') return error(422, 'validasi_gagal', 'Pilih cara bayar.', [{ kolom: 'cara_bayar' }])
+
+    const pasien = opsi.pasien(pasienId)
+    if (!pasien) return error(404, 'tidak_ditemukan', 'Pasien tidak ditemukan.')
+    if (opsi.pasienDigabung?.(pasienId)) return error(409, 'pasien_digabung', 'No. RM ini sudah digabung ke RM lain. Daftarkan kunjungan di RM tujuan.')
+    const penjamin = periksaPenjamin(caraBayar, penjaminId)
+    if (responsError(penjamin)) return penjamin
+    const masihDiIgd = daftar.find((k) => k.jenis === 'igd' && k.pasien.id === pasienId && aktif(k))
+    if (masihDiIgd) return error(409, 'kunjungan_igd_aktif', 'Pasien masih tercatat di IGD. Lanjutkan kunjungan IGD yang aktif.', [{ kunjungan_id: masihDiIgd.id }])
+
+    const tanggal = hariIni()
+    const k: KunjunganT = {
+      id: uid('c000', ++idN), nomor: nomorKunjungan(tanggal, 'IGD'), jenis: 'igd', pasien, episode: episodeHarian(pasienId, tanggal),
+      jadwal_praktik_id: null, poli: null, dokter: null, tanggal, tiba_pada: iso(), cara_bayar: caraBayar, penjamin, status: 'terdaftar', keluhan,
+      alasan_batal: null, dibatalkan_oleh: null, dibatalkan_pada: null, didaftarkan_oleh: opsi.pelaku(), v: 1, dibuat_pada: iso(),
+    }
+    daftar.push(k)
+    return { status: 201, header: { ...NO_STORE, ETag: `"${k.v}"` }, isi: { data: bentuk(k) } }
+  }
 
   function buat(isi: Record<string, unknown>): ResponsTiruan {
     const pasienId = isi.pasien_id as string | undefined
@@ -160,8 +216,8 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
 
     opsi.jadwal.konsumsi(jadwalId, tanggal, caraBayar, 1)
     const k: KunjunganT = {
-      id: uid('c000', ++idN), nomor: nomorKunjungan(tanggal), pasien, episode: episodeHarian(pasienId, tanggal), jadwal_praktik_id: jadwalId,
-      poli: j.poli, dokter: j.dokter, tanggal, cara_bayar: caraBayar, penjamin, status: 'terdaftar', keluhan,
+      id: uid('c000', ++idN), nomor: nomorKunjungan(tanggal), jenis: 'poliklinik', pasien, episode: episodeHarian(pasienId, tanggal), jadwal_praktik_id: jadwalId,
+      poli: j.poli, dokter: j.dokter, tanggal, tiba_pada: null, cara_bayar: caraBayar, penjamin, status: 'terdaftar', keluhan,
       alasan_batal: null, dibatalkan_oleh: null, dibatalkan_pada: null, didaftarkan_oleh: opsi.pelaku(), v: 1, dibuat_pada: iso(),
     }
     daftar.push(k)
@@ -173,7 +229,7 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
     if (k.status !== 'terdaftar') return error(409, 'sudah_dilayani', 'Pelayanan klinis sudah dimulai; kunjungan tidak dapat dibatalkan.')
     const alasan = isi.alasan_batal
     if (typeof alasan !== 'string' || alasan.trim().length < 5) return error(422, 'validasi_gagal', 'Isi alasan pembatalan, minimal 5 karakter.', [{ kolom: 'alasan_batal' }])
-    opsi.jadwal.konsumsi(k.jadwal_praktik_id, k.tanggal, k.cara_bayar, -1)
+    if (k.jadwal_praktik_id) opsi.jadwal.konsumsi(k.jadwal_praktik_id, k.tanggal, k.cara_bayar, -1)
     k.status = 'batal'
     k.alasan_batal = alasan.trim()
     k.dibatalkan_oleh = opsi.pelaku()
@@ -184,8 +240,26 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
 
   function tangani(r: PermintaanTiruan): ResponsTiruan | null {
     const bagian = r.jalur.replace(/^\/+|\/+$/g, '').split('/')
-    if (bagian[0] !== 'kunjungan') return null
     const metode = r.metode.toUpperCase()
+    if (bagian[0] === 'kunjungan-igd' && !bagian[1]) {
+      if (metode === 'GET') {
+        if (!opsi.boleh('igd.pendaftaran.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak melihat kunjungan IGD.')
+        const status = r.kueri.get('status') as StatusKunjungan | null
+        const hasil = daftar
+          .filter((k) => k.jenis === 'igd' && (status ? k.status === status : aktif(k)))
+          // Urut jam tiba terlama dulu (keyset tiba_pada, id).
+          .sort((a, b) => (a.tiba_pada ?? '').localeCompare(b.tiba_pada ?? '') || a.id.localeCompare(b.id))
+        const batas = Number(r.kueri.get('batas') ?? 50)
+        const mulai = r.kueri.get('kursor') ? Number(atob(r.kueri.get('kursor')!)) : 0
+        return { status: 200, header: NO_STORE, isi: { data: hasil.slice(mulai, mulai + batas).map(bentuk), meta: { kursor_berikutnya: mulai + batas < hasil.length ? btoa(String(mulai + batas)) : null } } }
+      }
+      if (metode === 'POST') {
+        if (!opsi.boleh('igd.pendaftaran.input')) return error(403, 'akses_ditolak', 'Anda tidak berhak mendaftarkan pasien IGD.')
+        return buatIgd((r.isi ?? {}) as Record<string, unknown>)
+      }
+      return null
+    }
+    if (bagian[0] !== 'kunjungan') return null
     const id = bagian[1]
 
     if (!id) {
@@ -196,7 +270,7 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
         if (!tanggal || !TANGGAL.test(tanggal) || !poliId) return error(422, 'validasi_gagal', 'Tanggal dan poliklinik wajib.', [{ kolom: !poliId ? 'poli_id' : 'tanggal' }])
         const pegawaiId = r.kueri.get('pegawai_id')
         const status = r.kueri.get('status') as StatusKunjungan | null
-        let hasil = daftar.filter((k) => k.tanggal === tanggal && k.poli.id === poliId && (!pegawaiId || k.dokter.id === pegawaiId))
+        let hasil = daftar.filter((k) => k.tanggal === tanggal && k.poli?.id === poliId && (!pegawaiId || k.dokter?.id === pegawaiId))
         hasil = status ? hasil.filter((k) => k.status === status) : hasil.filter((k) => k.status !== 'batal')
         // Urut: terlama didaftarkan dulu (keyset dibuat_pada, id).
         hasil = [...hasil].sort((a, b) => a.dibuat_pada.localeCompare(b.dibuat_pada) || a.id.localeCompare(b.id))

@@ -66,8 +66,8 @@ describe('kunjungan poli — server tiruan kontrak v0.20.0', () => {
     const { data } = await buatKunjungan({ pasien_id: PASIEN1, jadwal_praktik_id: j.id, tanggal: SENIN, cara_bayar: 'non_jkn' })
     expect(data.status).toBe('terdaftar')
     expect(data.nomor).toMatch(/^RJ-20261102-\d{4}$/)
-    expect(data.poliklinik.id).toBe(POLI)
-    expect(data.dokter.id).toBe(DOKTER)
+    expect(data.poliklinik?.id).toBe(POLI)
+    expect(data.dokter?.id).toBe(DOKTER)
     expect(data.episode.jenis).toBe('rawat_jalan_harian')
     expect(data.penjamin).toBeNull()
 
