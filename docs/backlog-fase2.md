@@ -1,8 +1,8 @@
-# Backlog Fase 2 (Alur pasien inti) · Tahap A selesai · Tahap B: rawat jalan + RME
+# Backlog Fase 2 (Alur pasien inti) · Tahap A selesai · Tahap B selesai (kecuali 2.19, 2.22) · Tahap C: IGD, rawat inap, penunjang
 
 > Sumber tiket aktif. Kebutuhan tetap di `docs/prd.md` (baca per bagian). Cara kerja, format tiket, worktree, Korlap,
 > antislop, dan laporan 5 baris: skill `kerja-tiket`. Status diubah lewat PR yang menyelesaikan tiketnya.
-> Tahap B dirinci 7 Nov 2026 (bawah). Tahap C–D sengaja hanya kerangka; dirinci perencana setelah Tahap B selesai.
+> Tahap B dirinci 7 Nov 2026, Tahap C dirinci 9 Nov 2026 (bawah). Tahap D sengaja hanya kerangka; dirinci setelah Tahap C selesai.
 
 ## Prasyarat yang belum tertutup (bukan penghalang build, penghalang pilot)
 - Penutupan formal Fase 1: uji manual pemilik + persetujuan log 17.2 (PRD 16.1 butir 3). Build Tahap A boleh jalan ke staging (16.1 butir 5).
@@ -534,6 +534,276 @@ dipakai sebagai pengganti (catatan lapangan: obat tanpa KFA dilewati SATUSEHAT t
   `autentikasi.mfa.jaringan_rs` atau daftar IP per perangkat, limiter `nomor-loket` lebih ketat, dan/atau token berkedaluwarsa + rotasi.
   Aturan jaringan/kedaluwarsa belum ada di PRD.
 
+## Tahap C · tiket (IGD, rawat inap, penunjang, farmasi depo, pemulangan)
+
+Dirinci 9 Nov 2026 dari PRD 7.00.2–7.00.5, 7.03, 7.04, 7.05, 7.08, 7.19, 7.20, 7.22 dan 11.2 (`kunjungan`, `klinis`, `permintaan`,
+`lab`, `radiologi`, `farmasi`, `logistik`). Semua skema sudah ada di `02-database.sql`; tidak ada skema baru.
+
+**Aturan Tahap C (berlaku untuk semua tiket di bawah, tambahan atas aturan Tahap B):**
+- Kunjungan dan episode saat ini hanya `poliklinik` / `rawat_jalan_harian` (CHECK di migrasi 2026_10_22_120000). Jenis baru (IGD, rawat inap)
+  dibuka lewat migrasi maju yang memperluas CHECK; aturan pembentukan dan penggabungan episode mengikuti tabel 7.00.2, tidak dikarang.
+- Perintah perpindahan pasien (rawat inap, pindah ruang, pulang, rujuk) hanya lewat matriks perpindahan 7.00.3 yang disimpan sebagai **data
+  induk** (FR-00-02); perintah di luar matriks ditolak. Kejadian (hasil keluar, obat diserahkan, pasien tiba) lewat bus kejadian (FR-00-04).
+- Nilai klinis (nilai rujukan lab per umur/JK, batas kritis, daftar skrining radiologi, instrumen triase, batas lama menunggu kamar) hanya
+  dari **data induk yang disetujui RS**. Tiket boleh membangun struktur data induknya; isinya di lokal/e2e sintetis berlabel "contoh".
+- Antarmuka luar tanpa dokumen resmi (alat lab HL7/ASTM, PACS/DICOM MWL, SISRUTE, VClaim surat kontrol/SPRI, Reverb) **tidak** dibangun di
+  tiket ini: hasil dan ekspertise diinput dari layar, dan adaptor menjadi [Perlu pemilik] di bawah. Papan IGD dan peta TT memakai polling
+  ETag (pola display 2.8, K1) sampai Reverb diputuskan.
+- Hasil penunjang mengikuti pasien (7.00.5 butir 2, FR-00-09): penerima = pemesan **dan** DPJP/ruang tempat pasien berada saat hasil keluar,
+  lewat kotak kerja/notifikasi 7.53 yang sudah ada.
+- Hasil, ekspertise, telaah, dan resume yang sudah disahkan tidak diubah; koreksi lewat adendum bertanda (FR-26-06), pola 2.14.
+
+| No | Tiket | Jalur | Ukuran | Prasyarat · Status |
+|---|---|---|---|---|
+| 2.23 | Kunjungan IGD: registrasi cepat + episode | BE+FE | M | — · Siap |
+| 2.24 | Triase IGD dan ulang triase | BE+FE | S | 2.23 · Siap |
+| 2.25 | Papan pasien IGD (polling) | BE+FE | M | 2.24 · Siap |
+| 2.26 | Matriks perpindahan sebagai data induk + disposisi IGD | BE+FE | M | 2.23 · Siap |
+| 2.27 | Peta tempat tidur dan status TT | BE+FE | M | — · Siap |
+| 2.28 | SPRI, antrean permintaan kamar, alokasi TT | BE+FE | M | 2.26, 2.27 · Siap |
+| 2.29 | Admisi rawat inap: penempatan TT, pindah ruang, episode rawat inap | BE+FE | M | 2.28 · Siap |
+| 2.30 | Lab: daftar kerja dan spesimen (order → diterima lab) | BE+FE | M | — · Siap |
+| 2.31 | Lab: hasil, nilai rujukan data induk, validasi, hasil mengikuti pasien | BE+FE | M | 2.30 · Siap |
+| 2.32 | Lab: pelaporan nilai kritis (lapor, baca ulang, DPJP, CPPT) | BE+FE | S | 2.31 · Siap |
+| 2.33 | Radiologi: worklist, skrining, pelaksanaan | BE+FE | M | — · Siap |
+| 2.34 | Radiologi: ekspertise ber-TTE, adendum, temuan kritis | BE+FE | M | 2.33 · Siap |
+| 2.35 | Farmasi: telaah resep dan kembalikan ke dokter | BE+FE | M | — · Siap |
+| 2.36 | Farmasi: stok depo per batch (saldo awal, mutasi gudang → depo) | BE+FE | M | — · Siap |
+| 2.37 | Farmasi: penyiapan, penyerahan, PIO, kurangi stok | BE+FE | M | 2.35, 2.36 · Siap |
+| 2.38 | Farmasi: racikan dengan komponen dan BUD | BE+FE | M | 2.37 · Siap |
+| 2.39 | Farmasi: obat kronis JKN 7 + 23 hari | BE+FE | M | 2.37 · Siap |
+| 2.40 | Pemulangan: rencana pulang, resume medis ber-TTE, daftar periksa | BE+FE | M | 2.29 · Siap |
+| 2.41 | Konsul / rujukan internal antar-poli | BE+FE | S | — · Siap |
+
+Urutan (satu agen; kolom BE lalu FE berurutan): 2.23 → 2.24 → 2.26 → 2.25 → 2.27 → 2.28 → 2.29 → 2.40; penunjang 2.30 → 2.31 → 2.32,
+2.33 → 2.34; farmasi 2.35 → 2.36 → 2.37 → 2.38/2.39; 2.41 kapan saja. Tiap tiket M: PR "BE+kontrak" lalu PR FE (keputusan pemilik 9 Nov).
+
+### 2.23 · Kunjungan IGD: registrasi cepat + episode
+Tujuan : pasien gawat terdaftar di IGD dalam hitungan detik, identitas boleh dilengkapi kemudian, dan masuk episode yang benar.
+FR     : FR-03-01, FR-00-01 (bagian IGD); 7.00.2 baris "Rawat jalan harian" dan "IGD > 6 jam"; 7.00.3 baris Pendaftaran → IGD
+Tabel  : `kunjungan.kunjungan` (`jenis_kunjungan` + `igd`), `kunjungan.episode` (jenis + `igd_lebih_6_jam` bila nama dari 7.00.2 dipakai;
+         nama kode di PR kontrak), pasien tanpa identitas lengkap memakai alur pasien sementara yang ada (bila belum ada: [Perlu pemilik])
+API    : `POST /api/v1/kunjungan-igd` (kontrak menetapkan isian minimal), `PATCH` pelengkapan identitas lewat endpoint pasien yang ada
+Uji    :
+- Registrasi IGD hanya butuh isian minimal 7.03 FR-03-01; jam tiba = jam server.
+- Kunjungan IGD pasien yang hari itu sudah punya episode rawat jalan harian masuk episode yang sama (7.00.2 baris 1).
+- Kunjungan IGD yang melewati 6 jam tanpa rawat inap membentuk episode "IGD > 6 jam" sesuai 7.00.2 (jam beku dalam uji).
+- Akses `igd.pendaftaran.input` (kode final di kontrak); tanpa izin → 403; pasien tetap tanpa duplikat (pencarian pasien 2.5 dipakai).
+Di luar: triase (2.24), papan (2.25), mode korban massal (FR-03-10), PONEK (FR-03-11), SEP IGD (pola 2.7, menyusul).
+
+### 2.24 · Triase IGD dan ulang triase
+Tujuan : setiap pasien IGD punya kategori triase yang tercatat, bisa diulang, dan menentukan urutan papan.
+FR     : FR-03-02
+Tabel  : `kunjungan.triase` (11.2; ulang triase = baris baru, bukan ubah); instrumen dan definisi kategori = data induk RS
+API    : `POST /api/v1/kunjungan/{id}/triase`, `GET /api/v1/kunjungan/{id}/triase`
+Uji    :
+- Kategori hanya merah/kuning/hijau/hitam (FR-03-02); skala/instrumen dari data induk aktif, tanpa nilai klinis di kode.
+- Ulang triase menambah baris dengan jam server dan petugas; triase berlaku = terbaru; riwayat tetap tampil.
+- Triase hanya untuk kunjungan IGD aktif; kunjungan selesai/batal → 409.
+Di luar: skor EWS (FR-08-10, data induk belum ada).
+
+### 2.25 · Papan pasien IGD (polling)
+Tujuan : dokter dan perawat IGD melihat semua pasien IGD dengan triase, waktu tanggap, dan lama di IGD dalam satu layar.
+FR     : FR-03-03, FR-03-04, FR-03-05 (bagian papan), FR-00-06; K1 (polling ETag sampai Reverb)
+Tabel  : `kunjungan.papan_igd` (11.2) atau tampilan dari kunjungan + triase (keputusan di PR kontrak, Asumsi)
+API    : `GET /api/v1/igd/papan` (ETag/If-None-Match, `no-store`)
+Uji    :
+- Urut triase lalu jam tiba (FR-03-03); area Resusitasi/Observasi/Hijau dari data induk.
+- Waktu tanggap = jam tiba → asesmen awal dokter; baris berubah tanda ≤ 5 menit sebelum batas (FR-03-04); tanda mendekati 6 jam (FR-00-06).
+- Data pasien hanya untuk pemegang izin papan IGD; respons 304 bila tidak berubah.
+- Layar @1440 + axe; status tidak hanya warna (PRD 5.1 butir 4).
+Di luar: KPI dasbor (FR-03-05 bagian dasbor, Fase 4), Reverb, eskalasi menunggu kamar (2.28).
+
+### 2.26 · Matriks perpindahan sebagai data induk + disposisi IGD
+Tujuan : keputusan akhir pasien IGD tercatat sebagai perintah yang sah menurut matriks 7.00.3, bukan teks bebas.
+FR     : FR-00-02, FR-00-03 (serah terima RM-15 bagian data), FR-03-09
+Tabel  : data induk matriks perpindahan (asal × tujuan × peran pemberi perintah; isi awal = tabel 7.00.3), perintah perpindahan
+         (pemutus, alasan, asal, tujuan, serah terima, status episode)
+API    : `GET /api/v1/data-induk/matriks-perpindahan`, `POST /api/v1/kunjungan/{id}/disposisi`
+Uji    :
+- Disposisi IGD: pulang, rawat inap, OK, rujuk, APS, meninggal, DOA (FR-03-09); tujuan di luar matriks → 422 dengan kode jelas.
+- Hanya peran yang diizinkan matriks (dokter DPJP/jaga) yang boleh memberi perintah; peran lain → 403.
+- Disposisi pulang/APS menutup kunjungan IGD; rawat inap membuat permintaan kamar (dipakai 2.28), tidak langsung menempatkan pasien.
+- Matriks diubah lewat usulan data induk yang ada (pola 1.x usulan), bukan langsung.
+Di luar: alur meninggal B-05/B-06 rinci, rujuk keluar SISRUTE/VClaim ([Perlu pemilik]).
+
+### 2.27 · Peta tempat tidur dan status TT
+Tujuan : admisi dan kepala ruang melihat semua TT per ruang dengan statusnya dari satu sumber.
+FR     : FR-08-01, FR-08-20, FR-08-04 (bagian status)
+Tabel  : `inti.tempat_tidur` (1.8b), `kunjungan.riwayat_status_tempat_tidur` (11.2)
+API    : `GET /api/v1/peta-tempat-tidur?bangsal_id=&gedung_id=` (ETag), `POST /api/v1/tempat-tidur/{id}/status` (dibersihkan → kosong siap)
+Uji    :
+- Status per TT: terisi (angka hari rawat), kosong siap, dibersihkan, dipesan, tidak dipakai, rencana pulang (FR-08-01); TT ditutup 1.8b
+  tidak bisa dipilih.
+- Filter dan kelompok gedung/lantai/bangsal + cari kode TT (FR-08-20).
+- Perubahan status tercatat di riwayat dengan pelaku dan sumber kejadian; TT "dibersihkan" → "kosong siap" oleh petugas berizin.
+- Layar @1440 + axe, status tidak hanya warna.
+Di luar: SIRANAP/Aplicares (Tahap D), KPI BOR (Fase 4), housekeeping penuh.
+
+### 2.28 · SPRI, antrean permintaan kamar, alokasi TT
+Tujuan : semua permintaan kamar (IGD, poli, elektif) ada di satu antrean dengan lama menunggu, lalu dialokasikan ke TT yang kosong.
+FR     : FR-08-03, FR-03-06, FR-03-07; 7.00.2 baris "Rawat inap" (terbentuk saat SPRI)
+Tabel  : `kunjungan.permintaan_tempat_tidur`, `kunjungan.surat_kontrol` jenis `spri` (catatan internal; nomor BPJS menyusul [Perlu pemilik])
+API    : `POST /api/v1/kunjungan/{id}/spri`, `GET /api/v1/permintaan-tempat-tidur`, `POST /api/v1/permintaan-tempat-tidur/{id}/alokasi`
+Uji    :
+- SPRI hanya dari dokter yang diizinkan matriks 2.26; membuat permintaan kamar berstatus menunggu dengan asal dan kelas diminta.
+- Alokasi hanya ke TT kosong siap; dua alokasi serentak ke TT yang sama → satu berhasil, satu 409.
+- TT teralokasi berstatus "dipesan" di peta TT (2.27) dan di papan IGD (FR-03-06).
+- Menunggu melewati batas data induk RS → tugas eskalasi ke Kepala IGD dengan jam eskalasi (FR-03-07, 7.53).
+Di luar: penempatan pasien (2.29), deposit/naik kelas (Tahap D).
+
+### 2.29 · Admisi rawat inap: penempatan TT, pindah ruang, episode rawat inap
+Tujuan : pasien tiba di bangsal, menempati TT, dan seluruh kunjungan sebelumnya hari itu tergabung ke episode rawat inap.
+FR     : FR-08-06 (pindah ruang/kelas), FR-08-04, FR-00-01 (rawat inap), FR-00-03; 7.00.2 baris "Rawat inap"
+Tabel  : `kunjungan.rawat_inap`, `kunjungan.penempatan_tempat_tidur`, `kunjungan.kunjungan` (`jenis_kunjungan` + `rawat_inap`)
+API    : `POST /api/v1/permintaan-tempat-tidur/{id}/tempatkan`, `POST /api/v1/kunjungan/{id}/pindah-ruang`
+Uji    :
+- Penempatan menutup permintaan, membuka penempatan dengan jam server, TT "terisi"; episode rawat inap menggabung kunjungan IGD/poli
+  hari yang sama yang mendahului (7.00.2).
+- Pindah ruang: penempatan lama ditutup (alasan pindah), TT lama "dibersihkan", TT baru "terisi", serah terima tercatat (FR-00-03).
+- Satu pasien tidak bisa menempati dua TT; TT terisi tidak bisa ditempati pasien lain (409).
+- Relasi perawatan bangsal memakai `KelolaRelasiPerawatan` (2.6), tidak membuat jalur baru.
+Di luar: rawat gabung ibu-bayi dan titip kelas (FR-08-06 bagian lain), asesmen awal RI (FR-08-07, data induk skor belum ada), eMAR.
+
+### 2.30 · Lab: daftar kerja dan spesimen
+Tujuan : petugas lab menerima order dari semua pos di satu daftar kerja, cito di atas, lalu mencatat pengambilan dan penerimaan sampel.
+FR     : FR-19-01, FR-19-02 (order → diterima lab), FR-19-03; 7.00.5 butir 4
+Tabel  : `permintaan.permintaan_item` (2.16), `lab.spesimen` (11.2)
+API    : `GET /api/v1/lab/daftar-kerja`, `POST /api/v1/permintaan-item/{id}/spesimen`, `POST /api/v1/spesimen/{id}/terima`
+Uji    :
+- Daftar kerja memuat order lab berstatus aktif dari semua pos, cito di urutan atas, dengan asal order dan lokasi pasien saat ini.
+- Barcode spesimen unik; ambil dan terima mencatat jam server dan petugas; order batal (2.16) tidak bisa diambil sampelnya (409).
+- Order yang sudah diterima lab tidak bisa dibatalkan pemesan (menutup syarat 2.16 "batal hanya sebelum diterima").
+- Daftar kerja lewat `Paginasi::respons`, `throttle:api-layar-kerja`.
+Di luar: antarmuka alat (FR-19-04, [Perlu pemilik]), cetak label fisik, FHIR Specimen (Tahap D).
+
+### 2.31 · Lab: hasil, nilai rujukan data induk, validasi, hasil mengikuti pasien
+Tujuan : hasil lab diinput, ditandai rendah/tinggi/kritis menurut nilai rujukan RS, divalidasi, lalu sampai ke pemesan dan DPJP saat ini.
+FR     : FR-19-02 (diperiksa → divalidasi), FR-19-05, FR-19-06, FR-00-09; 7.00.5 butir 2–3
+Tabel  : `lab.hasil` (11.2), data induk nilai rujukan per pemeriksaan × umur × JK (isi dari RS; e2e sintetis)
+API    : `POST /api/v1/permintaan-item/{id}/hasil`, `POST /api/v1/hasil-lab/{id}/validasi`, `GET /api/v1/episode/{id}/hasil-lab`
+Uji    :
+- Penanda l/h/ll/hh/kritis dihitung server dari data induk aktif; tanpa nilai rujukan → hasil tanpa penanda + peringatan, bukan nilai karangan.
+- Validasi analis wajib; pemeriksaan bertanda "butuh otorisasi Sp.PK" di data induk wajib otorisasi kedua (FR-19-05).
+- Hasil tervalidasi muncul di kotak kerja pemesan **dan** DPJP/ruang pasien saat itu, termasuk bila pasien pindah sesudah order (FR-00-09).
+- Hasil tervalidasi tidak bisa diubah; koreksi = adendum bertanda; tampil di linimasa episode.
+Di luar: mikrobiologi (FR-19-09), QC (FR-19-10), rujukan lab luar (FR-19-11).
+
+### 2.32 · Lab: pelaporan nilai kritis
+Tujuan : nilai kritis dilaporkan ke penanggung jawab saat itu dengan baca ulang dan jam lapor, lalu masuk CPPT.
+FR     : FR-19-07
+Tabel  : `lab.laporan_kritis` (11.2)
+API    : `POST /api/v1/hasil-lab/{id}/laporan-kritis`
+Uji    :
+- Hasil bertanda kritis tidak dianggap selesai sebelum laporan dicatat (penerima, jam lapor, baca ulang ya/tidak).
+- Laporan meneruskan tugas ke DPJP dengan tenggat dari data induk, dan membuat entri CPPT otomatis berlabel sumber lab.
+- Selang validasi → lapor tersimpan untuk indikator (FR-19-07); belum dilapor melewati tenggat → eskalasi 7.53.
+Di luar: dasbor indikator (Fase 4).
+
+### 2.33 · Radiologi: worklist, skrining, pelaksanaan
+Tujuan : radiografer bekerja dari satu worklist order semua pos, dengan skrining keamanan yang lengkap sebelum pemeriksaan.
+FR     : FR-20-06, FR-20-07, FR-20-08; 7.00.5 butir 4
+Tabel  : `radiologi.pemeriksaan` (11.2), daftar skrining per modalitas = data induk (FR-20-07, isi dari Instalasi Radiologi RS)
+API    : `GET /api/v1/radiologi/worklist`, `POST /api/v1/permintaan-item/{id}/pemeriksaan-radiologi`, `POST /api/v1/pemeriksaan-radiologi/{id}/selesai`
+Uji    :
+- Worklist memuat asal order, prioritas (cito/rutin/terjadwal), dan lokasi pelaksanaan (instalasi/portabel/OK).
+- Skrining wajib per modalitas dari data induk; fungsi ginjal terbaru diambil dari hasil lab tervalidasi (2.31), bukan diketik; alergi dari
+  `klinis.alergi`.
+- Pemeriksaan portabel tercatat pada kunjungan tempat pasien berada (FR-20-08).
+- `no_akses` unik; pemeriksaan selesai mencatat radiografer dan jam server.
+Di luar: DICOM MWL dan PACS ([Perlu pemilik]), dosis radiasi (FR-20-05), transport pasien (FR-20-09).
+
+### 2.34 · Radiologi: ekspertise ber-TTE, adendum, temuan kritis
+Tujuan : Sp.Rad mengesahkan ekspertise dengan TTE, hasil sampai ke pemesan dan DPJP, dan temuan kritis dilaporkan seperti lab.
+FR     : FR-20-03, FR-20-10, FR-20-11, FR-00-09
+Tabel  : `radiologi.ekspertise` (11.2), objek TTE `ekspertise` (modul Ttd)
+API    : `POST /api/v1/pemeriksaan-radiologi/{id}/ekspertise`, `POST /api/v1/ekspertise/{id}/sahkan`, `POST /api/v1/ekspertise/{id}/temuan-kritis`
+Uji    :
+- Sahkan hanya oleh Sp.Rad pemilik akun dengan PIN T1 (`TtdModal`); sesudah sah tidak bisa diubah, koreksi lewat adendum.
+- Ekspertise sah muncul di kotak kerja pemesan dan DPJP/ruang pasien saat itu (FR-00-09); ekspertise > 24 jam belum sah ditandai (FR-20-03).
+- Temuan kritis: lapor, baca ulang, jam lapor, masuk CPPT, eskalasi bila tidak dikonfirmasi (pola 2.32).
+Di luar: viewer PACS (`url_pacs` kosong sampai adaptor), ImagingStudy SATUSEHAT (Tahap D).
+
+### 2.35 · Farmasi: telaah resep dan kembalikan ke dokter
+Tujuan : apoteker menelaah resep di layar dan mengembalikannya ke dokter lewat sistem bila ada masalah.
+FR     : FR-22-02 (telaah), FR-22-03, FR-22-04
+Tabel  : `farmasi.telaah_resep` (11.2; daftar periksa administratif/farmasetik/klinis sebagai data induk)
+API    : `POST /api/v1/resep/{id}/telaah`, `POST /api/v1/resep/{id}/kembalikan`
+Uji    :
+- Daftar periksa telaah dari data induk; hasil `setuju` memindahkan resep ke tahap disiapkan, `kembali` mengembalikan ke dokter dengan catatan.
+- Resep kembali muncul di kotak kerja dokter penulis; dokter membatalkan dan menulis resep baru (resep sah tidak bisa diubah, 2.17).
+- Peringatan resep 2.17 (alergi/duplikasi/non-fornas) tampil di layar telaah; interaksi dan dosis ginjal tidak dibuat (data induk belum ada).
+- Telaah hanya oleh akun apoteker berizin depo resep itu; waktu tunggu dihitung dari `masuk_pada` (FR-22-01).
+Di luar: PTO/visite apoteker (FR-22-11).
+
+### 2.36 · Farmasi: stok depo per batch
+Tujuan : depo punya saldo stok per batch dan kedaluwarsa sehingga penyerahan bisa mengurangi stok yang benar.
+FR     : FR-22-13 (bagian stok dan mutasi), FR-22-14 (penanda ≤ 90 hari)
+Tabel  : `logistik.stok_batch`, `logistik.mutasi_stok` (11.2); gudang/depo dari data induk lokasi
+API    : `POST /api/v1/stok/saldo-awal` (impor CSV, pola 2.11), `POST /api/v1/stok/mutasi`, `GET /api/v1/stok?gudang_id=`
+Uji    :
+- Saldo awal per batch lewat impor bertanggal; mutasi gudang → depo mengurangi asal dan menambah tujuan dalam satu transaksi.
+- Stok tidak bisa minus; mutasi melebihi saldo → 422.
+- Batch kedaluwarsa ≤ 90 hari ditandai (FR-22-14); stok di bawah minimum data induk → notifikasi (FR-22-13).
+- Mutasi hanya ditambah (tanpa hapus); pembatalan = mutasi balik bertanda.
+Di luar: pengadaan dan penerimaan pemasok (7.42), stock opname (FR-22-15), narkotika (FR-22-12).
+
+### 2.37 · Farmasi: penyiapan, penyerahan, PIO, kurangi stok
+Tujuan : obat disiapkan dari batch yang ada, diserahkan dengan informasi obat, dan stok depo berkurang otomatis.
+FR     : FR-22-02 (disiapkan → siap → diserahkan), FR-22-18, FR-22-01 (waktu tunggu)
+Tabel  : `farmasi.penyerahan` (11.2), `logistik.mutasi_stok` jenis `pakai`
+API    : `POST /api/v1/resep/{id}/siapkan`, `POST /api/v1/resep/{id}/serahkan`
+Uji    :
+- Penyiapan memilih batch (bawaan kedaluwarsa terdekat); stok kurang → 409 dengan rincian item.
+- Penyerahan memerlukan cek dua penanda identitas pasien (PRD 5.1 butir 9) dan PIO dicentang; jam server; antrean `F-` selesai (2.17).
+- Kejadian `ObatDiserahkan` terbit untuk tagihan dan SATUSEHAT (Tahap D); waktu tunggu nonracikan/racikan dicatat (FR-22-01).
+Di luar: label/etiket cetak, UDD rawat inap (FR-22-10).
+
+### 2.38 · Farmasi: racikan dengan komponen dan BUD
+FR     : FR-22-09; `farmasi.racikan` / `racikan_komponen` (11.2)
+Uji    : dokter menulis racikan (puyer/kapsul/salep) dengan komponen dan jumlah; BUD dari data induk bentuk sediaan; penyiapan racikan
+         mengurangi stok tiap komponen; waktu tunggu racikan dipisah (FR-22-01). Di luar: produksi steril (FR-22-21).
+
+### 2.39 · Farmasi: obat kronis JKN 7 + 23 hari
+FR     : FR-22-08; `farmasi.resep_item` (`porsi_paket`, `porsi_kronis`), `farmasi.formularium_item.kronis` (2.11)
+Uji    : obat kronis untuk pasien JKN dipisah 7 + 23 hari sejak disiapkan; riwayat 90 hari tampil di telaah; pengambilan sebelum jatah habis
+         ditandai dan butuh alasan. Di luar: klaim Apotek Online (FR-22-20, [Perlu pemilik]).
+
+### 2.40 · Pemulangan: rencana pulang, resume medis ber-TTE, daftar periksa
+Tujuan : pasien rawat inap pulang dengan resume yang disahkan DPJP dan daftar periksa yang lengkap.
+FR     : FR-05-01, FR-05-02, FR-05-03, FR-05-04, FR-05-05
+Tabel  : `kunjungan.rencana_pulang`, `klinis.resume_medis` (11.2)
+API    : `PUT /api/v1/kunjungan/{id}/rencana-pulang`, `POST /api/v1/kunjungan/{id}/resume-medis`, `POST /api/v1/resume-medis/{id}/sahkan`
+Uji    :
+- Rencana pulang hari ini tampil sejak pagi di peta TT (status "rencana pulang", 2.27).
+- Resume disusun dari CPPT, diagnosis, dan resep episode; DPJP mengesahkan dengan PIN T1; belum sah > 2 × 24 jam → tugas dan eskalasi.
+- Pulang lewat matriks 2.26: menutup penempatan, TT "dibersihkan" otomatis (FR-05-05), episode rawat inap selesai.
+- Daftar periksa pulang (obat pulang, surat kontrol, tagihan/jaminan) dari data induk; item tagihan menunggu kejadian kasir (Tahap D).
+Di luar: kirim resume ke pasien (FR-05-08, kanal menunggu portal 7.48), surat keterangan (FR-05-06), Composition SATUSEHAT (Tahap D).
+
+### 2.41 · Konsul / rujukan internal antar-poli
+FR     : FR-04-04, FR-07-25; `kunjungan.rujukan` arah `internal` (11.2)
+Uji    : dokter poli membuat konsul ke poli lain dengan alasan; hari yang sama → kunjungan baru di episode yang sama (7.00.3 baris
+         Poliklinik); konsul tampil di worklist poli tujuan; jawaban konsul masuk CPPT. Di luar: SISRUTE dan VClaim ([Perlu pemilik]).
+
+### Keluar Tahap C (CI, data sintetis)
+- e2e: pasien IGD → triase → papan → order lab cito → hasil kritis dilaporkan → SPRI → alokasi TT → penempatan → resep RI ditelaah dan
+  diserahkan (stok berkurang) → resume sah → pulang (TT dibersihkan), @1440 + axe.
+- Hasil lab yang keluar sesudah pasien pindah ruang sampai ke DPJP baru (uji FR-00-09).
+
+**[Perlu pemilik] dari perencanaan Tahap C**
+- Adaptor tanpa dokumen resmi: antarmuka alat lab (HL7 v2/ASTM, FR-19-04), PACS dan DICOM MWL (FR-20-01/02), SISRUTE (FR-04-01/02),
+  VClaim surat kontrol dan SPRI (nomor BPJS), Apotek Online (FR-22-20). Pemilik menyediakan dokumen atau contoh permintaan/respons.
+- Reverb untuk papan IGD dan peta TT (K1 menyebut Fase 2): dependensi baru; sampai diputuskan, polling ETag.
+- Isi data induk klinis dari RS: nilai rujukan dan batas kritis lab, daftar skrining radiologi per modalitas, instrumen triase, area IGD,
+  batas lama menunggu kamar, tenggat laporan kritis, daftar periksa telaah dan pulang, BUD racikan.
+- Pasien tanpa identitas di IGD (FR-03-01): pakai alur pasien sementara yang ada atau aturan baru (penomoran, penggabungan kemudian)?
+- Nama kode jenis episode/kunjungan baru (`igd`, `rawat_inap`, "IGD > 6 jam") belum ada di PRD 11.2; ditetapkan di PR kontrak 2.23 sebagai
+  Asumsi kecuali pemilik menetapkan lain.
+- Gelang pasien, verifikasi DPJP, dan TBaK (kerangka C) belum dirinci: gelang butuh keputusan cetak/printer (FR-01-27 juga menunggu),
+  verifikasi DPJP/TBaK butuh `dpjp_id`/`pemeriksa_id` di kunjungan (pertanyaan Tahap B). Mode farmasi APM menunggu 2.37.
+
 ## Kerangka tahap berikutnya (dirinci kemudian)
-- **C — Penunjang, IGD, rawat inap**: lab/radiologi + hasil mengikuti pasien, telaah resep & depo (+ obat kronis 7 + 23, racikan, mode farmasi APM), IGD + triase + papan (Reverb), rujukan, surat kontrol, admisi RI dari peta TT, SPRI, pemulangan, gelang, verifikasi DPJP dan TBaK.
+- **C — Penunjang, IGD, rawat inap**: dirinci di bagian "Tahap C · tiket" di atas (2.23–2.41); sisa: gelang, verifikasi DPJP dan TBaK,
+  mode farmasi APM, Reverb.
 - **D — Kasir dan pelaporan**: tagihan otomatis per episode, tindakan ICD-9-CM, pemisahan tanggungan, pembayaran, tutup kasir; SATUSEHAT Encounter/Condition/Observation/ServiceRequest/MedicationRequest via outbox; Aplicares dari peta TT.
