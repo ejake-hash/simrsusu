@@ -10,7 +10,43 @@ on:
 permissions:
   contents: read
 
+# Push baru ke PR yang sama membatalkan run lama. Push ke main memakai grup unik per run: run yang masih antre di grup
+# yang sama tetap dibatalkan GitHub walau cancel-in-progress false, jadi tiap commit main perlu grupnya sendiri.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('ci-{0}', github.ref) || format('ci-push-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # PR yang hanya mengubah docs/** atau *.md tidak menjalankan e2e; backend dan frontend tetap jalan.
+  perubahan:
+    runs-on: ubuntu-24.04
+    outputs:
+      hanya_dokumen: ${{ steps.cek.outputs.hanya_dokumen }}
+    steps:
+      # Checkout PR = merge commit: HEAD^1 ujung cabang base saat itu, HEAD sesudah PR digabung.
+      - uses: actions/checkout@v5
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - id: cek
+        env:
+          JENIS_EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$JENIS_EVENT" != "pull_request" ]; then
+            echo "hanya_dokumen=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # --no-renames: berkas kode yang dipindah ke docs/ tetap tercatat sebagai berkas lama yang hilang.
+          berkas=$(git diff --name-only --no-renames HEAD^1 HEAD)
+          selain_dokumen=$(printf '%s\n' "$berkas" | grep -vE '^docs/|\.md$' | grep -v '^$' || true)
+          if [ -n "$berkas" ] && [ -z "$selain_dokumen" ]; then
+            echo "hanya_dokumen=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hanya_dokumen=false" >> "$GITHUB_OUTPUT"
+          fi
+
   backend:
     runs-on: ubuntu-24.04
     services:
@@ -99,6 +135,9 @@ jobs:
 
   # Playwright ke backend sungguhan di CI dengan akun sintetis (AkunSintetisSeeder), bukan data asli.
   e2e:
+    needs: perubahan
+    # Bila job perubahan gagal, output kosong dan e2e tetap jalan (bukan ter-skip diam-diam).
+    if: ${{ !cancelled() && needs.perubahan.outputs.hanya_dokumen != 'true' }}
     runs-on: ubuntu-24.04
     services:
       postgres:
