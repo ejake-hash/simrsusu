@@ -161,3 +161,26 @@ Tugas yang cukup dua-tiga perintah dikerjakan sendiri; delegasi hanya bila mengh
 
 Pakai `peninjau` (sonnet). Beri: nomor PR/branch, jalur worktree, perintah diff (ruang lingkup), badan tiket + uji
 penerimaan, dan fokus. Putusan "Disetujui"/"Perlu perbaikan"; perbaiki temuan wajib, minta tinjau ulang, baru merge.
+
+## 9. Jebakan yang sudah diketahui
+
+Kesalahan yang sudah pernah membuat CI merah atau main kotor. Periksa sebelum push.
+
+1. **Aksi izin baru** (`jenis_aksi` baru di `akses.izin`): perluas `izin_jenis_aksi_cek` di migrasi baru **dan** di
+   `2026_10_11_120100_create_akses_menu_peran_izin_tables.php` serta `2026_10_24_100000_gabung_rm_pasien.php`. Di
+   instalasi baru, migrasi lama memanggil `MenuBawaan::pasang()` dengan daftar izin terkini, jadi cek lama harus sudah
+   mengenal aksi baru. Contoh: `2026_11_13_100000_akses_darurat.php` (`darurat`, `tinjau`).
+2. **Izin sensitif memaksa MFA saat masuk.** Izin di `MenuBawaan::IZIN_SENSITIF`/`IZIN_DATA_PRIBADI` ditandai sensitif,
+   dan akun yang memegangnya diminta MFA saat masuk. Karena itu peran contoh di seeder dan pembantu tes `buatPeran`
+   (`tests/Support/AksesUji.php`) tidak memberi `IZIN_DATA_PRIBADI`. Menambah kode ke daftar itu (contoh 2.21:
+   `rawat_jalan.cppt.darurat`) bisa membuat akun sintetis atau tes masuk yang tadinya hijau berubah minta MFA.
+3. **Skema kontrak yang sudah dipakai:** field baru di `docs/api/openapi.yaml` ditulis **opsional** dulu. Field wajib
+   di PR kontrak membuat uji kontrak main merah sampai PR BE merge.
+4. **Tes waktu:** sesi menganggur lebih dari `autentikasi.sesi.batas_diam_menit` (15) → 401; izin `butuh_mfa` minta MFA
+   ulang setelah `autentikasi.mfa.ulang_menit` (15). Tes yang memajukan waktu harus memperbarui sesi atau mengulang MFA. Kolom waktu
+   log diisi `now()` dari kode (bukan bawaan database) agar ikut travel waktu tes.
+5. **Judul PR `WIP:` ikut ke commit squash main** (contoh #183). Ganti judul PR sebelum `gh pr merge`, atau pakai
+   `--subject`.
+6. **Fungsi akses yang menerima id dari luar** (rute, query, token): periksa `Str::isUuid($id)` dulu sebelum query.
+   Id bukan UUID ke kolom `uuid` PostgreSQL melempar error 500, bukan 404/403. Contoh: `AksesDaruratAktif`,
+   `RelasiPerawatanTercatat`, middleware `TokenPerangkat`.
