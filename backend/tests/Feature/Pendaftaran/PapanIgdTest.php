@@ -47,8 +47,7 @@ class PapanIgdTest extends TestCase
 
     public function test_urut_triase_lalu_jam_tiba_isi_baris_dan_etag_304(): void
     {
-        // Batas tanggap longgar: tanda tanggap tidak berganti di tengah uji ETag.
-        DB::table('inti.aturan_papan_igd')->update(['batas_tanggap_menit' => 30]);
+        // Angka bawaan migrasi: batas tanggap 5 menit (PRD), ambang mendekati 6 jam kosong.
         $this->masukSebagai($this->dokter);
         $a = $this->daftarIgd($this->pasien(), 'Sesak napas (uji sintetis)');
         $this->travel(1)->minutes();
@@ -68,6 +67,7 @@ class PapanIgdTest extends TestCase
         $this->triase($f, 'hitam');
         // Ulang triase: yang berlaku = terbaru (hijau → kuning).
         $this->triase($b, 'kuning');
+        $this->travel(10)->seconds();
 
         $papan = $this->minta('GET', self::URL)->assertOk()
             // Belum ditriase paling atas; merah → kuning → hijau → hitam; dalam kategori yang sama jam tiba terlama dulu.
@@ -75,10 +75,14 @@ class PapanIgdTest extends TestCase
             ->assertJsonPath('data.0.triase', null)->assertJsonPath('data.1.triase.kategori', 'merah')
             ->assertJsonPath('data.3.triase.kategori', 'kuning')
             ->assertJsonPath('data.0.keluhan', 'Sesak napas (uji sintetis)')->assertJsonPath('data.1.keluhan', 'Nyeri dada kiri (uji sintetis)')
-            ->assertJsonPath('data.0.lama_di_igd_menit', 5)->assertJsonPath('data.5.lama_di_igd_menit', 0)
+            // 07.05.10: menit dibulatkan ke atas (5 menit 10 detik → 6; 10 detik → 1).
+            ->assertJsonPath('data.0.lama_di_igd_menit', 6)->assertJsonPath('data.5.lama_di_igd_menit', 1)
+            // Batas bawaan 5 menit: A (5 menit 10 detik) lewat batas, F (10 detik) menunggu; tanpa ambang 6 jam semua aman.
+            ->assertJsonPath('data.0.tanggap.tanda', 'lewat_batas')->assertJsonPath('data.5.tanggap.tanda', 'menunggu')
+            ->assertJsonPath('data.*.tanda_lama_igd', array_fill(0, 6, 'aman'))
             ->assertJsonPath('data.0.status', 'terdaftar')->assertJsonPath('data.0.area', null)->assertJsonPath('data.0.disposisi_menunggu', null)
             ->assertJsonPath('meta.terpotong', false)->assertJsonPath('meta.area', [])
-            ->assertJsonPath('meta.aturan', ['batas_tanggap_menit' => 30, 'peringatan_tanggap_menit' => 5, 'batas_lama_igd_menit' => 360, 'peringatan_lama_igd_menit' => 60]);
+            ->assertJsonPath('meta.aturan', ['batas_tanggap_menit' => 5, 'batas_lama_igd_menit' => 360, 'peringatan_lama_igd_menit' => null]);
         $this->assertSesuaiKontrak($papan, 'GET', '/igd/papan');
         $this->assertStringContainsString('no-store', (string) $papan->headers->get('Cache-Control'));
         // Dua penanda identitas pasien untuk petugas berizin; NIK dan alamat tidak dikirim.
@@ -88,7 +92,7 @@ class PapanIgdTest extends TestCase
         $this->assertTrue(Carbon::parse((string) $papan->json('data.0.tiba_pada'))->equalTo(Carbon::parse(self::SENIN.' 07:00', (string) config('instalasi.zona_waktu'))));
         $this->assertTrue(Carbon::parse((string) $papan->json('meta.waktu_server'))->equalTo(now()));
 
-        // Tidak berubah → 304 tanpa isi; waktu_server tidak ikut sidik ETag.
+        // Tidak berubah (07.05.20: menit dan tanda sama) → 304 tanpa isi; waktu_server tidak ikut sidik ETag.
         $etag = (string) $papan->headers->get('ETag');
         $this->travel(10)->seconds();
         $tetap = $this->mintaDenganEtag($etag)->assertStatus(304);
@@ -103,67 +107,79 @@ class PapanIgdTest extends TestCase
         $this->assertNotSame($etag, $baru->headers->get('ETag'));
         $etag = (string) $baru->headers->get('ETag');
         $this->travel(1)->minutes();
-        $this->mintaDenganEtag($etag)->assertOk()->assertJsonPath('data.0.lama_di_igd_menit', 4);
+        // 07.06.20: C tiba 07.02 → 4 menit 20 detik → 5.
+        $this->mintaDenganEtag($etag)->assertOk()->assertJsonPath('data.0.lama_di_igd_menit', 5);
     }
 
     public function test_tanda_waktu_tanggap_dari_asesmen_dokter_dan_data_induk(): void
     {
-        DB::table('inti.aturan_papan_igd')->update(['batas_tanggap_menit' => 10, 'peringatan_tanggap_menit' => 3]);
+        // Angka bawaan migrasi: batas 5 menit, tanpa tahap peringatan (keputusan pemilik 9 Nov 2026).
         $this->masukSebagai($this->dokter);
         $p = $this->daftarIgd($this->pasien());
         $tanggap = fn () => $this->minta('GET', self::URL)->assertOk()->json('data.0.tanggap');
 
-        $this->assertSame(['asesmen_dokter_pada' => null, 'menit' => null, 'menunggu_asesmen' => true, 'tanda' => 'aman'], $tanggap());
-        // Tanda per detik uji: 07.06.59, 07.07.00 (≤ 3 menit sebelum batas 10 menit, FR-03-04), 07.10.00, 07.10.01.
+        $this->assertSame(['asesmen_dokter_pada' => null, 'menit' => null, 'menunggu_asesmen' => true, 'tanda' => 'menunggu'], $tanggap());
+        // Tanda per detik: 07.05.00 tepat batas → masih menunggu; 07.05.01 → lewat batas.
         $tanda = [];
-        foreach ([419, 1, 180, 1] as $maju) {
+        foreach ([300, 1] as $maju) {
             $this->travelTo(now()->addSeconds($maju));
             $tanda[] = $tanggap()['tanda'];
         }
-        $this->assertSame(['aman', 'mendekati_batas', 'mendekati_batas', 'lewat_batas'], $tanda);
+        $this->assertSame(['menunggu', 'lewat_batas'], $tanda);
 
-        // Draf asesmen dokter dan asesmen perawat bukan tanggap dokter.
-        $this->asesmen($p, 'draf');
+        // Asesmen perawat bukan tanggap dokter.
         $this->asesmen($p, 'selesai', 'perawat');
         $this->minta('GET', self::URL)->assertOk()->assertJsonPath('data.0.tanggap.menunggu_asesmen', true)
             ->assertJsonPath('data.0.tanggap.asesmen_dokter_pada', null);
 
+        // Dokter mulai mengisi (draf) pukul 07.12: tanggap berhenti di sini (keputusan pemilik 9 Nov 2026).
         $this->travelTo(Carbon::parse(self::SENIN.' 07:12', (string) config('instalasi.zona_waktu')));
         $this->masukSebagai($this->dokter);
-        $this->asesmen($p);
+        $this->asesmen($p, 'draf');
+        $mulai = now()->copy();
         $selesai = (array) $this->minta('GET', self::URL)->assertOk()->json('data.0.tanggap');
         $this->assertSame([12, false, 'terlambat'], [$selesai['menit'], $selesai['menunggu_asesmen'], $selesai['tanda']]);
-        $this->assertTrue(Carbon::parse((string) $selesai['asesmen_dokter_pada'])->equalTo(now()));
+        $this->assertTrue(Carbon::parse((string) $selesai['asesmen_dokter_pada'])->equalTo($mulai));
 
-        // Pasien kedua ditanggap 3 menit sesudah tiba: tercapai.
+        // Pasien kedua: dokter mulai mengisi tepat 5 menit sesudah tiba → tercapai. Catatan dokter berikutnya untuk
+        // pasien pertama tidak menggeser jam tanggapnya (paling awal).
         $q = $this->daftarIgd($this->pasien());
-        $this->travel(3)->minutes();
-        $this->asesmen($q);
+        $this->travel(5)->minutes();
+        $this->asesmen($q, 'draf');
+        $this->asesmen($p);
         $papan = $this->minta('GET', self::URL)->assertOk();
         $this->assertSesuaiKontrak($papan, 'GET', '/igd/papan');
-        $this->assertSame(['menit' => 3, 'tanda' => 'tercapai'], ['menit' => $papan->json('data.1.tanggap.menit'), 'tanda' => $papan->json('data.1.tanggap.tanda')]);
+        $this->assertSame([12, 'terlambat', 5, 'tercapai'], [$papan->json('data.0.tanggap.menit'), $papan->json('data.0.tanggap.tanda'),
+            $papan->json('data.1.tanggap.menit'), $papan->json('data.1.tanggap.tanda')]);
+        $this->assertTrue(Carbon::parse((string) $papan->json('data.0.tanggap.asesmen_dokter_pada'))->equalTo($mulai));
     }
 
     public function test_tanda_mendekati_dan_lebih_6_jam(): void
     {
-        DB::table('inti.aturan_papan_igd')->update(['peringatan_lama_igd_menit' => 45]);
         $this->masukSebagai($this->dokter);
         $p = $this->daftarIgd($this->pasien());
-        $baris = function (string $jam) {
+        // Ambang mendekati 6 jam: kosong (bawaan migrasi, tanda mati) atau diisi RS (45 menit).
+        $baris = function (string $jam, ?int $ambang) {
+            DB::table('inti.aturan_papan_igd')->update(['peringatan_lama_igd_menit' => $ambang]);
             $this->travelTo(Carbon::parse(self::SENIN.' '.$jam, (string) config('instalasi.zona_waktu')));
             $this->masukSebagai($this->dokter);
+            $b = (array) $this->minta('GET', self::URL)->assertOk()->json('data.0');
 
-            return $this->minta('GET', self::URL)->assertOk()->json('data.0');
+            return [$b['tanda_lama_igd'], $b['lebih_6_jam'], $b['lama_di_igd_menit']];
         };
 
-        $tanda = fn (array $b) => [$b['tanda_lama_igd'], $b['lebih_6_jam'], $b['lama_di_igd_menit']];
-
-        $this->assertSame(['aman', false, 0], $tanda($baris('07:00')));
-        $this->assertSame(['aman', false, 314], $tanda($baris('12:14:59')));
-        // ≤ 45 menit sebelum 6 jam (data induk): mendekati 6 jam (FR-00-06).
-        $this->assertSame(['mendekati_6_jam', false, 315], $tanda($baris('12:15')));
-        $this->assertSame(['mendekati_6_jam', false, 360], $tanda($baris('13:00')));
-        $this->assertSame(['lebih_6_jam', true, 360], $tanda($baris('13:00:01')));
+        $hasil = [
+            $baris('07:00', null), $baris('12:14:59', null), $baris('12:14:59', 45),
+            // ≤ 45 menit sebelum 6 jam (FR-00-06); ambang kosong → tidak pernah mendekati.
+            $baris('12:15', 45), $baris('12:15', null), $baris('13:00', 45), $baris('13:00', null),
+            // Lewat sedetik dari 6 jam: lebih 6 jam, menit dibulatkan ke atas (361 > 360 selaras dengan tanda).
+            $baris('13:00:01', 45), $baris('13:00:01', null),
+        ];
+        $this->assertSame([
+            ['aman', false, 0], ['aman', false, 315], ['aman', false, 315],
+            ['mendekati_6_jam', false, 315], ['aman', false, 315], ['mendekati_6_jam', false, 360], ['aman', false, 360],
+            ['lebih_6_jam', true, 361], ['lebih_6_jam', true, 361],
+        ], $hasil);
         // Sama dengan tanda di daftar kunjungan IGD (2.23).
         $this->minta('GET', '/api/v1/kunjungan-igd')->assertJsonPath('data.0.id', $p)->assertJsonPath('data.0.lebih_6_jam', true);
     }
@@ -270,14 +286,14 @@ class PapanIgdTest extends TestCase
         $url = '/api/v1/data-induk/aturan-papan-igd';
         $dasar = 'SK Direktur contoh 8/2026';
 
-        // Angka awal dari migrasi: 5 menit (FR-03-04/05) dan 60 menit sebelum 6 jam.
+        // Angka awal dari migrasi: batas tanggap 5 menit (FR-03-04/05), ambang mendekati 6 jam kosong (diisi RS).
         $awal = $this->minta('GET', $url)->assertOk()->assertJsonPath('data.batas_tanggap_menit', 5)
-            ->assertJsonPath('data.peringatan_tanggap_menit', 5)->assertJsonPath('data.peringatan_lama_igd_menit', 60);
+            ->assertJsonPath('data.peringatan_lama_igd_menit', null)->assertJsonMissingPath('data.peringatan_tanggap_menit');
         $this->assertSesuaiKontrak($awal, 'GET', '/data-induk/aturan-papan-igd');
         $versi = (string) $awal->json('data.versi');
 
-        $ubah = $this->mintaDenganVersi('PATCH', $url, $versi, ['batas_tanggap_menit' => 15, 'peringatan_tanggap_menit' => 5, 'dasar_perubahan' => $dasar])
-            ->assertOk()->assertJsonPath('data.batas_tanggap_menit', 15)->assertJsonPath('data.peringatan_lama_igd_menit', 60);
+        $ubah = $this->mintaDenganVersi('PATCH', $url, $versi, ['batas_tanggap_menit' => 15, 'peringatan_lama_igd_menit' => 45, 'dasar_perubahan' => $dasar])
+            ->assertOk()->assertJsonPath('data.batas_tanggap_menit', 15)->assertJsonPath('data.peringatan_lama_igd_menit', 45);
         $this->assertSesuaiKontrak($ubah, 'PATCH', '/data-induk/aturan-papan-igd');
         $id = (string) DB::table('inti.aturan_papan_igd')->value('id');
         $audit = $this->assertAuditTerakhir('master_data.aturan_papan_igd_diubah', $id);
@@ -287,16 +303,19 @@ class PapanIgdTest extends TestCase
 
         $this->mintaDenganVersi('PATCH', $url, $versi, ['batas_tanggap_menit' => 20, 'dasar_perubahan' => $dasar])->assertStatus(412);
         $this->minta('PATCH', $url, ['batas_tanggap_menit' => 20, 'dasar_perubahan' => $dasar])->assertStatus(428);
-        // Peringatan melebihi batas (juga terhadap batas yang tersimpan) → 422.
-        $this->mintaDenganVersi('PATCH', $url, $baru, ['peringatan_tanggap_menit' => 16, 'dasar_perubahan' => $dasar])
-            ->assertStatus(422)->assertJsonPath('error.rincian.0.kolom', 'peringatan_tanggap_menit');
-        foreach ([['batas_tanggap_menit' => 0], ['peringatan_lama_igd_menit' => 360], ['batas_tanggap_menit' => 'lima'], []] as $salah) {
+        // Isian salah → 422. Tahap peringatan tanggap tidak ada (keputusan pemilik 9 Nov 2026): `peringatan_tanggap_menit`
+        // bukan perubahan, jadi tanpa angka lain → 422.
+        foreach ([['batas_tanggap_menit' => 0], ['peringatan_lama_igd_menit' => 360], ['peringatan_lama_igd_menit' => 0],
+            ['batas_tanggap_menit' => 'lima'], ['batas_tanggap_menit' => null], ['peringatan_tanggap_menit' => 3], []] as $salah) {
             $this->mintaDenganVersi('PATCH', $url, $baru, [...$salah, 'dasar_perubahan' => $dasar])->assertStatus(422);
         }
 
-        // Papan memakai angka baru.
+        // Papan memakai angka baru; ambang bisa dikosongkan lagi (tanda mendekati 6 jam mati).
         $this->masukSebagai($this->dokter);
-        $this->minta('GET', self::URL)->assertOk()->assertJsonPath('meta.aturan.batas_tanggap_menit', 15);
+        $this->minta('GET', self::URL)->assertOk()->assertJsonPath('meta.aturan.batas_tanggap_menit', 15)->assertJsonPath('meta.aturan.peringatan_lama_igd_menit', 45);
+        $this->masukSebagai($admin);
+        $this->mintaDenganVersi('PATCH', $url, $baru, ['peringatan_lama_igd_menit' => null, 'dasar_perubahan' => $dasar])
+            ->assertOk()->assertJsonPath('data.peringatan_lama_igd_menit', null);
     }
 
     public function test_izin_cakupan_403_sebelum_validasi_dan_data_pasien_hanya_untuk_pemegang_izin(): void

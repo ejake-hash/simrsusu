@@ -27,13 +27,14 @@ return new class extends Migration
             $table->index('area_igd_id');
         });
 
-        // Waktu tanggap di papan dibaca per kunjungan dari asesmen awal dokter IGD (FR-03-04).
-        DB::statement("CREATE INDEX catatan_klinis_asesmen_igd ON klinis.catatan_klinis (kunjungan_id) WHERE jenis = 'asesmen' AND tatanan = 'igd'");
+        // Waktu tanggap di papan = saat dokter mulai mengisi asesmen awal IGD (FR-03-04; keputusan pemilik 9 Nov 2026):
+        // min(dibuat_pada) per kunjungan, draf ikut dihitung.
+        DB::statement("CREATE INDEX catatan_klinis_asesmen_dokter_igd ON klinis.catatan_klinis (kunjungan_id, dibuat_pada) WHERE jenis = 'asesmen' AND tatanan = 'igd' AND profesi IN ('dokter', 'ppds')");
     }
 
     public function down(): void
     {
-        DB::statement('DROP INDEX IF EXISTS klinis.catatan_klinis_asesmen_igd');
+        DB::statement('DROP INDEX IF EXISTS klinis.catatan_klinis_asesmen_dokter_igd');
         Schema::dropIfExists('kunjungan.papan_igd');
     }
 };

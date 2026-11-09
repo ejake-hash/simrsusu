@@ -20,7 +20,7 @@ final class KelolaDataIndukPapanIgd
 {
     private const KOLOM_AREA = ['kode', 'nama', 'urutan', 'status'];
 
-    private const KOLOM_ATURAN = ['batas_tanggap_menit', 'peringatan_tanggap_menit', 'peringatan_lama_igd_menit'];
+    private const KOLOM_ATURAN = ['batas_tanggap_menit', 'peringatan_lama_igd_menit'];
 
     public function __construct(private readonly CatatAktivitas $audit) {}
 
@@ -57,7 +57,7 @@ final class KelolaDataIndukPapanIgd
     }
 
     /**
-     * Peringatan tanggap tidak boleh melebihi batas tanggap (nilai lama dipakai bila salah satunya tidak dikirim).
+     * `peringatan_lama_igd_menit` null = ambang mendekati 6 jam dikosongkan (tanda tidak dipakai).
      *
      * @param  array<string, mixed>  $isi  sudah divalidasi bentuknya
      */
@@ -67,11 +67,7 @@ final class KelolaDataIndukPapanIgd
             $aturan = AturanPapanIgd::query()->lockForUpdate()->firstOrFail();
             SuntinganBerversi::naikkan(AturanPapanIgd::class, $aturan->id, $versi, $penyunting->id, 'Batas papan IGD');
             $sebelum = $aturan->refresh()->only(self::KOLOM_ATURAN);
-            $baru = [...$sebelum, ...array_intersect_key($isi, array_flip(self::KOLOM_ATURAN))];
-            if ($baru['peringatan_tanggap_menit'] > $baru['batas_tanggap_menit']) {
-                throw ValidationException::withMessages(['peringatan_tanggap_menit' => 'Peringatan tidak boleh lebih lama dari batas waktu tanggap.']);
-            }
-            $aturan->fill($baru)->forceFill(['diubah_oleh' => $penyunting->id])->save();
+            $aturan->fill(array_intersect_key($isi, array_flip(self::KOLOM_ATURAN)))->forceFill(['diubah_oleh' => $penyunting->id])->save();
             $this->audit->catat('master_data.aturan_papan_igd_diubah', $penyunting->id, $aturan->getTable(), $aturan->id,
                 [...$aturan->refresh()->only(self::KOLOM_ATURAN), 'dasar_perubahan' => $isi['dasar_perubahan']], $sebelum);
 

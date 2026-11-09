@@ -148,6 +148,8 @@ final class KunjunganContoh extends Command
                     DB::table('inti.area_igd')->insert(['id' => (string) Str::uuid7(), 'kode' => $kode, 'nama' => $nama, 'urutan' => $urutan]);
                 }
             }
+            // Ambang mendekati 6 jam SINTETIS (60 menit) hanya bila RS belum mengisinya; produksi kosong sampai RS mengisi.
+            DB::table('inti.aturan_papan_igd')->whereNull('peringatan_lama_igd_menit')->update(['peringatan_lama_igd_menit' => 60]);
 
             // Anjungan (2.20): perangkat SINTETIS `apm-contoh` di lobi contoh, nomor loket ke loket contoh (area display `loket`).
             // Token tidak disimpan di repo: php artisan antrean:token-anjungan apm-contoh.

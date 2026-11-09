@@ -73,8 +73,7 @@ final class PapanIgdDataIndukController
         $this->izin('perbaiki');
         $isi = $request->validate([
             'batas_tanggap_menit' => ['sometimes', 'integer', 'min:1', 'max:1440'],
-            'peringatan_tanggap_menit' => ['sometimes', 'integer', 'min:0', 'max:1440'],
-            'peringatan_lama_igd_menit' => ['sometimes', 'integer', 'min:0', 'max:359'],
+            'peringatan_lama_igd_menit' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:359'],
             'dasar_perubahan' => IsianOrganisasi::DASAR,
         ]);
         self::minimalSatuPerubahan($isi);
@@ -95,8 +94,8 @@ final class PapanIgdDataIndukController
     public static function bentukAturan(AturanPapanIgd $a): array
     {
         return [
-            'batas_tanggap_menit' => $a->batas_tanggap_menit, 'peringatan_tanggap_menit' => $a->peringatan_tanggap_menit,
-            'peringatan_lama_igd_menit' => $a->peringatan_lama_igd_menit, 'versi' => (string) $a->revisi,
+            'batas_tanggap_menit' => $a->batas_tanggap_menit, 'peringatan_lama_igd_menit' => $a->peringatan_lama_igd_menit,
+            'versi' => (string) $a->revisi,
             'diubah_pada' => $a->diubah_pada->toIso8601String(),
         ];
     }

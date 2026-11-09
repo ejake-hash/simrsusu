@@ -11,13 +11,17 @@ use stdClass;
 /**
  * Isi papan pasien IGD (tiket 2.25, kontrak v0.34.0; FR-03-03, FR-03-04, FR-03-05 bagian papan, FR-00-06).
  * - Baris = kunjungan IGD yang masih terdaftar/dilayani (pasien selesai disposisi atau batal tidak tampil).
- * - Urut prioritas triase berlaku lalu jam tiba (FR-03-03). Asumsi: belum ditriase paling atas (belum dinilai, jadi
- *   tidak boleh tenggelam di bawah pasien hijau), lalu merah → kuning → hijau → hitam (urutan FR-03-02).
- * - Waktu dihitung server dengan jam aplikasi (`now()`), jadi lama di IGD dan tanda ikut berubah tiap menit.
- * - Waktu tanggap = jam tiba → asesmen awal dokter IGD selesai (catatan klinis `asesmen` tatanan `igd`, profesi dokter
- *   atau PPDS, bukan draf; FR-03-04). Asumsi: layar asesmen awal medis IGD (FR-03-08) belum dibangun, jadi sampai itu ada
- *   semua pasien tampil `menunggu_asesmen`.
+ * - Urut prioritas triase berlaku lalu jam tiba (FR-03-03). Keputusan pemilik 9 Nov 2026: belum ditriase paling atas
+ *   (belum dinilai, jadi tidak boleh tenggelam di bawah pasien hijau), lalu merah → kuning → hijau → hitam (FR-03-02).
+ * - Waktu dihitung server dengan jam aplikasi (`now()`). Satu aturan pembulatan: tanda dibandingkan per detik, menit
+ *   ditampilkan dibulatkan ke atas, jadi `menit > batas` selalu sama dengan tanda lewat/terlambat.
+ * - Waktu tanggap (FR-03-04; keputusan pemilik 9 Nov 2026) = jam tiba → dokter MULAI mengisi asesmen awal IGD: catatan
+ *   klinis `asesmen` tatanan `igd`, profesi dokter atau PPDS, termasuk draf, `min(dibuat_pada)`. catatan_klinis tidak
+ *   punya status batal dan tidak dihapus, jadi tidak ada yang dikecualikan. Tanpa tahap peringatan: `menunggu` sampai
+ *   batas, lalu `lewat_batas`. Asumsi: layar asesmen awal medis IGD (FR-03-08) belum dibangun, jadi sampai itu ada semua
+ *   pasien tampil `menunggu_asesmen`.
  * - Batas waktu dari data induk inti.aturan_papan_igd; batas 6 jam = Kunjungan::BATAS_JAM_IGD (INA-CBG D.1.f/D.2.b).
+ *   Ambang mendekati 6 jam kosong = tanda `mendekati_6_jam` tidak dipakai (keputusan pemilik 9 Nov 2026).
  * Keluhan klinis dikirim hanya ke pemegang izin papan (dicek rute) dan tidak pernah ke log/audit.
  */
 final class BacaPapanIgd
@@ -29,7 +33,7 @@ final class BacaPapanIgd
     private const URUT_TRIASE = "CASE t.kategori WHEN 'merah' THEN 1 WHEN 'kuning' THEN 2 WHEN 'hijau' THEN 3 WHEN 'hitam' THEN 4 ELSE 0 END";
 
     /**
-     * @return array{baris: array<int, array<string, mixed>>, terpotong: bool, aturan: array<string, int>, area: array<int, array<string, mixed>>}
+     * @return array{baris: array<int, array<string, mixed>>, terpotong: bool, aturan: array<string, int|null>, area: array<int, array<string, mixed>>}
      */
     public function baca(?string $areaId): array
     {
@@ -46,8 +50,8 @@ final class BacaPapanIgd
                 p.id AS pasien_id, p.no_rm, p.nama, p.jenis_kelamin, p.tanggal_lahir,
                 t.kategori, t.ditriase_pada, t.keluhan AS keluhan_triase,
                 a.id AS area_id, a.kode AS area_kode, a.nama AS area_nama,
-                (SELECT min(c.selesai_pada) FROM klinis.catatan_klinis c WHERE c.kunjungan_id = k.id AND c.jenis = \'asesmen\'
-                    AND c.tatanan = \'igd\' AND c.profesi IN (\'dokter\', \'ppds\') AND c.status <> \'draf\') AS asesmen_dokter_pada,
+                (SELECT min(c.dibuat_pada) FROM klinis.catatan_klinis c WHERE c.kunjungan_id = k.id AND c.jenis = \'asesmen\'
+                    AND c.tatanan = \'igd\' AND c.profesi IN (\'dokter\', \'ppds\')) AS asesmen_dokter_pada,
                 d.status AS menunggu_status, d.terjadi_pada AS menunggu_sejak
             FROM kunjungan.kunjungan k
             JOIN pasien.pasien p ON p.id = k.pasien_id
@@ -69,8 +73,7 @@ final class BacaPapanIgd
             'baris' => $baris,
             'terpotong' => $terpotong,
             'aturan' => [
-                'batas_tanggap_menit' => $aturan->batas_tanggap_menit, 'peringatan_tanggap_menit' => $aturan->peringatan_tanggap_menit,
-                'batas_lama_igd_menit' => Kunjungan::BATAS_JAM_IGD * 60, 'peringatan_lama_igd_menit' => $aturan->peringatan_lama_igd_menit,
+                'batas_tanggap_menit' => $aturan->batas_tanggap_menit, 'batas_lama_igd_menit' => Kunjungan::BATAS_JAM_IGD * 60, 'peringatan_lama_igd_menit' => $aturan->peringatan_lama_igd_menit,
             ],
             'area' => DB::table('inti.area_igd')->where('status', 'aktif')->orderBy('urutan')->orderBy('kode')->limit(self::BATAS_BARIS)
                 ->get(['id', 'kode', 'nama'])->map(fn (stdClass $a) => ['id' => $a->id, 'kode' => $a->kode, 'nama' => $a->nama])->all(),
@@ -86,7 +89,7 @@ final class BacaPapanIgd
         $tandaLama = match (true) {
             // Sama dengan Kunjungan::lebihEnamJam(): lewat sedetik pun sudah lebih dari 6 jam.
             $detikDiIgd > $batasLama => 'lebih_6_jam',
-            $batasLama - $detikDiIgd <= $aturan->peringatan_lama_igd_menit * 60 => 'mendekati_6_jam',
+            $aturan->peringatan_lama_igd_menit !== null && $batasLama - $detikDiIgd <= $aturan->peringatan_lama_igd_menit * 60 => 'mendekati_6_jam',
             default => 'aman',
         };
 
@@ -94,14 +97,11 @@ final class BacaPapanIgd
         if ($b->asesmen_dokter_pada !== null) {
             $asesmen = Carbon::parse($b->asesmen_dokter_pada);
             $detikTanggap = self::detik($tiba, $asesmen);
-            $tanggap = ['asesmen_dokter_pada' => $asesmen->toIso8601String(), 'menit' => (int) floor($detikTanggap / 60), 'menunggu_asesmen' => false,
+            $tanggap = ['asesmen_dokter_pada' => $asesmen->toIso8601String(), 'menit' => self::menit($detikTanggap), 'menunggu_asesmen' => false,
                 'tanda' => $detikTanggap <= $batasTanggap ? 'tercapai' : 'terlambat'];
         } else {
-            $tanggap = ['asesmen_dokter_pada' => null, 'menit' => null, 'menunggu_asesmen' => true, 'tanda' => match (true) {
-                $detikDiIgd > $batasTanggap => 'lewat_batas',
-                $batasTanggap - $detikDiIgd <= $aturan->peringatan_tanggap_menit * 60 => 'mendekati_batas',
-                default => 'aman',
-            }];
+            $tanggap = ['asesmen_dokter_pada' => null, 'menit' => null, 'menunggu_asesmen' => true,
+                'tanda' => $detikDiIgd <= $batasTanggap ? 'menunggu' : 'lewat_batas'];
         }
 
         return [
@@ -115,13 +115,19 @@ final class BacaPapanIgd
             'triase' => $b->kategori === null ? null : ['kategori' => $b->kategori, 'ditriase_pada' => Carbon::parse($b->ditriase_pada)->toIso8601String()],
             'area' => $b->area_id === null ? null : ['id' => $b->area_id, 'kode' => $b->area_kode, 'nama' => $b->area_nama],
             'tiba_pada' => $tiba->toIso8601String(),
-            'lama_di_igd_menit' => (int) floor($detikDiIgd / 60),
+            'lama_di_igd_menit' => self::menit($detikDiIgd),
             'tanda_lama_igd' => $tandaLama,
             'lebih_6_jam' => $tandaLama === 'lebih_6_jam',
             'tanggap' => $tanggap,
             'disposisi_menunggu' => $b->menunggu_status === null ? null
                 : ['status' => $b->menunggu_status, 'sejak' => Carbon::parse($b->menunggu_sejak)->toIso8601String()],
         ];
+    }
+
+    /** Menit tampil = dibulatkan ke atas (5 menit 1 detik → 6), selaras dengan tanda yang dibandingkan per detik. */
+    private static function menit(float $detik): int
+    {
+        return (int) ceil($detik / 60);
     }
 
     /** Selisih detik (dengan pecahan milidetik), tidak negatif. */

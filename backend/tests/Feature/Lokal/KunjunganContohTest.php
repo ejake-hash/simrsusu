@@ -58,6 +58,7 @@ class KunjunganContohTest extends TestCase
         // Papan IGD (2.25): tiga area sintetis berlabel contoh, tidak berganda saat diulang.
         $this->assertSame(['Resusitasi (contoh)', 'Observasi (contoh)', 'Hijau (contoh)'],
             DB::table('inti.area_igd')->where('kode', 'like', 'CONTOH-%')->orderBy('urutan')->pluck('nama')->all());
+        $this->assertSame(60, (int) DB::table('inti.aturan_papan_igd')->value('peringatan_lama_igd_menit'));
     }
 
     public function test_paket_icd_yang_sudah_dimuat_rs_tidak_disentuh(): void

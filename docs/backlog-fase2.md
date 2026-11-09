@@ -616,10 +616,15 @@ Tabel  : `kunjungan.papan_igd` (11.2) atau tampilan dari kunjungan + triase (kep
 API    : `GET /api/v1/igd/papan` (ETag/If-None-Match, `no-store`)
 Uji    :
 - Urut triase lalu jam tiba (FR-03-03); area Resusitasi/Observasi/Hijau dari data induk.
-- Waktu tanggap = jam tiba → asesmen awal dokter; baris berubah tanda ≤ 5 menit sebelum batas (FR-03-04); tanda mendekati 6 jam (FR-00-06).
+- Waktu tanggap = jam tiba → dokter mulai mengisi asesmen awal; tanda `menunggu` sampai batas (bawaan 5 menit, FR-03-04/KPI
+  FR-03-05) lalu `lewat_batas`, tanpa tahap peringatan; tanda mendekati 6 jam bila RS mengisi ambangnya (FR-00-06).
 - Data pasien hanya untuk pemegang izin papan IGD; respons 304 bila tidak berubah.
 - Layar @1440 + axe; status tidak hanya warna (PRD 5.1 butir 4).
 Di luar: KPI dasbor (FR-03-05 bagian dasbor, Fase 4), Reverb, eskalasi menunggu kamar (2.28).
+Keputusan pemilik 9 Nov 2026: tanpa tahap peringatan tanggap; ambang mendekati 6 jam diisi RS (kosong = mati); waktu tanggap
+berakhir saat dokter mulai mengisi asesmen awal; belum ditriase di atas.
+Asumsi BE #196: `GET /igd/papan` tidak memakai `Paginasi::respons()`: maks 200 baris + `meta.terpotong`, urutan prioritas
+klinis (triase lalu jam tiba) bukan kursor waktu, dan satu ETag untuk seluruh papan.
 
 ### 2.26 · Matriks perpindahan sebagai data induk + disposisi IGD
 Tujuan : keputusan akhir pasien IGD tercatat sebagai perintah yang sah menurut matriks 7.00.3, bukan teks bebas.

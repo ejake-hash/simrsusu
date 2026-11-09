@@ -181,7 +181,9 @@ info:
     sejak kapan. PUT /kunjungan/{id}/area-igd (izin igd.papan.input) menempatkan pasien di area. Data induk baru (sub-menu
     `master_data.papan_igd`, edit langsung + dasar perubahan + audit, pola instrumen triase): GET/POST
     /data-induk/area-igd, PATCH /data-induk/area-igd/{id}, GET/PATCH /data-induk/aturan-papan-igd (batas tanggap dan
-    ambang tanda). Skema lama tidak berubah.
+    ambang mendekati 6 jam). Keputusan pemilik 9 Nov 2026: tanggap tanpa tahap peringatan (menunggu → lewat_batas; batas
+    bawaan 5 menit dari PRD), waktu tanggap berakhir saat dokter mulai mengisi asesmen awal IGD, ambang mendekati 6 jam
+    kosong sampai RS mengisi (kosong = tanda mati), belum ditriase di atas. Skema lama tidak berubah.
 servers:
   - url: /api/v1
 security:
@@ -4731,8 +4733,8 @@ paths:
       summary: Ubah batas waktu papan IGD
       description: |
         Izin: master_data.papan_igd.perbaiki. Wajib If-Match (412 `versi_berubah`, 428 `if_match_wajib`). Kirim minimal satu
-        angka. `peringatan_tanggap_menit` tidak boleh lebih dari `batas_tanggap_menit` (nilai tersimpan dipakai untuk yang
-        tidak dikirim) → 422 rincian `peringatan_tanggap_menit`. Berlaku untuk isi papan berikutnya. Audit
+        nilai. `peringatan_lama_igd_menit` null = kosongkan ambang (tanda `mendekati_6_jam` mati). Tidak ada lebar
+        peringatan tanggap (keputusan pemilik 9 Nov 2026). Berlaku untuk isi papan berikutnya. Audit
         `master_data.aturan_papan_igd_diubah` (sebelum/sesudah).
       parameters:
         - $ref: '#/components/parameters/IfMatch'
@@ -4747,8 +4749,7 @@ paths:
               additionalProperties: false
               properties:
                 batas_tanggap_menit: { type: integer, minimum: 1, maximum: 1440 }
-                peringatan_tanggap_menit: { type: integer, minimum: 0, maximum: 1440 }
-                peringatan_lama_igd_menit: { type: integer, minimum: 0, maximum: 359 }
+                peringatan_lama_igd_menit: { type: [integer, 'null'], minimum: 1, maximum: 359 }
                 dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
       responses:
         '200':
@@ -6014,8 +6015,10 @@ paths:
         tanpa isi; selalu `Cache-Control: no-store`. Isi berubah paling sedikit tiap menit karena lama di IGD dihitung server.
         - Baris = kunjungan IGD `terdaftar`/`dilayani` (pasien yang selesai disposisi atau batal tidak tampil), paling
           banyak 200 baris (`meta.terpotong` true bila lebih). Bukan daftar berkursor: urutannya prioritas klinis.
-        - Urut (FR-03-03): belum ditriase paling atas (belum dinilai), lalu triase berlaku merah → kuning → hijau → hitam,
-          lalu jam tiba terlama dulu.
+        - Urut (FR-03-03): belum ditriase paling atas (belum dinilai; keputusan pemilik 9 Nov 2026), lalu triase berlaku
+          merah → kuning → hijau → hitam, lalu jam tiba terlama dulu.
+        - Pembulatan: tanda waktu dibandingkan per detik; menit (`lama_di_igd_menit`, `tanggap.menit`) dibulatkan ke atas,
+          jadi menit > batas selalu sama dengan tanda lewat/terlambat/lebih.
         - `area_id` menyaring satu area; id tak dikenal → daftar kosong.
         - Data pasien (dua penanda identitas, keluhan klinis) hanya untuk pemegang izin ini; keluhan tidak masuk log/audit.
       parameters:
@@ -9978,29 +9981,31 @@ components:
         diubah_pada: { type: string, format: date-time }
     AturanPapanIgd:
       type: object
-      required: [batas_tanggap_menit, peringatan_tanggap_menit, peringatan_lama_igd_menit, versi, diubah_pada]
+      required: [batas_tanggap_menit, peringatan_lama_igd_menit, versi, diubah_pada]
       description: |
         Batas waktu papan IGD (inti.aturan_papan_igd, satu set per RS; v0.34.0). Angka awal instalasi: batas tanggap 5
-        menit dan peringatan 5 menit sebelum batas (PRD FR-03-04, KPI FR-03-05), peringatan 60 menit sebelum 6 jam (Asumsi:
-        PRD FR-00-06 tanpa angka). Batas 6 jam sendiri aturan INA-CBG (7.00.2), bukan data induk.
+        menit (sumber PRD FR-03-04, KPI FR-03-05), tanpa lebar peringatan sebelum batas; ambang mendekati 6 jam kosong
+        sampai RS mengisi (PRD FR-00-06 tanpa angka). Keputusan pemilik 9 Nov 2026. Batas 6 jam sendiri aturan INA-CBG
+        (7.00.2), bukan data induk.
       properties:
-        batas_tanggap_menit: { type: integer, minimum: 1, description: "Batas waktu tanggap: jam tiba → asesmen awal dokter" }
-        peringatan_tanggap_menit: { type: integer, minimum: 0, description: "Tanda `mendekati_batas` bila sisa waktu ≤ angka ini" }
-        peringatan_lama_igd_menit: { type: integer, minimum: 0, description: "Tanda `mendekati_6_jam` bila sisa waktu sampai 6 jam ≤ angka ini" }
+        batas_tanggap_menit: { type: integer, minimum: 1, description: "Batas waktu tanggap: jam tiba → dokter mulai mengisi asesmen awal" }
+        peringatan_lama_igd_menit: { type: [integer, 'null'], minimum: 1, description: "Tanda `mendekati_6_jam` bila sisa waktu sampai 6 jam ≤ angka ini; null = tanda tidak dipakai" }
         versi: { type: string }
         diubah_pada: { type: string, format: date-time }
     TanggapPapanIgd:
       type: object
       required: [asesmen_dokter_pada, menit, menunggu_asesmen, tanda]
       description: |
-        Waktu tanggap (FR-03-04) = jam tiba → asesmen awal dokter IGD selesai. Selama belum ada: `menunggu_asesmen` true,
-        `menit` null, dan `tanda` aman → mendekati_batas (sisa ≤ peringatan) → lewat_batas (melewati batas). Sesudah ada:
-        `tanda` tercapai (≤ batas) atau terlambat. Layar menampilkan tanda dengan teks/ikon, bukan hanya warna (5.1 butir 4).
+        Waktu tanggap (FR-03-04; keputusan pemilik 9 Nov 2026) = jam tiba → dokter (atau PPDS) MULAI mengisi asesmen awal
+        IGD (catatan pertama, draf ikut dihitung). Tanpa tahap peringatan: selama belum ada, `menunggu_asesmen` true,
+        `menit` null, `tanda` menunggu (sampai tepat batas) lalu lewat_batas. Sesudah ada: `tanda` tercapai (≤ batas) atau
+        terlambat. Pembulatan: tanda dibandingkan per detik; `menit` dibulatkan ke atas (5 menit 1 detik → 6), jadi
+        `menit` > batas ⇔ terlambat. Layar menampilkan tanda dengan teks/ikon, bukan hanya warna (5.1 butir 4).
       properties:
-        asesmen_dokter_pada: { type: [string, 'null'], format: date-time }
-        menit: { type: [integer, 'null'], minimum: 0, description: "Menit utuh dari jam tiba sampai asesmen awal dokter" }
+        asesmen_dokter_pada: { type: [string, 'null'], format: date-time, description: "Saat dokter mulai mengisi asesmen awal IGD" }
+        menit: { type: [integer, 'null'], minimum: 0, description: "Menit dari jam tiba sampai mulai mengisi asesmen awal, dibulatkan ke atas" }
         menunggu_asesmen: { type: boolean }
-        tanda: { type: string, enum: [aman, mendekati_batas, lewat_batas, tercapai, terlambat] }
+        tanda: { type: string, enum: [menunggu, lewat_batas, tercapai, terlambat] }
     BarisPapanIgd:
       type: object
       required: [kunjungan_id, nomor, status, pasien, keluhan, triase, area, tiba_pada, lama_di_igd_menit, tanda_lama_igd, lebih_6_jam, tanggap, disposisi_menunggu]
@@ -10018,11 +10023,11 @@ components:
           description: "Area penempatan; null = belum ditempatkan"
           oneOf: [{ $ref: '#/components/schemas/RingkasAreaIgd' }, { type: 'null' }]
         tiba_pada: { type: string, format: date-time }
-        lama_di_igd_menit: { type: integer, minimum: 0, description: "Menit utuh sejak tiba" }
+        lama_di_igd_menit: { type: integer, minimum: 0, description: "Menit sejak tiba, dibulatkan ke atas (361 = lebih dari 6 jam)" }
         tanda_lama_igd:
           type: string
           enum: [aman, mendekati_6_jam, lebih_6_jam]
-          description: "FR-00-06: mendekati_6_jam bila sisa sampai 6 jam ≤ `peringatan_lama_igd_menit`; lebih_6_jam sejak lewat 6 jam (7.00.2)"
+          description: "FR-00-06: mendekati_6_jam bila sisa sampai 6 jam ≤ `peringatan_lama_igd_menit` (ambang kosong → tidak pernah muncul); lebih_6_jam sejak lewat 6 jam (7.00.2)"
         lebih_6_jam: { type: boolean, description: "Sama dengan `Kunjungan.lebih_6_jam`" }
         tanggap: { $ref: '#/components/schemas/TanggapPapanIgd' }
         disposisi_menunggu:
@@ -10039,13 +10044,12 @@ components:
         area: { type: array, items: { $ref: '#/components/schemas/RingkasAreaIgd' }, description: "Area aktif urut tampil (pilihan penempatan)" }
         aturan:
           type: object
-          required: [batas_tanggap_menit, peringatan_tanggap_menit, batas_lama_igd_menit, peringatan_lama_igd_menit]
+          required: [batas_tanggap_menit, batas_lama_igd_menit, peringatan_lama_igd_menit]
           description: "Batas yang dipakai menghitung tanda baris ini"
           properties:
             batas_tanggap_menit: { type: integer }
-            peringatan_tanggap_menit: { type: integer }
             batas_lama_igd_menit: { type: integer, const: 360 }
-            peringatan_lama_igd_menit: { type: integer }
+            peringatan_lama_igd_menit: { type: [integer, 'null'], description: "null = tanda mendekati 6 jam tidak dipakai" }
         terpotong: { type: boolean, description: "true bila pasien aktif lebih dari 200 (hanya 200 pertama dikirim)" }
         waktu_server: { type: string, format: date-time, description: "Jam server saat respons; tidak ikut sidik ETag" }
     PenempatanAreaIgd:

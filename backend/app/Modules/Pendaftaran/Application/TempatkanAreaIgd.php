@@ -32,7 +32,8 @@ final class TempatkanAreaIgd
                 throw new ApiError(409, 'status_tidak_sesuai', 'Area hanya untuk kunjungan IGD yang masih terdaftar atau dilayani.',
                     [['jenis_kunjungan' => $k->jenis_kunjungan, 'status' => $k->status]]);
             }
-            $area = DB::table('inti.area_igd')->where('id', $areaId)->where('status', 'aktif')->first(['id', 'kode'])
+            // FOR SHARE: penonaktifan area yang berjalan bersamaan menunggu sampai penempatan ini commit (atau sebaliknya).
+            $area = DB::table('inti.area_igd')->where('id', $areaId)->where('status', 'aktif')->sharedLock()->first(['id', 'kode'])
                 ?? throw ValidationException::withMessages(['area_igd_id' => 'Area IGD tidak ditemukan atau tidak aktif.']);
 
             $lama = DB::table('kunjungan.papan_igd')->where('kunjungan_id', $k->id)->first();
