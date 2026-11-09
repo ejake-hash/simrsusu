@@ -560,7 +560,7 @@ Dirinci 9 Nov 2026 dari PRD 7.00.2–7.00.5, 7.03, 7.04, 7.05, 7.08, 7.19, 7.20,
 | 2.23 | Kunjungan IGD: registrasi cepat + episode | BE+FE | M | — · **Selesai** (BE+kontrak #191 v0.31.0: `/kunjungan-igd`, jam tiba server, episode rawat jalan harian, satu IGD aktif per pasien; episode IGD > 6 jam dibentuk otomatis beserta aktivitasnya, keputusan pemilik 9 Nov 2026; FE #192: layar Pendaftaran IGD) |
 | 2.24 | Triase IGD dan ulang triase | BE+FE | S | 2.23 · **Selesai** (satu PR kontrak+BE+FE v0.32.0: `/kunjungan/{id}/triase` hanya ditambah, berlaku = terbaru, riwayat menyimpan salinan kode/nama instrumen dan label skala saat triase; data induk `inti.instrumen_triase` tanpa isi produksi + layar Master Data → Instrumen triase (`/data-induk/instrumen-triase`, edit langsung berizin + dasar + audit, pola penjamin; keputusan pemilik 9 Nov); field `triase` di `/kunjungan-igd` hanya bagi `igd.triase.lihat`, izin daftar tetap `igd.pendaftaran.lihat` (keputusan pemilik 9 Nov); layar IGD → Triase; perbaikan tinjauan #191: `KunciKunjungan` satu sumber urutan kunci pasien → kunjungan (CPPT, asesmen awal, order penunjang, batal kunjungan, episode IGD > 6 jam). Asumsi: `tiba_pada` dibaca dari `kunjungan.tiba_pada`, tidak disalin ke `kunjungan.triase` walau PRD 11.2 mencantumkannya) |
 | 2.25 | Papan pasien IGD (polling) | BE+FE | M | 2.24 · Siap |
-| 2.26 | Matriks perpindahan sebagai data induk + disposisi IGD | BE+FE | M | 2.23 · Siap |
+| 2.26 | Matriks perpindahan sebagai data induk + disposisi IGD | BE+FE | M | 2.23 · **Selesai** (BE+kontrak #194 v0.33.0: `kunjungan.aturan_perpindahan` isi awal tabel 7.00.3 + APS/DOA, GET `/data-induk/matriks-perpindahan`, perubahan lewat usulan `matriks_perpindahan`; POST/GET `/kunjungan/{id}/disposisi` hanya ditambah, izin sel matriks lewat AccessEvaluator, `igd.disposisi.input` bersyarat SIP; pulang/APS/rujuk/meninggal/DOA menutup kunjungan IGD, rawat inap `menunggu_kamar`, kamar operasi `menunggu_kamar_operasi`; FE #195: layar IGD → Disposisi, Master Data → Matriks perpindahan (usulan tambah/ubah/nonaktifkan sel), tautan Disposisi di Pendaftaran IGD, sub-menu TERSEDIA; akun e2e `dokter.poli` memegang `igd.pendaftaran.lihat` + `igd.disposisi.*`) |
 | 2.27 | Peta tempat tidur dan status TT | BE+FE | M | — · Siap |
 | 2.28 | SPRI, antrean permintaan kamar, alokasi TT | BE+FE | M | 2.26, 2.27 · Siap |
 | 2.29 | Admisi rawat inap: penempatan TT, pindah ruang, episode rawat inap | BE+FE | M | 2.28 · Siap |
@@ -633,6 +633,9 @@ Uji    :
 - Disposisi pulang/APS menutup kunjungan IGD; rawat inap membuat permintaan kamar (dipakai 2.28), tidak langsung menempatkan pasien.
 - Matriks diubah lewat usulan data induk yang ada (pola 1.x usulan), bukan langsung.
 Di luar: alur meninggal B-05/B-06 rinci, rujuk keluar SISRUTE/VClaim ([Perlu pemilik]).
+Asumsi FE #195: usulan matriks yang dikembalikan diperbaiki dengan usulan baru dari layar Matriks perpindahan (pola formularium),
+bukan kirim ulang; kode izin pemberi perintah diketik bebas (pola dicek layar, keberadaan izin dicek server) karena belum ada daftar
+izin untuk pengelola data induk.
 
 ### 2.27 · Peta tempat tidur dan status TT
 Tujuan : admisi dan kepala ruang melihat semua TT per ruang dengan statusnya dari satu sumber.

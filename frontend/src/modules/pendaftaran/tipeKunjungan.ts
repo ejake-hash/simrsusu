@@ -140,3 +140,30 @@ export interface IsianTriase {
   keluhan?: string | null
 }
 export type HalamanTriase = Halaman<Triase>
+
+/** Disposisi IGD FR-03-09 (v0.33.0, tiket 2.26) = kode pos tujuan matriks perpindahan. */
+export type TujuanDisposisi = 'pulang' | 'rawat_inap' | 'kamar_operasi' | 'rujuk_keluar' | 'aps' | 'meninggal' | 'doa'
+/** Akibat pada kunjungan IGD saat perintah: selesai = kunjungan ditutup; menunggu = kunjungan tetap di IGD. */
+export type StatusDisposisi = 'selesai' | 'menunggu_kamar' | 'menunggu_kamar_operasi'
+export interface IsianDisposisi {
+  tujuan: TujuanDisposisi
+  alasan: string
+  /** Wajib untuk rawat_inap dan kamar_operasi (bagian data RM-15). */
+  serah_terima?: string | null
+}
+/** Perintah perpindahan (hanya ditambah). Pos asal/tujuan memakai kode matriks perpindahan. */
+export interface Disposisi {
+  id: string
+  kunjungan_id: string
+  /** Potret episode sesudah perintah. */
+  episode: { id: string; jenis: 'rawat_jalan_harian' | 'igd_lebih_6_jam'; status: 'aktif' | 'selesai' }
+  pos_asal: string
+  tujuan: string
+  aturan_perpindahan_id: string
+  alasan: string
+  serah_terima: string | null
+  status: StatusDisposisi
+  diputuskan_oleh: Pelaku | null
+  diputuskan_pada: string
+}
+export type HalamanDisposisi = Halaman<Disposisi>

@@ -2,6 +2,7 @@ import type { PermintaanTiruan, ResponsTiruan } from '../../akses/tiruan/serverT
 import type { KeterisianJadwal, RingkasPegawai } from '../../jadwal-praktik/tipe'
 import type {
   CaraBayar,
+  Disposisi,
   InstrumenTriase,
   KategoriTriase,
   Kunjungan,
@@ -10,15 +11,17 @@ import type {
   RingkasPasienKunjungan,
   RingkasPenjaminKunjungan,
   SlotTerdekat,
+  StatusDisposisi,
   StatusKunjungan,
   Triase,
+  TujuanDisposisi,
 } from '../tipeKunjungan'
 
 /**
  * Server tiruan kontrak v0.20.0 (tiket 2.6) dan v0.31.0 (2.23: GET/POST /kunjungan-igd, IGD aktif per pasien satu, tanda
  * `lebih_6_jam` dari jam `sekarang`; pemindahan ke episode `igd_lebih_6_jam` tidak ditiru), dan v0.32.0 (2.24: triase
  * hanya ditambah, berlaku = terbaru; instrumen dari `instrumenTriase`; field `triase` di daftar IGD bagi pemegang
- * igd.triase.lihat).
+ * igd.triase.lihat), dan v0.33.0 (2.26: GET/POST /kunjungan/{id}/disposisi; tujuan dari `matriks`, SIP dari `sipBerlaku`).
  * POST /kunjungan (episode rawat jalan harian terbentuk/digabung otomatis
  * dari No. RM + tanggal, 7.00.2), POST /kunjungan/{id}/batal (status batal, kuota dikembalikan), GET /kunjungan
  * (papan per poli per hari). Kuota dipinjam dari server jadwal (tiket 2.4) lewat `konsumsi`, jadi sisa di layar jadwal
@@ -68,7 +71,17 @@ export interface OpsiServerKunjungan {
   sekarang?: () => Date
   /** Instrumen triase aktif dari data induk (v0.32.0, server instrumen-triase). Bawaan: satu instrumen sintetis berlabel contoh. */
   instrumenTriase?: () => InstrumenTriase[]
+  /** Sel matriks perpindahan aktif (v0.33.0, server matriks tiruan). Tanpa ini semua disposisi 422 di luar matriks. */
+  matriks?: { berlaku: (asal: 'igd', tujuan: string) => { id: string; pos_asal: string; pos_tujuan: string; izin_perintah: string } | null }
+  /** SIP/SPK akun berlaku hari ini (lapis 5, izin klinis). Bawaan: berlaku. */
+  sipBerlaku?: () => boolean
 }
+
+const TUJUAN_DISPOSISI: readonly TujuanDisposisi[] = ['pulang', 'rawat_inap', 'kamar_operasi', 'rujuk_keluar', 'aps', 'meninggal', 'doa']
+/** Pos tujuan matriks yang bukan disposisi FR-03-09 (konsul, order, rawat inap). */
+const BUKAN_DISPOSISI = ['poli_lain', 'penunjang', 'igd', 'icu_hcu']
+const MENUNGGU: Partial<Record<TujuanDisposisi, StatusDisposisi>> = { rawat_inap: 'menunggu_kamar', kamar_operasi: 'menunggu_kamar_operasi' }
+const IZIN_KLINIS = ['igd.disposisi.input']
 
 interface TriaseT {
   id: string
@@ -301,6 +314,47 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
     return { status: 201, header: NO_STORE, isi: { data: bentukTriase(t, k, t.id) } }
   }
 
+  // ── Disposisi (v0.33.0) ──
+  const disposisi: Disposisi[] = []
+  let dsN = 0
+  function catatDisposisi(k: KunjunganT, isi: Record<string, unknown>): ResponsTiruan {
+    const tujuan = String(isi.tujuan ?? '')
+    if (BUKAN_DISPOSISI.includes(tujuan)) {
+      return error(422, 'tujuan_bukan_disposisi', 'Tujuan ini bukan disposisi IGD; perintahnya lewat konsul, order, atau rawat inap.', [{ kolom: 'tujuan', pos_tujuan: tujuan, pesan: 'Pilih disposisi IGD.' }])
+    }
+    if (!TUJUAN_DISPOSISI.includes(tujuan as TujuanDisposisi)) return validasi('tujuan', 'Pilih tujuan disposisi.')
+    const alasan = typeof isi.alasan === 'string' ? isi.alasan.trim() : ''
+    if (alasan.length < 5 || alasan.length > 1000) return validasi('alasan', 'Isi alasan, 5 sampai 1.000 karakter.')
+    const serah = typeof isi.serah_terima === 'string' && isi.serah_terima.trim() ? isi.serah_terima.trim() : null
+    if (serah !== null && (serah.length < 5 || serah.length > 4000)) return validasi('serah_terima', 'Catatan serah terima 5 sampai 4.000 karakter.')
+    if (serah === null && MENUNGGU[tujuan as TujuanDisposisi]) return validasi('serah_terima', 'Serah terima wajib untuk rawat inap dan kamar operasi.')
+    if (k.jenis !== 'igd' || !aktif(k)) {
+      return error(409, 'status_tidak_sesuai', 'Disposisi hanya untuk kunjungan IGD yang masih terdaftar atau dilayani.', [{ jenis_kunjungan: k.jenis, status: k.status }])
+    }
+    const aturan = opsi.matriks?.berlaku('igd', tujuan) ?? null
+    if (!aturan) {
+      return error(422, 'perpindahan_di_luar_matriks', 'Tujuan ini tidak ada di matriks perpindahan aktif untuk IGD.', [{ kolom: 'tujuan', pos_asal: 'igd', pos_tujuan: tujuan, pesan: 'Pilih tujuan yang diizinkan matriks perpindahan.' }])
+    }
+    if (!opsi.boleh(aturan.izin_perintah)) return error(403, 'akses_ditolak', 'Anda tidak punya akses untuk tindakan ini.')
+    if (IZIN_KLINIS.includes(aturan.izin_perintah) && !(opsi.sipBerlaku?.() ?? true)) {
+      return error(403, 'izin_praktik_tidak_berlaku', 'Tindakan klinis ini butuh SIP/SPK yang berlaku hari ini.')
+    }
+    const status: StatusDisposisi = MENUNGGU[tujuan as TujuanDisposisi] ?? 'selesai'
+    if (status !== 'selesai' && disposisi.some((d) => d.kunjungan_id === k.id && d.status === status)) {
+      return error(409, 'perintah_sudah_menunggu', 'Perintah ini sudah tercatat dan masih menunggu. Buka riwayat disposisi.', [{ pos_tujuan: tujuan, status }])
+    }
+    if (status === 'selesai') {
+      k.status = 'selesai'
+      k.v += 1
+    }
+    const d: Disposisi = {
+      id: uid('b000', ++dsN), kunjungan_id: k.id, episode: { id: k.episode.id, jenis: k.episode.jenis, status: 'aktif' }, pos_asal: 'igd', tujuan,
+      aturan_perpindahan_id: aturan.id, alasan, serah_terima: serah, status, diputuskan_oleh: opsi.pelaku(), diputuskan_pada: iso(),
+    }
+    disposisi.push(d)
+    return { status: 201, header: NO_STORE, isi: { data: d } }
+  }
+
   function batal(k: KunjunganT, isi: Record<string, unknown>): ResponsTiruan {
     if (k.status === 'batal') return error(409, 'sudah_batal', 'Kunjungan sudah dibatalkan.')
     if (k.status !== 'terdaftar') return error(409, 'sudah_dilayani', 'Pelayanan klinis sudah dimulai; kunjungan tidak dapat dibatalkan.')
@@ -363,6 +417,18 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
         status: 200, header: NO_STORE,
         isi: { data: semua.slice(mulai, mulai + batas).map((t) => bentukTriase(t, k, semua[0]?.id)), meta: { kursor_berikutnya: mulai + batas < semua.length ? btoa(String(mulai + batas)) : null } },
       }
+    }
+
+    if (id && bagian[2] === 'disposisi' && !bagian[3]) {
+      if (metode !== 'GET' && metode !== 'POST') return null
+      if (!opsi.boleh(metode === 'GET' ? 'igd.disposisi.lihat' : 'igd.disposisi.input')) return error(403, 'akses_ditolak', 'Anda tidak punya akses untuk tindakan ini.')
+      const k = daftar.find((x) => x.id === id)
+      if (!k) return error(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.')
+      if (metode === 'POST') return catatDisposisi(k, (r.isi ?? {}) as Record<string, unknown>)
+      const semua = disposisi.filter((d) => d.kunjungan_id === k.id).reverse()
+      const batas = Number(r.kueri.get('batas') ?? 50)
+      const mulai = r.kueri.get('kursor') ? Number(atob(r.kueri.get('kursor')!)) : 0
+      return { status: 200, header: NO_STORE, isi: { data: semua.slice(mulai, mulai + batas), meta: { kursor_berikutnya: mulai + batas < semua.length ? btoa(String(mulai + batas)) : null } } }
     }
 
     if (!id) {

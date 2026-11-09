@@ -65,6 +65,7 @@ const LAYAR: Layar[] = [
   { kode: 'usulan', jalur: '/master-data/usulan', akun: 'pengusul', judul: 'Usulan perubahan' },
   { kode: 'penjamin', jalur: '/master-data/penjamin', akun: 'dataInduk', judul: 'Penjamin' },
   { kode: 'instrumen-triase', jalur: '/master-data/instrumen-triase', akun: 'dataInduk', judul: 'Instrumen triase' },
+  { kode: 'matriks-perpindahan', jalur: '/master-data/matriks-perpindahan', akun: 'dataInduk', judul: 'Matriks perpindahan' },
   { kode: 'buku-tarif', jalur: '/master-data/tarif', akun: 'dataInduk', judul: 'Buku tarif' },
   { kode: 'formularium', jalur: '/farmasi/formularium', akun: 'dataInduk', judul: 'Formularium' },
   { kode: 'jadwal-praktik', jalur: '/master-data/jadwal-praktik', akun: 'dataInduk', judul: 'Jadwal praktik dan kuota poli' },

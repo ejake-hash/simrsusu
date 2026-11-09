@@ -9,7 +9,7 @@ export const KUNCI_USULAN = {
   versi: (jenis: ObjekDataInduk, id: string) => ['usulan', 'versi', jenis, id] as const,
 }
 
-export const LABEL_JENIS_DATA: Record<string, string> = { ruang_tt: 'Ruang & tempat tidur', tarif: 'Buku tarif', formularium: 'Formularium' }
+export const LABEL_JENIS_DATA: Record<string, string> = { ruang_tt: 'Ruang & tempat tidur', tarif: 'Buku tarif', formularium: 'Formularium', matriks_perpindahan: 'Matriks perpindahan' }
 
 export const LABEL_TAHAP: Record<TahapUsulan, string> = {
   diusulkan: 'Menunggu verifikasi',
@@ -47,6 +47,9 @@ export const LABEL_AKSI_BUTIR: Record<`${ObjekDataInduk}.${AksiUsulan}`, string>
   'formularium_item.tambah': 'Tambah item formularium',
   'formularium_item.ubah': 'Ubah item formularium',
   'formularium_item.tutup': 'Nonaktifkan item formularium',
+  'aturan_perpindahan.tambah': 'Tambah sel matriks perpindahan',
+  'aturan_perpindahan.ubah': 'Ubah sel matriks perpindahan',
+  'aturan_perpindahan.tutup': 'Nonaktifkan sel matriks perpindahan',
 }
 /** Kombinasi yang dikenal kontrak v0.9.0 (urutan pilihan di editor). */
 export const PILIHAN_BUTIR: `${ObjekDataInduk}.${AksiUsulan}`[] = ['tempat_tidur.tambah', 'tempat_tidur.ubah', 'tempat_tidur.tutup', 'kamar.tambah', 'kamar.ubah', 'ruang.tambah', 'ruang.ubah']

@@ -1,4 +1,5 @@
 import type { PermintaanTiruan, ResponsTiruan } from '../../akses/tiruan/serverTiruan'
+import type { ServerMatriks } from '../../matriks-perpindahan/tiruan/serverMatriks'
 import type { ServerTarif } from '../../tarif/tiruan/serverTarif'
 import type { ButirUsulan, IsianButir, JenisDataInduk, ObjekDataInduk, TahapUsulan, TampilanIsian, UsulanDataInduk, VersiDataInduk } from '../tipe'
 
@@ -39,6 +40,8 @@ export interface OpsiServerUsulan {
   sudahTtd?: (objekId: string, akunId: string) => boolean
   /** Jenis data `tarif` (2.2): butir dibentuk dan diterapkan oleh server tarif tiruan. */
   tarif?: ServerTarif
+  /** Jenis data `matriks_perpindahan` (2.26): butir dibentuk dan diterapkan oleh server matriks tiruan. */
+  matriks?: ServerMatriks
   contoh: { kamarA: string; kamarB: string; ruangB: string; kelas: string }
   pengusulLain: string
   sekarang?: () => Date
@@ -62,7 +65,8 @@ interface UsulanT {
   riwayat: UsulanDataInduk['riwayat']
 }
 
-const jenisData = (o: ObjekDataInduk | undefined): JenisDataInduk => (o === 'tarif' ? 'tarif' : o === 'formularium' || o === 'formularium_item' ? 'formularium' : 'ruang_tt')
+const jenisData = (o: ObjekDataInduk | undefined): JenisDataInduk =>
+  o === 'tarif' ? 'tarif' : o === 'formularium' || o === 'formularium_item' ? 'formularium' : o === 'aturan_perpindahan' ? 'matriks_perpindahan' : 'ruang_tt'
 
 export function buatServerUsulan(opsi: OpsiServerUsulan) {
   const sekarang = opsi.sekarang ?? (() => new Date())
@@ -82,6 +86,7 @@ export function buatServerUsulan(opsi: OpsiServerUsulan) {
       return { ...b, objek_label: label, objek_berubah: false, nilai_lama: null, tampilan }
     }
     if (b.objek_jenis === 'tarif') return opsi.tarif ? opsi.tarif.bentukButir(b) : { salah: { kode: 'aksi_tidak_dikenal', pesan: 'Jenis data tarif tidak tersedia.' } }
+    if (b.objek_jenis === 'aturan_perpindahan') return opsi.matriks ? opsi.matriks.bentukButir(b) : { salah: { kode: 'aksi_tidak_dikenal', pesan: 'Jenis data matriks perpindahan tidak tersedia.' } }
     const kunci = `${b.objek_jenis}.${b.aksi}`
     const boleh = ISIAN_BOLEH[kunci]
     if (!boleh) return { salah: { kode: 'aksi_tidak_dikenal', pesan: `Aksi ${kunci} tidak dikenal.` } }
@@ -125,6 +130,7 @@ export function buatServerUsulan(opsi: OpsiServerUsulan) {
     u.tahap = 'berlaku'
     catat(u, 'diterapkan', null)
     for (const b of u.perubahan) {
+      if (b.objek_jenis === 'aturan_perpindahan') opsi.matriks?.terapkan(b)
       if (!b.objek_id || b.objek_jenis === 'tarif') continue
       const n = versi.filter((v) => v.objek_id === b.objek_id).length + 1
       versi.push({

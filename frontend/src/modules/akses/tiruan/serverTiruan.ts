@@ -181,7 +181,7 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   tambahPeran(uid(106), 'contoh_lama', 'Contoh Peran Lama', [], { status: 'nonaktif' })
   // Pemilik data induk organisasi (1.8a-be: akun data.induk); superadmin tidak memegangnya.
   tambahPeran(uid(107), 'contoh_data_induk', 'Contoh Admin Data Induk', [
-    ...['organisasi', 'jenis_tugas', 'penjamin', 'usulan', 'jadwal_praktik', 'instrumen_triase'].flatMap((s) => ['lihat', 'input', 'perbaiki'].map((a) => `master_data.${s}.${a}`)),
+    ...['organisasi', 'jenis_tugas', 'penjamin', 'usulan', 'jadwal_praktik', 'instrumen_triase', 'matriks_perpindahan'].flatMap((s) => ['lihat', 'input', 'perbaiki'].map((a) => `master_data.${s}.${a}`)),
     'master_data.usulan.verifikasi', 'master_data.usulan.setujui', 'master_data.tarif.lihat',
     ...['lihat', 'input', 'perbaiki'].map((a) => `farmasi.formularium.${a}`),
   ])
