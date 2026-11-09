@@ -114,15 +114,13 @@ class PapanIgdTest extends TestCase
         $tanggap = fn () => $this->minta('GET', self::URL)->assertOk()->json('data.0.tanggap');
 
         $this->assertSame(['asesmen_dokter_pada' => null, 'menit' => null, 'menunggu_asesmen' => true, 'tanda' => 'aman'], $tanggap());
-        $this->travelTo(now()->addMinutes(6)->addSeconds(59));
-        $this->assertSame('aman', $tanggap()['tanda']);
-        // ≤ 3 menit sebelum batas 10 menit: tanda berubah (FR-03-04).
-        $this->travelTo(now()->addSecond());
-        $this->assertSame('mendekati_batas', $tanggap()['tanda']);
-        $this->travelTo(now()->addMinutes(3));
-        $this->assertSame('mendekati_batas', $tanggap()['tanda']);
-        $this->travelTo(now()->addSecond());
-        $this->assertSame('lewat_batas', $tanggap()['tanda']);
+        // Tanda per detik uji: 07.06.59, 07.07.00 (≤ 3 menit sebelum batas 10 menit, FR-03-04), 07.10.00, 07.10.01.
+        $tanda = [];
+        foreach ([419, 1, 180, 1] as $maju) {
+            $this->travelTo(now()->addSeconds($maju));
+            $tanda[] = $tanggap()['tanda'];
+        }
+        $this->assertSame(['aman', 'mendekati_batas', 'mendekati_batas', 'lewat_batas'], $tanda);
 
         // Draf asesmen dokter dan asesmen perawat bukan tanggap dokter.
         $this->asesmen($p, 'draf');
