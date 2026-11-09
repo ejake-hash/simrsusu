@@ -22,6 +22,7 @@ import type { Pasien } from '@/modules/pendaftaran/tipe'
 import type { CaraBayar, Kunjungan } from '@/modules/pendaftaran/tipeKunjungan'
 import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
+import LencanaTriase from '../components/LencanaTriase.vue'
 
 /**
  * IGD → Pendaftaran IGD (tiket 2.23, kontrak v0.31.0; FR-03-01). Registrasi cepat dengan isian minimal: pasien dari
@@ -93,14 +94,16 @@ const kueri = useInfiniteQuery({
 })
 const baris = computed<Kunjungan[]>(() => kueri.data.value?.pages.flatMap((h) => h.data) ?? [])
 const igdAktifTermuat = computed(() => igdAktifSama.value !== null && baris.value.some((k) => k.id === igdAktifSama.value))
-const kolom: KolomTabel[] = [
+// Kolom triase berlaku (2.24) hanya bagi pemegang igd.triase.lihat: server tidak mengirim field-nya tanpa izin itu.
+const kolom = computed<KolomTabel[]>(() => [
   { kunci: 'nomor', label: 'No. kunjungan', lebar: '190px' },
   { kunci: 'pasien', label: 'Pasien' },
+  ...(boleh('igd.triase.lihat') ? [{ kunci: 'triase', label: 'Triase', lebar: '150px' }] : []),
   { kunci: 'tiba', label: 'Jam tiba', lebar: '140px' },
-  { kunci: 'lama', label: 'Lama di IGD', lebar: '150px' },
+  { kunci: 'lama', label: 'Lama di IGD', lebar: '150px', prioritas: 2 as const },
   { kunci: 'cara_bayar', label: 'Cara bayar', prioritas: 3, lebar: '150px' },
   { kunci: 'status', label: 'Status', lebar: '200px' },
-]
+])
 
 // Lama di IGD ikut berjalan di antara penyegaran data.
 const sekarang = ref(new Date())
@@ -182,6 +185,7 @@ onBeforeUnmount(() => clearInterval(detak))
           <b>{{ k.pasien.nama }}</b>
           <span class="ket">No. RM {{ formatNoRm(k.pasien.no_rm) }} · {{ formatTanggal(k.pasien.tanggal_lahir) }}</span>
         </template>
+        <template #sel-triase="{ baris: k }"><LencanaTriase :kategori="k.triase?.kategori" /></template>
         <template #sel-tiba="{ baris: k }">
           {{ k.tiba_pada ? jamWib(k.tiba_pada) : '—' }}
           <span class="ket">{{ formatTanggal(k.tanggal) }}</span>
