@@ -111,7 +111,7 @@ const identitas = (a: Antrean) =>
   >
     <section class="kartu" aria-labelledby="judul-antrean">
       <div class="kartu-kepala">
-        <h2 id="judul-antrean">{{ loket ? 'Antrean loket pendaftaran' : 'Antrean poli' }}</h2>
+        <h2 id="judul-antrean">{{ loket ? 'Antrean loket' : 'Antrean poli' }}</h2>
       </div>
       <div class="baris-filter">
         <KolomIsian v-slot="a" label="Titik antrean">
@@ -147,7 +147,8 @@ const identitas = (a: Antrean) =>
         <Pesan v-if="kerjakan.isError.value && !dialogBatal" jenis="error">{{ pesanAksi(kerjakan.error.value) }}</Pesan>
       </div>
 
-      <KeadaanKosong v-if="!siap" judul="Pilih poliklinik dulu" uraian="Antrean muncul setelah poliklinik dan tanggal dipilih." />
+      <KeadaanKosong v-if="!siap && loket" judul="Pilih tanggal dulu" uraian="Antrean loket muncul setelah tanggal dipilih." />
+      <KeadaanKosong v-else-if="!siap" judul="Pilih poliklinik dulu" uraian="Antrean muncul setelah poliklinik dan tanggal dipilih." />
       <DataTable
         v-else
         :kolom="kolom"
@@ -166,7 +167,7 @@ const identitas = (a: Antrean) =>
         <template #sel-prioritas="{ baris: a }">
           <template v-if="a.prioritas">
             <Lencana jenis="peringatan">Prioritas</Lencana>
-            <span v-if="a.alasan_prioritas" class="ket">{{ LABEL_ALASAN_PRIORITAS[a.alasan_prioritas] }} (pilihan pasien, nilai di loket)</span>
+            <span v-if="a.alasan_prioritas" class="ket">{{ LABEL_ALASAN_PRIORITAS[a.alasan_prioritas] }} (dipilih pasien, pastikan di loket)</span>
           </template>
           <span v-else class="ket">Biasa</span>
         </template>

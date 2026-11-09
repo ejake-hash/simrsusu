@@ -43,6 +43,11 @@ const batasDiam = computed(() => perangkat.value?.batas_diam_detik ?? 60)
 
 let penundaDiam: ReturnType<typeof setTimeout> | undefined
 let penundaOnline: ReturnType<typeof setInterval> | undefined
+// Nomor sesi layar: naik setiap kembali ke awal. Respons yang tiba sesudah sesi berganti (permintaan lambat, batas diam
+// habis, atau Kembali ditekan) dibuang, supaya nomor atau jadwal pasien sebelumnya tidak tampil ke pasien berikutnya.
+let sesi = 0
+// Permintaan jadwal terakhir: hanya jawaban dari tanggal yang terakhir dipilih yang ditampilkan.
+let mintaJadwalKe = 0
 
 function tolak(h: Exclude<Hasil<unknown>, { jenis: 'ok' }>): string {
   if (h.jenis === 'ditolak') {
@@ -59,9 +64,10 @@ async function laporOnline() {
   if (h.jenis === 'ok') {
     perangkat.value = h.data
     galatAwal.value = null
-  } else {
+  } else if (h.jenis === 'ditolak' || !perangkat.value || (h.jenis === 'galat' && h.status === 409)) {
     galatAwal.value = tolak(h)
   }
+  // Selain itu (denyut gagal sesaat: jaringan, 429) layar sambutan tetap bersih; denyut berikutnya mencoba lagi.
 }
 
 async function pindah(ke: Layar) {
@@ -74,10 +80,11 @@ async function pindah(ke: Layar) {
 
 /** Kembali ke layar awal dan buang semua isian (server tidak menyimpan isian sesi). */
 function keAwal() {
+  sesi++
+  sibuk.value = false
   tiket.value = null
   jadwal.value = null
   tanggal.value = ''
-  tanggalPilihan.value = pilihanTanggal(new Date())
   void pindah('awal')
   void laporOnline()
 }
@@ -90,8 +97,10 @@ function sentuh() {
 
 async function ambil(alasan: AlasanPrioritas | null) {
   if (!token.value || sibuk.value) return
+  const milik = sesi
   sibuk.value = true
   const h = await ambilNomorLoket(token.value, alasan)
+  if (milik !== sesi) return
   sibuk.value = false
   if (h.jenis !== 'ok') {
     galat.value = tolak(h)
@@ -103,10 +112,13 @@ async function ambil(alasan: AlasanPrioritas | null) {
 
 async function bukaJadwal(t: string) {
   if (!token.value) return
+  const milik = sesi
+  const ke = ++mintaJadwalKe
   tanggal.value = t
   sibuk.value = true
   galat.value = null
   const h = await jadwalAnjungan(token.value, t)
+  if (milik !== sesi || ke !== mintaJadwalKe) return
   sibuk.value = false
   if (h.jenis !== 'ok') {
     jadwal.value = null
@@ -117,6 +129,8 @@ async function bukaJadwal(t: string) {
 }
 
 async function mulaiJadwal() {
+  // Dihitung ulang tiap dibuka: kios yang menyala melewati tengah malam tidak menawarkan "hari ini" yang sudah lewat.
+  tanggalPilihan.value = pilihanTanggal(new Date())
   await pindah('jadwal')
   await bukaJadwal(tanggalPilihan.value[0]!.nilai)
 }
@@ -146,12 +160,11 @@ onBeforeUnmount(() => {
 
     <div v-if="!token" class="tengah" role="alert">
       <h1>Anjungan belum disiapkan</h1>
-      <p>Petugas: buka alamat layar ini sekali dengan token perangkat di belakangnya (<code>#token=…</code>). Token dibuat lewat <code>php artisan antrean:token-anjungan</code>.</p>
+      <p>Silakan minta bantuan petugas atau langsung ke loket pendaftaran.</p>
     </div>
     <div v-else-if="ditolak" class="tengah" role="alert">
       <h1>Anjungan tidak dapat dipakai</h1>
       <p>Silakan minta bantuan petugas atau langsung ke loket pendaftaran.</p>
-      <p class="kecil">Petugas: token perangkat ditolak atau sudah dicabut. Buat token baru, lalu buka alamat layar ini dengan <code>#token=…</code>.</p>
     </div>
     <div v-else-if="!perangkat" class="tengah" role="status">
       <p>{{ galatAwal ?? 'Menyiapkan anjungan…' }}</p>
@@ -178,7 +191,6 @@ onBeforeUnmount(() => {
       <div class="pilihan">
         <button type="button" class="tombol-kios utama" :disabled="sibuk" :aria-busy="sibuk || undefined" @click="ambil(null)">
           Antrean biasa
-          <span class="sub">Nomor A</span>
         </button>
         <button type="button" class="tombol-kios" :disabled="sibuk" @click="pindah('alasan')">
           Antrean prioritas
@@ -190,7 +202,7 @@ onBeforeUnmount(() => {
     </section>
 
     <section v-else-if="layar === 'alasan'" class="isi" aria-labelledby="judul-layar">
-      <h1 id="judul-layar" ref="judul" tabindex="-1">Antrean prioritas untuk</h1>
+      <h1 id="judul-layar" ref="judul" tabindex="-1">Pilih alasan antrean prioritas</h1>
       <p class="ket">Petugas loket akan memastikan kebutuhan Anda.</p>
       <div class="pilihan empat">
         <button v-for="(label, kunci) in LABEL_ALASAN_PRIORITAS" :key="kunci" type="button" class="tombol-kios" :disabled="sibuk" @click="ambil(kunci)">{{ label }}</button>
@@ -200,7 +212,7 @@ onBeforeUnmount(() => {
     </section>
 
     <section v-else-if="layar === 'struk' && tiket" class="isi" aria-labelledby="judul-layar">
-      <h1 id="judul-layar" ref="judul" tabindex="-1">Nomor antrean Anda</h1>
+      <h1 id="judul-layar" ref="judul" tabindex="-1">Nomor antrean Anda<span class="tersembunyi">: {{ tiket.nomor_tampil }}</span></h1>
       <div class="struk" data-testid="struk-loket">
         <p class="nomor" data-testid="nomor-loket">{{ tiket.nomor_tampil }}</p>
         <p v-if="tiket.prioritas" class="label-prioritas">Antrean prioritas</p>
@@ -355,8 +367,17 @@ p {
   align-items: center;
 }
 .tombol-kios:focus-visible {
-  outline: none;
-  box-shadow: var(--ring);
+  outline: 3px solid var(--brand-600);
+  outline-offset: 3px;
+}
+/* Untuk pembaca layar saja: nomor ikut terbaca saat fokus pindah ke judul struk. */
+.tersembunyi {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .tombol-kios:disabled {
   cursor: progress;
@@ -462,10 +483,6 @@ p {
 .status-tidak_praktik {
   background: var(--bg);
   color: var(--muted);
-}
-code {
-  font-family: var(--font-mono);
-  font-size: 20px;
 }
 @media (max-width: 900px) {
   .anjungan {

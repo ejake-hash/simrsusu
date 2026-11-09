@@ -15,6 +15,7 @@ test.beforeAll(() => {
   if (!SANDI) throw new Error('Set E2E_SANDI sama dengan AKUN_SINTETIS_SANDI saat seeding.')
   artisan()
   token = php('antrean:token-anjungan', 'apm-contoh').split('\n')[0]!.trim()
+  expect(token).toMatch(/^[^|\s]+\|\S+$/)
 })
 test.afterAll(() => {
   php('antrean:token-anjungan', 'apm-contoh', '--cabut')
@@ -51,7 +52,7 @@ for (const lebar of [1440, 1024]) {
 
     await page.getByRole('button', { name: /Ambil nomor antrean pendaftaran/ }).click()
     await page.getByRole('button', { name: /Antrean prioritas/ }).click()
-    await expect(page.getByRole('heading', { level: 1, name: 'Antrean prioritas untuk' })).toBeFocused()
+    await expect(page.getByRole('heading', { level: 1, name: 'Pilih alasan antrean prioritas' })).toBeFocused()
     await ukuranSentuh(page)
     expect(await pelanggaranAxe(page)).toEqual([])
     await page.getByRole('button', { name: 'Ibu hamil' }).click()
@@ -67,7 +68,10 @@ for (const lebar of [1440, 1024]) {
     await page.getByRole('button', { name: /Lihat jadwal dokter/ }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Jadwal dokter' })).toBeVisible()
     await expect(page.getByRole('group', { name: 'Pilih tanggal' }).getByRole('button')).toHaveCount(7)
-    await expect(page.getByText(/Tersedia|Penuh|Tidak praktik|Tidak ada jadwal dokter/).first()).toBeVisible()
+    // lokal:kunjungan-contoh membuat jadwal sintetis setiap hari 00.00–23.59 di poli contoh.
+    const poliContoh = page.getByRole('region', { name: 'Poli Penyakit Dalam (contoh)' })
+    await expect(poliContoh).toBeVisible()
+    await expect(poliContoh.getByText(/^(Tersedia|Penuh)$/).first()).toBeVisible()
     await ukuranSentuh(page)
     expect(await pelanggaranAxe(page)).toEqual([])
     await kios.close()
@@ -80,7 +84,7 @@ test('petugas loket melihat nomor prioritas dari anjungan beserta alasannya, lal
   await page.goto('/pendaftaran/antrean')
   await page.getByRole('combobox', { name: 'Titik antrean' }).selectOption('loket')
   const tabel = page.getByRole('region', { name: 'Antrean loket pendaftaran' })
-  const baris = tabel.getByRole('row', { name: new RegExp(nomor) })
+  const baris = tabel.getByRole('row', { name: new RegExp(`^${nomor}\\b`) })
   await expect(baris).toContainText('Prioritas')
   await expect(baris).toContainText('Ibu hamil')
   await expect(baris).toContainText('Menunggu')
@@ -91,12 +95,21 @@ test('petugas loket melihat nomor prioritas dari anjungan beserta alasannya, lal
   await konteks.close()
 })
 
-test('token anjungan dicabut: kios meminta bantuan petugas dan membuang token', async ({ browser }, info) => {
+test('token anjungan dicabut saat kios terbuka: layanan berikutnya meminta bantuan petugas dan token dibuang', async ({ browser }, info) => {
   const asal = new URL(info.project.use.baseURL ?? '').origin
   const kios = await browser.newContext({ baseURL: asal, viewport: { width: 1440, height: 900 } })
   const page = await kios.newPage()
-  await page.goto('/anjungan#token=0|tokensalah')
-  await expect(page.getByRole('heading', { level: 1, name: 'Anjungan tidak dapat dipakai' })).toBeVisible()
-  expect(await page.evaluate(() => localStorage.getItem('karsitara.anjungan.token'))).toBeNull()
-  await kios.close()
+  await page.goto(`/anjungan#token=${token}`)
+  await expect(page.getByRole('heading', { level: 1, name: /Silakan pilih layanan/ })).toBeVisible()
+  php('antrean:token-anjungan', 'apm-contoh', '--cabut')
+  try {
+    await page.getByRole('button', { name: /Lihat jadwal dokter/ }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Anjungan tidak dapat dipakai' })).toBeVisible()
+    expect(await page.evaluate(() => localStorage.getItem('karsitara.anjungan.token'))).toBeNull()
+    await expect(page.locator('body')).not.toContainText('token')
+  } finally {
+    // --cabut menonaktifkan perangkat; buat token baru agar afterAll dan jalan berikutnya berangkat dari perangkat aktif.
+    token = php('antrean:token-anjungan', 'apm-contoh').split('\n')[0]!.trim()
+    await kios.close()
+  }
 })

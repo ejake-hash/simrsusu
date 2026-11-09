@@ -117,6 +117,30 @@ describe('AnjunganPage — layar', () => {
     w.unmount()
   })
 
+  it('respons nomor yang tiba sesudah sesi berakhir dibuang: pasien berikutnya tidak melihat nomor orang lain', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    let lepas: (r: Response) => void = () => undefined
+    jawabNomor = () => undefined as unknown as Response
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      panggilan.push({ url, init })
+      if (url === '/api/v1/anjungan/nomor-loket') return new Promise<Response>((r) => (lepas = r))
+      return json(200, { data: PERANGKAT })
+    }))
+    const w = await pasang()
+    tombol(/Ambil nomor antrean/)!.click()
+    await flushPromises()
+    tombol(/Antrean biasa/)!.click()
+    await flushPromises()
+    vi.advanceTimersByTime(60_000)
+    await flushPromises()
+    expect(document.body.textContent).toContain('Silakan pilih layanan')
+    lepas(json(201, { data: TIKET }))
+    await flushPromises()
+    expect(document.querySelector('[data-testid="struk-loket"]')).toBeNull()
+    expect(document.body.textContent).toContain('Silakan pilih layanan')
+    w.unmount()
+  })
+
   it('penolakan batas laju tampil sebagai pesan, layar tetap bisa dipakai', async () => {
     jawabNomor = () => json(429, { error: { kode: 'terlalu_banyak_permintaan', pesan: 'x' } })
     const w = await pasang()
