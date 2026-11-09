@@ -222,6 +222,9 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
     panggil); filter tahap saat pindah sub-menu diperbaiki tanpa uji navigasi.
 - E2E `rawat-jalan.spec` (proyek sesudah `fase2`) pernah gagal karena sesi hilang/429 akun admisi yang dipakai beruntun, lulus saat rerun
   (PR #156). Rerun dulu; perbaikan: tunggu jatah batas laju penuh di awal spec (pola `tungguJatahPenuh` di `fase1.spec`).
+  Flake kedua (PR #188, 9 Nov 2026, lulus saat rerun): `rawat-jalan.spec.ts:205` "dokter memeriksa…" gagal strict mode, karena
+  `listitem` berisi `ZZC01` ditemukan 3 kali di panel Pemeriksaan (diagnosis sintetis menumpuk). Perbaikan: saring item diagnosis
+  dengan penanda unik per jalan, atau `.first()` sesudah memastikan jumlahnya.
 - Layar CPPT dan worklist (2.13/2.14) tidak masuk `LAYAR` `fase1.spec`: modul 07/26 baru diaktifkan `lokal:kunjungan-contoh` di
   `rawat-jalan.spec` (berjalan sesudah fase1), dan akun `fase1` tidak memegang izin rawat jalan. Diuji @1440 + axe di `rawat-jalan.spec`;
   empat lebar belum. Pindahkan ke proyek malam sesudah `rawat-jalan`?
@@ -255,6 +258,11 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
     cukup, karena tanpa data pasien.
 - Tinjauan 2.20-fe (9 Nov 2026), saran yang belum dikerjakan: tombol kios yang dinonaktifkan saat `sibuk` (`AnjunganPage.vue`) kehilangan
   fokus ke body bagi pengguna keyboard; pakai `aria-disabled` + penjaga di handler. Kios utamanya layar sentuh, jadi kecil.
+  Pemilih "Loket Anda" (antrean loket) memuat semua ruang aktif lewat `GET /lokasi?jenis=ruang&status=aktif` lalu menyaring
+  `fungsi = administrasi` di klien (`staleTime` 60 detik); di RS besar ini beberapa halaman berurutan, dan lobi ikut terdaftar.
+  Usul: filter `fungsi` di `GET /lokasi` atau penanda loket admisi di data induk ([Perlu pemilik]: kontrak di luar tiket), sementara
+  naikkan `staleTime`. Tombol Panggil nomor loket nonaktif tanpa penjelasan sebelum loket dipilih: tambah pesan singkat.
+  Petugas loket di RS nyata butuh izin `master_data.organisasi.lihat` untuk pemilih ini (catat di penyiapan peran).
 
 ## Tahap B — tiket (rawat jalan + RME)
 
