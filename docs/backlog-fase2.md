@@ -241,6 +241,18 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
 - `keuangan.tarif_versi.kategori` (2.16, lab/rad) belum bisa diisi lewat API: usulan tarif belum memuat `kategori` (perubahan kontrak
   usulan di luar 2.16 → [Perlu pemilik]). Sampai itu katalog order (`GET /data-induk/tarif?jenis=`) kosong di instalasi nyata;
   lokal diisi `lokal:kunjungan-contoh` (butir `CONTOH-LAB-*`/`CONTOH-RAD-01`). `paket_order` (FR-07-09) juga belum ada endpoint.
+- Tinjauan keamanan susulan 2.20-be (#183, 9 Nov 2026), saran yang belum dikerjakan:
+  - `GET /anjungan` memanggil `pendaftaran()`, jadi perangkat mode `farmasi` mendapat 409 dan tidak bisa lapor online (FR-01-30).
+    `show` cukup mengirim `mode` dan `layanan: []`.
+  - Tidak ada uji bahwa `SesiSpaStateful` terkecualikan: POST `nomor-loket` dengan `Referer` dari `SANCTUM_STATEFUL_DOMAINS` + Bearer,
+    tanpa token CSRF, harus 201 (kios yang dilayani dari domain SPA).
+  - `Anjungan` memakai `HasApiTokens`: rute `auth:sanctum` di masa depan akan menerima token perangkat. Tambah uji struktural atau
+    komentar peringatan di `config/sanctum.php`.
+  - `TokenPerangkat` tidak memperbarui `last_used_at`; pemakaian token curian sulit dilacak.
+  - Batas per IP 600/menit dipakai bersama semua kios di balik NAT yang sama; pastikan `TRUSTED_PROXIES` produksi benar.
+  - `POST nomor-loket` tidak idempoten (ketuk dua kali = dua nomor): `Idempotency-Key` per sesi layar, bisa bersama 2.20-fe.
+  - PRD 7.01.1 "jejak audit per sesi": `sesi_anjungan` hanya mencatat nomor loket, penelusuran jadwal tidak tercatat. Asumsi tahap 1:
+    cukup, karena tanpa data pasien.
 
 ## Tahap B — tiket (rawat jalan + RME)
 
@@ -501,6 +513,16 @@ dipakai sebagai pengganti (catatan lapangan: obat tanpa KFA dilewati SATUSEHAT t
 - Akses darurat (2.21): batas jumlah pembukaan per akun per hari (kini hanya `throttle:api`)? Tenggat tinjauan bawaan 1×24 jam
   (`TINJAUAN_AKSES_DARURAT`, data jenis tugas) perlu verifikasi RS. Peran pemilik data RM untuk menyetujui `rawat_jalan.cppt.darurat`
   ditetapkan RS lewat `PUT /izin/{kode}/penyetuju`; sebelum itu izin ini tidak bisa diberikan.
+- Anjungan (tinjauan keamanan susulan #183, 9 Nov 2026; tanpa celah wajib):
+  (a) PRD 11.2 `anjungan` menulis kolom `token_perangkat_hash` (dan `printer`); kode memakai token Sanctum di
+  `sistem.personal_access_tokens` (hash SHA-256, kemampuan `anjungan`, cabut lewat `TokenAnjungan --cabut`), pola yang sama dengan
+  `display_antrean`. Selaraskan PRD ke kode?
+  (b) Uji penerimaan 2.20 butir 1 menyebut token anjungan membuka "dua endpoint"; kode dan openapi v0.30.0 membuka tiga (`GET /anjungan`
+  untuk konfigurasi + tanda online FR-01-30). Ubah rumusan jadi "endpoint `/anjungan/*`"?
+  (c) Token kios yang bocor bisa dipakai dari internet: tanpa ikatan jaringan RS, `POST nomor-loket` ikut kuota 30/menit per perangkat,
+  dan nomor `P-` selalu didahulukan, jadi antrean loket bisa dibanjiri atau diserobot. Pilihan sebelum pilot: batasi `/anjungan/*` ke
+  `autentikasi.mfa.jaringan_rs` atau daftar IP per perangkat, limiter `nomor-loket` lebih ketat, dan/atau token berkedaluwarsa + rotasi.
+  Aturan jaringan/kedaluwarsa belum ada di PRD.
 
 ## Kerangka tahap berikutnya (dirinci kemudian)
 - **C — Penunjang, IGD, rawat inap**: lab/radiologi + hasil mengikuti pasien, telaah resep & depo (+ obat kronis 7 + 23, racikan, mode farmasi APM), IGD + triase + papan (Reverb), rujukan, surat kontrol, admisi RI dari peta TT, SPRI, pemulangan, gelang, verifikasi DPJP dan TBaK.
