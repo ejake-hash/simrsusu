@@ -137,7 +137,7 @@ const adaFilter = computed(() => Boolean(profesi.value || tatanan.value))
       <p v-if="kueri.isPending.value" class="ket" role="status">Memuat linimasa CPPT…</p>
       <Pesan v-else-if="kueri.isError.value" jenis="error">
         Linimasa tidak dapat dimuat: {{ pesanError(kueri.error.value) }}
-        <Tombol v-if="ditolak && bisaDarurat" varian="utama" @click="dialogDarurat = true">Buka akses darurat</Tombol>
+        <Tombol v-if="ditolak && bisaDarurat && !aksesAktif" varian="utama" @click="dialogDarurat = true">Buka akses darurat</Tombol>
         <Tombol v-else varian="tautan" @click="kueri.refetch()">Coba lagi</Tombol>
       </Pesan>
       <KeadaanKosong
@@ -195,7 +195,7 @@ const adaFilter = computed(() => Boolean(profesi.value || tatanan.value))
 .pesan-aktif:focus {
   outline: none;
   box-shadow: var(--ring);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-input);
 }
 .terbatas {
   display: flex;

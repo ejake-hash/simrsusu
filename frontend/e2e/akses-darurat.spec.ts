@@ -95,6 +95,8 @@ test('dokter tanpa izin label melihat Terbatas, membuka akses darurat, lalu isin
 
   await expect(page.getByText(/Akses darurat terbuka/)).toBeVisible()
   await expect(cppt).toContainText(/Akses darurat aktif sampai/)
+  // Tawaran hilang sesudah akses terbuka; fokus pindah ke pesan aktif, bukan jatuh ke body.
+  await expect(cppt.locator('.pesan-aktif')).toBeFocused()
   await expect(cppt).toContainText(isiRahasia)
   expect(await pelanggaranAxe(page)).toEqual([])
   await konteks.close()
