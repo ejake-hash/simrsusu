@@ -8,17 +8,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * Kunjungan poli (PRD 7.00.2; tiket 2.6, kontrak v0.20.0). Tidak dihapus: batal = status beserta alasan dan pelaku.
+ * Kunjungan poli dan IGD (PRD 7.00.2; tiket 2.6, 2.23). Tidak dihapus: batal = status beserta alasan dan pelaku.
+ * Jadwal, poli, dan dokter hanya kosong untuk IGD (CHECK kunjungan_jenis_cek).
  *
  * @property string $id
  * @property string $nomor
  * @property string $pasien_id
  * @property string $episode_id
- * @property string $jenis_kunjungan
- * @property string $jadwal_praktik_id
- * @property string $poli_id
- * @property string $pegawai_id
+ * @property string $jenis_kunjungan poliklinik | igd
+ * @property string|null $jadwal_praktik_id
+ * @property string|null $poli_id
+ * @property string|null $pegawai_id
  * @property Carbon $tanggal
+ * @property Carbon|null $tiba_pada jam tiba IGD (jam server)
  * @property string $cara_bayar jkn | non_jkn
  * @property string|null $penjamin_id
  * @property string $status terdaftar | dilayani | selesai | batal
@@ -43,6 +45,16 @@ final class Kunjungan extends Model
 
     public const STATUS = ['terdaftar', 'dilayani', 'selesai', 'batal'];
 
+    public const POLIKLINIK = 'poliklinik';
+
+    public const IGD = 'igd';
+
+    /** Masih di IGD: belum selesai (disposisi) dan tidak batal. */
+    public const STATUS_AKTIF = ['terdaftar', 'dilayani'];
+
+    /** 7.00.2: IGD < 6 jam = rawat jalan harian; lewat dari itu ditandai (FR-00-06). */
+    public const BATAS_JAM_IGD = 6;
+
     protected $table = 'kunjungan.kunjungan';
 
     protected $guarded = ['id'];
@@ -51,7 +63,15 @@ final class Kunjungan extends Model
 
     protected function casts(): array
     {
-        return ['tanggal' => 'date', 'dibatalkan_pada' => 'datetime', 'revisi' => 'integer'];
+        return ['tanggal' => 'date', 'tiba_pada' => 'datetime', 'dibatalkan_pada' => 'datetime', 'revisi' => 'integer'];
+    }
+
+    /** Kunjungan IGD aktif yang sudah melewati 6 jam sejak tiba (tanda turunan; episode belum dipindah, tiket 2.26). */
+    public function lebihEnamJam(): bool
+    {
+        return $this->jenis_kunjungan === self::IGD && $this->tiba_pada !== null
+            && in_array($this->status, self::STATUS_AKTIF, true)
+            && now()->greaterThan($this->tiba_pada->copy()->addHours(self::BATAS_JAM_IGD));
     }
 
     /** @return BelongsTo<Pasien, $this> */

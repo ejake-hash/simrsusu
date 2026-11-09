@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.30.0
+  version: 0.31.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -150,6 +150,10 @@ info:
     v0.30.0: Anjungan (APM) tahap 1 (tiket 2.20; FR-01-23, FR-01-26, FR-01-28, FR-02-01, FR-02-07, PRD 7.01.1): GET /anjungan,
     POST /anjungan/nomor-loket, GET /anjungan/jadwal-praktik dengan token perangkat berkemampuan `anjungan` (bukan sesi petugas,
     tanpa data pasien). GET /antrean menerima `titik=loket` tanpa `poli_id`; nomor prioritas `P-` didahulukan dari `A-`.
+    v0.31.0: Kunjungan IGD (tiket 2.23; FR-03-01, FR-00-01, 7.00.2 baris 1): POST /kunjungan-igd (isian minimal, jam tiba = jam
+    server, episode rawat jalan harian hari tiba), GET /kunjungan-igd (IGD aktif, urut jam tiba). Sub-menu baru `igd.pendaftaran`
+    (lihat, input). Skema `Kunjungan`: field opsional `tiba_pada`, `lebih_6_jam`; `poliklinik` boleh null (IGD). Error baru: 409
+    `kunjungan_igd_aktif`.
 servers:
   - url: /api/v1
 security:
@@ -5478,6 +5482,69 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /kunjungan-igd:
+    get:
+      operationId: daftarKunjunganIgd
+      summary: Daftar kunjungan IGD (bawaan yang masih di IGD), urut jam tiba (paginasi kursor)
+      description: |
+        Izin: igd.pendaftaran.lihat. Bawaan: kunjungan IGD berstatus `terdaftar` atau `dilayani`; `status` menyaring satu
+        status (mis. `selesai`, `batal`). Urut jam tiba terlama dulu; kursor keyset `(tiba_pada, id)` (14.1.1). Ringkasan
+        pasien sama dengan /kunjungan (dua penanda identitas; NIK dan alamat tidak dikirim). Dipakai papan IGD (tiket 2.25).
+      parameters:
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/StatusKunjungan' } }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman kunjungan IGD (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Kunjungan' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatKunjunganIgd
+      summary: Registrasi cepat IGD (isian minimal; jam tiba = jam server)
+      description: |
+        Izin: igd.pendaftaran.input (FR-03-01). Pasien dipilih dari pencarian pasien yang ada (tiket 2.5); identitas
+        dilengkapi kemudian lewat PATCH /pasien/{id}. Tanpa jadwal praktik, poli, dan dokter: `poliklinik` dan `dokter`
+        di respons bernilai null. `tiba_pada` = jam server saat registrasi, bukan isian. Server memasukkan kunjungan ke
+        episode rawat jalan harian pasien pada tanggal tiba (zona RS) bila ada, selain itu membentuk yang baru (7.00.2
+        baris 1), dan menerbitkan event `KunjunganIgdDibuat` (bukan `KunjunganDibuat`: tidak membuat antrean poli maupun
+        task antrean). Nomor kunjungan `IGD-YYYYMMDD-NNNN` dari penghitung yang sama dengan nomor poli. Episode "IGD > 6 jam"
+        belum dibentuk; respons memuat tanda `lebih_6_jam`. Pembatalan lewat POST /kunjungan/{id}/batal; SEP IGD menyusul.
+        - 409 `kunjungan_igd_aktif`: pasien masih punya kunjungan IGD `terdaftar`/`dilayani`; `rincian` = `[{kunjungan_id}]`.
+        - 409 `pasien_digabung`: No. RM sudah digabung ke RM lain.
+        - 409 `instalasi_belum_siap`: langkah 1–6 penyiapan instalasi (FR-54-08) belum lengkap.
+        - 422 `penjamin_wajib` / `penjamin_tidak_sesuai`: sama dengan POST /kunjungan.
+        - 404 bila `pasien_id` tidak ada.
+        Audit `kunjungan.dibuat` (nomor, jenis, jam tiba, episode; tanpa identitas pasien dan tanpa keluhan).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianKunjunganIgd' }
+      responses:
+        '201':
+          description: Kunjungan IGD terdaftar
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Kunjungan' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   # ---------------------------------------------------------------------------
   # Kepesertaan, rujukan, SEP (tiket 2.7; PRD FR-01-07, FR-01-08, FR-01-10, FR-50-01, UC-01, aturan bisnis 7.01 "SEP tidak
   # bisa terbit bila rujukan kedaluwarsa kecuali IGD"). Semua panggilan VClaim lewat gateway 1.9 (`bpjs_vclaim`, lingkungan
@@ -9104,7 +9171,7 @@ components:
     JenisKunjungan:
       type: string
       enum: [poliklinik, igd, rawat_inap_elektif, penunjang_langsung, mcu, terjadwal_rutin, telekonsultasi, kemoterapi_sehari]
-      description: "FR-01-06. Tahap ini hanya `poliklinik` diterima; lainnya → 422 `jenis_belum_didukung`."
+      description: "FR-01-06. POST /kunjungan hanya menerima `poliklinik` (lainnya → 422 `jenis_belum_didukung`); `igd` didaftarkan lewat POST /kunjungan-igd (v0.31.0)."
     CaraBayar:
       type: string
       enum: [jkn, non_jkn]
@@ -9141,6 +9208,15 @@ components:
         cara_bayar: { $ref: '#/components/schemas/CaraBayar' }
         penjamin_id: { type: [string, 'null'], format: uuid, description: "Wajib bila cara_bayar = jkn (penjamin jenis bpjs); null untuk non_jkn tanpa penjamin tetap" }
         keluhan: { type: [string, 'null'], maxLength: 500, description: "Keluhan awal/alasan kunjungan (opsional); bukan diagnosis" }
+    IsianKunjunganIgd:
+      type: object
+      description: "Isian minimal registrasi cepat IGD (FR-03-01, tiket 2.23). Jam tiba tidak diisi: jam server."
+      required: [pasien_id, cara_bayar]
+      properties:
+        pasien_id: { type: string, format: uuid, description: "Pasien dari pencarian 2.5 atau pasien baru; identitas boleh dilengkapi kemudian" }
+        cara_bayar: { $ref: '#/components/schemas/CaraBayar' }
+        penjamin_id: { type: [string, 'null'], format: uuid, description: "Wajib bila cara_bayar = jkn (penjamin jenis bpjs)" }
+        keluhan: { type: [string, 'null'], maxLength: 1000, description: "Keluhan utama saat tiba (opsional, klinis; tidak masuk log/audit)" }
     Kunjungan:
       type: object
       required: [id, nomor, pasien, episode, jenis_kunjungan, poliklinik, dokter, tanggal, cara_bayar, penjamin, status,
@@ -9152,14 +9228,17 @@ components:
         episode: { $ref: '#/components/schemas/RingkasEpisode' }
         jenis_kunjungan: { $ref: '#/components/schemas/JenisKunjungan' }
         poliklinik:
-          type: object
+          type: [object, 'null']
+          description: "null untuk kunjungan IGD (tanpa poli, v0.31.0)"
           required: [id, kode, nama]
           properties:
             id: { type: string, format: uuid }
             kode: { type: string }
             nama: { type: string }
-        dokter: { $ref: '#/components/schemas/RingkasPegawai' }
-        tanggal: { type: string, format: date }
+        dokter: { $ref: '#/components/schemas/RingkasPegawai', description: "Dokter jadwal; null untuk kunjungan IGD (dokter belum ditetapkan saat registrasi)" }
+        tanggal: { type: string, format: date, description: "Tanggal kunjungan (zona RS); IGD = tanggal tiba" }
+        tiba_pada: { type: [string, 'null'], format: date-time, description: "Jam tiba IGD = jam server saat registrasi; null untuk poliklinik (v0.31.0)" }
+        lebih_6_jam: { type: boolean, description: "Kunjungan IGD masih terdaftar/dilayani dan sudah lebih dari 6 jam sejak tiba (7.00.2, FR-00-06); selalu false untuk poliklinik (v0.31.0)" }
         cara_bayar: { $ref: '#/components/schemas/CaraBayar' }
         penjamin:
           description: "null = tanpa penjamin tetap (umum tunai)"

@@ -13,6 +13,7 @@ use App\Modules\MasterData\Models\JadwalPraktik;
 use App\Modules\MasterData\Models\Penjamin;
 use App\Modules\Pendaftaran\Events\KunjunganDibatalkan;
 use App\Modules\Pendaftaran\Events\KunjunganDibuat;
+use App\Modules\Pendaftaran\Events\KunjunganIgdDibuat;
 use App\Modules\Pendaftaran\Models\Episode;
 use App\Modules\Pendaftaran\Models\Kunjungan;
 use App\Modules\Pendaftaran\Models\Pasien;
@@ -91,6 +92,51 @@ final class KelolaKunjungan
                 'nomor' => $kunjungan->nomor, 'poli_id' => $jadwal->poli_id, 'pegawai_id' => $jadwal->pegawai_id,
                 'jadwal_praktik_id' => $jadwal->id, 'tanggal' => $tanggal, 'cara_bayar' => $caraBayar,
                 'episode_id' => $episode->id, 'episode_baru' => $episodeBaru, 'relasi_perawatan_id' => $relasiId,
+            ]);
+
+            return $kunjungan;
+        });
+    }
+
+    /**
+     * Registrasi cepat IGD (tiket 2.23, FR-03-01): tanpa jadwal dan dokter, jam tiba = jam server. Masuk episode rawat
+     * jalan harian pasien pada tanggal tiba (zona RS) bila ada, selain itu membentuk yang baru (7.00.2 baris 1). Dokter
+     * IGD belum diketahui saat registrasi, jadi belum ada relasi perawatan. Tidak membuat antrean poli.
+     *
+     * @param  array<string, mixed>  $isi  sudah divalidasi bentuknya
+     */
+    public function daftarIgd(Pengguna $petugas, array $isi): Kunjungan
+    {
+        KelolaPasien::pastikanSiapMelayani($this->instalasi);
+
+        return DB::transaction(function () use ($petugas, $isi) {
+            $pasien = Pasien::query()->whereKey($isi['pasien_id'])->lockForUpdate()->first()
+                ?? throw new ApiError(404, 'tidak_ditemukan', 'Pasien tidak ditemukan.');
+            if ($pasien->digabung_ke_id !== null) {
+                throw new ApiError(409, 'pasien_digabung', 'No. RM ini sudah digabung ke RM lain. Daftarkan kunjungan di RM tujuan.');
+            }
+            $caraBayar = (string) $isi['cara_bayar'];
+            $penjaminId = $this->periksaPenjamin($caraBayar, $isi['penjamin_id'] ?? null);
+            $aktif = Kunjungan::query()->where('pasien_id', $pasien->id)->where('jenis_kunjungan', Kunjungan::IGD)
+                ->whereIn('status', Kunjungan::STATUS_AKTIF)->value('id');
+            if ($aktif !== null) {
+                throw new ApiError(409, 'kunjungan_igd_aktif', 'Pasien masih tercatat di IGD. Lanjutkan kunjungan IGD yang aktif.', [['kunjungan_id' => $aktif]]);
+            }
+
+            $tiba = now();
+            $tanggal = $tiba->copy()->setTimezone((string) config('instalasi.zona_waktu'))->toDateString();
+            [$episode, $episodeBaru] = $this->episodeHarian($pasien, $tanggal, $petugas->id);
+            $kunjungan = new Kunjungan;
+            $kunjungan->forceFill([
+                'nomor' => $this->nomorBaru($tanggal, 'IGD'), 'pasien_id' => $pasien->id, 'episode_id' => $episode->id,
+                'jenis_kunjungan' => Kunjungan::IGD, 'tanggal' => $tanggal, 'tiba_pada' => $tiba, 'cara_bayar' => $caraBayar,
+                'penjamin_id' => $penjaminId, 'keluhan' => $isi['keluhan'] ?? null, 'dibuat_oleh' => $petugas->id, 'diubah_oleh' => $petugas->id,
+            ])->save();
+
+            KunjunganIgdDibuat::dispatch($kunjungan->id, $pasien->id, $episode->id, $tiba->toIso8601String(), $caraBayar);
+            $this->audit->catat('kunjungan.dibuat', $petugas->id, $kunjungan->getTable(), $kunjungan->id, [
+                'nomor' => $kunjungan->nomor, 'jenis_kunjungan' => Kunjungan::IGD, 'tanggal' => $tanggal,
+                'tiba_pada' => $tiba->toIso8601String(), 'cara_bayar' => $caraBayar, 'episode_id' => $episode->id, 'episode_baru' => $episodeBaru,
             ]);
 
             return $kunjungan;
@@ -306,11 +352,12 @@ final class KelolaKunjungan
         return [$baru, true];
     }
 
-    private function nomorBaru(string $tanggal): string
+    /** Asumsi (2.23): poli dan IGD berbagi satu penghitung per tanggal; awalan membedakan pos (RJ-/IGD-). */
+    private function nomorBaru(string $tanggal, string $awalan = 'RJ'): string
     {
         $urut = DB::selectOne('INSERT INTO kunjungan.nomor_kunjungan (tanggal, terakhir) VALUES (?, 1)
             ON CONFLICT (tanggal) DO UPDATE SET terakhir = kunjungan.nomor_kunjungan.terakhir + 1 RETURNING terakhir', [$tanggal])->terakhir;
 
-        return sprintf('RJ-%s-%04d', str_replace('-', '', $tanggal), $urut);
+        return sprintf('%s-%s-%04d', $awalan, str_replace('-', '', $tanggal), $urut);
     }
 }
