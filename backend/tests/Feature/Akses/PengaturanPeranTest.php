@@ -71,7 +71,7 @@ class PengaturanPeranTest extends TestCase
         $this->assertTrue($node['modul_aktif']);
         $this->assertSame(['pengaturan.peran.input', 'pengaturan.peran.lihat', 'pengaturan.peran.perbaiki'], array_column($node['izin'], 'kode'));
         // Modul yang belum tersedia tetap dikirim agar peran bisa disiapkan; node nonaktif tidak.
-        $this->assertFalse($this->cariNode($respons->json('data.grup'), 'igd.papan')['tersedia']);
+        $this->assertFalse($this->cariNode($respons->json('data.grup'), 'igd.rujukan')['tersedia']);
         $this->assertNull($this->cariNode($respons->json('data.grup'), 'igd.triase'));
         $this->assertNull($this->cariNode($respons->json('data.grup'), 'master_data.peran'));
     }

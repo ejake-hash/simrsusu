@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { artisan, halamanAdmisi, halamanAkun, headerTulis, pelanggaranAxe, php, SANDI, tungguJatahPenuh } from './bantu'
+import { artisan, halamanAdmisi, halamanAkun, headerTulis, pelanggaranAxe, php, SANDI, tanpaGulirSamping, tungguJatahPenuh } from './bantu'
 
 /**
  * 2.23-fe: Pendaftaran IGD ke backend asli @1440 px + axe. 2.24: Triase dan ulang triase pasien yang sama. Akun `perawat` (peran contoh_perawat: seluruh menu IGD, lihat
@@ -125,6 +125,51 @@ test('perawat mentriase pasien IGD lalu ulang triase; riwayat dua baris, yang te
   // Pendaftaran IGD ikut menampilkan triase berlaku.
   await page.goto('/igd/pendaftaran')
   await expect(page.getByRole('region', { name: 'Tabel pasien di IGD' }).getByRole('row', { name: new RegExp(nama) })).toContainText('Merah')
+  await page.context().close()
+})
+
+// 2.25: pasien uji masih di IGD dengan triase Merah (tes sebelumnya, serial). Area SINTETIS `CONTOH-*` dari
+// lokal:kunjungan-contoh. Papan dipakai di layar besar dan tablet: 1440 dan 1024 px tanpa gulir samping + axe.
+test('perawat melihat pasien di papan IGD dengan triase berlaku, menempatkannya di area, lalu menyaring per area', async ({ browser }, info) => {
+  test.setTimeout(120_000)
+  const asal = new URL(info.project.use.baseURL ?? '').origin
+  const page = await halamanAkun(browser, asal, 'perawat')
+  await tungguJatahPenuh(page.context().request, asal)
+  await page.goto('/igd/papan')
+  await expect(page.getByRole('heading', { level: 1, name: 'Papan pasien IGD' })).toBeVisible()
+
+  const tabel = page.getByRole('region', { name: 'Tabel papan pasien IGD' })
+  const baris = tabel.getByRole('row', { name: new RegExp(nama) })
+  await expect(baris).toContainText('Merah')
+  await expect(baris).toContainText(/No\. RM [\d.]+ · /)
+  await expect(baris).toContainText(/Menunggu dokter|Lewat batas tanggap/)
+  await expect(baris).toContainText(/Lama \d+ menit/)
+  expect(await pelanggaranAxe(page)).toEqual([])
+
+  const area = page.getByRole('combobox', { name: `Area ${nama}` })
+  await area.selectOption({ label: 'Observasi (contoh)' })
+  await page.getByRole('button', { name: `Tempatkan ${nama}` }).click()
+  await expect(page.getByText(`${nama} ditempatkan di Observasi (contoh).`)).toBeVisible()
+  await expect(page.getByRole('button', { name: `Tempatkan ${nama}` })).toHaveCount(0)
+  await expect(area).toHaveValue(/.+/)
+  await expect(area.locator('option:checked')).toHaveText('Observasi (contoh)')
+
+  await page.getByRole('combobox', { name: 'Area', exact: true }).selectOption({ label: 'Observasi (contoh)' })
+  await expect(page.getByRole('heading', { level: 2, name: 'Pasien di Observasi (contoh)' })).toBeVisible()
+  await expect(baris).toHaveCount(1)
+  await page.getByRole('combobox', { name: 'Area', exact: true }).selectOption({ label: 'Resusitasi (contoh)' })
+  await expect(baris).toHaveCount(0)
+  await page.getByRole('combobox', { name: 'Area', exact: true }).selectOption({ label: 'Semua area' })
+  await expect(baris).toHaveCount(1)
+  expect(await pelanggaranAxe(page)).toEqual([])
+
+  // Tablet: tanpa gulir samping halaman maupun tabel.
+  await page.setViewportSize({ width: 1024, height: 768 })
+  await expect(baris).toContainText('Merah')
+  await tanpaGulirSamping(page)
+  const [lebarTabel, lebarKotak] = await tabel.evaluate((el) => [el.scrollWidth, el.clientWidth])
+  expect(lebarTabel).toBeLessThanOrEqual(lebarKotak)
+  expect(await pelanggaranAxe(page)).toEqual([])
   await page.context().close()
 })
 

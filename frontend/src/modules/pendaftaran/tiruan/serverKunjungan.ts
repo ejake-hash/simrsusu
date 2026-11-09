@@ -1,4 +1,5 @@
 import type { PermintaanTiruan, ResponsTiruan } from '../../akses/tiruan/serverTiruan'
+import type { BarisPapanIgd, PenempatanAreaIgd, RingkasAreaIgd } from '../../igd/tipePapan'
 import type { KeterisianJadwal, RingkasPegawai } from '../../jadwal-praktik/tipe'
 import type {
   CaraBayar,
@@ -21,7 +22,9 @@ import type {
  * Server tiruan kontrak v0.20.0 (tiket 2.6) dan v0.31.0 (2.23: GET/POST /kunjungan-igd, IGD aktif per pasien satu, tanda
  * `lebih_6_jam` dari jam `sekarang`; pemindahan ke episode `igd_lebih_6_jam` tidak ditiru), dan v0.32.0 (2.24: triase
  * hanya ditambah, berlaku = terbaru; instrumen dari `instrumenTriase`; field `triase` di daftar IGD bagi pemegang
- * igd.triase.lihat), dan v0.33.0 (2.26: GET/POST /kunjungan/{id}/disposisi; tujuan dari `matriks`, SIP dari `sipBerlaku`).
+ * igd.triase.lihat), dan v0.33.0 (2.26: GET/POST /kunjungan/{id}/disposisi; tujuan dari `matriks`, SIP dari `sipBerlaku`),
+ * dan v0.34.0 (2.25: GET /igd/papan ber-ETag/304 dan PUT /kunjungan/{id}/area-igd; area dan batas dari `papanIgd`; saat
+ * dokter mulai mengisi asesmen awal ditiru lewat `tandaiAsesmenDokter`).
  * POST /kunjungan (episode rawat jalan harian terbentuk/digabung otomatis
  * dari No. RM + tanggal, 7.00.2), POST /kunjungan/{id}/batal (status batal, kuota dikembalikan), GET /kunjungan
  * (papan per poli per hari). Kuota dipinjam dari server jadwal (tiket 2.4) lewat `konsumsi`, jadi sisa di layar jadwal
@@ -75,7 +78,25 @@ export interface OpsiServerKunjungan {
   matriks?: { berlaku: (asal: 'igd', tujuan: string) => { id: string; pos_asal: string; pos_tujuan: string; izin_perintah: string } | null }
   /** SIP/SPK akun berlaku hari ini (lapis 5, izin klinis). Bawaan: berlaku. */
   sipBerlaku?: () => boolean
+  /** Area dan batas waktu papan IGD dari data induk (v0.34.0, server papan-igd). Bawaan: tanpa area, batas 5 menit, ambang kosong. */
+  papanIgd?: {
+    areaAktif: () => RingkasAreaIgd[]
+    area: (id: string) => RingkasAreaIgd | null
+    aturan: () => { batas_tanggap_menit: number; peringatan_lama_igd_menit: number | null }
+  }
 }
+
+/** Sidik sederhana (FNV-1a) isi JSON untuk ETag tiruan papan IGD. */
+function sidik(isi: unknown): string {
+  let h = 0x811c9dc5
+  for (const c of JSON.stringify(isi)) {
+    h ^= c.charCodeAt(0)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  return `"${h.toString(16)}"`
+}
+const URUT_TRIASE: Record<KategoriTriase, number> = { merah: 1, kuning: 2, hijau: 3, hitam: 4 }
+const MAKS_PAPAN = 200
 
 const TUJUAN_DISPOSISI: readonly TujuanDisposisi[] = ['pulang', 'rawat_inap', 'kamar_operasi', 'rujuk_keluar', 'aps', 'meninggal', 'doa']
 /** Pos tujuan matriks yang bukan disposisi FR-03-09 (konsul, order, rawat inap). */
@@ -355,6 +376,73 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
     return { status: 201, header: NO_STORE, isi: { data: d } }
   }
 
+  // ── Papan IGD (v0.34.0) ──
+  const penempatan = new Map<string, { area_id: string; ditempatkan_pada: string; oleh: Pelaku }>()
+  /** Saat dokter mulai mengisi asesmen awal IGD per kunjungan (asesmen IGD belum ditiru). */
+  const asesmenDokter = new Map<string, string>()
+  const aturanPapan = () => opsi.papanIgd?.aturan() ?? { batas_tanggap_menit: 5, peringatan_lama_igd_menit: null }
+  /** Menit dibulatkan ke atas; tanda dibandingkan per detik (kontrak). */
+  const menitAtas = (ms: number) => Math.max(0, Math.ceil(ms / 60_000))
+
+  function barisPapan(k: KunjunganT): BarisPapanIgd {
+    const atur = aturanPapan()
+    const kini = sekarang().getTime()
+    const tiba = new Date(k.tiba_pada ?? iso()).getTime()
+    const lama = kini - tiba
+    const t = riwayatTriase(k.id)[0]
+    const tempat = penempatan.get(k.id)
+    const asesmen = asesmenDokter.get(k.id) ?? null
+    const batasMs = atur.batas_tanggap_menit * 60_000
+    const tandaLama = lama > ENAM_JAM ? 'lebih_6_jam' : atur.peringatan_lama_igd_menit !== null && ENAM_JAM - lama <= atur.peringatan_lama_igd_menit * 60_000 ? 'mendekati_6_jam' : 'aman'
+    const tunggu = [...disposisi].reverse().find((d) => d.kunjungan_id === k.id && d.status !== 'selesai')
+    return {
+      kunjungan_id: k.id, nomor: k.nomor, status: k.status as 'terdaftar' | 'dilayani', pasien: k.pasien,
+      keluhan: t?.keluhan ?? k.keluhan,
+      triase: t ? { kategori: t.kategori, ditriase_pada: t.ditriase_pada } : null,
+      area: tempat ? (opsi.papanIgd?.area(tempat.area_id) ?? null) : null,
+      tiba_pada: k.tiba_pada ?? iso(), lama_di_igd_menit: menitAtas(lama), tanda_lama_igd: tandaLama, lebih_6_jam: lebih6Jam(k),
+      tanggap: asesmen === null
+        ? { asesmen_dokter_pada: null, menit: null, menunggu_asesmen: true, tanda: lama <= batasMs ? 'menunggu' : 'lewat_batas' }
+        : { asesmen_dokter_pada: asesmen, menit: menitAtas(new Date(asesmen).getTime() - tiba), menunggu_asesmen: false, tanda: new Date(asesmen).getTime() - tiba <= batasMs ? 'tercapai' : 'terlambat' },
+      disposisi_menunggu: tunggu ? { status: tunggu.status as 'menunggu_kamar' | 'menunggu_kamar_operasi', sejak: tunggu.diputuskan_pada } : null,
+    }
+  }
+
+  function papan(r: PermintaanTiruan): ResponsTiruan {
+    if (!opsi.boleh('igd.papan.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak melihat papan pasien IGD.')
+    const areaId = r.kueri.get('area_id')
+    const urut = (k: KunjunganT) => {
+      const t = riwayatTriase(k.id)[0]
+      return t ? URUT_TRIASE[t.kategori] : 0
+    }
+    const semua = daftar
+      .filter((k) => k.jenis === 'igd' && aktif(k) && (!areaId || penempatan.get(k.id)?.area_id === areaId))
+      .sort((a, b) => urut(a) - urut(b) || (a.tiba_pada ?? '').localeCompare(b.tiba_pada ?? '') || a.id.localeCompare(b.id))
+    const atur = aturanPapan()
+    const isi = {
+      data: semua.slice(0, MAKS_PAPAN).map(barisPapan),
+      meta: { area: opsi.papanIgd?.areaAktif() ?? [], aturan: { batas_tanggap_menit: atur.batas_tanggap_menit, batas_lama_igd_menit: 360, peringatan_lama_igd_menit: atur.peringatan_lama_igd_menit }, terpotong: semua.length > MAKS_PAPAN },
+    }
+    const e = sidik(isi)
+    if (r.header['if-none-match'] === e) return { status: 304, header: { ...NO_STORE, ETag: e }, isi: null }
+    return { status: 200, header: { ...NO_STORE, ETag: e }, isi: { data: isi.data, meta: { ...isi.meta, waktu_server: iso() } } }
+  }
+
+  function tempatkan(k: KunjunganT | undefined, isi: Record<string, unknown>): ResponsTiruan {
+    const areaId = typeof isi.area_igd_id === 'string' ? isi.area_igd_id : ''
+    const area = opsi.papanIgd?.areaAktif().find((a) => a.id === areaId) ?? null
+    if (!area) return validasi('area_igd_id', 'Pilih area IGD yang aktif.')
+    if (!k) return error(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.')
+    if (k.jenis !== 'igd' || !aktif(k)) {
+      return error(409, 'status_tidak_sesuai', 'Penempatan hanya untuk kunjungan IGD yang masih terdaftar atau dilayani.', [{ jenis_kunjungan: k.jenis, status: k.status }])
+    }
+    const lama = penempatan.get(k.id)
+    if (!lama || lama.area_id !== area.id) penempatan.set(k.id, { area_id: area.id, ditempatkan_pada: iso(), oleh: opsi.pelaku() })
+    const kini = penempatan.get(k.id)!
+    const data: PenempatanAreaIgd = { kunjungan_id: k.id, area, ditempatkan_pada: kini.ditempatkan_pada, ditempatkan_oleh: kini.oleh }
+    return { status: 200, header: NO_STORE, isi: { data } }
+  }
+
   function batal(k: KunjunganT, isi: Record<string, unknown>): ResponsTiruan {
     if (k.status === 'batal') return error(409, 'sudah_batal', 'Kunjungan sudah dibatalkan.')
     if (k.status !== 'terdaftar') return error(409, 'sudah_dilayani', 'Pelayanan klinis sudah dimulai; kunjungan tidak dapat dibatalkan.')
@@ -401,8 +489,14 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
       if (!opsi.boleh('igd.triase.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak melihat instrumen triase.')
       return { status: 200, header: NO_STORE, isi: { data: [...instrumenAktif()].sort((a, b) => a.kode.localeCompare(b.kode)) } }
     }
+    if (bagian[0] === 'igd' && bagian[1] === 'papan' && !bagian[2] && metode === 'GET') return papan(r)
     if (bagian[0] !== 'kunjungan') return null
     const id = bagian[1]
+
+    if (id && bagian[2] === 'area-igd' && !bagian[3] && metode === 'PUT') {
+      if (!opsi.boleh('igd.papan.input')) return error(403, 'akses_ditolak', 'Anda tidak berhak menempatkan pasien IGD.')
+      return tempatkan(daftar.find((x) => x.id === id), (r.isi ?? {}) as Record<string, unknown>)
+    }
 
     if (id && bagian[2] === 'triase' && !bagian[3]) {
       if (metode !== 'GET' && metode !== 'POST') return null
@@ -463,7 +557,12 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
     return null
   }
 
-  return { tangani }
+  /** Tiruan "dokter mulai mengisi asesmen awal IGD" (asesmen IGD belum ada di server tiruan); hanya yang pertama dihitung. */
+  function tandaiAsesmenDokter(kunjunganId: string, pada: Date = sekarang()) {
+    if (!asesmenDokter.has(kunjunganId)) asesmenDokter.set(kunjunganId, pada.toISOString())
+  }
+
+  return { tangani, tandaiAsesmenDokter }
 }
 
 export type ServerKunjungan = ReturnType<typeof buatServerKunjungan>

@@ -5,9 +5,10 @@ import { defineConfig, devices } from '@playwright/test'
  * terpisah dan sudah di-seed AkunSintetisSeeder dengan AKUN_SINTETIS_SANDI = E2E_SANDI;
  * Vite dev server di bawah memproksi /api dan /sanctum ke SIMRS_API_URL.
  */
-const LAYAR_FASE2 = /(penjamin|buku-tarif|jadwal-praktik|gabung-rm|formularium|instrumen-triase|matriks-perpindahan)\.spec\.ts/
+const LAYAR_FASE2 = /(penjamin|buku-tarif|jadwal-praktik|gabung-rm|formularium|instrumen-triase|matriks-perpindahan|papan-igd)\.spec\.ts/
 /** Spec yang punya proyek berurutan sendiri; desktop/seluler mengabaikannya. */
-const LAYAR_FASE2_ATAU_BERURUTAN = [/(pengaturan|fase1|pendaftaran|antrean|rawat-jalan|akses-darurat|anjungan|igd)\.spec\.ts/, LAYAR_FASE2]
+// Garis miring di depan: `papan-igd.spec.ts` (fase2) tidak ikut tertangkap pola `igd.spec.ts`.
+const LAYAR_FASE2_ATAU_BERURUTAN = [/\/(pengaturan|fase1|pendaftaran|antrean|rawat-jalan|akses-darurat|anjungan|igd)\.spec\.ts/, LAYAR_FASE2]
 const port = Number(process.env.E2E_PORT ?? 5173)
 const baseURL = `http://localhost:${port}`
 
@@ -50,7 +51,7 @@ export default defineConfig({
     // 2.20-fe: kios anjungan (token perangkat) + antrean loket petugas; memakai data contoh dan menandai siap melayani.
     { name: 'anjungan', testMatch: /anjungan\.spec\.ts/, dependencies: ['akses-darurat'], workers: 1, use: { ...devices['Desktop Chrome'] } },
     // 2.23-fe: Pendaftaran IGD (perawat); memakai data contoh dan menandai siap melayani, jadi sesudah anjungan.
-    { name: 'igd', testMatch: /igd\.spec\.ts/, dependencies: ['anjungan'], workers: 1, use: { ...devices['Desktop Chrome'] } },
+    { name: 'igd', testMatch: /\/igd\.spec\.ts/, dependencies: ['anjungan'], workers: 1, use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
     command: `npm run dev -- --port ${port} --strictPort`,
