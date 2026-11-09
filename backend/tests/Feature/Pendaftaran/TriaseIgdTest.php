@@ -62,7 +62,8 @@ class TriaseIgdTest extends TestCase
         $audit = $this->assertAuditTerakhir('kunjungan.ditriase', (string) $pertama->json('data.id'));
         $this->assertSame($this->perawat->id, $audit->pengguna_id);
         $sesudah = json_decode((string) $audit->sesudah, true);
-        $this->assertSame(['kunjungan_id' => $kunjungan, 'kategori' => 'kuning', 'ulang' => false], array_intersect_key($sesudah, array_flip(['kunjungan_id', 'kategori', 'ulang'])));
+        // jsonb tidak menjaga urutan kunci: bandingkan per kunci.
+        $this->assertSame([$kunjungan, 'kuning', false], [$sesudah['kunjungan_id'] ?? null, $sesudah['kategori'] ?? null, $sesudah['ulang'] ?? null]);
         $this->assertStringNotContainsString('Nyeri dada', (string) $audit->sesudah);
         $this->assertStringNotContainsString($pasien->nama, (string) $audit->sesudah);
 
