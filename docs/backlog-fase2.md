@@ -253,6 +253,8 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
   - `POST nomor-loket` tidak idempoten (ketuk dua kali = dua nomor): `Idempotency-Key` per sesi layar, bisa bersama 2.20-fe.
   - PRD 7.01.1 "jejak audit per sesi": `sesi_anjungan` hanya mencatat nomor loket, penelusuran jadwal tidak tercatat. Asumsi tahap 1:
     cukup, karena tanpa data pasien.
+- Tinjauan 2.20-fe (9 Nov 2026), saran yang belum dikerjakan: tombol kios yang dinonaktifkan saat `sibuk` (`AnjunganPage.vue`) kehilangan
+  fokus ke body bagi pengguna keyboard; pakai `aria-disabled` + penjaga di handler. Kios utamanya layar sentuh, jadi kecil.
 
 ## Tahap B — tiket (rawat jalan + RME)
 

@@ -208,7 +208,7 @@ onBeforeUnmount(() => {
         <button v-for="(label, kunci) in LABEL_ALASAN_PRIORITAS" :key="kunci" type="button" class="tombol-kios" :disabled="sibuk" @click="ambil(kunci)">{{ label }}</button>
       </div>
       <p v-if="galat" class="galat" role="alert">{{ galat }}</p>
-      <div class="bawah"><button type="button" class="tombol-kios kedua" @click="pindah('jenis')">Kembali</button></div>
+      <div class="bawah"><button type="button" class="tombol-kios kedua" :disabled="sibuk" @click="pindah('jenis')">Kembali</button></div>
     </section>
 
     <section v-else-if="layar === 'struk' && tiket" class="isi" aria-labelledby="judul-layar">
