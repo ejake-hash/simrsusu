@@ -8,7 +8,7 @@ use App\Core\Http\SuntinganBerversi;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\MasterData\Models\TarifVersi;
-use App\Modules\Pendaftaran\Models\Kunjungan;
+use App\Modules\Pendaftaran\Application\KunciKunjungan;
 use App\Modules\RekamMedis\Events\PermintaanPemeriksaanDibuat;
 use App\Modules\RekamMedis\Models\PermintaanPemeriksaan;
 use Illuminate\Support\Carbon;
@@ -36,12 +36,11 @@ final class KelolaPermintaanPemeriksaan
         $versi = $this->versiBerlaku($tarifId, $isian['jenis']);
 
         return DB::transaction(function () use ($oleh, $kunjunganId, $isian, $tarifId, $versi) {
-            $k = Kunjungan::query()->whereKey($kunjunganId)->lockForUpdate()->first()
-                ?? throw new ApiError(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.');
+            // Pasien lalu kunjungan, urutan pendaftaran dan BentukEpisodeIgd (tinjauan #191): kunci pasien juga menjaga cek order ganda.
+            $k = KunciKunjungan::pasienLaluKunjungan($kunjunganId) ?? throw new ApiError(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.');
             if ($k->status !== 'dilayani') {
                 throw new ApiError(409, 'status_tidak_sesuai', 'Order hanya bisa dibuat saat kunjungan sedang dilayani.', [['status' => $k->status]]);
             }
-            DB::table('pasien.pasien')->where('id', $k->pasien_id)->lockForUpdate()->value('id');
             if (($isian['alasan_ganda'] ?? null) === null) {
                 $ganda = $this->ganda($oleh, $k->pasien_id, $tarifId);
                 if ($ganda !== []) {

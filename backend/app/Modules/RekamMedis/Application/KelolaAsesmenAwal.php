@@ -8,6 +8,7 @@ use App\Core\Http\IfMatch;
 use App\Core\Instalasi\StatusInstalasi;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Pendaftaran\Application\KelolaPasien;
+use App\Modules\Pendaftaran\Application\KunciKunjungan;
 use App\Modules\RekamMedis\Events\AsesmenPerawatSelesai;
 use App\Modules\RekamMedis\Models\CatatanKlinis;
 use Illuminate\Database\QueryException;
@@ -40,7 +41,7 @@ final class KelolaAsesmenAwal
     public function __construct(private readonly CatatAktivitas $audit, private readonly StatusInstalasi $instalasi) {}
 
     /**
-     * @param  object{id: string, episode_id: string, pasien_id: string, status: string}  $kunjungan
+     * @param  object{id: string}  $kunjungan  hanya id yang dipakai; kolom lain dibaca ulang di bawah kunci
      * @param  array<string, mixed>  $isian
      */
     public function buat(Pengguna $penulis, object $kunjungan, string $unitId, array $isian): CatatanKlinis
@@ -51,17 +52,18 @@ final class KelolaAsesmenAwal
         }
 
         return DB::transaction(function () use ($penulis, $kunjungan, $unitId, $isian) {
-            $status = DB::table('kunjungan.kunjungan')->where('id', $kunjungan->id)->lockForUpdate()->value('status');
-            if (in_array($status, ['batal', 'selesai'], true)) {
-                throw new ApiError(409, 'status_tidak_sesuai', 'Kunjungan sudah batal atau selesai.', [['status' => $status]]);
+            // Episode dibaca dari baris terkunci: kunjungan IGD bisa dipindah episodenya sesudah controller membacanya.
+            $k = KunciKunjungan::pasienLaluKunjungan($kunjungan->id) ?? throw new ApiError(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.');
+            if (in_array($k->status, ['batal', 'selesai'], true)) {
+                throw new ApiError(409, 'status_tidak_sesuai', 'Kunjungan sudah batal atau selesai.', [['status' => $k->status]]);
             }
-            $ada = CatatanKlinis::query()->where('kunjungan_id', $kunjungan->id)->where('jenis', 'asesmen')->where('profesi', 'perawat')->value('id');
+            $ada = CatatanKlinis::query()->where('kunjungan_id', $k->id)->where('jenis', 'asesmen')->where('profesi', 'perawat')->value('id');
             if ($ada !== null) {
                 throw new ApiError(409, 'asesmen_sudah_ada', 'Kunjungan ini sudah punya asesmen awal.', [['id' => $ada]]);
             }
             $catatan = new CatatanKlinis([
-                'episode_id' => $kunjungan->episode_id, 'kunjungan_id' => $kunjungan->id, 'unit_id' => $unitId,
-                'pasien_id' => $kunjungan->pasien_id, 'penulis_id' => $penulis->id, 'profesi' => 'perawat', 'tatanan' => 'rj',
+                'episode_id' => $k->episode_id, 'kunjungan_id' => $k->id, 'unit_id' => $unitId,
+                'pasien_id' => $k->pasien_id, 'penulis_id' => $penulis->id, 'profesi' => 'perawat', 'tatanan' => 'rj',
                 'jenis' => 'asesmen', 'isi' => self::gabung([], $isian), 'label' => $isian['label'] ?? null,
                 'dibuat_oleh' => $penulis->id, 'diubah_oleh' => $penulis->id,
             ]);

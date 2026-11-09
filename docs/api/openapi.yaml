@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.31.0
+  version: 0.32.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -156,6 +156,13 @@ info:
     boleh null (IGD). `RingkasEpisode.jenis` + `igd_lebih_6_jam`: kunjungan IGD > 6 jam dipindah otomatis ke episode itu beserta
     aktivitasnya (keputusan pemilik 9 Nov 2026, menyimpang dari PRD 7.00.5 butir 1). Error baru: 409 `kunjungan_igd_aktif`; 422
     `jenis_belum_didukung` di POST /kunjungan/{id}/sep untuk kunjungan IGD.
+    v0.32.0: Triase IGD dan ulang triase (tiket 2.24; FR-03-02): POST dan GET /kunjungan/{id}/triase (hanya ditambah: ulang
+    triase = baris baru, triase berlaku = terbaru), GET /instrumen-triase (instrumen dan skala dari data induk RS). Sub-menu
+    `igd.triase` (lihat, input, perbaiki) mulai dipakai. GET /kunjungan-igd menerima igd.pendaftaran.lihat ATAU
+    igd.triase.lihat; skema `Kunjungan` + field opsional `triase` (triase berlaku, hanya di daftar IGD untuk pemegang
+    igd.triase.lihat). Penulis aktivitas kunjungan (POST /kunjungan/{id}/cppt, /asesmen-awal, /permintaan-pemeriksaan)
+    mengunci pasien lalu kunjungan dan membaca episode dari baris terkunci (tinjauan #191); No. RM yang digabung tepat di
+    antara keduanya → 409 `pasien_digabung` (ulangi).
 servers:
   - url: /api/v1
 security:
@@ -5489,9 +5496,12 @@ paths:
       operationId: daftarKunjunganIgd
       summary: Daftar kunjungan IGD (bawaan yang masih di IGD), urut jam tiba (paginasi kursor)
       description: |
-        Izin: igd.pendaftaran.lihat. Bawaan: kunjungan IGD berstatus `terdaftar` atau `dilayani`; `status` menyaring satu
+        Izin: igd.pendaftaran.lihat ATAU igd.triase.lihat (layar Triase, v0.32.0), cakupan rs. Bawaan: kunjungan IGD berstatus
+        `terdaftar` atau `dilayani`; `status` menyaring satu
         status (mis. `selesai`, `batal`). Urut jam tiba terlama dulu; kursor keyset `(tiba_pada, id)` (14.1.1). Ringkasan
         pasien sama dengan /kunjungan (dua penanda identitas; NIK dan alamat tidak dikirim). Dipakai papan IGD (tiket 2.25).
+        Field `triase` (triase berlaku: kategori + jam triase, null = belum ditriase) hanya dikirim bila akun memegang
+        igd.triase.lihat (v0.32.0); tanpa izin itu field tidak ada.
       parameters:
         - { in: query, name: status, schema: { $ref: '#/components/schemas/StatusKunjungan' } }
         - $ref: '#/components/parameters/Kursor'
@@ -5550,6 +5560,92 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/triase:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: daftarTriaseKunjungan
+      summary: Riwayat triase satu kunjungan (terbaru dulu; baris terbaru = triase berlaku)
+      description: |
+        Izin: igd.triase.lihat, cakupan rs. Kunjungan tidak ada → 404. Urut `(ditriase_pada, id)` terbaru dulu (kursor
+        keyset). Tepat satu baris (yang terbaru) bertanda `berlaku: true`, di halaman mana pun ia berada. Kunjungan tanpa
+        triase (termasuk kunjungan poliklinik) → daftar kosong.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman riwayat triase (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Triase' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: buatTriase
+      summary: Catat triase atau ulang triase (baris baru; jam server dan petugas dari sesi)
+      description: |
+        Izin: igd.triase.input, cakupan rs (FR-03-02). Hanya ditambah: ulang triase menambah baris baru dan tidak pernah
+        mengubah baris lama; triase berlaku = `ditriase_pada` terbaru. `ditriase_pada` = jam server, petugas = akun sesi.
+        Jam tiba tidak disalin: `tiba_pada` di respons dibaca dari kunjungan.
+        - `kategori` hanya empat warna FR-03-02.
+        - Instrumen dan skala dari data induk RS (GET /instrumen-triase); kode tidak memuat daftar instrumen, skala, atau
+          pemetaan skala ke kategori. Bila RS punya instrumen aktif, `instrumen_triase_id` wajib (422 `validasi_gagal`,
+          kolom `instrumen_triase_id`); instrumen tidak ada/nonaktif → 422 kolom `instrumen_triase_id`. Instrumen yang
+          punya daftar skala mewajibkan `skala` = salah satu `kode`-nya; instrumen tanpa skala dan isian tanpa instrumen
+          menolak `skala` (422 kolom `skala`).
+        - Kunjungan bukan IGD, atau IGD yang sudah `selesai`/`batal` → 409 `status_tidak_sesuai`, `rincian` =
+          `[{jenis_kunjungan, status}]`.
+        - 409 `pasien_digabung`: No. RM pasien digabung tepat saat triase disimpan; muat ulang lalu ulangi.
+        - 409 `instalasi_belum_siap`: penyiapan instalasi (FR-54-08) belum lengkap.
+        Baris pasien lalu kunjungan dikunci (urutan pendaftaran). Audit `kunjungan.ditriase` (id kunjungan, kategori,
+        instrumen, ulang atau bukan; tanpa keluhan dan tanpa identitas pasien).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianTriase' }
+      responses:
+        '201':
+          description: Triase tersimpan (selalu berlaku)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Triase' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /instrumen-triase:
+    get:
+      operationId: daftarInstrumenTriase
+      summary: Instrumen triase aktif dari data induk RS beserta skalanya
+      description: |
+        Izin: igd.triase.lihat, cakupan rs. Instrumen berstatus aktif, urut kode. Daftar pendek tanpa paginasi: paling
+        banyak 200 baris (batas tetap). Isinya ditetapkan RS (aturan Tahap C); produk tidak membawa instrumen bawaan.
+        Kosong = RS belum menetapkan instrumen; triase tetap bisa dicatat tanpa instrumen.
+      responses:
+        '200':
+          description: Instrumen aktif
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, maxItems: 200, items: { $ref: '#/components/schemas/InstrumenTriase' } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
   # ---------------------------------------------------------------------------
   # Kepesertaan, rujukan, SEP (tiket 2.7; PRD FR-01-07, FR-01-08, FR-01-10, FR-50-01, UC-01, aturan bisnis 7.01 "SEP tidak
   # bisa terbit bila rujukan kedaluwarsa kecuali IGD"). Semua panggilan VClaim lewat gateway 1.9 (`bpjs_vclaim`, lingkungan
@@ -9245,6 +9341,9 @@ components:
         tanggal: { type: string, format: date, description: "Tanggal kunjungan (zona RS); IGD = tanggal tiba" }
         tiba_pada: { type: [string, 'null'], format: date-time, description: "Jam tiba IGD = jam server saat registrasi; null untuk poliklinik (v0.31.0)" }
         lebih_6_jam: { type: boolean, description: "Kunjungan IGD masih terdaftar/dilayani dan sudah lebih dari 6 jam sejak tiba (7.00.2, FR-00-06); tetap true sesudah dipindah ke episode `igd_lebih_6_jam` sampai disposisi; selalu false untuk poliklinik (v0.31.0)" }
+        triase:
+          description: "Triase berlaku (terbaru); null = belum ditriase. Hanya di GET /kunjungan-igd untuk pemegang igd.triase.lihat; selain itu field tidak ada (v0.32.0)"
+          oneOf: [{ $ref: '#/components/schemas/RingkasTriase' }, { type: 'null' }]
         cara_bayar: { $ref: '#/components/schemas/CaraBayar' }
         penjamin:
           description: "null = tanpa penjamin tetap (umum tunai)"
@@ -9258,6 +9357,62 @@ components:
         versi: { type: string }
         dibuat_pada: { type: string, format: date-time }
         diubah_pada: { type: string, format: date-time }
+    KategoriTriase:
+      type: string
+      enum: [merah, kuning, hijau, hitam]
+      description: "Empat kategori warna FR-03-02. Layar menampilkannya dengan teks dan ikon, bukan hanya warna (5.1 butir 4)."
+    RingkasTriase:
+      type: object
+      required: [kategori, ditriase_pada]
+      properties:
+        kategori: { $ref: '#/components/schemas/KategoriTriase' }
+        ditriase_pada: { type: string, format: date-time }
+    IsianTriase:
+      type: object
+      required: [kategori]
+      additionalProperties: false
+      properties:
+        kategori: { $ref: '#/components/schemas/KategoriTriase' }
+        instrumen_triase_id: { type: [string, 'null'], format: uuid, description: "Instrumen aktif dari GET /instrumen-triase; wajib bila RS punya instrumen aktif" }
+        skala: { type: [string, 'null'], maxLength: 50, description: "`kode` salah satu skala instrumen itu; wajib bila instrumen punya daftar skala" }
+        keluhan: { type: [string, 'null'], maxLength: 1000, description: "Keluhan saat triase (opsional, klinis; tidak masuk log/audit)" }
+    SkalaTriase:
+      type: object
+      required: [kode, label]
+      properties:
+        kode: { type: string }
+        label: { type: string }
+    InstrumenTriase:
+      type: object
+      required: [id, kode, nama, skala]
+      description: "Data induk RS (inti.instrumen_triase); isinya ditetapkan RS."
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+        skala: { type: array, items: { $ref: '#/components/schemas/SkalaTriase' }, description: "Urut tampil dari data induk; [] = instrumen tanpa skala" }
+    Triase:
+      type: object
+      required: [id, kunjungan_id, kategori, instrumen, skala, keluhan, tiba_pada, ditriase_pada, petugas, berlaku]
+      properties:
+        id: { type: string, format: uuid }
+        kunjungan_id: { type: string, format: uuid }
+        kategori: { $ref: '#/components/schemas/KategoriTriase' }
+        instrumen:
+          type: [object, 'null']
+          required: [id, kode, nama]
+          properties:
+            id: { type: string, format: uuid }
+            kode: { type: string }
+            nama: { type: string }
+        skala:
+          description: "Label dari data induk instrumen saat ini; kode yang sudah tidak ada di data induk tampil apa adanya"
+          oneOf: [{ $ref: '#/components/schemas/SkalaTriase' }, { type: 'null' }]
+        keluhan: { type: [string, 'null'] }
+        tiba_pada: { type: [string, 'null'], format: date-time, description: "Jam tiba dari kunjungan (tidak disalin ke baris triase)" }
+        ditriase_pada: { type: string, format: date-time, description: "Jam server saat triase dicatat" }
+        petugas: { $ref: '#/components/schemas/Pelaku' }
+        berlaku: { type: boolean, description: "true hanya untuk triase terbaru kunjungan ini" }
     RingkasPenjamin:
       type: object
       required: [id, kode, nama, jenis]

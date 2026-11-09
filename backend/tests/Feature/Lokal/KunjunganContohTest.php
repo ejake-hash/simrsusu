@@ -53,6 +53,8 @@ class KunjunganContohTest extends TestCase
         $this->assertSame(['contoh-sintetis'], DB::table('inti.paket_referensi')->where('sistem', 'icd10')->pluck('versi')->all());
         $this->assertSame(['ZZC01', 'ZZC02'], DB::table('inti.terminologi')->where('sistem', 'icd10')->orderBy('kode')->pluck('kode')->all());
         $this->assertSame(Pegawai::query()->where('nip', 'SINTETIS-POLI')->value('id'), $akun->fresh()?->pegawai_id);
+        // Triase (2.24): satu instrumen sintetis berlabel contoh, tidak berganda saat diulang.
+        $this->assertSame(['Instrumen triase contoh'], DB::table('inti.instrumen_triase')->where('kode', 'CONTOH-TRIASE')->pluck('nama')->all());
     }
 
     public function test_paket_icd_yang_sudah_dimuat_rs_tidak_disentuh(): void

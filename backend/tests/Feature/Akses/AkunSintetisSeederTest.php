@@ -130,6 +130,11 @@ class AkunSintetisSeederTest extends TestCase
         $this->assertTrue($evaluator->bolehMenu($akun('perawat'), 'rawat_inap.pemberian_obat'));
         // Tiket 2.23: perawat (seluruh menu IGD) mendaftarkan pasien IGD; admisi poli tidak.
         $this->assertTrue($evaluator->boleh($akun('perawat'), 'igd.pendaftaran.input'));
+        // Tiket 2.24: perawat mencatat triase dan ulang triase; admisi poli tidak.
+        foreach (['igd.triase.lihat', 'igd.triase.input'] as $kode) {
+            $this->assertTrue($evaluator->boleh($akun('perawat'), $kode), $kode);
+        }
+        $this->assertFalse($evaluator->bolehMenu($akun('admisi'), 'igd.triase'));
         // 2.23-fe: cari pasien dan pilih penjamin dari layar Pendaftaran IGD, tanpa NIK utuh dan tanpa ubah data induk.
         foreach (['pendaftaran.pasien.lihat', 'master_data.penjamin.lihat'] as $kode) {
             $this->assertTrue($evaluator->boleh($akun('perawat'), $kode), $kode);
