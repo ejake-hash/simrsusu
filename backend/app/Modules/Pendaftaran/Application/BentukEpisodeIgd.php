@@ -6,7 +6,6 @@ use App\Core\Audit\CatatAktivitas;
 use App\Modules\Pendaftaran\Events\EpisodeIgdDibentuk;
 use App\Modules\Pendaftaran\Models\Episode;
 use App\Modules\Pendaftaran\Models\Kunjungan;
-use App\Modules\Pendaftaran\Models\Pasien;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -57,18 +56,12 @@ final class BentukEpisodeIgd
         return now()->utc()->subHours(Kunjungan::BATAS_JAM_IGD);
     }
 
-    /** Kunci pasien lalu kunjungan (urutan daftar/batal), lalu periksa ulang syaratnya di bawah kunci. */
+    /** Kunci pasien lalu kunjungan (KunciKunjungan, urutan daftar/batal), lalu periksa ulang syaratnya di bawah kunci. */
     private function pindahkan(string $kunjunganId): bool
     {
-        $pasienId = Kunjungan::query()->whereKey($kunjunganId)->value('pasien_id');
-        if ($pasienId === null) {
-            return false;
-        }
-        Pasien::query()->whereKey($pasienId)->lockForUpdate()->first();
-        $kunjungan = Kunjungan::query()->whereKey($kunjunganId)->lockForUpdate()->first();
-        // Gabung RM yang commit di antara baca dan kunci memindahkan kunjungan ke pasien lain: kunci yang dipegang salah
-        // pasien, jadi lewati; putaran berikutnya mengulang dengan pasien yang benar.
-        if ($kunjungan === null || $kunjungan->pasien_id !== $pasienId || $kunjungan->jenis_kunjungan !== Kunjungan::IGD || $kunjungan->tiba_pada === null
+        // Gabung RM yang commit di antara baca dan kunci: lewati (null); putaran berikutnya mengulang dengan pasien yang benar.
+        $kunjungan = KunciKunjungan::pasienLaluKunjungan($kunjunganId, lewatiBilaPindah: true);
+        if ($kunjungan === null || $kunjungan->jenis_kunjungan !== Kunjungan::IGD || $kunjungan->tiba_pada === null
             || ! in_array($kunjungan->status, Kunjungan::STATUS_AKTIF, true) || ! $kunjungan->tiba_pada->lessThan(self::ambang())) {
             return false;
         }

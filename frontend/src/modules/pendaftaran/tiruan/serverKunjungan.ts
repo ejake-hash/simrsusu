@@ -1,10 +1,24 @@
 import type { PermintaanTiruan, ResponsTiruan } from '../../akses/tiruan/serverTiruan'
 import type { KeterisianJadwal, RingkasPegawai } from '../../jadwal-praktik/tipe'
-import type { CaraBayar, Kunjungan, Pelaku, RingkasEpisode, RingkasPasienKunjungan, RingkasPenjaminKunjungan, SlotTerdekat, StatusKunjungan } from '../tipeKunjungan'
+import type {
+  CaraBayar,
+  InstrumenTriase,
+  KategoriTriase,
+  Kunjungan,
+  Pelaku,
+  RingkasEpisode,
+  RingkasPasienKunjungan,
+  RingkasPenjaminKunjungan,
+  SlotTerdekat,
+  StatusKunjungan,
+  Triase,
+} from '../tipeKunjungan'
 
 /**
  * Server tiruan kontrak v0.20.0 (tiket 2.6) dan v0.31.0 (2.23: GET/POST /kunjungan-igd, IGD aktif per pasien satu, tanda
- * `lebih_6_jam` dari jam `sekarang`; pemindahan ke episode `igd_lebih_6_jam` tidak ditiru).
+ * `lebih_6_jam` dari jam `sekarang`; pemindahan ke episode `igd_lebih_6_jam` tidak ditiru), dan v0.32.0 (2.24: triase
+ * hanya ditambah, berlaku = terbaru; instrumen dari `instrumenTriase`; field `triase` di daftar IGD bagi pemegang
+ * igd.triase.lihat).
  * POST /kunjungan (episode rawat jalan harian terbentuk/digabung otomatis
  * dari No. RM + tanggal, 7.00.2), POST /kunjungan/{id}/batal (status batal, kuota dikembalikan), GET /kunjungan
  * (papan per poli per hari). Kuota dipinjam dari server jadwal (tiket 2.4) lewat `konsumsi`, jadi sisa di layar jadwal
@@ -52,7 +66,28 @@ export interface OpsiServerKunjungan {
   penjamin: (id: string) => RingkasPenjaminKunjungan | null
   pelaku: () => Pelaku
   sekarang?: () => Date
+  /** Instrumen triase aktif dari data induk (v0.32.0, server instrumen-triase). Bawaan: satu instrumen sintetis berlabel contoh. */
+  instrumenTriase?: () => InstrumenTriase[]
 }
+
+interface TriaseT {
+  id: string
+  kunjungan_id: string
+  kategori: KategoriTriase
+  instrumen: InstrumenTriase | null
+  skala: string | null
+  /** Salinan label skala saat triase (riwayat tidak ikut berubah bila data induk diedit). */
+  skala_label: string | null
+  keluhan: string | null
+  ditriase_pada: string
+  petugas: Pelaku
+}
+const KATEGORI_TRIASE: readonly KategoriTriase[] = ['merah', 'kuning', 'hijau', 'hitam']
+/** Instrumen SINTETIS (bukan instrumen klinis RS). */
+export const INSTRUMEN_TRIASE_CONTOH: InstrumenTriase[] = [{
+  id: '00000000-0000-7000-a000-000000000001', kode: 'CONTOH-TRIASE', nama: 'Instrumen triase contoh',
+  skala: [1, 2, 3].map((n) => ({ kode: `C${n}`, label: `Tingkat contoh ${n}` })),
+}]
 
 interface KunjunganT {
   id: string
@@ -90,6 +125,10 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
   const episode = new Map<string, RingkasEpisode>()
   /** Nomor kunjungan berurutan per hari: RJ-YYYYMMDD-NNNN. */
   const urutHarian = new Map<string, number>()
+  /** Riwayat triase, urut dicatat (hanya ditambah). */
+  const triase: TriaseT[] = []
+  let trN = 0
+  const instrumenAktif = () => opsi.instrumenTriase?.() ?? INSTRUMEN_TRIASE_CONTOH
 
   const episodeHarian = (pasienId: string, tanggal: string): RingkasEpisode => {
     const kunci = `${pasienId}|${tanggal}`
@@ -224,6 +263,44 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
     return { status: 201, header: { ...NO_STORE, ETag: `"${k.v}"` }, isi: { data: bentuk(k) } }
   }
 
+  // ── Triase (v0.32.0) ──
+  /** Terbaru dulu (urutan catat terbalik; jam server tiruan tidak mundur). */
+  const riwayatTriase = (kunjunganId: string) => triase.filter((t) => t.kunjungan_id === kunjunganId).reverse()
+  const bentukTriase = (t: TriaseT, k: KunjunganT, berlakuId: string | undefined): Triase => ({
+    id: t.id, kunjungan_id: t.kunjungan_id, kategori: t.kategori,
+    instrumen: t.instrumen ? { id: t.instrumen.id, kode: t.instrumen.kode, nama: t.instrumen.nama } : null,
+    skala: t.skala === null ? null : { kode: t.skala, label: t.skala_label ?? t.skala },
+    keluhan: t.keluhan, tiba_pada: k.tiba_pada, ditriase_pada: t.ditriase_pada, petugas: t.petugas, berlaku: t.id === berlakuId,
+  })
+  const validasi = (kolom: string, pesan: string) => error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom, pesan }])
+
+  function catatTriase(k: KunjunganT, isi: Record<string, unknown>): ResponsTiruan {
+    const kategori = isi.kategori as KategoriTriase
+    if (!KATEGORI_TRIASE.includes(kategori)) return validasi('kategori', 'Pilih kategori triase.')
+    if (typeof isi.keluhan === 'string' && isi.keluhan.length > 1000) return validasi('keluhan', 'Keluhan maksimal 1.000 karakter.')
+    if (k.jenis !== 'igd' || !aktif(k)) {
+      return error(409, 'status_tidak_sesuai', 'Triase hanya untuk kunjungan IGD yang masih terdaftar atau dilayani.', [{ jenis_kunjungan: k.jenis, status: k.status }])
+    }
+    const instrumenId = (isi.instrumen_triase_id as string | null | undefined) ?? null
+    const skala = typeof isi.skala === 'string' && isi.skala.trim() ? isi.skala.trim() : null
+    let ins: InstrumenTriase | null = null
+    if (!instrumenId) {
+      if (instrumenAktif().length) return validasi('instrumen_triase_id', 'Pilih instrumen triase.')
+      if (skala) return validasi('skala', 'Skala hanya diisi bersama instrumen triase.')
+    } else {
+      ins = instrumenAktif().find((i) => i.id === instrumenId) ?? null
+      if (!ins) return validasi('instrumen_triase_id', 'Instrumen triase tidak ditemukan atau tidak aktif.')
+      if (!ins.skala.length && skala) return validasi('skala', 'Instrumen ini tidak memakai skala.')
+      if (ins.skala.length && (!skala || !ins.skala.some((s) => s.kode === skala))) return validasi('skala', 'Pilih skala dari instrumen triase ini.')
+    }
+    const t: TriaseT = {
+      id: uid('d000', ++trN), kunjungan_id: k.id, kategori, instrumen: ins ? { ...ins, skala: [...ins.skala] } : null, skala, skala_label: ins?.skala.find((s) => s.kode === skala)?.label ?? null, keluhan: typeof isi.keluhan === 'string' && isi.keluhan.trim() ? isi.keluhan.trim() : null,
+      ditriase_pada: iso(), petugas: opsi.pelaku(),
+    }
+    triase.push(t)
+    return { status: 201, header: NO_STORE, isi: { data: bentukTriase(t, k, t.id) } }
+  }
+
   function batal(k: KunjunganT, isi: Record<string, unknown>): ResponsTiruan {
     if (k.status === 'batal') return error(409, 'sudah_batal', 'Kunjungan sudah dibatalkan.')
     if (k.status !== 'terdaftar') return error(409, 'sudah_dilayani', 'Pelayanan klinis sudah dimulai; kunjungan tidak dapat dibatalkan.')
@@ -243,7 +320,9 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
     const metode = r.metode.toUpperCase()
     if (bagian[0] === 'kunjungan-igd' && !bagian[1]) {
       if (metode === 'GET') {
+        // v0.32.0: izin tetap igd.pendaftaran.lihat; field `triase` hanya untuk pemegang igd.triase.lihat.
         if (!opsi.boleh('igd.pendaftaran.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak melihat kunjungan IGD.')
+        const bolehTriase = opsi.boleh('igd.triase.lihat')
         const status = r.kueri.get('status') as StatusKunjungan | null
         const hasil = daftar
           .filter((k) => k.jenis === 'igd' && (status ? k.status === status : aktif(k)))
@@ -251,7 +330,12 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
           .sort((a, b) => (a.tiba_pada ?? '').localeCompare(b.tiba_pada ?? '') || a.id.localeCompare(b.id))
         const batas = Number(r.kueri.get('batas') ?? 50)
         const mulai = r.kueri.get('kursor') ? Number(atob(r.kueri.get('kursor')!)) : 0
-        return { status: 200, header: NO_STORE, isi: { data: hasil.slice(mulai, mulai + batas).map(bentuk), meta: { kursor_berikutnya: mulai + batas < hasil.length ? btoa(String(mulai + batas)) : null } } }
+        const bentukDaftar = (k: KunjunganT): Kunjungan => {
+          if (!bolehTriase) return bentuk(k)
+          const t = riwayatTriase(k.id)[0]
+          return { ...bentuk(k), triase: t ? { kategori: t.kategori, ditriase_pada: t.ditriase_pada } : null }
+        }
+        return { status: 200, header: NO_STORE, isi: { data: hasil.slice(mulai, mulai + batas).map(bentukDaftar), meta: { kursor_berikutnya: mulai + batas < hasil.length ? btoa(String(mulai + batas)) : null } } }
       }
       if (metode === 'POST') {
         if (!opsi.boleh('igd.pendaftaran.input')) return error(403, 'akses_ditolak', 'Anda tidak berhak mendaftarkan pasien IGD.')
@@ -259,8 +343,27 @@ export function buatServerKunjungan(opsi: OpsiServerKunjungan) {
       }
       return null
     }
+    if (bagian[0] === 'instrumen-triase' && !bagian[1] && metode === 'GET') {
+      if (!opsi.boleh('igd.triase.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak melihat instrumen triase.')
+      return { status: 200, header: NO_STORE, isi: { data: [...instrumenAktif()].sort((a, b) => a.kode.localeCompare(b.kode)) } }
+    }
     if (bagian[0] !== 'kunjungan') return null
     const id = bagian[1]
+
+    if (id && bagian[2] === 'triase' && !bagian[3]) {
+      if (metode !== 'GET' && metode !== 'POST') return null
+      if (!opsi.boleh(metode === 'GET' ? 'igd.triase.lihat' : 'igd.triase.input')) return error(403, 'akses_ditolak', 'Anda tidak berhak atas triase IGD.')
+      const k = daftar.find((x) => x.id === id)
+      if (!k) return error(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.')
+      if (metode === 'POST') return catatTriase(k, (r.isi ?? {}) as Record<string, unknown>)
+      const semua = riwayatTriase(k.id)
+      const batas = Number(r.kueri.get('batas') ?? 50)
+      const mulai = r.kueri.get('kursor') ? Number(atob(r.kueri.get('kursor')!)) : 0
+      return {
+        status: 200, header: NO_STORE,
+        isi: { data: semua.slice(mulai, mulai + batas).map((t) => bentukTriase(t, k, semua[0]?.id)), meta: { kursor_berikutnya: mulai + batas < semua.length ? btoa(String(mulai + batas)) : null } },
+      }
+    }
 
     if (!id) {
       if (metode === 'GET') {

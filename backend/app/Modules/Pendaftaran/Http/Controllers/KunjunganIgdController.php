@@ -3,30 +3,48 @@
 namespace App\Modules\Pendaftaran\Http\Controllers;
 
 use App\Core\Http\Paginasi;
+use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Pendaftaran\Application\KelolaKunjungan;
+use App\Modules\Pendaftaran\Application\KelolaTriase;
 use App\Modules\Pendaftaran\Http\Resources\KunjunganResource;
 use App\Modules\Pendaftaran\Models\Kunjungan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 /**
- * /api/v1/kunjungan-igd (kontrak v0.31.0, tiket 2.23). Izin igd.pendaftaran.{lihat,input} cakupan rs diperiksa
- * middleware rute (can.rs) sebelum isian dibaca. Respons `no-store`.
+ * /api/v1/kunjungan-igd (kontrak v0.31.0, tiket 2.23; field `triase` v0.32.0, tiket 2.24). Izin igd.pendaftaran.{lihat,input}
+ * cakupan rs diperiksa middleware rute (can.rs) sebelum isian dibaca. Respons `no-store`.
  */
 final class KunjunganIgdController
 {
     public function __construct(private readonly KunjunganResource $resource) {}
 
-    /** Kunjungan IGD; bawaan yang masih di IGD (terdaftar/dilayani), urut jam tiba terlama dulu. */
+    /**
+     * Kunjungan IGD; bawaan yang masih di IGD (terdaftar/dilayani), urut jam tiba terlama dulu. Izin igd.pendaftaran.lihat
+     * dari middleware rute (keputusan pemilik 9 Nov 2026: layar Triase tidak melonggarkannya). Field `triase` (triase
+     * berlaku, 2.24) hanya untuk pemegang igd.triase.lihat cakupan rs: bagian tanpa izin tidak dikirim.
+     */
     public function index(Request $request): JsonResponse
     {
+        $bolehTriase = Gate::allows('igd.triase.lihat', Cakupan::rs());
         $filter = $request->validate(['status' => ['nullable', Rule::in(Kunjungan::STATUS)]]);
         $query = Kunjungan::query()->where('jenis_kunjungan', Kunjungan::IGD)
             ->when($filter['status'] ?? null, fn ($q, $s) => $q->where('status', $s), fn ($q) => $q->whereIn('status', Kunjungan::STATUS_AKTIF));
 
-        return Paginasi::respons($query, $request, 'tiba_pada', arah: 'asc', bentuk: fn ($baris) => $this->resource->banyak($baris))
-            ->header('Cache-Control', 'no-store');
+        return Paginasi::respons($query, $request, 'tiba_pada', arah: 'asc', bentuk: function ($baris) use ($bolehTriase) {
+            $data = $this->resource->banyak($baris);
+            if (! $bolehTriase) {
+                return $data;
+            }
+            $triase = KelolaTriase::berlaku(array_column($data, 'id'));
+
+            return array_map(fn (array $k) => [...$k, 'triase' => isset($triase[$k['id']])
+                ? ['kategori' => $triase[$k['id']]->kategori, 'ditriase_pada' => Carbon::parse($triase[$k['id']]->ditriase_pada)->toIso8601String()]
+                : null], $data);
+        })->header('Cache-Control', 'no-store');
     }
 
     public function store(Request $request, KelolaKunjungan $kelola): JsonResponse

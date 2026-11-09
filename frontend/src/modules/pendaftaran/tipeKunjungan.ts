@@ -52,6 +52,11 @@ export interface Kunjungan {
   tiba_pada?: string | null
   /** IGD masih terdaftar/dilayani dan sudah lebih dari 6 jam sejak tiba; selalu false untuk poliklinik (v0.31.0). */
   lebih_6_jam?: boolean
+  /**
+   * Triase berlaku (terbaru); null = belum ditriase. Hanya di GET /kunjungan-igd untuk pemegang igd.triase.lihat;
+   * tanpa izin itu field tidak ada (v0.32.0).
+   */
+  triase?: RingkasTriase | null
   cara_bayar: CaraBayar
   penjamin: RingkasPenjaminKunjungan | null
   status: StatusKunjungan
@@ -95,3 +100,43 @@ export interface FilterKunjungan {
   status?: StatusKunjungan
 }
 export type HalamanKunjungan = Halaman<Kunjungan>
+
+/** Empat kategori warna FR-03-02 (v0.32.0, tiket 2.24). */
+export type KategoriTriase = 'merah' | 'kuning' | 'hijau' | 'hitam'
+export interface RingkasTriase {
+  kategori: KategoriTriase
+  ditriase_pada: string
+}
+export interface SkalaTriase {
+  kode: string
+  label: string
+}
+/** Instrumen triase dari data induk RS (GET /instrumen-triase). */
+export interface InstrumenTriase {
+  id: string
+  kode: string
+  nama: string
+  /** [] = instrumen tanpa skala. */
+  skala: SkalaTriase[]
+}
+export interface Triase {
+  id: string
+  kunjungan_id: string
+  kategori: KategoriTriase
+  instrumen: { id: string; kode: string; nama: string } | null
+  skala: SkalaTriase | null
+  keluhan: string | null
+  /** Jam tiba dari kunjungan (tidak disalin ke baris triase). */
+  tiba_pada: string | null
+  ditriase_pada: string
+  petugas: Pelaku | null
+  /** true hanya untuk triase terbaru kunjungan ini. */
+  berlaku: boolean
+}
+export interface IsianTriase {
+  kategori: KategoriTriase
+  instrumen_triase_id?: string | null
+  skala?: string | null
+  keluhan?: string | null
+}
+export type HalamanTriase = Halaman<Triase>

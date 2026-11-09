@@ -1,6 +1,17 @@
 import { berversi } from '@/modules/organisasi/api'
 import { klien } from '@/shared/api/klien'
-import type { FilterKunjungan, HalamanKunjungan, IsianKunjungan, IsianKunjunganIgd, Kunjungan, StatusKunjungan } from './tipeKunjungan'
+import type {
+  FilterKunjungan,
+  HalamanKunjungan,
+  HalamanTriase,
+  InstrumenTriase,
+  IsianKunjungan,
+  IsianKunjunganIgd,
+  IsianTriase,
+  Kunjungan,
+  StatusKunjungan,
+  Triase,
+} from './tipeKunjungan'
 
 /**
  * Klien /kunjungan (docs/api/openapi.yaml v0.20.0, tiket 2.6). Episode rawat jalan harian terbentuk/digabung otomatis
@@ -29,3 +40,20 @@ export async function daftarKunjunganIgd(status: StatusKunjungan | null = null, 
 export const buatKunjunganIgd = async (isian: IsianKunjunganIgd) => berversi<Kunjungan>(await klien.post('/kunjungan-igd', isian))
 export const batalkanKunjungan = async (id: string, alasanBatal: string) =>
   berversi<Kunjungan>(await klien.post(`${JALUR}/${id}/batal`, { alasan_batal: alasanBatal }))
+
+/**
+ * Triase IGD (kontrak v0.32.0, tiket 2.24). Riwayat terbaru dulu; baris terbaru `berlaku`. Ulang triase = POST lagi
+ * (baris baru, baris lama tidak berubah). Instrumen dan skala dari data induk RS.
+ */
+export async function daftarTriase(kunjunganId: string, kursor: string | null = null, batas = 50): Promise<HalamanTriase> {
+  const { data } = await klien.get<HalamanTriase>(`${JALUR}/${kunjunganId}/triase`, { params: { kursor: kursor ?? undefined, batas } })
+  return data
+}
+export async function catatTriase(kunjunganId: string, isian: IsianTriase): Promise<Triase> {
+  const { data } = await klien.post<{ data: Triase }>(`${JALUR}/${kunjunganId}/triase`, isian)
+  return data.data
+}
+export async function daftarInstrumenTriase(): Promise<InstrumenTriase[]> {
+  const { data } = await klien.get<{ data: InstrumenTriase[] }>('/instrumen-triase')
+  return data.data
+}

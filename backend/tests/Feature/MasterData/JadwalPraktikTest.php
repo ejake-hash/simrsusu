@@ -13,6 +13,7 @@ use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\Support\AksesUji;
 use Tests\Support\KlienSpa;
 use Tests\Support\KontrakApi;
@@ -49,7 +50,7 @@ class JadwalPraktikTest extends TestCase
         /** @var Pegawai $pegawai */
         $pegawai = Pegawai::factory()->create(['profesi' => $profesi]);
         if ($denganSip) {
-            IzinPraktik::query()->create(['pegawai_id' => $pegawai->id, 'jenis' => 'sip', 'nomor' => 'SIP/UJI/'.random_int(1, 9999), 'terbit' => '2020-01-01', 'berlaku_sampai' => '2040-01-01']);
+            IzinPraktik::query()->create(['pegawai_id' => $pegawai->id, 'jenis' => 'sip', 'nomor' => 'SIP/UJI/'.Str::uuid7(), 'terbit' => '2020-01-01', 'berlaku_sampai' => '2040-01-01']);
         }
 
         return $pegawai;

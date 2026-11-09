@@ -15,6 +15,7 @@ use App\Modules\Pendaftaran\Models\Pasien;
 use App\Modules\Sdm\Models\IzinPraktik;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 
 /**
@@ -39,7 +40,7 @@ trait KunjunganUji
     {
         /** @var Pegawai $pegawai */
         $pegawai = Pegawai::factory()->create(['profesi' => 'dokter']);
-        IzinPraktik::query()->create(['pegawai_id' => $pegawai->id, 'jenis' => 'sip', 'nomor' => 'SIP/UJI/'.random_int(1, 99999), 'terbit' => '2020-01-01', 'berlaku_sampai' => '2040-01-01']);
+        IzinPraktik::query()->create(['pegawai_id' => $pegawai->id, 'jenis' => 'sip', 'nomor' => 'SIP/UJI/'.Str::uuid7(), 'terbit' => '2020-01-01', 'berlaku_sampai' => '2040-01-01']);
 
         return $pegawai;
     }

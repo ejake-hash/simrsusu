@@ -8,6 +8,8 @@ use App\Modules\MasterData\Models\JadwalPraktik;
 use App\Modules\MasterData\Models\Poliklinik;
 use App\Modules\MasterData\Models\UnitOrganisasi;
 use App\Modules\Pendaftaran\Models\Pasien;
+use App\Modules\RekamMedis\Application\KelolaAsesmenAwal;
+use App\Modules\RekamMedis\Application\KelolaCppt;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -199,6 +201,27 @@ class CpptTest extends TestCase
         $this->masukSebagai($luar);
         $this->tulis($kunjungan, self::SOAP)->assertForbidden();
         $this->minta('GET', "/api/v1/episode/$episode/cppt")->assertForbidden();
+    }
+
+    /**
+     * Tinjauan #191: penulis membaca episode dari baris kunjungan yang dikunci di dalam transaksi, bukan dari objek yang
+     * dibaca controller sebelumnya. Objek lama di sini meniru kunjungan IGD yang dipindah episodenya (BentukEpisodeIgd)
+     * di antara baca controller dan transaksi.
+     */
+    public function test_cppt_dan_asesmen_memakai_episode_terkini_dari_baris_terkunci(): void
+    {
+        $id = $this->kunjungan($this->pasien(), $this->jadwalA);
+        $lama = DB::table('kunjungan.kunjungan')->where('id', $id)->first(['id', 'episode_id', 'pasien_id', 'status']);
+        $baru = (string) Str::uuid7();
+        DB::table('kunjungan.episode')->insert(['id' => $baru, 'pasien_id' => $lama->pasien_id, 'jenis' => 'igd_lebih_6_jam', 'mulai_tanggal' => self::SENIN]);
+        DB::table('kunjungan.kunjungan')->where('id', $id)->update(['episode_id' => $baru]);
+        $unit = $this->poli->unit_organisasi_id;
+
+        $cppt = app(KelolaCppt::class)->buat($this->akunDokter, $lama, $unit, ['subjektif' => 'Uji sintetis']);
+        $asesmen = app(KelolaAsesmenAwal::class)->buat($this->akunDokter, $lama, $unit, ['keluhan_utama' => 'Uji sintetis']);
+
+        $this->assertSame([$baru, $baru], [$cppt->episode_id, $asesmen->episode_id]);
+        $this->assertSame(0, DB::table('klinis.catatan_klinis')->where('episode_id', $lama->episode_id)->count());
     }
 
     private function pegawai(string $profesi): Pegawai

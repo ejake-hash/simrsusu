@@ -8,6 +8,7 @@ use App\Core\Http\IfMatch;
 use App\Core\Instalasi\StatusInstalasi;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Pendaftaran\Application\KelolaPasien;
+use App\Modules\Pendaftaran\Application\KunciKunjungan;
 use App\Modules\RekamMedis\Models\CatatanKlinis;
 use App\Modules\Ttd\Application\Penandatangan;
 use App\Modules\Ttd\Models\Kredensial;
@@ -38,7 +39,7 @@ final class KelolaCppt
     ) {}
 
     /**
-     * @param  object{id: string, episode_id: string, pasien_id: string}  $kunjungan
+     * @param  object{id: string}  $kunjungan  hanya id yang dipakai; kolom lain dibaca ulang di bawah kunci
      * @param  array<string, mixed>  $isian  bagian SOAP + label
      */
     public function buat(Pengguna $penulis, object $kunjungan, string $unitId, array $isian): CatatanKlinis
@@ -52,12 +53,13 @@ final class KelolaCppt
         $isi = self::isi([], $isian);
 
         return DB::transaction(function () use ($penulis, $kunjungan, $unitId, $isian, $isi, $profesi) {
-            $status = DB::table('kunjungan.kunjungan')->where('id', $kunjungan->id)->lockForUpdate()->value('status');
-            if ($status === 'batal') {
-                throw new ApiError(409, 'status_tidak_sesuai', 'Kunjungan sudah batal.', [['status' => $status]]);
+            // Episode dibaca dari baris terkunci: kunjungan IGD bisa dipindah episodenya sesudah controller membacanya.
+            $k = KunciKunjungan::pasienLaluKunjungan($kunjungan->id) ?? throw new ApiError(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.');
+            if ($k->status === 'batal') {
+                throw new ApiError(409, 'status_tidak_sesuai', 'Kunjungan sudah batal.', [['status' => $k->status]]);
             }
             $c = new CatatanKlinis([
-                'episode_id' => $kunjungan->episode_id, 'kunjungan_id' => $kunjungan->id, 'unit_id' => $unitId, 'pasien_id' => $kunjungan->pasien_id,
+                'episode_id' => $k->episode_id, 'kunjungan_id' => $k->id, 'unit_id' => $unitId, 'pasien_id' => $k->pasien_id,
                 'penulis_id' => $penulis->id, 'profesi' => $profesi, 'tatanan' => 'rj', 'jenis' => 'soap', 'isi' => $isi,
                 'label' => $isian['label'] ?? null, 'dibuat_oleh' => $penulis->id, 'diubah_oleh' => $penulis->id,
             ]);
