@@ -6,6 +6,7 @@ use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Antrean\Events\AntreanBerubah;
+use App\Modules\Antrean\Models\Anjungan;
 use App\Modules\Antrean\Models\Antrean;
 use App\Modules\MasterData\Models\Lokasi;
 use App\Modules\MasterData\Models\Poliklinik;
@@ -30,6 +31,9 @@ final class KelolaAntrean
 {
     /** Kode area bawaan = kode poli huruf kecil; titik diganti tanda hubung agar cocok pola area di URL. */
     public const SQL_AREA_POLI = "coalesce(antrean_area, replace(lower(kode), '.', '-'))";
+
+    /** Offset urutan nomor loket `A-` (jauh di atas nomor harian mana pun), agar `P-` yang menunggu selalu di depan. */
+    public const URUTAN_LOKET_BIASA = 1000000;
 
     public function __construct(private readonly CatatAktivitas $audit) {}
 
@@ -57,8 +61,7 @@ final class KelolaAntrean
             $poli = Poliklinik::query()->findOrFail($kunjungan->poli_id);
             $tanggal = $kunjungan->tanggal->toDateString();
             $prefiks = $poli->antrean_prefiks ?? $poli->kode;
-            $nomor = (int) DB::selectOne('INSERT INTO kunjungan.nomor_antrean (tanggal, prefiks, terakhir) VALUES (?, ?, 1)
-                ON CONFLICT (tanggal, prefiks) DO UPDATE SET terakhir = kunjungan.nomor_antrean.terakhir + 1 RETURNING terakhir', [$tanggal, $prefiks])->terakhir;
+            $nomor = self::nomorBerikut($tanggal, $prefiks);
 
             $antrean = new Antrean;
             $antrean->forceFill([
@@ -119,8 +122,7 @@ final class KelolaAntrean
             return;
         }
         $prefiks = (string) DB::table('kunjungan.aturan_antrean')->value('prefiks_farmasi');
-        $nomor = (int) DB::selectOne('INSERT INTO kunjungan.nomor_antrean (tanggal, prefiks, terakhir) VALUES (?, ?, 1)
-            ON CONFLICT (tanggal, prefiks) DO UPDATE SET terakhir = kunjungan.nomor_antrean.terakhir + 1 RETURNING terakhir', [$kejadian->tanggal, $prefiks])->terakhir;
+        $nomor = self::nomorBerikut($kejadian->tanggal, $prefiks);
         $antrean = new Antrean;
         $antrean->forceFill([
             'tanggal' => $kejadian->tanggal, 'kunjungan_id' => $kejadian->kunjunganId, 'titik' => 'farmasi', 'area' => 'farmasi',
@@ -128,6 +130,32 @@ final class KelolaAntrean
             'dibuat_oleh' => $kejadian->olehId, 'diubah_oleh' => $kejadian->olehId,
         ])->save();
         $this->jejak($antrean, $kejadian->olehId, now());
+    }
+
+    /**
+     * Nomor loket dari anjungan (tiket 2.20; FR-02-01/07): `A-` biasa atau `P-` prioritas, hari ini (zona RS), tanpa kunjungan.
+     * Urutan `P` = nomornya, `A` = nomornya + URUTAN_LOKET_BIASA: P menunggu selalu di depan semua A, P sesudah P sebelumnya.
+     * Jam ambil di antrean_jejak (pelaku null = perangkat); layanan dicatat di sesi_anjungan tanpa identitas pasien.
+     */
+    public function buatLoket(Anjungan $anjungan, ?string $alasanPrioritas): Antrean
+    {
+        return DB::transaction(function () use ($anjungan, $alasanPrioritas) {
+            $sekarang = now();
+            $tanggal = $sekarang->copy()->setTimezone((string) config('instalasi.zona_waktu'))->toDateString();
+            $prefiks = $alasanPrioritas === null ? 'A' : 'P';
+            $nomor = self::nomorBerikut($tanggal, $prefiks);
+            $antrean = new Antrean;
+            $antrean->forceFill([
+                'tanggal' => $tanggal, 'titik' => 'loket', 'area' => $anjungan->area_loket, 'prefiks' => $prefiks, 'nomor' => $nomor,
+                'nomor_tampil' => sprintf('%s-%03d', $prefiks, $nomor), 'sumber' => 'apm', 'prioritas' => $alasanPrioritas !== null,
+                'alasan_prioritas' => $alasanPrioritas, 'dibuat_pada' => $sekarang, 'urutan' => (string) ($alasanPrioritas === null ? self::URUTAN_LOKET_BIASA + $nomor : $nomor),
+            ])->save();
+            $this->jejak($antrean, null, $sekarang);
+            DB::table('kunjungan.sesi_anjungan')->insert(['id' => (string) Str::uuid7(), 'anjungan_id' => $anjungan->id,
+                'mulai_pada' => $sekarang, 'selesai_pada' => $sekarang, 'layanan' => 'nomor_loket', 'hasil' => 'ke_loket']);
+
+            return $antrean;
+        });
     }
 
     /** Resep sah dibatalkan (tiket 2.17): antrean farmasi ikut batal bila tak ada resep sah lain dan belum dilayani. */
@@ -172,6 +200,9 @@ final class KelolaAntrean
                     throw new ApiError(409, 'jeda_panggilan_belum_lewat', 'Tunggu sebentar sebelum memanggil ulang nomor ini.',
                         [['boleh_panggil_pada' => $boleh->toIso8601String()]]);
                 }
+            }
+            if ($lokasiId === null && $antrean->titik === 'loket') {
+                throw ValidationException::withMessages(['lokasi_id' => 'Pilih loket tempat pasien dipanggil.']);
             }
             $ruangId = $lokasiId ?? $this->ruangBawaan($antrean);
             if ($lokasiId !== null && ! Lokasi::query()->whereKey($lokasiId)->where('jenis', 'ruang')->where('status', 'aktif')->exists()) {
@@ -258,6 +289,13 @@ final class KelolaAntrean
         $boleh = $antrean->dipanggil_pada->copy()->addSeconds($jedaDetik);
 
         return $boleh->isFuture() ? $boleh : null;
+    }
+
+    /** Naikkan penghitung nomor per tanggal per prefiks (aman serentak: upsert satu baris). */
+    private static function nomorBerikut(string $tanggal, string $prefiks): int
+    {
+        return (int) DB::selectOne('INSERT INTO kunjungan.nomor_antrean (tanggal, prefiks, terakhir) VALUES (?, ?, 1)
+            ON CONFLICT (tanggal, prefiks) DO UPDATE SET terakhir = kunjungan.nomor_antrean.terakhir + 1 RETURNING terakhir', [$tanggal, $prefiks])->terakhir;
     }
 
     private function kunci(string $id): Antrean

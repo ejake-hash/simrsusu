@@ -25,11 +25,14 @@ final class AntreanController
         self::izin('pendaftaran.antrean.lihat');
         $filter = $request->validate([
             'tanggal' => ['required', 'date_format:Y-m-d'],
-            'poli_id' => ['required', 'uuid'],
-            'pegawai_id' => ['nullable', 'uuid'],
+            'titik' => ['nullable', Rule::in(['poli', 'loket'])],
+            // Loket admisi (tiket 2.20) seluruh RS: tanpa saring poli/dokter.
+            'poli_id' => ['prohibited_if:titik,loket', 'required_unless:titik,loket', 'uuid'],
+            'pegawai_id' => ['prohibited_if:titik,loket', 'nullable', 'uuid'],
             'status' => ['nullable', Rule::in(Antrean::STATUS)],
         ]);
-        $query = Antrean::query()->where('poli_id', $filter['poli_id'])->where('tanggal', $filter['tanggal'])
+        $query = Antrean::query()->where('tanggal', $filter['tanggal'])
+            ->when(($filter['titik'] ?? 'poli') === 'loket', fn ($q) => $q->where('titik', 'loket'), fn ($q) => $q->where('poli_id', $filter['poli_id']))
             ->when($filter['pegawai_id'] ?? null, fn ($q, $id) => $q->where('pegawai_id', $id))
             ->when($filter['status'] ?? null, fn ($q, $s) => $q->where('status', $s), fn ($q) => $q->where('status', '<>', 'batal'));
 

@@ -22,6 +22,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $ruang_id
  * @property string $sumber
  * @property bool $prioritas
+ * @property string|null $alasan_prioritas lansia | disabilitas | ibu_hamil | anak_khusus (titik loket)
  * @property string $status
  * @property string $tahap perawat | dokter (titik poli, tiket 2.13)
  * @property string $urutan numeric, dibiarkan string agar presisi tidak hilang

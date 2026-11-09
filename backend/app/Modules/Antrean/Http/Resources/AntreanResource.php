@@ -68,6 +68,7 @@ final class AntreanResource
                 'lokasi_panggil' => $r === null ? null : ['id' => $r->id, 'kode_lengkap' => $r->kode_lengkap, 'nama' => $r->nama],
                 'sumber' => $a->sumber,
                 'prioritas' => $a->prioritas,
+                'alasan_prioritas' => $a->alasan_prioritas,
                 'status' => $a->status,
                 'panggilan_ke' => $a->panggilan_ke,
                 'panggilan_maks' => $aturan->batas_panggilan,
