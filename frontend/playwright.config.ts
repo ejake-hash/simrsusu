@@ -7,7 +7,7 @@ import { defineConfig, devices } from '@playwright/test'
  */
 const LAYAR_FASE2 = /(penjamin|buku-tarif|jadwal-praktik|gabung-rm|formularium)\.spec\.ts/
 /** Spec yang punya proyek berurutan sendiri; desktop/seluler mengabaikannya. */
-const LAYAR_FASE2_ATAU_BERURUTAN = [/(pengaturan|fase1|pendaftaran|antrean|rawat-jalan|akses-darurat)\.spec\.ts/, LAYAR_FASE2]
+const LAYAR_FASE2_ATAU_BERURUTAN = [/(pengaturan|fase1|pendaftaran|antrean|rawat-jalan|akses-darurat|anjungan)\.spec\.ts/, LAYAR_FASE2]
 const port = Number(process.env.E2E_PORT ?? 5173)
 const baseURL = `http://localhost:${port}`
 
@@ -47,6 +47,8 @@ export default defineConfig({
     { name: 'rawat-jalan', testMatch: /rawat-jalan\.spec\.ts/, dependencies: ['fase2'], workers: 1, use: { ...devices['Desktop Chrome'] } },
     // 2.21-fe: akses darurat (CPPT berlabel → buka akses → tinjauan); memakai data contoh rawat-jalan, jadi sesudahnya.
     { name: 'akses-darurat', testMatch: /akses-darurat\.spec\.ts/, dependencies: ['rawat-jalan'], workers: 1, use: { ...devices['Desktop Chrome'] } },
+    // 2.20-fe: kios anjungan (token perangkat) + antrean loket petugas; memakai data contoh dan menandai siap melayani.
+    { name: 'anjungan', testMatch: /anjungan\.spec\.ts/, dependencies: ['akses-darurat'], workers: 1, use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
     command: `npm run dev -- --port ${port} --strictPort`,

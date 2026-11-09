@@ -22,6 +22,7 @@ export const router = createRouter({
   routes: [
     ...ruteDev,
     { path: '/display/:area', name: 'display-antrean', component: () => import('@/modules/antrean/pages/DisplayPage.vue'), meta: { publik: true, tanpaSesi: true, judul: 'Display antrean' } },
+    { path: '/anjungan', name: 'anjungan', component: () => import('@/modules/antrean/pages/AnjunganPage.vue'), meta: { publik: true, tanpaSesi: true, judul: 'Anjungan' } },
     {
       path: '/masuk',
       component: () => import('@/layouts/AuthLayout.vue'),
