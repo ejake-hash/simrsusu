@@ -10,7 +10,41 @@ on:
 permissions:
   contents: read
 
+# Push baru ke PR yang sama membatalkan run lama. Push ke main tidak dibatalkan: tiap commit main tetap diuji.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # PR yang hanya mengubah docs/** atau *.md tidak menjalankan e2e; backend dan frontend tetap jalan.
+  perubahan:
+    runs-on: ubuntu-24.04
+    outputs:
+      hanya_dokumen: ${{ steps.cek.outputs.hanya_dokumen }}
+    steps:
+      - uses: actions/checkout@v5
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+
+      - id: cek
+        env:
+          JENIS_EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$JENIS_EVENT" != "pull_request" ]; then
+            echo "hanya_dokumen=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          berkas=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA")
+          selain_dokumen=$(printf '%s\n' "$berkas" | grep -vE '^docs/|\.md$' | grep -v '^$' || true)
+          if [ -n "$berkas" ] && [ -z "$selain_dokumen" ]; then
+            echo "hanya_dokumen=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hanya_dokumen=false" >> "$GITHUB_OUTPUT"
+          fi
+
   backend:
     runs-on: ubuntu-24.04
     services:
@@ -99,6 +133,8 @@ jobs:
 
   # Playwright ke backend sungguhan di CI dengan akun sintetis (AkunSintetisSeeder), bukan data asli.
   e2e:
+    needs: perubahan
+    if: needs.perubahan.outputs.hanya_dokumen != 'true'
     runs-on: ubuntu-24.04
     services:
       postgres:
