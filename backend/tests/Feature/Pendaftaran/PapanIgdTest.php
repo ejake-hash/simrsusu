@@ -125,12 +125,13 @@ class PapanIgdTest extends TestCase
         // Draf asesmen dokter dan asesmen perawat bukan tanggap dokter.
         $this->asesmen($p, 'draf');
         $this->asesmen($p, 'selesai', 'perawat');
-        $this->assertTrue($tanggap()['menunggu_asesmen']);
+        $this->minta('GET', self::URL)->assertOk()->assertJsonPath('data.0.tanggap.menunggu_asesmen', true)
+            ->assertJsonPath('data.0.tanggap.asesmen_dokter_pada', null);
 
         $this->travelTo(Carbon::parse(self::SENIN.' 07:12', (string) config('instalasi.zona_waktu')));
         $this->masukSebagai($this->dokter);
         $this->asesmen($p);
-        $selesai = $tanggap();
+        $selesai = (array) $this->minta('GET', self::URL)->assertOk()->json('data.0.tanggap');
         $this->assertSame([12, false, 'terlambat'], [$selesai['menit'], $selesai['menunggu_asesmen'], $selesai['tanda']]);
         $this->assertTrue(Carbon::parse((string) $selesai['asesmen_dokter_pada'])->equalTo(now()));
 
