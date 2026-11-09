@@ -19,7 +19,7 @@ use Illuminate\Support\Str;
 
 /**
  * `php artisan lokal:kunjungan-contoh` (e2e pendaftaran): poli (berkode poli BPJS, prefiks antrean `PD`, area display `poli-pd`), penjamin BPJS, kredensial VClaim dan kode PPK sintetis (SEP, tiket 2.7), dokter ber-SIP, dan jadwal praktik sintetis setiap hari
- * 00.00–23.59, anjungan sintetis `apm-contoh` (tiket 2.20), instrumen triase sintetis `CONTOH-TRIASE` (tiket 2.24), lalu instalasi ditandai siap melayani. Penanda itu biasanya terkunci lewat wizard penyiapan langkah 1–6,
+ * 00.00–23.59, anjungan sintetis `apm-contoh` (tiket 2.20), instrumen triase sintetis `CONTOH-TRIASE` (tiket 2.24), area IGD sintetis `CONTOH-*` (tiket 2.25), lalu instalasi ditandai siap melayani. Penanda itu biasanya terkunci lewat wizard penyiapan langkah 1–6,
  * yang tidak bisa dilengkapi data sintetis, jadi perintah ini memasang nilai tetap `SEJAK`. `--batal` mengosongkannya lagi
  * (hanya bila nilainya masih `SEJAK`, bukan hasil wizard) agar spec penyiapan tetap bisa diulang, dan menonaktifkan poli
  * `POLI-PD` beserta jadwalnya (data induk dirujuk kunjungan: tidak dihapus). Paket ICD-10 sintetis (2.15) dan butir tarif penunjang sintetis (2.16), dan obat sintetis (2.17) tetap tinggal.
@@ -140,6 +140,13 @@ final class KunjunganContoh extends Command
             if (! DB::table('inti.instrumen_triase')->where('kode', 'CONTOH-TRIASE')->exists()) {
                 DB::table('inti.instrumen_triase')->insert(['id' => (string) Str::uuid7(), 'kode' => 'CONTOH-TRIASE', 'nama' => 'Instrumen triase contoh',
                     'skala' => json_encode(array_map(fn (int $n) => ['kode' => "C$n", 'label' => "Tingkat contoh $n"], range(1, 3)))]);
+            }
+
+            // Papan IGD (2.25): area SINTETIS berlabel contoh (nama area FR-03-03; bukan data induk RS), hanya bila kodenya belum ada.
+            foreach ([['CONTOH-RESUSITASI', 'Resusitasi (contoh)', 1], ['CONTOH-OBSERVASI', 'Observasi (contoh)', 2], ['CONTOH-HIJAU', 'Hijau (contoh)', 3]] as [$kode, $nama, $urutan]) {
+                if (! DB::table('inti.area_igd')->where('kode', $kode)->exists()) {
+                    DB::table('inti.area_igd')->insert(['id' => (string) Str::uuid7(), 'kode' => $kode, 'nama' => $nama, 'urutan' => $urutan]);
+                }
             }
 
             // Anjungan (2.20): perangkat SINTETIS `apm-contoh` di lobi contoh, nomor loket ke loket contoh (area display `loket`).

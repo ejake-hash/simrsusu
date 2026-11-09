@@ -271,6 +271,8 @@ final class MenuBawaan
                 'instrumen_triase' => ['Instrumen triase', 54],
                 // Tiket 2.26: matriks perpindahan antar-pos (FR-00-02); diubah lewat usulan data induk.
                 'matriks_perpindahan' => ['Matriks perpindahan', 54],
+                // Tiket 2.25: area IGD dan batas waktu papan IGD (FR-03-03, FR-03-04, FR-00-06); edit langsung berizin.
+                'papan_igd' => ['Area & batas papan IGD', 54],
             ]],
             'pengaturan' => ['Pengaturan Sistem', 1, 54, [
                 'akun' => ['Akun & akses', 54],

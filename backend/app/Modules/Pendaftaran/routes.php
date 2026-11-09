@@ -4,6 +4,7 @@ use App\Modules\Pendaftaran\Http\Controllers\DisposisiController;
 use App\Modules\Pendaftaran\Http\Controllers\GabungPasienController;
 use App\Modules\Pendaftaran\Http\Controllers\KunjunganController;
 use App\Modules\Pendaftaran\Http\Controllers\KunjunganIgdController;
+use App\Modules\Pendaftaran\Http\Controllers\PapanIgdController;
 use App\Modules\Pendaftaran\Http\Controllers\PasienController;
 use App\Modules\Pendaftaran\Http\Controllers\SepController;
 use App\Modules\Pendaftaran\Http\Controllers\TriaseController;
@@ -41,6 +42,11 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     // Disposisi IGD = perintah perpindahan menurut matriks 7.00.3 (tiket 2.26); izin sel matriks diperiksa sesudah tujuan dibaca.
     Route::get('kunjungan/{kunjungan}/disposisi', [DisposisiController::class, 'index'])->middleware('can.rs:igd.disposisi.lihat');
     Route::post('kunjungan/{kunjungan}/disposisi', [DisposisiController::class, 'store'])->middleware('can.rs:igd.disposisi.input');
+
+    // Papan pasien IGD (tiket 2.25): layar kerja yang dipolling (ETag, K1), jadi batas laju layar kerja; penempatan area.
+    Route::get('igd/papan', [PapanIgdController::class, 'index'])->middleware('can.rs:igd.papan.lihat')
+        ->withoutMiddleware('throttle:api')->middleware('throttle:api-layar-kerja');
+    Route::put('kunjungan/{kunjungan}/area-igd', [PapanIgdController::class, 'tempatkan'])->middleware('can.rs:igd.papan.input');
 
     // Kepesertaan, rujukan, SEP (tiket 2.7): nomor di header X-Nomor, bukan URL.
     Route::get('bpjs/peserta', [SepController::class, 'peserta']);
