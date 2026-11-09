@@ -558,7 +558,7 @@ Dirinci 9 Nov 2026 dari PRD 7.00.2–7.00.5, 7.03, 7.04, 7.05, 7.08, 7.19, 7.20,
 | No | Tiket | Jalur | Ukuran | Prasyarat · Status |
 |---|---|---|---|---|
 | 2.23 | Kunjungan IGD: registrasi cepat + episode | BE+FE | M | — · **Selesai** (BE+kontrak #191 v0.31.0: `/kunjungan-igd`, jam tiba server, episode rawat jalan harian, satu IGD aktif per pasien; episode IGD > 6 jam dibentuk otomatis beserta aktivitasnya, keputusan pemilik 9 Nov 2026; FE #192: layar Pendaftaran IGD) |
-| 2.24 | Triase IGD dan ulang triase | BE+FE | S | 2.23 · **Selesai** (satu PR kontrak+BE+FE v0.32.0: `/kunjungan/{id}/triase` hanya ditambah, berlaku = terbaru; data induk `inti.instrumen_triase` tanpa isi produksi; field `triase` di `/kunjungan-igd`; layar IGD → Triase; perbaikan tinjauan #191 kunci pasien → kunjungan di CPPT, asesmen awal, order penunjang) |
+| 2.24 | Triase IGD dan ulang triase | BE+FE | S | 2.23 · **Selesai** (satu PR kontrak+BE+FE v0.32.0: `/kunjungan/{id}/triase` hanya ditambah, berlaku = terbaru; data induk `inti.instrumen_triase` tanpa isi produksi + layar Master Data → Instrumen triase (`/data-induk/instrumen-triase`, edit langsung berizin + dasar + audit, pola penjamin; keputusan pemilik 9 Nov); field `triase` di `/kunjungan-igd` hanya bagi `igd.triase.lihat`, izin daftar tetap `igd.pendaftaran.lihat` (keputusan pemilik 9 Nov); layar IGD → Triase; perbaikan tinjauan #191: `KunciKunjungan` satu sumber urutan kunci pasien → kunjungan (CPPT, asesmen awal, order penunjang, batal kunjungan, episode IGD > 6 jam). Asumsi: `tiba_pada` dibaca dari `kunjungan.tiba_pada`, tidak disalin ke `kunjungan.triase` walau PRD 11.2 mencantumkannya) |
 | 2.25 | Papan pasien IGD (polling) | BE+FE | M | 2.24 · Siap |
 | 2.26 | Matriks perpindahan sebagai data induk + disposisi IGD | BE+FE | M | 2.23 · Siap |
 | 2.27 | Peta tempat tidur dan status TT | BE+FE | M | — · Siap |
@@ -604,9 +604,10 @@ Uji    :
 - Triase hanya untuk kunjungan IGD aktif; kunjungan selesai/batal → 409.
 Di luar: skor EWS (FR-08-10, data induk belum ada).
 Catatan tinjauan #191: **selesai di PR 2.24**. `KunciKunjungan::pasienLaluKunjungan` mengunci pasien → kunjungan; `KelolaCppt`,
-`KelolaAsesmenAwal`, dan `KelolaPermintaanPemeriksaan` membaca `episode_id` dari baris terkunci itu (uji `CpptTest`).
-Menyusul (utang, sebelum pilot IGD): layar/usulan data induk instrumen triase (sampai ada, isinya hanya bisa dipasang admin
-basis data), definisi kategori per RS sebagai data induk.
+`KelolaAsesmenAwal`, dan `KelolaPermintaanPemeriksaan` membaca `episode_id` dari baris terkunci itu (uji `CpptTest`);
+`KelolaKunjungan` (batal) dan `BentukEpisodeIgd` memakai kunci yang sama.
+Asumsi: `tiba_pada` triase dibaca dari `kunjungan.tiba_pada` (PRD 11.2 menaruhnya di `triase`; disalin = dua sumber jam tiba).
+Menyusul: definisi kategori per RS sebagai data induk (layar instrumen triase sudah ada di PR ini).
 
 ### 2.25 · Papan pasien IGD (polling)
 Tujuan : dokter dan perawat IGD melihat semua pasien IGD dengan triase, waktu tanggap, dan lama di IGD dalam satu layar.
