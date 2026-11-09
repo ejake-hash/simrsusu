@@ -265,7 +265,9 @@ class DisposisiIgdTest extends TestCase
         }
 
         // Perawat dengan peran disposisi tetapi tanpa SIP/SPK berlaku: lapis 5 menolak.
-        $perawat = $this->buatPengguna(['pegawai_id' => Pegawai::factory()->create(['profesi' => 'perawat'])->id]);
+        /** @var Pegawai $pegawaiPerawat */
+        $pegawaiPerawat = Pegawai::factory()->create(['profesi' => 'perawat']);
+        $perawat = $this->buatPengguna(['pegawai_id' => $pegawaiPerawat->id]);
         $this->tugaskan($perawat, $this->buatPeran(['igd.disposisi']));
         $this->masukSebagai($perawat);
         $tolak = $this->disposisi($kunjungan)->assertForbidden()->assertJsonPath('error.kode', 'izin_praktik_tidak_berlaku');
