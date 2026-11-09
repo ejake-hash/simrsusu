@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { halamanAkun, pelanggaranAxe, SANDI } from './bantu'
+import { halamanAkun, pelanggaranAxe, php, SANDI } from './bantu'
 
 /**
  * Master Data → Matriks perpindahan (tiket 2.26) ke backend asli @1440 px + axe. data.induk melihat sel matriks (isi awal
@@ -9,8 +9,16 @@ import { halamanAkun, pelanggaranAxe, SANDI } from './bantu'
 let usulanId = ''
 
 test.describe.configure({ mode: 'serial' })
+/**
+ * Jalan sebelumnya yang terputus bisa meninggalkan usulan uji yang masih berjalan dan mengunci sel (409
+ * objek_sedang_diusulkan): kembalikan usulan matriks berjalan beralasan "Uji e2e" (tidak dihapus).
+ */
+const kembalikanUsulanUji = () =>
+  php('tinker', '--execute', "DB::table('inti.usulan_data_induk')->where('jenis_data', 'matriks_perpindahan')->whereIn('tahap', ['diusulkan', 'diverifikasi', 'disetujui'])->where('alasan', 'like', 'Uji e2e%')->update(['tahap' => 'dikembalikan', 'diubah_pada' => now()]);")
+
 test.beforeAll(() => {
   if (!SANDI) throw new Error('Set E2E_SANDI sama dengan AKUN_SINTETIS_SANDI saat seeding.')
+  kembalikanUsulanUji()
 })
 
 const asalDari = (baseURL: string | undefined) => new URL(baseURL ?? '').origin
@@ -38,7 +46,7 @@ test('data induk melihat matriks dan mengusulkan penonaktifan sel lewat usulan',
   await d.getByLabel('Jenis perubahan').selectOption('tutup')
   await d.getByLabel('Alasan penutupan').fill('Uji e2e: diusulkan lalu dikembalikan')
   await d.getByRole('textbox', { name: /^Dasar/ }).fill('Memo uji e2e 2.26')
-  await d.getByLabel('Alasan usulan').fill('Uji alur usulan matriks (sintetis)')
+  await d.getByLabel('Alasan usulan').fill('Uji e2e: alur usulan matriks (sintetis)')
   expect(await pelanggaranAxe(page)).toEqual([])
   await d.getByRole('button', { name: 'Ajukan usulan' }).click()
   await expect(page.getByText(/diajukan; menunggu verifikasi\./)).toBeVisible()

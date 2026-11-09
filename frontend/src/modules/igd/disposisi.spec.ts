@@ -77,7 +77,10 @@ describe('disposisi IGD: server tiruan kontrak v0.33.0', () => {
 
   it('pesan galat per kode', () => {
     expect(pesanGalatDisposisi(new ApiError(403, 'izin_praktik_tidak_berlaku', 'x'))).toMatch(/SIP\/SPK Anda tidak berlaku hari ini\. Perintah klinis hanya dari dokter dengan SIP berlaku\./)
-    expect(pesanGalatDisposisi(new ApiError(403, 'akses_ditolak', 'x'))).toMatch(/Perintah klinis hanya dari dokter dengan SIP berlaku/)
+    expect(pesanGalatDisposisi(new ApiError(403, 'akses_ditolak', 'x'))).toMatch(/tidak memegang izin pemberi perintah/)
+    // 403 lain memakai pesan server, bukan pesan izin sel matriks.
+    expect(pesanGalatDisposisi(new ApiError(403, 'kewenangan_klinis_tidak_mencakup', 'Kewenangan klinis Anda tidak mencakup tindakan ini.'))).toBe('Kewenangan klinis Anda tidak mencakup tindakan ini.')
+    expect(pesanGalatDisposisi(new ApiError(403, 'mfa_belum_terdaftar', 'Daftarkan MFA dulu.'))).toBe('Daftarkan MFA dulu.')
     expect(pesanGalatDisposisi(new ApiError(422, 'perpindahan_di_luar_matriks', 'x', [{ kolom: 'tujuan' }]))).toMatch(/tidak lagi aktif di matriks perpindahan/)
     expect(pesanGalatDisposisi(new ApiError(422, 'tujuan_bukan_disposisi', 'x', [{ kolom: 'tujuan' }]))).toMatch(/bukan disposisi IGD/)
     expect(pesanGalatDisposisi(new ApiError(409, 'status_tidak_sesuai', 'x'))).toMatch(/tidak lagi aktif di IGD/)
@@ -146,6 +149,8 @@ describe('DisposisiPage: layar', () => {
     expect(daftarToast.value.map((t) => t.pesan).join(' | ')).toMatch(/Disposisi Pulang tersimpan untuk Contoh Pasien Dua, pukul 10\.00 WIB\. Status: Selesai\./)
     expect([...document.querySelectorAll('tbody tr')].some((tr) => tr.textContent?.includes('Contoh Pasien Dua'))).toBe(false)
     expect(document.body.textContent).toContain('Kunjungan IGD pasien ini sudah ditutup')
+    // Tombol pemicu hilang: fokus pindah ke judul panel pasien, bukan body.
+    expect(document.activeElement?.id).toBe('judul-disposisi-pasien')
     const riwayat = document.querySelector('.daftar-riwayat')!
     expect(riwayat.textContent).toContain('Pulang')
     expect(riwayat.textContent).toContain('Selesai')

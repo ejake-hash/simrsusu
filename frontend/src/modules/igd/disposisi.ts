@@ -60,9 +60,12 @@ export function tujuanDariMatriks(sel: readonly AturanPerpindahan[]): TujuanDisp
 export function pesanGalatDisposisi(e: unknown): string | null {
   if (!(e instanceof ApiError)) return null
   if (e.status === 403) {
-    return e.kode === 'izin_praktik_tidak_berlaku'
-      ? 'SIP/SPK Anda tidak berlaku hari ini. Perintah klinis hanya dari dokter dengan SIP berlaku.'
-      : 'Akun Anda tidak memegang izin pemberi perintah untuk tujuan ini. Perintah klinis hanya dari dokter dengan SIP berlaku yang diizinkan matriks perpindahan.'
+    if (e.kode === 'izin_praktik_tidak_berlaku') return 'SIP/SPK Anda tidak berlaku hari ini. Perintah klinis hanya dari dokter dengan SIP berlaku.'
+    if (e.kode === 'akses_ditolak') {
+      return 'Akun Anda tidak memegang izin pemberi perintah untuk tujuan ini. Perintah klinis hanya dari dokter dengan SIP berlaku yang diizinkan matriks perpindahan.'
+    }
+    // Kode 403 lain (mis. kewenangan klinis, MFA) membawa pesan server yang lebih tepat.
+    return e.message
   }
   switch (e.kode) {
     case 'perpindahan_di_luar_matriks':

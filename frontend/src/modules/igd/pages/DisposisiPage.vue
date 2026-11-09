@@ -114,6 +114,17 @@ const kurang = computed(() => {
 })
 
 const konfirmasi = ref(false)
+/**
+ * Sesudah perintah tersimpan, tombol pemicu bisa hilang (formulir diganti pesan kunjungan ditutup), jadi fokus dipindah ke
+ * judul panel pasien. Bila gagal atau dibatalkan, fokus kembali ke tombol Simpan seperti biasa.
+ */
+const judulPanel = ref<HTMLElement | null>(null)
+let fokusKeJudul = false
+function fokusSesudahTutup() {
+  const tujuanFokus = fokusKeJudul ? judulPanel.value : null
+  fokusKeJudul = false
+  return tujuanFokus
+}
 const simpan = useMutation({
   mutationFn: () =>
     catatDisposisi(terpilih.value!.id, {
@@ -122,6 +133,7 @@ const simpan = useMutation({
       serah_terima: serahTerima.value.trim() || null,
     }),
   onSuccess: (d) => {
+    fokusKeJudul = true
     konfirmasi.value = false
     const nama = terpilih.value?.pasien.nama ?? 'pasien'
     tampilkanToast(`Disposisi ${labelTujuan(d.tujuan)} tersimpan untuk ${nama}, pukul ${jamWib(d.diputuskan_pada)}. Status: ${LABEL_STATUS_DISPOSISI[d.status]}.`, 'ok')
@@ -214,7 +226,7 @@ const riwayat = computed<Disposisi[]>(() => kueriRiwayat.data.value?.pages.flatM
       <section class="kartu" aria-labelledby="judul-disposisi-pasien">
         <div class="kartu-kepala">
           <div>
-            <h2 id="judul-disposisi-pasien">{{ terpilih ? `Disposisi ${terpilih.pasien.nama}` : 'Disposisi pasien' }}</h2>
+            <h2 id="judul-disposisi-pasien" ref="judulPanel" tabindex="-1">{{ terpilih ? `Disposisi ${terpilih.pasien.nama}` : 'Disposisi pasien' }}</h2>
             <p v-if="terpilih">
               No. RM {{ formatNoRm(terpilih.pasien.no_rm) }} · lahir {{ formatTanggal(terpilih.pasien.tanggal_lahir) }} · {{ terpilih.nomor }} · tiba {{ terpilih.tiba_pada ? jamWib(terpilih.tiba_pada) : '-' }}
             </p>
@@ -290,7 +302,7 @@ const riwayat = computed<Disposisi[]>(() => kueriRiwayat.data.value?.pages.flatM
       </section>
     </div>
 
-    <Dialog v-model:open="konfirmasi" :judul="judulKonfirmasi" :uraian="uraianKonfirmasi" :sibuk="simpan.isPending.value" :peringatan="tujuan !== '' && menutupKunjungan(tujuan)">
+    <Dialog v-model:open="konfirmasi" :judul="judulKonfirmasi" :uraian="uraianKonfirmasi" :sibuk="simpan.isPending.value" :peringatan="tujuan !== '' && menutupKunjungan(tujuan)" :fokus-sesudah-tutup="fokusSesudahTutup">
       <p class="ringkas-konfirmasi">Alasan: {{ alasan.trim() }}</p>
       <template #aksi>
         <button type="button" class="tombol" :disabled="simpan.isPending.value" @click="konfirmasi = false">Batal</button>
@@ -422,6 +434,9 @@ const riwayat = computed<Disposisi[]>(() => kueriRiwayat.data.value?.pages.flatM
 }
 .riwayat-kepala .ket-baris {
   margin: 0;
+}
+#judul-disposisi-pasien:focus {
+  outline: none;
 }
 .ringkas-konfirmasi {
   margin: 0;
