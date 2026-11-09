@@ -27,9 +27,9 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::post('kunjungan', [KunjunganController::class, 'store']);
     Route::post('kunjungan/{kunjungan}/batal', [KunjunganController::class, 'batal']);
 
-    // Registrasi cepat IGD (tiket 2.23); izin igd.pendaftaran.* di middleware.
-    Route::get('kunjungan-igd', [KunjunganIgdController::class, 'index'])->middleware('can:igd.pendaftaran.lihat');
-    Route::post('kunjungan-igd', [KunjunganIgdController::class, 'store'])->middleware('can:igd.pendaftaran.input');
+    // Registrasi cepat IGD (tiket 2.23); izin igd.pendaftaran.* cakupan rs seperti rute pendaftaran lain.
+    Route::get('kunjungan-igd', [KunjunganIgdController::class, 'index'])->middleware('can.rs:igd.pendaftaran.lihat');
+    Route::post('kunjungan-igd', [KunjunganIgdController::class, 'store'])->middleware('can.rs:igd.pendaftaran.input');
 
     // Kepesertaan, rujukan, SEP (tiket 2.7): nomor di header X-Nomor, bukan URL.
     Route::get('bpjs/peserta', [SepController::class, 'peserta']);

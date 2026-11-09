@@ -116,6 +116,9 @@ final class GabungPasien
             if ($e->getCode() !== '23505') {
                 throw $e;
             }
+            if (str_contains($e->getMessage(), 'kunjungan_igd_aktif_unik')) {
+                throw new ApiError(409, 'gabung_bentrok', 'Kedua RM masih tercatat di IGD; selesaikan atau batalkan salah satu dulu.');
+            }
             throw new ApiError(409, 'gabung_bentrok', 'Kunjungan kedua RM bertumpuk (jadwal dan tanggal sama). Batalkan salah satu kunjungan yang ganda, lalu verifikasi ulang.');
         }
         $this->pindahkanIdentitas($sumber, $tujuan, $olehId);

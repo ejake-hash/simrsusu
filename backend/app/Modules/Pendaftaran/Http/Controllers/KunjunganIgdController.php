@@ -11,8 +11,8 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 /**
- * /api/v1/kunjungan-igd (kontrak v0.31.0, tiket 2.23). Izin igd.pendaftaran.{lihat,input} diperiksa middleware rute
- * sebelum isian dibaca. Respons `no-store`.
+ * /api/v1/kunjungan-igd (kontrak v0.31.0, tiket 2.23). Izin igd.pendaftaran.{lihat,input} cakupan rs diperiksa
+ * middleware rute (can.rs) sebelum isian dibaca. Respons `no-store`.
  */
 final class KunjunganIgdController
 {

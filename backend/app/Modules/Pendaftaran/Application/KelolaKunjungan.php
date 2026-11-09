@@ -123,7 +123,8 @@ final class KelolaKunjungan
                 throw new ApiError(409, 'kunjungan_igd_aktif', 'Pasien masih tercatat di IGD. Lanjutkan kunjungan IGD yang aktif.', [['kunjungan_id' => $aktif]]);
             }
 
-            $tiba = now();
+            // UTC: nilai waktu disimpan tanpa offset, jadi zona instance harus sama dengan zona sesi basis data.
+            $tiba = now()->utc();
             $tanggal = $tiba->copy()->setTimezone((string) config('instalasi.zona_waktu'))->toDateString();
             [$episode, $episodeBaru] = $this->episodeHarian($pasien, $tanggal, $petugas->id);
             $kunjungan = new Kunjungan;

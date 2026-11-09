@@ -150,10 +150,12 @@ info:
     v0.30.0: Anjungan (APM) tahap 1 (tiket 2.20; FR-01-23, FR-01-26, FR-01-28, FR-02-01, FR-02-07, PRD 7.01.1): GET /anjungan,
     POST /anjungan/nomor-loket, GET /anjungan/jadwal-praktik dengan token perangkat berkemampuan `anjungan` (bukan sesi petugas,
     tanpa data pasien). GET /antrean menerima `titik=loket` tanpa `poli_id`; nomor prioritas `P-` didahulukan dari `A-`.
-    v0.31.0: Kunjungan IGD (tiket 2.23; FR-03-01, FR-00-01, 7.00.2 baris 1): POST /kunjungan-igd (isian minimal, jam tiba = jam
-    server, episode rawat jalan harian hari tiba), GET /kunjungan-igd (IGD aktif, urut jam tiba). Sub-menu baru `igd.pendaftaran`
-    (lihat, input). Skema `Kunjungan`: field opsional `tiba_pada`, `lebih_6_jam`; `poliklinik` boleh null (IGD). Error baru: 409
-    `kunjungan_igd_aktif`.
+    v0.31.0: Kunjungan IGD (tiket 2.23; FR-03-01, FR-00-01, 7.00.2 baris 1 dan 3): POST /kunjungan-igd (isian minimal, jam tiba =
+    jam server, episode rawat jalan harian hari tiba), GET /kunjungan-igd (IGD aktif, urut jam tiba), izin cakupan `rs`. Sub-menu
+    baru `igd.pendaftaran` (lihat, input, perbaiki). Skema `Kunjungan`: field opsional `tiba_pada`, `lebih_6_jam`; `poliklinik`
+    boleh null (IGD). `RingkasEpisode.jenis` + `igd_lebih_6_jam`: kunjungan IGD > 6 jam dipindah otomatis ke episode itu beserta
+    aktivitasnya (keputusan pemilik 9 Nov 2026, menyimpang dari PRD 7.00.5 butir 1). Error baru: 409 `kunjungan_igd_aktif`; 422
+    `jenis_belum_didukung` di POST /kunjungan/{id}/sep untuk kunjungan IGD.
 servers:
   - url: /api/v1
 security:
@@ -5518,8 +5520,11 @@ paths:
         di respons bernilai null. `tiba_pada` = jam server saat registrasi, bukan isian. Server memasukkan kunjungan ke
         episode rawat jalan harian pasien pada tanggal tiba (zona RS) bila ada, selain itu membentuk yang baru (7.00.2
         baris 1), dan menerbitkan event `KunjunganIgdDibuat` (bukan `KunjunganDibuat`: tidak membuat antrean poli maupun
-        task antrean). Nomor kunjungan `IGD-YYYYMMDD-NNNN` dari penghitung yang sama dengan nomor poli. Episode "IGD > 6 jam"
-        belum dibentuk; respons memuat tanda `lebih_6_jam`. Pembatalan lewat POST /kunjungan/{id}/batal; SEP IGD menyusul.
+        task antrean). Nomor kunjungan `IGD-YYYYMMDD-NNNN` dari penghitung yang sama dengan nomor poli. Kunjungan yang masih
+        terdaftar/dilayani lebih dari 6 jam sejak tiba dipindah tugas terjadwal (tiap 5 menit) ke episode baru berjenis
+        `igd_lebih_6_jam` beserta order, catatan klinis, dan SEP-nya (7.00.2 baris 3; keputusan pemilik 9 Nov 2026);
+        episode rawat jalan harian yang tidak lagi berisi kunjungan aktif menjadi `batal`. Tanda `lebih_6_jam` sudah true
+        sejak menit pertama lewat 6 jam, sebelum pemindahan berjalan. Pembatalan lewat POST /kunjungan/{id}/batal; SEP IGD menyusul.
         - 409 `kunjungan_igd_aktif`: pasien masih punya kunjungan IGD `terdaftar`/`dilayani`; `rincian` = `[{kunjungan_id}]`.
         - 409 `pasien_digabung`: No. RM sudah digabung ke RM lain.
         - 409 `instalasi_belum_siap`: langkah 1–6 penyiapan instalasi (FR-54-08) belum lengkap.
@@ -5644,7 +5649,8 @@ paths:
         Izin: pendaftaran.sep.input. SEP melekat ke kunjungan, episode, dan No. RM (tagihan menyusul, FR-01-10). Server
         mengambil data dari kunjungan (pasien, No. kartu, poli, dokter, tanggal), profil RS (kode PPK), dan rujukan yang dibaca
         ulang dari VClaim saat itu; klien tidak mengirim ulang data yang sudah ada di server. Urutan pemeriksaan:
-        1. Kunjungan: 409 `sudah_batal`; 422 `bukan_jkn` (`cara_bayar` bukan `jkn`); 422 `no_kartu_wajib` (pasien tanpa
+        1. Kunjungan: 409 `sudah_batal`; 422 `bukan_jkn` (`cara_bayar` bukan `jkn`); 422 `jenis_belum_didukung` (kunjungan
+           IGD tanpa poli tujuan; SEP IGD menyusul, v0.31.0); 422 `no_kartu_wajib` (pasien tanpa
            No. kartu BPJS); 422 `pemetaan_bpjs_belum_lengkap` bila kode BPJS yang dibutuhkan belum diisi di data induk
            (`rincian: [{kode}]`, mis. `kode_poli_bpjs`, `kode_ppk_bpjs`).
         2. SEP yang ada: 409 `sep_sudah_terbit` (sudah ada SEP `terbit`, `rincian: [{sep_id}]`); 409 `sep_sedang_diproses`
@@ -9195,7 +9201,7 @@ components:
       required: [id, jenis, mulai_tanggal]
       properties:
         id: { type: string, format: uuid }
-        jenis: { type: string, enum: [rawat_jalan_harian], description: "Hanya `rawat_jalan_harian` di tiket 2.6; jenis episode lain menyusul tahap berikutnya (7.00.2)." }
+        jenis: { type: string, enum: [rawat_jalan_harian, igd_lebih_6_jam], description: "7.00.2. `igd_lebih_6_jam` sejak v0.31.0 (kunjungan IGD > 6 jam tanpa rawat inap, tiket 2.23); jenis episode lain menyusul tahap berikutnya." }
         mulai_tanggal: { type: string, format: date, description: "Tanggal episode terbentuk (zona RS)" }
     IsianKunjungan:
       type: object
@@ -9238,7 +9244,7 @@ components:
         dokter: { $ref: '#/components/schemas/RingkasPegawai', description: "Dokter jadwal; null untuk kunjungan IGD (dokter belum ditetapkan saat registrasi)" }
         tanggal: { type: string, format: date, description: "Tanggal kunjungan (zona RS); IGD = tanggal tiba" }
         tiba_pada: { type: [string, 'null'], format: date-time, description: "Jam tiba IGD = jam server saat registrasi; null untuk poliklinik (v0.31.0)" }
-        lebih_6_jam: { type: boolean, description: "Kunjungan IGD masih terdaftar/dilayani dan sudah lebih dari 6 jam sejak tiba (7.00.2, FR-00-06); selalu false untuk poliklinik (v0.31.0)" }
+        lebih_6_jam: { type: boolean, description: "Kunjungan IGD masih terdaftar/dilayani dan sudah lebih dari 6 jam sejak tiba (7.00.2, FR-00-06); tetap true sesudah dipindah ke episode `igd_lebih_6_jam` sampai disposisi; selalu false untuk poliklinik (v0.31.0)" }
         cara_bayar: { $ref: '#/components/schemas/CaraBayar' }
         penjamin:
           description: "null = tanpa penjamin tetap (umum tunai)"

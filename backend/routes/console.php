@@ -21,6 +21,8 @@ Schedule::command('sdm:proses-pegawai-keluar')->dailyAt('00:10')->timezone(confi
 
 // Kunjungan poli yang tidak dilayani sampai jam tutup jadwalnya dibatalkan otomatis (tiket 2.6, FR-01-21).
 Schedule::command('pendaftaran:batalkan-kunjungan-tak-dilayani')->everyFifteenMinutes()->onOneServer();
+// Kunjungan IGD > 6 jam pindah ke episode igd_lebih_6_jam beserta aktivitasnya (tiket 2.23, 7.00.2 baris 3).
+Schedule::command('kunjungan:episode-igd')->everyFiveMinutes()->onOneServer();
 
 // Eskalasi tugas (tiket 1.7, FR-53-03) dan partisi notifikasi bulanan.
 Schedule::job(new ProsesEskalasiTugas)->everyMinute()->onOneServer();

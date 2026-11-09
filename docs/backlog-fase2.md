@@ -552,6 +552,8 @@ Dirinci 9 Nov 2026 dari PRD 7.00.2–7.00.5, 7.03, 7.04, 7.05, 7.08, 7.19, 7.20,
 - Hasil penunjang mengikuti pasien (7.00.5 butir 2, FR-00-09): penerima = pemesan **dan** DPJP/ruang tempat pasien berada saat hasil keluar,
   lewat kotak kerja/notifikasi 7.53 yang sudah ada.
 - Hasil, ekspertise, telaah, dan resume yang sudah disahkan tidak diubah; koreksi lewat adendum bertanda (FR-26-06), pola 2.14.
+- Keputusan pemilik 9 Nov 2026: episode IGD > 6 jam dibentuk otomatis sesudah 6 jam dan aktivitas kunjungan IGD (order, resep,
+  catatan) ikut pindah ke episode baru; ini menyimpang dari PRD 7.00.5 butir 1 dan diselaraskan saat penyelarasan PRD per fase.
 
 | No | Tiket | Jalur | Ukuran | Prasyarat · Status |
 |---|---|---|---|---|

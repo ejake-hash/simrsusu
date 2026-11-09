@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
  * Kunjungan IGD (tiket 2.23; FR-03-01, 7.00.2 baris "Rawat jalan harian"). IGD tidak memakai jadwal praktik, jadi
  * jadwal/poli/dokter boleh kosong hanya untuk `igd`; jam tiba (`tiba_pada`) wajib untuk `igd` dan kosong untuk poli.
  * Indeks unik kunjungan poli dipersempit ke poliklinik; satu kunjungan IGD aktif per pasien dijaga indeks parsial baru.
+ * Jenis episode `igd_lebih_6_jam` (keputusan pemilik 9 Nov 2026, BentukEpisodeIgd).
  */
 return new class extends Migration
 {
@@ -22,15 +23,22 @@ return new class extends Migration
 
         DB::statement('DROP INDEX kunjungan.kunjungan_aktif_unik');
         DB::statement("CREATE UNIQUE INDEX kunjungan_aktif_unik ON kunjungan.kunjungan (pasien_id, jadwal_praktik_id, tanggal) WHERE status <> 'batal' AND jenis_kunjungan = 'poliklinik'");
-        // 409 kunjungan_igd_aktif; juga indeks daftar IGD aktif urut jam tiba (papan 2.25).
+        // 409 kunjungan_igd_aktif. Daftar IGD aktif (bawaan GET /kunjungan-igd, papan 2.25) dan pencarian kunjungan > 6 jam
+        // memakai indeks parsial (tiba_pada, id).
         DB::statement("CREATE UNIQUE INDEX kunjungan_igd_aktif_unik ON kunjungan.kunjungan (pasien_id) WHERE jenis_kunjungan = 'igd' AND status IN ('terdaftar', 'dilayani')");
-        DB::statement("CREATE INDEX kunjungan_igd_tiba ON kunjungan.kunjungan (status, tiba_pada, id) WHERE jenis_kunjungan = 'igd'");
+        DB::statement("CREATE INDEX kunjungan_igd_aktif_tiba ON kunjungan.kunjungan (tiba_pada, id) WHERE jenis_kunjungan = 'igd' AND status IN ('terdaftar', 'dilayani')");
+
+        // Episode "IGD > 6 jam tanpa rawat inap" (7.00.2 baris 3). Indeks unik harian tetap hanya rawat_jalan_harian.
+        DB::statement('ALTER TABLE kunjungan.episode DROP CONSTRAINT episode_cek');
+        DB::statement("ALTER TABLE kunjungan.episode ADD CONSTRAINT episode_cek CHECK (jenis IN ('rawat_jalan_harian', 'igd_lebih_6_jam') AND status IN ('aktif', 'selesai', 'batal') AND ((status = 'batal') = (dibatalkan_pada IS NOT NULL)))");
     }
 
     /** Hanya untuk basis data tanpa kunjungan IGD (lokal/uji); produksi maju saja. */
     public function down(): void
     {
-        DB::statement('DROP INDEX IF EXISTS kunjungan.kunjungan_igd_tiba');
+        DB::statement('ALTER TABLE kunjungan.episode DROP CONSTRAINT episode_cek');
+        DB::statement("ALTER TABLE kunjungan.episode ADD CONSTRAINT episode_cek CHECK (jenis IN ('rawat_jalan_harian') AND status IN ('aktif', 'selesai', 'batal') AND ((status = 'batal') = (dibatalkan_pada IS NOT NULL)))");
+        DB::statement('DROP INDEX IF EXISTS kunjungan.kunjungan_igd_aktif_tiba');
         DB::statement('DROP INDEX IF EXISTS kunjungan.kunjungan_igd_aktif_unik');
         DB::statement('DROP INDEX kunjungan.kunjungan_aktif_unik');
         DB::statement("CREATE UNIQUE INDEX kunjungan_aktif_unik ON kunjungan.kunjungan (pasien_id, jadwal_praktik_id, tanggal) WHERE status <> 'batal'");

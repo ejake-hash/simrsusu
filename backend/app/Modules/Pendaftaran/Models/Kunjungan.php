@@ -66,7 +66,7 @@ final class Kunjungan extends Model
         return ['tanggal' => 'date', 'tiba_pada' => 'datetime', 'dibatalkan_pada' => 'datetime', 'revisi' => 'integer'];
     }
 
-    /** Kunjungan IGD aktif yang sudah melewati 6 jam sejak tiba (tanda turunan; episode belum dipindah, tiket 2.26). */
+    /** Kunjungan IGD aktif yang sudah melewati 6 jam sejak tiba; episodenya dipindah BentukEpisodeIgd (tugas terjadwal). */
     public function lebihEnamJam(): bool
     {
         return $this->jenis_kunjungan === self::IGD && $this->tiba_pada !== null

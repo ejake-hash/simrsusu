@@ -10,6 +10,7 @@ use App\Modules\Akses\Models\PeranIzin;
 use App\Modules\Akses\Models\PeranMenu;
 use App\Modules\Antrean\Models\Antrean;
 use App\Modules\Pendaftaran\Application\KelolaKunjungan;
+use App\Modules\Pendaftaran\Events\EpisodeIgdDibentuk;
 use App\Modules\Pendaftaran\Events\KunjunganDibuat;
 use App\Modules\Pendaftaran\Events\KunjunganIgdDibuat;
 use App\Modules\Pendaftaran\Models\Kunjungan;
@@ -233,10 +234,114 @@ class KunjunganIgdTest extends TestCase
         $lewat = $this->minta('GET', $url)->assertOk()->assertJsonPath('data.0.id', $awal)->assertJsonPath('data.0.lebih_6_jam', true)
             ->assertJsonPath('data.1.lebih_6_jam', false);
         $this->assertSesuaiKontrak($lewat, 'GET', '/kunjungan-igd');
-        // Yang sudah selesai tidak lagi ditandai, dan episode tidak dipindah (menunggu disposisi 2.26).
+        // Yang sudah selesai tidak lagi ditandai; episode baru dipindah oleh tugas terjadwal (tes berikutnya).
         $this->minta('GET', "$url?status=selesai")->assertJsonPath('data.0.lebih_6_jam', false);
         $this->assertSame('rawat_jalan_harian', DB::table('kunjungan.episode')
             ->where('id', Kunjungan::query()->findOrFail($awal)->episode_id)->value('jenis'));
+    }
+
+    public function test_igd_lebih_6_jam_pindah_ke_episode_baru_beserta_aktivitasnya(): void
+    {
+        Event::fake([EpisodeIgdDibentuk::class]);
+        $petugas = $this->petugasPendaftaran();
+        $this->tugaskan($petugas, $this->petugasIgdPeran());
+        $this->masukSebagai($petugas);
+
+        // A: poli + IGD di episode harian yang sama. B: hanya IGD. C: IGD selesai. D: IGD batal.
+        $a = $this->pasien();
+        $poliA = $this->daftarKunjungan($a, $this->jadwal($this->dokter()))->assertCreated()->json('data.id');
+        $igdA = $this->daftarIgd($a)->assertCreated();
+        $episodeRj = (string) $igdA->json('data.episode.id');
+        $igdA = (string) $igdA->json('data.id');
+        $b = $this->pasien();
+        $igdB = $this->daftarIgd($b)->assertCreated();
+        $episodeB = (string) $igdB->json('data.episode.id');
+        $igdB = (string) $igdB->json('data.id');
+        $igdC = (string) $this->daftarIgd($this->pasien())->assertCreated()->json('data.id');
+        Kunjungan::query()->whereKey($igdC)->update(['status' => 'selesai']);
+        $igdD = (string) $this->daftarIgd($this->pasien())->assertCreated()->json('data.id');
+        $this->minta('POST', "/api/v1/kunjungan/$igdD/batal", ['alasan_batal' => 'Pasien pulang paksa'])->assertOk();
+        $sebelum = fn (string $id) => Kunjungan::query()->findOrFail($id)->episode_id;
+        $episodeC = $sebelum($igdC);
+        $episodeD = $sebelum($igdD);
+
+        // Aktivitas: order dan catatan kunjungan IGD A, catatan kunjungan poli A (tetap di episode RJ).
+        $orderIgd = $this->order($igdA, $a, $episodeRj, $petugas);
+        $catatanIgd = $this->catatan($igdA, $a, $episodeRj, $petugas);
+        $catatanPoli = $this->catatan((string) $poliA, $a, $episodeRj, $petugas);
+
+        $tiba = Carbon::parse(self::SENIN.' 07:00', (string) config('instalasi.zona_waktu'));
+        $this->travelTo($tiba->copy()->addHours(6));
+        $this->artisan('kunjungan:episode-igd')->expectsOutput('Kunjungan IGD dipindah: 0')->assertSuccessful();
+        $this->assertSame($episodeRj, $sebelum($igdA));
+
+        $this->travelTo($tiba->copy()->addHours(6)->addMinute());
+        $this->artisan('kunjungan:episode-igd')->expectsOutput('Kunjungan IGD dipindah: 2')->assertSuccessful();
+
+        $kA = Kunjungan::query()->findOrFail($igdA);
+        $episodeIgd = DB::table('kunjungan.episode')->where('id', $kA->episode_id)->first();
+        $this->assertSame(['igd_lebih_6_jam', self::SENIN, 'aktif', $a->id], [$episodeIgd->jenis, $episodeIgd->mulai_tanggal, $episodeIgd->status, $episodeIgd->pasien_id]);
+        $this->assertSame(1, $kA->revisi);
+        $this->assertSame($kA->episode_id, DB::table('permintaan.permintaan_pemeriksaan')->where('id', $orderIgd)->value('episode_id'));
+        $this->assertSame($kA->episode_id, DB::table('klinis.catatan_klinis')->where('id', $catatanIgd)->value('episode_id'));
+        // Kunjungan poli dan catatannya tetap di episode RJ, yang masih aktif.
+        $this->assertSame($episodeRj, $sebelum((string) $poliA));
+        $this->assertSame($episodeRj, DB::table('klinis.catatan_klinis')->where('id', $catatanPoli)->value('episode_id'));
+        $this->assertSame('aktif', DB::table('kunjungan.episode')->where('id', $episodeRj)->value('status'));
+
+        // Episode RJ yang hanya berisi IGD batal dengan alasan; IGD selesai/batal tidak disentuh.
+        $lamaB = DB::table('kunjungan.episode')->where('id', $episodeB)->first();
+        $this->assertSame(['batal', 'Kunjungan dipindah ke episode IGD > 6 jam'], [$lamaB->status, $lamaB->alasan_batal]);
+        $this->assertSame('igd_lebih_6_jam', DB::table('kunjungan.episode')->where('id', $sebelum($igdB))->value('jenis'));
+        $this->assertSame([$episodeC, $episodeD], [$sebelum($igdC), $sebelum($igdD)]);
+
+        $audit = $this->assertAuditTerakhir('episode.dipindah_igd_6_jam', $kA->episode_id);
+        $this->assertNull($audit->pengguna_id);
+        $this->assertStringNotContainsString($a->nama, (string) $audit->sesudah);
+        $this->assertStringNotContainsString('Uji sintetis', (string) $audit->sesudah);
+        Event::assertDispatchedTimes(EpisodeIgdDibentuk::class, 2);
+        Event::assertDispatched(EpisodeIgdDibentuk::class, fn (EpisodeIgdDibentuk $e) => $e->kunjunganId === $igdA
+            && $e->episodeLamaId === $episodeRj && $e->episodeId === $kA->episode_id);
+
+        // Diulang: tidak ada episode kedua.
+        $this->artisan('kunjungan:episode-igd')->expectsOutput('Kunjungan IGD dipindah: 0')->assertSuccessful();
+        $this->assertSame(1, DB::table('kunjungan.episode')->where('pasien_id', $a->id)->where('jenis', 'igd_lebih_6_jam')->count());
+
+        $this->masukSebagai($petugas);
+        $daftar = $this->minta('GET', '/api/v1/kunjungan-igd')->assertOk()->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.episode.jenis', 'igd_lebih_6_jam')->assertJsonPath('data.0.lebih_6_jam', true);
+        $this->assertSesuaiKontrak($daftar, 'GET', '/kunjungan-igd');
+    }
+
+    public function test_sep_kunjungan_igd_ditolak_422(): void
+    {
+        $petugas = $this->petugasIgd();
+        $this->tugaskan($petugas, $this->buatPeran(['pendaftaran.sep']));
+        $this->masukSebagai($petugas);
+        $id = $this->daftarIgd($this->pasien(), ['cara_bayar' => 'jkn', 'penjamin_id' => $this->penjamin('bpjs')->id])->assertCreated()->json('data.id');
+
+        $tolak = $this->minta('POST', "/api/v1/kunjungan/$id/sep", [])->assertStatus(422)->assertJsonPath('error.kode', 'jenis_belum_didukung');
+        $this->assertSesuaiKontrak($tolak, 'POST', '/kunjungan/{id}/sep');
+        $this->assertFalse(DB::table('integrasi.sep')->where('kunjungan_id', $id)->exists());
+    }
+
+    private function order(string $kunjunganId, Pasien $pasien, string $episodeId, Pengguna $oleh): string
+    {
+        $id = (string) Str::uuid7();
+        DB::table('permintaan.permintaan_pemeriksaan')->insert(['id' => $id, 'kunjungan_id' => $kunjunganId, 'episode_id' => $episodeId,
+            'pasien_id' => $pasien->id, 'jenis' => 'lab', 'prioritas' => 'cito', 'pemesan_id' => $oleh->id, 'diagnosis_kerja' => 'Uji sintetis']);
+
+        return $id;
+    }
+
+    private function catatan(string $kunjunganId, Pasien $pasien, string $episodeId, Pengguna $penulis): string
+    {
+        $id = (string) Str::uuid7();
+        DB::table('klinis.catatan_klinis')->insert(['id' => $id, 'episode_id' => $episodeId, 'kunjungan_id' => $kunjunganId,
+            'unit_id' => $this->poli->unit_organisasi_id, 'pasien_id' => $pasien->id, 'penulis_id' => $penulis->id,
+            'profesi' => 'perawat', 'tatanan' => 'igd', 'jenis' => 'soap']);
+
+        return $id;
     }
 
     private function daftarIgd(Pasien $pasien, array $ganti = []): TestResponse

@@ -7,6 +7,7 @@ use App\Modules\Akses\Models\Menu;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\PeranIzin;
 use App\Modules\Akses\Models\PeranMenu;
+use App\Modules\Pendaftaran\Application\KelolaKunjungan;
 use App\Modules\Pendaftaran\Models\IdentitasPasien;
 use App\Modules\Pendaftaran\Models\Pasien;
 use Illuminate\Support\Facades\Crypt;
@@ -144,6 +145,20 @@ class GabungPasienTest extends TestCase
         $this->minta('POST', "/api/v1/gabung-pasien/$id/verifikasi", ['keputusan' => 'setuju'])->assertStatus(409)->assertJsonPath('error.kode', 'gabung_bentrok');
         $this->assertNull($lama->refresh()->digabung_ke_id);
         $this->assertSame('diusulkan', DB::table('pasien.usulan_gabung')->where('id', $id)->value('tahap'));
+    }
+
+    public function test_gabung_bentrok_bila_kedua_rm_masih_di_igd(): void
+    {
+        $lama = $this->pasienBernama('Contoh IGD Ganda', '1980-02-02');
+        $baru = $this->pasienBernama('Contoh IGD Ganda', '1980-02-02');
+        $petugas = $this->buatPengguna();
+        foreach ([$lama, $baru] as $p) {
+            app(KelolaKunjungan::class)->daftarIgd($petugas, ['pasien_id' => $p->id, 'cara_bayar' => 'non_jkn']);
+        }
+
+        $this->usulDanSetujui($lama, $baru)->assertStatus(409)->assertJsonPath('error.kode', 'gabung_bentrok')
+            ->assertJsonPath('error.pesan', 'Kedua RM masih tercatat di IGD; selesaikan atau batalkan salah satu dulu.');
+        $this->assertNull($lama->refresh()->digabung_ke_id);
     }
 
     public function test_episode_harian_di_tanggal_sama_disatukan_tanpa_membatalkan_kunjungan_dilayani(): void
