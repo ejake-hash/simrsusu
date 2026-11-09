@@ -133,6 +133,8 @@ jobs:
       # Rahasia TOTP sintetis akun sdm (Base32), sekali pakai; bukan rahasia.
       AKUN_SINTETIS_SDM_MFA_RAHASIA: ONSG2YLEMJUW4U3ENVQWI3LJNZJWI3LB
       E2E_SDM_MFA_RAHASIA: ONSG2YLEMJUW4U3ENVQWI3LJNZJWI3LB
+      AKUN_SINTETIS_DOKTER_DARURAT_MFA_RAHASIA: MRSWCZ3FNZSXEZLUMRSWCZ3FNZSXEZLU
+      E2E_DOKTER_DARURAT_MFA_RAHASIA: MRSWCZ3FNZSXEZLUMRSWCZ3FNZSXEZLU
       # TTE sintetis (tiket 1.6): kunci server dan PIN sekali pakai untuk database CI; bukan rahasia. Kunci 1 menit agar
       # uji 5 PIN salah tidak menunggu 15 menit.
       # PERINGATAN: kunci TTD_KUNCI (dan KREDENSIAL_KUNCI) di berkas ini adalah nilai uji sintetis yang publik. DILARANG

@@ -14,6 +14,7 @@ import { aturIzin, vCan } from '@/shared/composables/usePermission'
 import { PIN_TIRUAN } from '@/modules/ttd/tiruan/serverTtd'
 import { adendumCppt, ambilAsesmenKunjungan, batalkanAlergi, catatAlergi, catatDiagnosis, cariKodeIcd10, daftarAlergi, daftarDiagnosis, daftarWorklist, linimasaCppt, mulaiAsesmen, mulaiPeriksa, ringkasanKlinis, sahkanCppt, selesaikanAsesmen, selesaiPeriksa, tulisCppt, ubahAsesmen, ubahCppt, ubahDiagnosis } from './api'
 import CpptLinimasa from './components/CpptLinimasa.vue'
+import DialogAksesDarurat from './components/DialogAksesDarurat.vue'
 import DialogAsesmen from './components/DialogAsesmen.vue'
 import PanelPemeriksaan from './components/PanelPemeriksaan.vue'
 import { ringkasItemResep } from '@/shared/api/resep'
@@ -229,12 +230,13 @@ describe('CpptLinimasa — layar', () => {
   async function pasang(baris: Awaited<ReturnType<typeof worklist>>[number]) {
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] })
     await router.push('/rawat-jalan/cppt')
-    mount(CpptLinimasa, {
+    const wrapper = mount(CpptLinimasa, {
       attachTo: document.body,
       props: { baris },
       global: { plugins: [router, [VueQueryPlugin, { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) }]], directives: { can: vCan } },
     })
     await tenang()
+    return wrapper
   }
   const tombol = (nama: string) => [...document.querySelectorAll('button')].find((x) => x.textContent?.trim() === nama) as HTMLButtonElement | undefined
   const isi = (label: string, nilai: string) => {
@@ -257,7 +259,19 @@ describe('CpptLinimasa — layar', () => {
     await pasang(b!)
     expect(document.body.textContent).toContain('Terbatas')
     expect(document.body.textContent).not.toContain('Rahasia klinis')
+    expect(tombol('Buka akses darurat')).toBeUndefined()
     expect((await linimasaCppt('pasien', b!.pasien.id, { profesi: 'perawat' })).data).toHaveLength(0)
+  })
+
+  it('dialog akses darurat menolak uraian pendek tanpa memanggil server', async () => {
+    const wrapper = mount(DialogAksesDarurat, { attachTo: document.body, props: { open: true, pasienId: 'p1', identitas: 'Pasien Contoh' } })
+    await tenang()
+    expect(document.body.textContent).toContain('tercatat atas nama Anda')
+    isi('Uraian keadaan darurat', 'pendek')
+    ;(document.getElementById('form-akses-darurat') as HTMLFormElement).requestSubmit()
+    await tenang()
+    expect(document.body.textContent).toContain('minimal 10 karakter')
+    wrapper.unmount()
   })
 
   it('tulis draf dari formulir SOAP polos lalu sahkan dengan PIN sendiri', async () => {

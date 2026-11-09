@@ -78,6 +78,7 @@ return [
     'akun_sintetis_superadmin_dua_mfa_rahasia' => env('AKUN_SINTETIS_SUPERADMIN_DUA_MFA_RAHASIA'),
     // Admin SDM sintetis sdm (tiket 1.8d, e2e Data pegawai); kosong = acak, dicetak sekali.
     'akun_sintetis_sdm_mfa_rahasia' => env('AKUN_SINTETIS_SDM_MFA_RAHASIA'),
+    'akun_sintetis_dokter_darurat_mfa_rahasia' => env('AKUN_SINTETIS_DOKTER_DARURAT_MFA_RAHASIA'),
     'akun_sintetis_integrasi_mfa_rahasia' => env('AKUN_SINTETIS_INTEGRASI_MFA_RAHASIA'),
 
 ];

@@ -273,7 +273,7 @@ Kolom tabel = PRD 11.2; kolom yang belum perlu boleh ditunda, kolom baru di luar
 | 2.18 | Task ID antrean 1–7 tercatat internal | BE | S | 2.15, 2.17 · **Selesai** (PR 2.18: `kunjungan.antrean_task` + `pemetaan_task_antrean` sebagai data, pelanggan 6 kejadian, `GET /kunjungan/{id}/task-antrean` v0.28.0; kiriman outbox ditunda ke 2.19) |
 | 2.19 | [Perlu pemilik] Adapter Antrean RS BPJS + simulator | BE | M | 2.18 + dokumen katalog Antrean RS · Terhambat |
 | 2.20 | APM tahap 1: anjungan, nomor loket, cek jadwal | BE+FE | M | — · Siap |
-| 2.21 | Akses darurat (break-glass) + `audit.log_akses` | BE+FE | M | 2.14 · Siap |
+| 2.21 | Akses darurat (break-glass) + `audit.log_akses` | BE+FE | M | 2.14 · **Selesai** (kontrak #179 v0.29.0; BE #180: `akses.akses_darurat`, `audit.log_akses`, izin `rawat_jalan.cppt.darurat`, tinjauan Kepala RM/DPO; PR FE #182: tawaran "Buka akses darurat" di CPPT, sub-menu `rekam_medis.akses_darurat` TERSEDIA: Rekam Medis → Tinjauan akses darurat, akun sintetis `dokter.darurat`, e2e `akses-darurat.spec.ts`) |
 | 2.22 | [Perlu pemilik] Pencarian KFA via SATUSEHAT (simulator) | BE+FE | S | 2.11 + dokumen respons KFA v2 · Terhambat |
 
 Urutan (satu agen = kolom BE lalu FE berurutan; dua agen hanya bila kuota cukup):
