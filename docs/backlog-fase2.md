@@ -658,6 +658,14 @@ Uji    :
 - TT teralokasi berstatus "dipesan" di peta TT (2.27) dan di papan IGD (FR-03-06).
 - Menunggu melewati batas data induk RS → tugas eskalasi ke Kepala IGD dengan jam eskalasi (FR-03-07, 7.53).
 Di luar: penempatan pasien (2.29), deposit/naik kelas (Tahap D).
+Catatan tinjauan #194 (wajib di 2.28):
+1. Perintah `menunggu_kamar` tidak pernah ditutup (`kunjungan.perpindahan_pos` hanya ditambah): antrean kamar harus digabung
+   dengan status kunjungan, atau permintaan kamar membatalkan diri lewat kejadian `DisposisiDicatat` (pasien APS/meninggal
+   sesudah menunggu kamar).
+2. Izin sel matriks bisa diusulkan ke izin non-klinis (`ButirMatriksPerpindahan` hanya memeriksa keberadaan izin): tolak atau
+   peringatkan izin tanpa `butuh_kewenangan_klinis` sebelum 2.28 memakai sel SPRI.
+3. Sel poliklinik memakai `rawat_jalan.pemeriksaan.sahkan` yang bukan `IZIN_KLINIS`: putuskan sebelum `poliklinik → rawat_inap`
+   dipakai.
 
 ### 2.29 · Admisi rawat inap: penempatan TT, pindah ruang, episode rawat inap
 Tujuan : pasien tiba di bangsal, menempati TT, dan seluruh kunjungan sebelumnya hari itu tergabung ke episode rawat inap.
@@ -811,6 +819,11 @@ Uji    : dokter poli membuat konsul ke poli lain dengan alasan; hari yang sama �
   verifikasi DPJP/TBaK butuh `dpjp_id`/`pemeriksa_id` di kunjungan (pertanyaan Tahap B). Mode farmasi APM menunggu 2.37.
 - Instrumen triase berisi nilai klinis tetapi dikelola peran data induk (2.24). Keputusan pemilik 9 Nov 2026: izin ubah instrumen
   triase diatur lewat peran di RS (komite medik/keperawatan); kode tidak diubah.
+- Matriks perpindahan (2.26): isi awal hanya baris IGD dan Poliklinik PRD 7.00.3. Baris Pendaftaran, Penunjang, Kamar operasi,
+  ICU/HCU, dan Rawat inap diisi oleh tiket modul masing-masing lewat migrasi (Asumsi) atau oleh RS lewat usulan data induk? Sel
+  `igd → icu_hcu/poli_lain/penunjang` aktif tetapi perintahnya lewat modul lain (disposisi menolaknya dengan
+  `tujuan_bukan_disposisi`). Izin `igd.disposisi.perbaiki` dan `master_data.matriks_perpindahan.input/perbaiki` belum punya
+  pemakai.
 
 Utang 2.24: `jamWib`/`waktuTriase` (FE) mengunci zona Asia/Jakarta dan label "WIB"; produk generik (PRD 3.4) perlu zona dari profil
 RS (`instalasi.zona_waktu` sudah ada di backend). Instrumen e2e `E2E-TRIASE-*` nonaktif tertinggal di basis data e2e (sengaja; tidak dihapus).

@@ -192,9 +192,15 @@ class DisposisiIgdTest extends TestCase
     {
         $this->masukSebagai($this->dokter);
         $kunjungan = (string) $this->daftarIgd($this->pasien())->assertCreated()->json('data.id');
-        // Bukan kode disposisi FR-03-09.
-        foreach (['icu_hcu', 'igd', 'pulang_paksa', null] as $tujuan) {
-            $this->disposisi($kunjungan, ['tujuan' => $tujuan])->assertStatus(422)->assertJsonPath('error.rincian.0.kolom', 'tujuan');
+        // Pos tujuan matriks yang bukan disposisi FR-03-09 → kode khusus; kode tak dikenal → validasi_gagal.
+        foreach (['icu_hcu', 'igd', 'poli_lain', 'penunjang'] as $tujuan) {
+            $bukan = $this->disposisi($kunjungan, ['tujuan' => $tujuan])->assertStatus(422)->assertJsonPath('error.kode', 'tujuan_bukan_disposisi')
+                ->assertJsonPath('error.rincian.0.kolom', 'tujuan')->assertJsonPath('error.rincian.0.pos_tujuan', $tujuan);
+            $this->assertSesuaiKontrak($bukan, 'POST', '/kunjungan/{id}/disposisi');
+        }
+        foreach (['pulang_paksa', null] as $tujuan) {
+            $this->disposisi($kunjungan, ['tujuan' => $tujuan])->assertStatus(422)->assertJsonPath('error.kode', 'validasi_gagal')
+                ->assertJsonPath('error.rincian.0.kolom', 'tujuan');
         }
         $this->disposisi($kunjungan, ['alasan' => 'abc'])->assertStatus(422)->assertJsonPath('error.rincian.0.kolom', 'alasan');
 
@@ -218,6 +224,7 @@ class DisposisiIgdTest extends TestCase
             ['objek_jenis' => 'aturan_perpindahan', 'aksi' => 'tambah', 'objek_id' => null, 'nilai_baru' => ['pos_asal' => 'pendaftaran', 'pos_tujuan' => 'igd', 'izin_perintah' => 'igd.pendaftaran.input', 'keterangan' => 'PRD 7.00.3: bila gawat']],
         ]))->assertCreated()->assertJsonPath('data.jenis_data', 'matriks_perpindahan')
             ->assertJsonPath('data.perubahan.0.objek_label', 'IGD → APS (pulang atas permintaan sendiri)')
+            ->assertJsonPath('data.perubahan.0.tampilan.0.lama', 'Aktif')
             ->assertJsonPath('data.perubahan.2.objek_label', 'Sel baru Pendaftaran → IGD')
             ->assertJsonPath('data.ringkasan', 'Tutup 1 sel matriks perpindahan, Ubah 1 sel matriks perpindahan, Tambah 1 sel matriks perpindahan');
         $this->assertSesuaiKontrak($ajukan, 'POST', '/usulan-data-induk');
@@ -247,6 +254,18 @@ class DisposisiIgdTest extends TestCase
         $this->assertFalse(DB::table('kunjungan.perpindahan_pos')->where('dari_kunjungan_id', $kunjungan)->exists());
         // Sel lain tetap berlaku.
         $this->disposisi($kunjungan, ['tujuan' => 'rujuk_keluar'])->assertCreated()->assertJsonPath('data.status', 'selesai');
+    }
+
+    public function test_tampilan_tutup_memakai_status_lama_sel(): void
+    {
+        $doa = DB::table('kunjungan.aturan_perpindahan')->where('pos_asal', 'igd')->where('pos_tujuan', 'doa')->value('id');
+        DB::table('kunjungan.aturan_perpindahan')->where('id', $doa)->update(['status' => 'nonaktif']);
+        [$pengusul] = $this->pengelolaUsulan();
+        $this->masukSebagai($pengusul);
+        $this->minta('POST', '/api/v1/usulan-data-induk', $this->usulan([
+            ['objek_jenis' => 'aturan_perpindahan', 'aksi' => 'tutup', 'objek_id' => $doa, 'nilai_baru' => ['alasan' => 'Penegasan sel tetap nonaktif']],
+        ]))->assertCreated()->assertJsonPath('data.perubahan.0.nilai_lama', ['status' => 'nonaktif'])
+            ->assertJsonPath('data.perubahan.0.tampilan.0.lama', 'Nonaktif');
     }
 
     public function test_hanya_dokter_berwenang_selain_itu_403(): void

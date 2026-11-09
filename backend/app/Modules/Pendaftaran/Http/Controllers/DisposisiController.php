@@ -4,6 +4,7 @@ namespace App\Modules\Pendaftaran\Http\Controllers;
 
 use App\Core\Http\ApiError;
 use App\Core\Http\Paginasi;
+use App\Modules\MasterData\Models\AturanPerpindahan;
 use App\Modules\Pendaftaran\Application\KelolaDisposisi;
 use App\Modules\Pendaftaran\Http\Resources\DisposisiResource;
 use App\Modules\Pendaftaran\Models\Kunjungan;
@@ -34,10 +35,15 @@ final class DisposisiController
     public function store(Request $request, string $kunjungan, KelolaDisposisi $kelola): JsonResponse
     {
         $isi = $request->validate([
-            'tujuan' => ['required', Rule::in(KelolaDisposisi::TUJUAN)],
+            'tujuan' => ['required', Rule::in(AturanPerpindahan::POS_TUJUAN)],
             'alasan' => ['required', 'string', 'min:5', 'max:1000'],
             'serah_terima' => [Rule::requiredIf(in_array($request->input('tujuan'), KelolaDisposisi::BUTUH_SERAH_TERIMA, true)), 'nullable', 'string', 'min:5', 'max:4000'],
         ]);
+        // Pos tujuan yang dikenal matriks tetapi bukan disposisi FR-03-09 (mis. konsul, order, ICU) punya alurnya sendiri.
+        if (! in_array($isi['tujuan'], KelolaDisposisi::TUJUAN, true)) {
+            throw new ApiError(422, 'tujuan_bukan_disposisi', 'Tujuan ini bukan disposisi IGD; gunakan alurnya sendiri (konsul, order, atau rawat inap).',
+                [['kolom' => 'tujuan', 'pos_tujuan' => $isi['tujuan'], 'pesan' => 'Pilih pulang, rawat inap, kamar operasi, rujuk keluar, APS, meninggal, atau DOA.']]);
+        }
         $id = $kelola->catat($request->user(), $kunjungan, $isi);
         $baris = DB::table('kunjungan.perpindahan_pos')->where('id', $id)->get();
 

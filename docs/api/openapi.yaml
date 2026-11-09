@@ -170,7 +170,7 @@ info:
     /data-induk/matriks-perpindahan (hanya baca; isi awal = tabel 7.00.3 asal IGD dan poliklinik + APS/DOA FR-03-09),
     perubahan lewat usulan data induk (`jenis_data` baru `matriks_perpindahan`, `objek_jenis` baru `aturan_perpindahan`).
     POST dan GET /kunjungan/{id}/disposisi: perintah hanya ditambah, tujuan harus ada di matriks aktif (422
-    `perpindahan_di_luar_matriks`), pemberi perintah memegang izin sel matriks (403; `igd.disposisi.input` bersyarat SIP/SPK
+    `perpindahan_di_luar_matriks`; pos matriks yang bukan disposisi → 422 `tujuan_bukan_disposisi`), pemberi perintah memegang izin sel matriks (403; `igd.disposisi.input` bersyarat SIP/SPK
     berlaku). Pulang/APS/meninggal/DOA/rujuk keluar menutup kunjungan IGD (episode IGD > 6 jam ikut selesai); rawat inap →
     `menunggu_kamar` (permintaan kamar, tanpa penempatan; 2.28), kamar operasi → `menunggu_kamar_operasi`. Sub-menu baru
     `igd.disposisi` dan `master_data.matriks_perpindahan` (lihat, input, perbaiki).
@@ -5817,6 +5817,9 @@ paths:
         Izin rute: igd.disposisi.input, cakupan rs (403 sebelum isian dibaca); izin ini bersyarat SIP/SPK berlaku hari
         ini (lapis 5, 403 `izin_praktik_tidak_berlaku`). Perintah = baris baru yang tidak pernah diubah (FR-00-02/03,
         7.00.3): pemutus, alasan, pos asal `igd` dan tujuan, serah terima, status episode, jam server.
+        - `tujuan` di luar PosTujuanPerpindahan → 422 `validasi_gagal`. Pos tujuan matriks yang bukan disposisi FR-03-09
+          (`poli_lain`, `penunjang`, `igd`, `icu_hcu`; alurnya konsul, order, atau rawat inap) → 422 `tujuan_bukan_disposisi`,
+          `rincian` = `[{kolom: tujuan, pos_tujuan, pesan}]`.
         - Tujuan harus punya sel aktif di matriks perpindahan untuk pos asal `igd` (GET /data-induk/matriks-perpindahan);
           selain itu 422 `perpindahan_di_luar_matriks`, `rincian` = `[{kolom: tujuan, pos_asal, pos_tujuan, pesan}]`.
         - Pemberi perintah harus memegang `izin_perintah` sel itu (cakupan rs, termasuk syarat lapis 5) → selain itu 403.
@@ -9703,7 +9706,7 @@ components:
       required: [tujuan, alasan]
       additionalProperties: false
       properties:
-        tujuan: { $ref: '#/components/schemas/TujuanDisposisi' }
+        tujuan: { $ref: '#/components/schemas/TujuanDisposisi', description: "Pos tujuan matriks lain yang bukan disposisi → 422 `tujuan_bukan_disposisi`" }
         alasan: { type: string, minLength: 5, maxLength: 1000, description: "Alasan keputusan (klinis; tidak masuk log/audit)" }
         serah_terima: { type: [string, 'null'], minLength: 5, maxLength: 4000, description: "Catatan serah terima (bagian data RM-15); wajib untuk rawat_inap dan kamar_operasi (klinis; tidak masuk log/audit)" }
     Disposisi:

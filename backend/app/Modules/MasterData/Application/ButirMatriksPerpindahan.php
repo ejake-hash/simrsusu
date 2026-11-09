@@ -124,7 +124,7 @@ final class ButirMatriksPerpindahan
     public function tampilan(array $butir, string $berlakuDari): array
     {
         if ($butir['aksi'] === 'tutup') {
-            return [['isian' => 'status', 'label_isian' => 'Status', 'lama' => 'Aktif', 'baru' => 'Nonaktif mulai '.Carbon::parse($berlakuDari)->format('d-m-Y')]];
+            return [['isian' => 'status', 'label_isian' => 'Status', 'lama' => $this->teks('status', ((array) ($butir['nilai_lama'] ?? []))['status'] ?? null), 'baru' => 'Nonaktif mulai '.Carbon::parse($berlakuDari)->format('d-m-Y')]];
         }
         $lama = (array) ($butir['nilai_lama'] ?? []);
         $baris = [];
