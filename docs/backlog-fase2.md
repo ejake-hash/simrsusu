@@ -809,8 +809,8 @@ Uji    : dokter poli membuat konsul ke poli lain dengan alasan; hari yang sama â
   Asumsi kecuali pemilik menetapkan lain.
 - Gelang pasien, verifikasi DPJP, dan TBaK (kerangka C) belum dirinci: gelang butuh keputusan cetak/printer (FR-01-27 juga menunggu),
   verifikasi DPJP/TBaK butuh `dpjp_id`/`pemeriksa_id` di kunjungan (pertanyaan Tahap B). Mode farmasi APM menunggu 2.37.
-- Instrumen triase berisi nilai klinis tetapi dikelola peran data induk (2.24): batasi `master_data.instrumen_triase.input/perbaiki`
-  ke komite medik/keperawatan atau tandai butuh MFA? (ingat jebakan 2 untuk akun sintetis: izin sensitif memaksa MFA saat masuk.)
+- Instrumen triase berisi nilai klinis tetapi dikelola peran data induk (2.24). Keputusan pemilik 9 Nov 2026: izin ubah instrumen
+  triase diatur lewat peran di RS (komite medik/keperawatan); kode tidak diubah.
 
 Utang 2.24: `jamWib`/`waktuTriase` (FE) mengunci zona Asia/Jakarta dan label "WIB"; produk generik (PRD 3.4) perlu zona dari profil
 RS (`instalasi.zona_waktu` sudah ada di backend). Instrumen e2e `E2E-TRIASE-*` nonaktif tertinggal di basis data e2e (sengaja; tidak dihapus).

@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
  * @property string $jenis rawat_jalan_harian | igd_lebih_6_jam
  * @property Carbon $mulai_tanggal
  * @property string $status aktif | selesai | batal
+ * @property Carbon|null $selesai_pada diisi saat episode selesai (mis. IGD > 6 jam karena disposisi, tiket 2.26)
  * @property int $revisi
  */
 final class Episode extends Model
@@ -37,6 +38,6 @@ final class Episode extends Model
 
     protected function casts(): array
     {
-        return ['mulai_tanggal' => 'date', 'dibatalkan_pada' => 'datetime', 'revisi' => 'integer'];
+        return ['mulai_tanggal' => 'date', 'dibatalkan_pada' => 'datetime', 'selesai_pada' => 'datetime', 'revisi' => 'integer'];
     }
 }

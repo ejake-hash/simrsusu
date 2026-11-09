@@ -12,6 +12,7 @@ use App\Modules\MasterData\Http\Controllers\KapasitasTempatTidurController;
 use App\Modules\MasterData\Http\Controllers\KelasRawatController;
 use App\Modules\MasterData\Http\Controllers\KsmController;
 use App\Modules\MasterData\Http\Controllers\LokasiController;
+use App\Modules\MasterData\Http\Controllers\MatriksPerpindahanController;
 use App\Modules\MasterData\Http\Controllers\PaketReferensiController;
 use App\Modules\MasterData\Http\Controllers\PenjaminController;
 use App\Modules\MasterData\Http\Controllers\PoliklinikController;
@@ -85,6 +86,9 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::post('data-induk/instrumen-triase', [InstrumenTriaseController::class, 'store']);
     Route::get('data-induk/instrumen-triase/{instrumen}', [InstrumenTriaseController::class, 'show']);
     Route::patch('data-induk/instrumen-triase/{instrumen}', [InstrumenTriaseController::class, 'update']);
+
+    // Matriks perpindahan antar-pos (tiket 2.26): hanya baca; perubahan lewat usulan data induk `matriks_perpindahan`.
+    Route::get('data-induk/matriks-perpindahan', [MatriksPerpindahanController::class, 'index']);
 
     // Katalog obat dan formularium (tiket 2.11): izin farmasi.formularium.* cakupan rs, diperiksa di controller.
     Route::get('data-induk/barang', [BarangController::class, 'index']);

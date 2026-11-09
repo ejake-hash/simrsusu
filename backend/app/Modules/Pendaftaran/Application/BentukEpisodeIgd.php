@@ -25,6 +25,9 @@ final class BentukEpisodeIgd
      */
     public const TABEL_AKTIVITAS = ['klinis.catatan_klinis', 'permintaan.permintaan_pemeriksaan', 'integrasi.sep'];
 
+    /** Status perintah disposisi yang menahan pasien di IGD sambil menunggu dipindah (kunjungan.perpindahan_pos). */
+    public const STATUS_MENUNGGU_PINDAH = ['menunggu_kamar', 'menunggu_kamar_operasi'];
+
     public function __construct(private readonly CatatAktivitas $audit) {}
 
     /** @return int jumlah kunjungan yang dipindah */
@@ -36,6 +39,10 @@ final class BentukEpisodeIgd
                 ->join('kunjungan.episode AS e', 'e.id', '=', 'k.episode_id')
                 ->where('k.jenis_kunjungan', Kunjungan::IGD)->whereIn('k.status', Kunjungan::STATUS_AKTIF)
                 ->where('k.tiba_pada', '<', self::ambang())->where('e.jenis', Episode::RAWAT_JALAN_HARIAN)
+                // Sudah diputuskan rawat inap/operasi (disposisi 2.26): bukan "IGD > 6 jam tanpa rawat inap"; episodenya
+                // mengikuti SPRI (2.28). Disposisi akhir sesudahnya (mis. APS) membentuk episode ini lewat pindahkanTerkunci().
+                ->whereNotExists(fn ($q) => $q->from('kunjungan.perpindahan_pos AS p')->whereColumn('p.dari_kunjungan_id', 'k.id')
+                    ->whereIn('p.status', self::STATUS_MENUNGGU_PINDAH))
                 ->orderBy('k.tiba_pada')->orderBy('k.id')->limit($batas)->pluck('k.id');
             $dipindah = 0;
             foreach ($ids as $id) {
@@ -61,13 +68,31 @@ final class BentukEpisodeIgd
     {
         // Gabung RM yang commit di antara baca dan kunci: lewati (null); putaran berikutnya mengulang dengan pasien yang benar.
         $kunjungan = KunciKunjungan::pasienLaluKunjungan($kunjunganId, lewatiBilaPindah: true);
-        if ($kunjungan === null || $kunjungan->jenis_kunjungan !== Kunjungan::IGD || $kunjungan->tiba_pada === null
-            || ! in_array($kunjungan->status, Kunjungan::STATUS_AKTIF, true) || ! $kunjungan->tiba_pada->lessThan(self::ambang())) {
+        if ($kunjungan === null || DB::table('kunjungan.perpindahan_pos')->where('dari_kunjungan_id', $kunjungan->id)
+            ->whereIn('status', self::STATUS_MENUNGGU_PINDAH)->exists()) {
             return false;
+        }
+
+        return $this->pindahkanTerkunci($kunjungan) !== null;
+    }
+
+    /**
+     * Pindahkan satu kunjungan IGD aktif yang sudah lewat 6 jam ke episode `igd_lebih_6_jam` (pelaku sistem: aturan
+     * otomatis). Pemanggil sudah memegang kunci pasien lalu kunjungan (KunciKunjungan) di transaksinya; dipakai tugas
+     * terjadwal dan disposisi (2.26), supaya disposisi sesudah 6 jam yang mendahului tugas terjadwal tetap masuk episode
+     * yang benar.
+     *
+     * @return Episode|null episode baru; null bila syaratnya tidak terpenuhi (tidak ada yang diubah)
+     */
+    public function pindahkanTerkunci(Kunjungan $kunjungan): ?Episode
+    {
+        if ($kunjungan->jenis_kunjungan !== Kunjungan::IGD || $kunjungan->tiba_pada === null
+            || ! in_array($kunjungan->status, Kunjungan::STATUS_AKTIF, true) || ! $kunjungan->tiba_pada->lessThan(self::ambang())) {
+            return null;
         }
         $lama = Episode::query()->whereKey($kunjungan->episode_id)->lockForUpdate()->first();
         if ($lama === null || $lama->jenis !== Episode::RAWAT_JALAN_HARIAN) {
-            return false;
+            return null;
         }
 
         $baru = new Episode;
@@ -97,6 +122,6 @@ final class BentukEpisodeIgd
             'episode_lama_batal' => $lamaBatal, 'baris_dipindah' => $dipindah,
         ], ['episode_id' => $lama->id]);
 
-        return true;
+        return $baru;
     }
 }
