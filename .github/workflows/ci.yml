@@ -23,7 +23,7 @@ jobs:
     outputs:
       hanya_dokumen: ${{ steps.cek.outputs.hanya_dokumen }}
     steps:
-      # Checkout PR = merge commit: HEAD^1 ujung main saat itu, HEAD sesudah PR digabung.
+      # Checkout PR = merge commit: HEAD^1 ujung cabang base saat itu, HEAD sesudah PR digabung.
       - uses: actions/checkout@v5
         if: github.event_name == 'pull_request'
         with:
