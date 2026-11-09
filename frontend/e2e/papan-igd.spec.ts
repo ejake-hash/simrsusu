@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { halamanAkun, pelanggaranAxe, SANDI } from './bantu'
+import { halamanAkun, pelanggaranAxe, SANDI, tungguJatahPenuh } from './bantu'
 
 /**
  * Master Data → Area & batas papan IGD (tiket 2.25) ke backend asli sebagai data.induk @1440 px + axe: tambah area
@@ -14,7 +14,9 @@ test.beforeAll(() => {
 })
 
 test('tambah area IGD, lalu nonaktifkan dengan dasar; batas waktu tampil dengan penjelasan', async ({ browser, baseURL }) => {
-  const page = await halamanAkun(browser, new URL(baseURL ?? '').origin, 'data.induk')
+  const asal = new URL(baseURL ?? '').origin
+  const page = await halamanAkun(browser, asal, 'data.induk')
+  await tungguJatahPenuh(page.context().request, asal)
   await page.goto('/master-data/papan-igd')
   await expect(page.getByRole('heading', { name: 'Area & batas papan IGD', level: 1 })).toBeVisible()
   await expect(page.getByText('Batas waktu tanggap', { exact: true })).toBeVisible()

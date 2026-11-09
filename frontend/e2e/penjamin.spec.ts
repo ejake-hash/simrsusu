@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { halamanAkun, pelanggaranAxe, SANDI } from './bantu'
+import { halamanAkun, pelanggaranAxe, SANDI, tungguJatahPenuh } from './bantu'
 
 /**
  * Master Data → Penjamin (tiket 2.1) ke backend asli sebagai data.induk: tambah penjamin, kode ganda ditolak
@@ -13,7 +13,10 @@ test.beforeAll(() => {
 })
 
 test('tambah penjamin, kode ganda ditolak, nonaktifkan dengan dasar', async ({ browser, baseURL }) => {
-  const page = await halamanAkun(browser, new URL(baseURL ?? '').origin, 'data.induk')
+  const asal = new URL(baseURL ?? '').origin
+  const page = await halamanAkun(browser, asal, 'data.induk')
+  // Spec fase2 sebelumnya (instrumen triase, matriks, papan IGD) memakai akun yang sama dalam menit yang sama.
+  await tungguJatahPenuh(page.context().request, asal)
   await page.goto('/master-data/penjamin')
   await expect(page.getByRole('heading', { name: 'Penjamin', level: 1 })).toBeVisible()
 
