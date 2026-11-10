@@ -158,6 +158,31 @@ class AdmisiRawatInapTest extends TestCase
         $this->assertSesuaiKontrak($peta, 'GET', '/peta-tempat-tidur');
     }
 
+    public function test_igd_lewat_tengah_malam_tetap_tergabung_ke_episode_rawat_inap(): void
+    {
+        // IGD tiba Senin 23.00, disposisi rawat inap Selasa 01.00: episode IGD (Senin) menjadi episode rawat inap (7.00.3
+        // "episode rawat inap sejak IGD"), bukan episode baru bertanggal Selasa.
+        $zona = (string) config('instalasi.zona_waktu');
+        $pasien = $this->pasien();
+        $this->travelTo(Carbon::parse(self::SENIN.' 23:00', $zona));
+        $this->masukSebagai($this->dokterIgd);
+        $igd = (string) $this->minta('POST', '/api/v1/kunjungan-igd', ['pasien_id' => $pasien->id, 'cara_bayar' => 'non_jkn'])->assertCreated()->json('data.id');
+        $episodeIgd = (string) DB::table('kunjungan.kunjungan')->where('id', $igd)->value('episode_id');
+
+        $this->travelTo(Carbon::parse('2026-11-03 01:00', $zona));
+        $this->disposisiRawatInap($igd);
+        $permintaan = $this->permintaanDari($igd);
+        $this->masukSebagai($this->admisi);
+        $this->alokasi($permintaan, $this->id['UJI29-101-1'])->assertOk();
+        $respons = $this->tempatkan($permintaan)->assertCreated()->assertJsonPath('data.episode.id', $episodeIgd)
+            ->assertJsonPath('data.episode.jenis', 'rawat_inap')->assertJsonPath('data.episode.mulai_tanggal', self::SENIN);
+        $this->assertSesuaiKontrak($respons, 'POST', '/permintaan-tempat-tidur/{id}/tempatkan');
+        $this->assertSame($episodeIgd, DB::table('kunjungan.kunjungan')->where('id', $igd)->value('episode_id'));
+        $this->assertSame(['rawat_inap', 'aktif'], [DB::table('kunjungan.episode')->where('id', $episodeIgd)->value('jenis'),
+            DB::table('kunjungan.episode')->where('id', $episodeIgd)->value('status')]);
+        $this->assertSame(1, DB::table('kunjungan.episode')->where('pasien_id', $pasien->id)->count());
+    }
+
     public function test_spri_tanggal_lain_membentuk_episode_rawat_inap_baru(): void
     {
         $pasien = $this->pasien();

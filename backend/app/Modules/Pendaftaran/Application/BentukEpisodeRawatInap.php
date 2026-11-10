@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\DB;
  * jalan harian atau IGD > 6 jam yang memuat kunjungan bertanggal T digabung ke satu episode rawat inap: episode
  * kunjungan asal permintaan dipakai bila termasuk, selain itu yang paling awal; jenisnya diubah, kunjungan dan aktivitas
  * episode lain dipindah ke sana (pola BentukEpisodeIgd), lalu episode yang kosong batal (tidak dihapus). Tanpa episode
- * bertanggal T: episode rawat inap baru. Perintah perpindahan menyimpan potret episode, jadi tidak ikut dipindah.
+ * bertanggal T: episode rawat inap baru. Asal IGD: episode kunjungan IGD asal selalu ikut walau tanggalnya bukan T (IGD
+ * lewat tengah malam; 7.00.3 "episode rawat inap sejak IGD", keputusan sesi 10 Nov 2026). Perintah perpindahan menyimpan potret episode, jadi tidak ikut dipindah.
  * Dipanggil di dalam transaksi pemanggil dengan pasien sudah terkunci (KunciKunjungan).
  */
 final class BentukEpisodeRawatInap
@@ -29,9 +30,13 @@ final class BentukEpisodeRawatInap
     /** @param  string  $tanggal  tanggal awal rawat inap (zona RS) */
     public function bentuk(Kunjungan $asal, string $tanggal, string $olehId): Episode
     {
+        // Asal IGD: episode kunjungan IGD selalu ikut, berapa pun tanggalnya (7.00.3 "episode rawat inap sejak IGD"; IGD
+        // lewat tengah malam). Kunjungan lain hanya yang bertanggal T.
+        $igd = $asal->jenis_kunjungan === Kunjungan::IGD;
         $calon = Episode::query()->where('pasien_id', $asal->pasien_id)->where('status', 'aktif')->whereIn('jenis', self::JENIS_DIGABUNG)
-            ->whereExists(fn (Builder $q) => $q->from('kunjungan.kunjungan AS kt')->whereColumn('kt.episode_id', 'kunjungan.episode.id')
+            ->where(fn ($w) => $w->whereExists(fn (Builder $q) => $q->from('kunjungan.kunjungan AS kt')->whereColumn('kt.episode_id', 'kunjungan.episode.id')
                 ->where('kt.tanggal', $tanggal)->where('kt.status', '<>', 'batal'))
+                ->when($igd, fn ($o) => $o->orWhere('id', $asal->episode_id)))
             ->orderBy('mulai_tanggal')->orderBy('id')->lockForUpdate()->get();
 
         if ($calon->isEmpty()) {

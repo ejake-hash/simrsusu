@@ -99,6 +99,12 @@ final class AkunSintetisSeeder extends Seeder
         'contoh_data_induk' => ['Contoh Admin Data Induk', 'data.induk', ['master_data']],
     ];
 
+    /** Izin menu peran contoh di atas yang sengaja tidak diberikan (dicabut lagi saat seeding ulang). */
+    private const IZIN_DIKECUALIKAN_CONTOH = [
+        // Tiket 2.29: pindah ruang = perintah dokter (sel matriks rawat_inap → rawat_inap), bukan izin perawat.
+        'contoh_perawat' => ['rawat_inap.pindah_ruang.input'],
+    ];
+
     /**
      * Izin tambahan per peran contoh di atas. Layar Pendaftaran kunjungan poli memuat pilihan poli, jadwal praktik, dan
      * penjamin dari endpoint data induk, jadi petugas admisi butuh izin lihat ketiganya (RS nyata memberinya lewat Peran & izin).
@@ -252,9 +258,14 @@ final class AkunSintetisSeeder extends Seeder
                 $this->aktifkan('akses.peran_menu', ['peran_id' => $peran->id, 'menu_id' => $menuId]);
             }
             // Izin sensitif (mis. akses darurat 2.21) tidak ikut: pemberiannya lewat persetujuan dan memaksa MFA saat masuk.
-            foreach (Izin::query()->whereIn('menu_id', $subMenu)->where('sensitif', false)->pluck('id') as $izinId) {
+            $kecuali = self::IZIN_DIKECUALIKAN_CONTOH[$kode] ?? [];
+            foreach (Izin::query()->whereIn('menu_id', $subMenu)->where('sensitif', false)->whereNotIn('kode', $kecuali)->pluck('id') as $izinId) {
                 $this->aktifkan('akses.peran_izin', ['peran_id' => $peran->id, 'izin_id' => $izinId]);
             }
+            // Seeding ulang: izin yang dikecualikan tetap tidak berlaku walau pernah terpasang.
+            DB::table('akses.peran_izin')->where('peran_id', $peran->id)->where('status', 'aktif')
+                ->whereIn('izin_id', Izin::query()->whereIn('kode', $kecuali)->select('id'))
+                ->update(['status' => 'batal', 'alasan_batal' => 'Dikecualikan dari peran contoh', 'dibatalkan_pada' => now()]);
             $this->beriIzin($peran, self::IZIN_TAMBAHAN_CONTOH[$kode]);
             app(CacheHakAkses::class)->lupakanSemua();
 
