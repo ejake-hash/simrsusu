@@ -52,7 +52,8 @@ final class BacaPapanIgd
                 a.id AS area_id, a.kode AS area_kode, a.nama AS area_nama,
                 (SELECT min(c.dibuat_pada) FROM klinis.catatan_klinis c WHERE c.kunjungan_id = k.id AND c.jenis = \'asesmen\'
                     AND c.tatanan = \'igd\' AND c.profesi IN (\'dokter\', \'ppds\')) AS asesmen_dokter_pada,
-                d.status AS menunggu_status, d.terjadi_pada AS menunggu_sejak
+                d.status AS menunggu_status, d.terjadi_pada AS menunggu_sejak,
+                pk.id AS permintaan_id, pk.status AS permintaan_status, pk.tt_id, pk.tt_kode, pk.bangsal_id, pk.bangsal_kode, pk.bangsal_nama
             FROM kunjungan.kunjungan k
             JOIN pasien.pasien p ON p.id = k.pasien_id
             LEFT JOIN kunjungan.papan_igd pi ON pi.kunjungan_id = k.id
@@ -61,6 +62,12 @@ final class BacaPapanIgd
                 ORDER BY tr.ditriase_pada DESC, tr.id DESC LIMIT 1) t ON true
             LEFT JOIN LATERAL (SELECT pp.status, pp.terjadi_pada FROM kunjungan.perpindahan_pos pp WHERE pp.dari_kunjungan_id = k.id
                 AND pp.status IN (\'menunggu_kamar\', \'menunggu_kamar_operasi\') ORDER BY pp.terjadi_pada DESC, pp.id DESC LIMIT 1) d ON true
+            LEFT JOIN LATERAL (SELECT ptt.id, ptt.status, tt.id AS tt_id, tt.kode AS tt_kode, b.id AS bangsal_id, b.kode AS bangsal_kode, b.nama AS bangsal_nama
+                FROM kunjungan.permintaan_tempat_tidur ptt
+                LEFT JOIN inti.tempat_tidur tt ON tt.id = ptt.tempat_tidur_id
+                LEFT JOIN inti.kamar km ON km.id = tt.kamar_id
+                LEFT JOIN inti.bangsal b ON b.id = km.bangsal_id
+                WHERE ptt.kunjungan_id = k.id AND ptt.status IN (\'menunggu\', \'dialokasikan\') LIMIT 1) pk ON true
             WHERE k.jenis_kunjungan = ? AND k.status IN ('.implode(', ', array_fill(0, count(Kunjungan::STATUS_AKTIF), '?')).') '.$saringArea.'
             ORDER BY '.self::URUT_TRIASE.', k.tiba_pada, k.id
             LIMIT ?', $ikatan);
@@ -121,6 +128,12 @@ final class BacaPapanIgd
             'tanggap' => $tanggap,
             'disposisi_menunggu' => $b->menunggu_status === null ? null
                 : ['status' => $b->menunggu_status, 'sejak' => Carbon::parse($b->menunggu_sejak)->toIso8601String()],
+            // FR-03-06 (2.28): permintaan kamar aktif dan TT yang dipesan, dari tabel yang sama dengan peta TT.
+            'permintaan_kamar' => $b->permintaan_id === null ? null : [
+                'id' => $b->permintaan_id, 'status' => $b->permintaan_status,
+                'tempat_tidur' => $b->tt_id === null ? null : ['id' => $b->tt_id, 'kode' => $b->tt_kode,
+                    'bangsal' => ['id' => $b->bangsal_id, 'kode' => $b->bangsal_kode, 'nama' => $b->bangsal_nama]],
+            ],
         ];
     }
 

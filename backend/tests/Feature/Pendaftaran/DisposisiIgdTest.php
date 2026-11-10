@@ -217,11 +217,20 @@ class DisposisiIgdTest extends TestCase
         $this->minta('POST', '/api/v1/usulan-data-induk', $this->usulan([
             ['objek_jenis' => 'aturan_perpindahan', 'aksi' => 'tambah', 'objek_id' => null, 'nilai_baru' => ['pos_asal' => 'igd', 'pos_tujuan' => 'pulang', 'izin_perintah' => 'igd.disposisi.input']],
         ]))->assertStatus(422)->assertJsonPath('error.rincian.0.kode', 'pasangan_sudah_ada');
+        // Keputusan pemilik 10 Nov 2026 (tinjauan #194 butir 2): izin sel matriks wajib izin klinis (SIP/SPK).
+        foreach ([
+            ['objek_jenis' => 'aturan_perpindahan', 'aksi' => 'ubah', 'objek_id' => $pulang->id, 'nilai_baru' => ['izin_perintah' => 'igd.triase.input']],
+            ['objek_jenis' => 'aturan_perpindahan', 'aksi' => 'tambah', 'objek_id' => null, 'nilai_baru' => ['pos_asal' => 'pendaftaran', 'pos_tujuan' => 'igd', 'izin_perintah' => 'igd.pendaftaran.input']],
+        ] as $bukanKlinis) {
+            $tolak = $this->minta('POST', '/api/v1/usulan-data-induk', $this->usulan([$bukanKlinis]))->assertStatus(422)
+                ->assertJsonPath('error.rincian.0.kode', 'izin_bukan_klinis')->assertJsonPath('error.rincian.0.kolom', 'perubahan.0.nilai_baru.izin_perintah');
+            $this->assertSesuaiKontrak($tolak, 'POST', '/usulan-data-induk');
+        }
 
         $ajukan = $this->minta('POST', '/api/v1/usulan-data-induk', $this->usulan([
             ['objek_jenis' => 'aturan_perpindahan', 'aksi' => 'tutup', 'objek_id' => $aps->id, 'nilai_baru' => ['alasan' => 'APS dicatat sebagai pulang di RS ini']],
-            ['objek_jenis' => 'aturan_perpindahan', 'aksi' => 'ubah', 'objek_id' => $pulang->id, 'nilai_baru' => ['izin_perintah' => 'igd.triase.input']],
-            ['objek_jenis' => 'aturan_perpindahan', 'aksi' => 'tambah', 'objek_id' => null, 'nilai_baru' => ['pos_asal' => 'pendaftaran', 'pos_tujuan' => 'igd', 'izin_perintah' => 'igd.pendaftaran.input', 'keterangan' => 'PRD 7.00.3: bila gawat']],
+            ['objek_jenis' => 'aturan_perpindahan', 'aksi' => 'ubah', 'objek_id' => $pulang->id, 'nilai_baru' => ['izin_perintah' => 'rawat_jalan.pemeriksaan.sahkan']],
+            ['objek_jenis' => 'aturan_perpindahan', 'aksi' => 'tambah', 'objek_id' => null, 'nilai_baru' => ['pos_asal' => 'pendaftaran', 'pos_tujuan' => 'igd', 'izin_perintah' => 'igd.disposisi.input', 'keterangan' => 'PRD 7.00.3: bila gawat']],
         ]))->assertCreated()->assertJsonPath('data.jenis_data', 'matriks_perpindahan')
             ->assertJsonPath('data.perubahan.0.objek_label', 'IGD → APS (pulang atas permintaan sendiri)')
             ->assertJsonPath('data.perubahan.0.tampilan.0.lama', 'Aktif')
@@ -239,7 +248,7 @@ class DisposisiIgdTest extends TestCase
         $this->assertSame('nonaktif', DB::table('kunjungan.aturan_perpindahan')->where('id', $aps->id)->value('status'));
         $this->assertTrue(DB::table('kunjungan.aturan_perpindahan')->where('pos_asal', 'pendaftaran')->where('pos_tujuan', 'igd')->where('status', 'aktif')->exists());
         $versi = DB::table('inti.data_induk_versi')->where('objek_jenis', 'aturan_perpindahan')->where('objek_id', $pulang->id)->first();
-        $this->assertSame(['igd.disposisi.input', 'igd.triase.input', $usulan], [json_decode((string) $versi->sebelum, true)['izin_perintah'], json_decode((string) $versi->sesudah, true)['izin_perintah'], $versi->usulan_id]);
+        $this->assertSame(['igd.disposisi.input', 'rawat_jalan.pemeriksaan.sahkan', $usulan], [json_decode((string) $versi->sebelum, true)['izin_perintah'], json_decode((string) $versi->sesudah, true)['izin_perintah'], $versi->usulan_id]);
         $audit = $this->assertAuditTerakhir('master_data.matriks_perpindahan_diubah', $pulang->id);
         $this->assertSame($penyetuju->id, $audit->pengguna_id);
         $this->assertStringContainsString(self::DASAR, (string) $audit->sesudah);

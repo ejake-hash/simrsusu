@@ -98,7 +98,9 @@ final class MenuBawaan
      */
     public const IZIN_KLINIS = ['rawat_jalan.pemeriksaan.resep.sahkan', 'rawat_jalan.cppt.darurat',
         // Tiket 2.26: perintah perpindahan klinis hanya dari dokter atau tenaga berwenang (PRD 7.00.3 butir 1).
-        'igd.disposisi.input'];
+        'igd.disposisi.input',
+        // Tiket 2.28 (keputusan pemilik 10 Nov 2026): izin sel matriks asal poliklinik, termasuk SPRI dokter poli.
+        'rawat_jalan.pemeriksaan.sahkan'];
 
     /**
      * Izin data pribadi yang sensitif tanpa penyetuju bawaan: tidak bisa diberikan sampai RS menetapkan pemilik datanya

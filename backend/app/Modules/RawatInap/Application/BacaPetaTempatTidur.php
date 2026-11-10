@@ -118,7 +118,8 @@ final class BacaPetaTempatTidur
             'status' => $status,
             'status_sejak' => Carbon::parse((string) $b->status_sejak)->toIso8601String(),
             'ditutup' => $ditutup,
-            'dapat_dipilih' => ! $ditutup && $status === StatusTempatTidur::KOSONG_SIAP,
+            // Penutupan terjadwal (berlaku_sampai terisi) juga tidak dapat dipilih: alokasi 2.28 menolaknya.
+            'dapat_dipilih' => $b->berlaku_sampai === null && $status === StatusTempatTidur::KOSONG_SIAP,
             'hari_rawat' => null,
         ];
     }
