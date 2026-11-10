@@ -212,6 +212,7 @@ info:
     v0.38.0 (keputusan pemilik 10 Nov 2026, tiket 2.29 FE): `TempatTidurPeta` + field opsional `kunjungan_rawat_inap_id`
     (id kunjungan rawat inap TT berpenempatan aktif) hanya bagi pemegang rawat_inap.pindah_ruang.input di cakupan yang
     memuat unit bangsal TT; tanpa izin itu kunci tidak dikirim. Sumber id untuk POST /kunjungan/{id}/pindah-ruang dari peta.
+    Bersama id itu (syarat sama, keputusan pemilik 11 Nov 2026): `pasien_rawat_inap` {nama, no_rm, tanggal_lahir}.
 servers:
   - url: /api/v1
 security:
@@ -6126,7 +6127,8 @@ paths:
           Paling banyak 1000 baris (`meta.terpotong` true bila lebih). Bukan daftar
           berkursor: layar memuat seluruh peta sekaligus; pencarian kode TT dan pengelompokan di layar.
         - `bangsal_id`/`gedung_id` menyaring; id tak dikenal → daftar kosong; bukan UUID → 422.
-        - Tanpa data pasien. `hari_rawat` diisi untuk TT dengan penempatan aktif (v0.37.0), dihitung dari penempatan pertama
+        - Tanpa data pasien, kecuali `kunjungan_rawat_inap_id` dan `pasien_rawat_inap` bagi pemegang
+          rawat_inap.pindah_ruang.input di cakupan unit bangsal TT (v0.38.0). `hari_rawat` diisi untuk TT dengan penempatan aktif (v0.37.0), dihitung dari penempatan pertama
           kunjungan rawat inapnya.
       parameters:
         - { in: query, name: bangsal_id, schema: { type: string, format: uuid } }
@@ -10494,7 +10496,8 @@ components:
       type: object
       required: [id, kode, kamar, bangsal, lantai, gedung, kelas_rawat, aturan_jenis_kelamin, isolasi, ekstra, status, status_sejak, ditutup, dapat_dipilih, hari_rawat]
       description: |
-        Satu TT di peta (v0.35.0; FR-08-01, FR-08-20). Tanpa data pasien. Layar menampilkan status dengan teks/ikon, bukan
+        Satu TT di peta (v0.35.0; FR-08-01, FR-08-20). Tanpa data pasien kecuali dua field opsional berizin pindah ruang
+        (v0.38.0). Layar menampilkan status dengan teks/ikon, bukan
         hanya warna (5.1 butir 4). Status `melewati_rencana_lama_rawat` (FR-08-01) dikenal sejak v0.37.0; disetel bersama
         rencana pulang (2.40).
       properties:
@@ -10522,7 +10525,15 @@ components:
         ditutup: { type: boolean, description: "TT ditutup 1.8b (hari terakhir berlaku sudah lewat)" }
         dapat_dipilih: { type: boolean, description: "Status kosong_siap dan tidak ditutup maupun dijadwalkan tutup (pilihan alokasi 2.28; sejak v0.36.0 penutupan terjadwal ikut false)" }
         hari_rawat: { type: [integer, 'null'], minimum: 1, description: "Hari rawat pasien yang menempati TT ini (v0.37.0): tanggal hari ini zona RS − tanggal penempatan pertama kunjungan rawat inapnya + 1 (pindah ruang tidak mengulang hitungan); null = tidak ada penempatan aktif" }
-        kunjungan_rawat_inap_id: { type: string, format: uuid, description: "Opsional (v0.38.0): kunjungan rawat inap yang menempati TT ini (id untuk POST /kunjungan/{id}/pindah-ruang). Hanya dikirim untuk TT berpenempatan aktif yang tidak ditutup, dan hanya bila pemanggil memegang rawat_inap.pindah_ruang.input di cakupan yang memuat unit bangsal TT; selain itu kunci tidak ada (bukan null). Tanpa data pasien lain." }
+        kunjungan_rawat_inap_id: { type: string, format: uuid, description: "Opsional (v0.38.0): kunjungan rawat inap yang menempati TT ini (id untuk POST /kunjungan/{id}/pindah-ruang). Hanya dikirim untuk TT berpenempatan aktif yang tidak ditutup, dan hanya bila pemanggil memegang rawat_inap.pindah_ruang.input di cakupan yang memuat unit bangsal TT; selain itu kunci tidak ada (bukan null)." }
+        pasien_rawat_inap:
+          type: object
+          required: [nama, no_rm, tanggal_lahir]
+          description: "Opsional (v0.38.0, keputusan pemilik 11 Nov 2026): dua penanda identitas pasien yang menempati TT, untuk konfirmasi pindah ruang (PRD 5.1 butir 9). Syarat sama persis dengan `kunjungan_rawat_inap_id` (dikirim bersama, hanya bagi rawat_inap.pindah_ruang.input di cakupan yang memuat unit bangsal TT); selain itu kunci tidak ada. Tidak masuk log/audit."
+          properties:
+            nama: { type: string }
+            no_rm: { type: string }
+            tanggal_lahir: { type: [string, 'null'], format: date }
     RawatInap:
       type: object
       required: [kunjungan, pasien, episode, permintaan_tempat_tidur_id, asal, kelas_dirawat, mulai_pada, penempatan, hari_rawat]

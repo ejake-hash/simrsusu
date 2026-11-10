@@ -142,6 +142,7 @@ export function buatServerPermintaanKamar(opsi: OpsiServerPermintaanKamar) {
     tt.status_sejak = jam
     tt.hari_rawat = 1
     tt.kunjungan_rawat_inap_id = id(700 + nomorRi + 1)
+    tt.pasien_rawat_inap = { nama: p.pasien.nama, no_rm: p.pasien.no_rm, tanggal_lahir: p.pasien.tanggal_lahir }
     p.status = 'ditempatkan'
     p.revisi++
     ditempatkan.add(p.pasien.id)
@@ -159,9 +160,9 @@ export function buatServerPermintaanKamar(opsi: OpsiServerPermintaanKamar) {
 
   /** Kunjungan RI tiruan: dari tempatkan, atau pasien sintetis untuk TT berpasien bawaan peta tiruan. */
   const rawat = new Map<string, { pasien: PermintaanTempatTidur['pasien']; nomor: string; asal: 'igd' | 'poliklinik'; permintaan: string; mulai: string }>()
-  const dataRawat = (kunjunganId: string) =>
+  const dataRawat = (kunjunganId: string, identitas: TempatTidurPeta['pasien_rawat_inap']) =>
     rawat.get(kunjunganId) ?? {
-      pasien: { id: id(600), no_rm: '900099', nama: 'Pasien Contoh Rawat Inap', jenis_kelamin: 'laki_laki' as const, tanggal_lahir: '1965-05-05' },
+      pasien: { id: id(600), no_rm: identitas?.no_rm ?? '900099', nama: identitas?.nama ?? 'Pasien Contoh Rawat Inap', jenis_kelamin: 'laki_laki' as const, tanggal_lahir: identitas?.tanggal_lahir ?? null },
       nomor: 'RI-20261030-0001', asal: 'igd' as const, permintaan: id(601), mulai: '2026-10-30T02:00:00.000Z',
     }
 
@@ -184,10 +185,11 @@ export function buatServerPermintaanKamar(opsi: OpsiServerPermintaanKamar) {
     if (ke.status !== 'kosong_siap') return error(409, 'tempat_tidur_tidak_tersedia', 'Tempat tidur tidak kosong siap.', [{ status_sekarang: ke.status }])
     const jam = sekarang().toISOString()
     const hari = asal.hari_rawat
-    Object.assign(ke, { status: 'terisi', status_sejak: jam, dapat_dipilih: false, hari_rawat: hari, kunjungan_rawat_inap_id: kunjunganId })
+    const d = dataRawat(kunjunganId, asal.pasien_rawat_inap)
+    Object.assign(ke, { status: 'terisi', status_sejak: jam, dapat_dipilih: false, hari_rawat: hari, kunjungan_rawat_inap_id: kunjunganId, pasien_rawat_inap: asal.pasien_rawat_inap })
     Object.assign(asal, { status: 'dibersihkan', status_sejak: jam, hari_rawat: null })
     delete asal.kunjungan_rawat_inap_id
-    const d = dataRawat(kunjunganId)
+    delete asal.pasien_rawat_inap
     const data = {
       kunjungan: { id: kunjunganId, nomor: d.nomor, status: 'dilayani' }, pasien: structuredClone(d.pasien),
       episode: { id: id(850), jenis: 'rawat_inap', mulai_tanggal: d.mulai.slice(0, 10) }, permintaan_tempat_tidur_id: d.permintaan, asal: d.asal,

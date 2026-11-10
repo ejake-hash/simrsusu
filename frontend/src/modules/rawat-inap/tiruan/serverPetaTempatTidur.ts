@@ -74,12 +74,19 @@ export function buatServerPetaTempatTidur(opsi: OpsiServerPetaTempatTidur) {
   let nomorRi = 500
   for (const [kamar, kode, status] of contoh) {
     const berpasien = hariRawat[status] !== undefined
-    tambah(L.gedungRawatInap, L.lantai2, L.melati, kamar, kode, status, { hari_rawat: hariRawat[status] ?? null, ...(berpasien ? { kunjungan_rawat_inap_id: id(nomorRi++) } : {}) })
+    const n = nomorRi
+    const pasien = { nama: n === 500 ? 'Pasien Contoh Rawat Inap' : 'Pasien Contoh Rencana Pulang', no_rm: `9000${99 - (n - 500)}`, tanggal_lahir: '1965-05-05' }
+    tambah(L.gedungRawatInap, L.lantai2, L.melati, kamar, kode, status, {
+      hari_rawat: hariRawat[status] ?? null, ...(berpasien ? { kunjungan_rawat_inap_id: id(nomorRi++), pasien_rawat_inap: pasien } : {}),
+    })
   }
-  /** Bentuk keluar: `kunjungan_rawat_inap_id` dibuang bila pemanggil tidak memegang rawat_inap.pindah_ruang.input. */
+  /** Bentuk keluar: id kunjungan dan identitas pasien dibuang bila pemanggil tidak memegang rawat_inap.pindah_ruang.input. */
   const keluar = (tt: TempatTidurPeta, bolehPindah: boolean): TempatTidurPeta => {
     const salinan = structuredClone(tt)
-    if (!bolehPindah || salinan.ditutup) delete salinan.kunjungan_rawat_inap_id
+    if (!bolehPindah || salinan.ditutup || !salinan.kunjungan_rawat_inap_id) {
+      delete salinan.kunjungan_rawat_inap_id
+      delete salinan.pasien_rawat_inap
+    }
     return salinan
   }
 

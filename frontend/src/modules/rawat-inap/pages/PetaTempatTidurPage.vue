@@ -11,7 +11,7 @@ import HalamanModul from '@/layouts/HalamanModul.vue'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { errorKolom, pesanError } from '@/modules/akses/pengaturan'
 import { useKueriBerPolling } from '@/modules/notifikasi/polling'
-import { formatNoRm } from '@/modules/pendaftaran/pasien'
+import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
 import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
 import { bacaPetaTempatTidur, pindahRuang, tandaiKosongSiap } from '../api'
@@ -138,13 +138,15 @@ watch(pilihanTujuan, (p) => {
   if (tujuanId.value && !p.some((tt) => tt.id === tujuanId.value)) tujuanId.value = ''
 })
 const tujuan = computed(() => pilihanTujuan.value.find((tt) => tt.id === tujuanId.value) ?? null)
-const kurangPindah = computed(() => kurangPindahRuang({ tempat_tidur_id: tujuanId.value, alasan: alasanPindah.value, serah_terima: serahPindah.value }))
+const kurangPindah = computed(() => (asalPindah.value && !asalPindah.value.pasien_rawat_inap ? 'Identitas pasien belum ada; muat ulang peta.' : null) ?? kurangPindahRuang({ tempat_tidur_id: tujuanId.value, alasan: alasanPindah.value, serah_terima: serahPindah.value }))
 const errorPindah = computed(() => errorKolom(galatPindah.value, ['alasan', 'serah_terima']))
 // Kode TT tujuan saat gagal: pilihan bisa hilang sesudah peta dimuat ulang, pesan tetap menyebut TT yang dicoba.
 const kodeGagal = ref('')
 const pesanPindah = computed(() => (galatPindah.value ? pesanGalatPindahRuang(galatPindah.value, kodeGagal.value) : null))
 const keteranganTujuan = (tt: TempatTidurPeta) =>
   [tt.kamar.nama, tt.bangsal.nama, tt.kelas_rawat.nama, ...(asalPindah.value && pindahKelas(asalPindah.value, tt) ? ['pindah kelas'] : []), ...tandaTambahan(tt)].join(' · ')
+// Dua penanda identitas (PRD 5.1 butir 9), hanya di dialog; kartu peta tidak menampilkan nama pasien.
+const identitasPasien = (p: NonNullable<TempatTidurPeta['pasien_rawat_inap']>) => `${p.nama}, No. RM ${formatNoRm(p.no_rm)}, lahir ${formatTanggal(p.tanggal_lahir)}`
 function mintaPindah(tt: TempatTidurPeta) {
   asalPindah.value = tt
   tujuanId.value = ''
@@ -307,11 +309,22 @@ const fokusSesudahTutup = () => (fokusSesudah ? (document.getElementById(fokusSe
     <Dialog
       v-model:open="bukaPindah"
       :judul="asalPindah ? `Pindah ruang pasien di ${asalPindah.kode}` : 'Pindah ruang'"
-      :uraian="asalPindah ? `TT asal ${asalPindah.kode} · ${asalPindah.bangsal.nama} · ${asalPindah.kelas_rawat.nama}${asalPindah.hari_rawat ? ` · hari rawat ke-${asalPindah.hari_rawat}` : ''}. Peta tidak memuat identitas pasien: cocokkan gelang identitas pasien di TT ini sebelum memindahkan. TT asal menjadi Dibersihkan.` : undefined"
+      uraian="Cocokkan gelang identitas pasien dengan data ini sebelum memindahkan. TT asal menjadi Dibersihkan; jam pindah dicatat server."
       lebar="lebar"
       :sibuk="memindah"
       :fokus-sesudah-tutup="fokusSesudahTutup"
     >
+      <dl v-if="asalPindah" class="ringkas-pindah">
+        <div>
+          <dt>Pasien</dt>
+          <dd v-if="asalPindah.pasien_rawat_inap">{{ identitasPasien(asalPindah.pasien_rawat_inap) }}</dd>
+          <dd v-else class="tanpa-identitas">Identitas pasien tidak terkirim; muat ulang peta sebelum memindahkan.</dd>
+        </div>
+        <div>
+          <dt>TT asal</dt>
+          <dd>{{ asalPindah.kode }} · {{ asalPindah.bangsal.nama }} · {{ asalPindah.kelas_rawat.nama }}<template v-if="asalPindah.hari_rawat"> · hari rawat ke-{{ asalPindah.hari_rawat }}</template></dd>
+        </div>
+      </dl>
       <Pesan v-if="!pilihanTujuan.length" jenis="info">Belum ada TT kosong siap lain di cakupan peta Anda. TT yang dibersihkan bisa ditandai kosong siap lebih dulu.</Pesan>
       <fieldset v-else class="pilihan-tt">
         <legend class="kolom-label">TT tujuan <span class="kolom-wajib" aria-hidden="true">*</span></legend>
@@ -513,6 +526,23 @@ h4 {
 }
 .pilihan .ket {
   display: block;
+}
+/* Identitas dua penanda dan TT asal dibaca sebelum memindahkan (pola dialog Tempatkan di Admisi): label kecil, isi tebal. */
+.ringkas-pindah {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+.ringkas-pindah dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ringkas-pindah dd {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+.ringkas-pindah .tanpa-identitas {
+  color: var(--danger);
 }
 .isian-pindah {
   display: grid;

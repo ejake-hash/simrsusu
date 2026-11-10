@@ -190,7 +190,10 @@ test('dokter memindahkan pasien dari peta TT: TT lama Dibersihkan, TT baru Teris
   await expect(lama).toContainText('Terisi')
   await lama.getByRole('button', { name: `Pindah ruang pasien di ${kodeTt}` }).click()
   const dialog = page.getByRole('dialog', { name: `Pindah ruang pasien di ${kodeTt}` })
-  await expect(dialog).toContainText(`TT asal ${kodeTt} · Bangsal Melati (contoh) · Kelas contoh · hari rawat ke-1`)
+  // Dua penanda identitas (keputusan pemilik 11 Nov 2026) hanya di dialog, tidak di kartu peta.
+  await expect(dialog).toContainText(new RegExp(`${nama}, No\\. RM .+, lahir `))
+  await expect(lama).not.toContainText(nama)
+  await expect(dialog).toContainText(`${kodeTt} · Bangsal Melati (contoh) · Kelas contoh · hari rawat ke-1`)
   // TT asal tidak ditawarkan sebagai tujuan.
   await expect(dialog.getByRole('radio', { name: new RegExp(kodeTt) })).toHaveCount(0)
   await dialog.getByRole('radio', { name: new RegExp(kodeTujuan) }).check()

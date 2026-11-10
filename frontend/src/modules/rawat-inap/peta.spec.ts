@@ -375,9 +375,13 @@ describe('PetaTempatTidurPage: layar', () => {
     it('server: id kunjungan RI hanya bagi izin pindah ruang; tanpa izin kunci tidak ada', async () => {
       const dengan = (await bacaPetaTempatTidur({ gedung_id: null, bangsal_id: null })) as { berubah: true; data: PetaTempatTidur }
       expect(dengan.data.data.filter((t) => 'kunjungan_rawat_inap_id' in t).map((t) => t.kode)).toEqual(['CTHG-2-201-1', 'CTHG-2-202-1'])
+      // Identitas ikut dengan syarat yang sama (keputusan pemilik 11 Nov 2026).
+      expect(dengan.data.data.filter((t) => 'pasien_rawat_inap' in t).map((t) => [t.kode, t.pasien_rawat_inap!.nama])).toEqual([
+        ['CTHG-2-201-1', 'Pasien Contoh Rawat Inap'], ['CTHG-2-202-1', 'Pasien Contoh Rencana Pulang'],
+      ])
       izinServer.delete('rawat_inap.pindah_ruang.input')
       const tanpa = (await bacaPetaTempatTidur({ gedung_id: null, bangsal_id: null })) as { berubah: true; data: PetaTempatTidur }
-      expect(tanpa.data.data.some((t) => 'kunjungan_rawat_inap_id' in t)).toBe(false)
+      expect(tanpa.data.data.some((t) => 'kunjungan_rawat_inap_id' in t || 'pasien_rawat_inap' in t)).toBe(false)
     })
 
     it('aksi hanya di TT berpasien yang membawa id; dialog: TT asal, tujuan kosong siap selain asal, alasan dan serah terima wajib; sukses memuat ulang peta', async () => {
@@ -387,7 +391,11 @@ describe('PetaTempatTidurPage: layar', () => {
       tombol('Pindah ruang', kartu('CTHG-2-201-1')!)!.click()
       await tenang()
       expect(dialog()!.textContent).toContain('Pindah ruang pasien di CTHG-2-201-1')
-      expect(dialog()!.textContent).toContain('TT asal CTHG-2-201-1 · Bangsal Melati (contoh) · Kelas contoh · hari rawat ke-3')
+      expect(dialog()!.textContent).toContain('CTHG-2-201-1 · Bangsal Melati (contoh) · Kelas contoh · hari rawat ke-3')
+      // Dua penanda identitas hanya di dialog, tidak di kartu peta.
+      expect(dialog()!.textContent).toMatch(/Pasien Contoh Rawat Inap, No\. RM 900\.099, lahir \d/)
+      expect([...document.querySelectorAll('.daftar-tt')].map((u) => u.textContent).join(' ')).not.toContain('Pasien Contoh')
+      expect(kartu('CTHG-2-201-1')!.textContent).not.toContain('900.099')
       // Tujuan: dapat_dipilih kosong siap; TT dijadwalkan tutup dan TT asal tidak ditawarkan.
       expect([...dialog()!.querySelectorAll('.pilihan .kode')].map((e) => e.textContent?.trim())).toEqual(['CTHA-1-101-1', 'CTHG-2-202-3'])
       const kirim = () => [...dialog()!.querySelectorAll('button')].find((b) => /^Pindahkan/.test(b.textContent?.trim() ?? ''))!

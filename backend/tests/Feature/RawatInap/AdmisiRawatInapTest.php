@@ -365,24 +365,36 @@ class AdmisiRawatInapTest extends TestCase
         $this->masukSebagai($this->dokterRanap);
         $peta = $this->minta('GET', $url)->assertOk()->assertJsonPath('data.0.kode', 'UJI29-101-1')->assertJsonPath('data.0.kunjungan_rawat_inap_id', $ri);
         $this->assertSesuaiKontrak($peta, 'GET', '/peta-tempat-tidur');
-        $this->assertArrayNotHasKey('kunjungan_rawat_inap_id', (array) $peta->json('data.1'));
-        $this->assertArrayNotHasKey('kunjungan_rawat_inap_id', (array) $peta->json('data.2'));
+        // Keputusan pemilik 11 Nov 2026: dua penanda identitas ikut dengan syarat yang sama.
+        $pasien = DB::table('kunjungan.kunjungan as k')->join('pasien.pasien as p', 'p.id', '=', 'k.pasien_id')->where('k.id', $ri)->first(['p.nama', 'p.no_rm', 'p.tanggal_lahir']);
+        $this->assertNotNull($pasien);
+        $this->assertSame(['nama' => (string) $pasien->nama, 'no_rm' => (string) $pasien->no_rm,
+            'tanggal_lahir' => $pasien->tanggal_lahir === null ? null : substr((string) $pasien->tanggal_lahir, 0, 10)], $peta->json('data.0.pasien_rawat_inap'));
+        foreach (['kunjungan_rawat_inap_id', 'pasien_rawat_inap'] as $kunci) {
+            $this->assertArrayNotHasKey($kunci, (array) $peta->json('data.1'));
+            $this->assertArrayNotHasKey($kunci, (array) $peta->json('data.2'));
+        }
 
-        // Tanpa izin pindah ruang (admisi): kunci tidak ada, bukan null.
+        // Tanpa izin pindah ruang (admisi): kunci tidak ada (bukan null), nama pasien tidak ada di respons.
         $this->masukSebagai($this->admisi);
-        $this->assertArrayNotHasKey('kunjungan_rawat_inap_id', (array) $this->minta('GET', $url)->assertOk()->json('data.0'));
+        $admisi = $this->minta('GET', $url)->assertOk();
+        $this->assertArrayNotHasKey('kunjungan_rawat_inap_id', (array) $admisi->json('data.0'));
+        $this->assertArrayNotHasKey('pasien_rawat_inap', (array) $admisi->json('data.0'));
+        $this->assertStringNotContainsString((string) $pasien->nama, (string) $admisi->getContent());
 
         // Izin pindah ruang hanya di unit ruang RB: TT di bangsal BA (unit RA) tanpa kunci; di unit RA ada.
         $ruangB = $this->akunDokter($this->dokter());
         $this->tugaskan($ruangB, $this->buatPeran(['rawat_inap.peta_tempat_tidur']));
         $this->tugaskan($ruangB, $this->buatPeran(['rawat_inap.pindah_ruang']), cakupan: new Cakupan('unit', $this->id['UJI29-RB']));
         $this->masukSebagai($ruangB);
-        $this->assertArrayNotHasKey('kunjungan_rawat_inap_id', (array) $this->minta('GET', $url)->assertOk()->json('data.0'));
+        $lain = $this->minta('GET', $url)->assertOk();
+        $this->assertArrayNotHasKey('kunjungan_rawat_inap_id', (array) $lain->json('data.0'));
+        $this->assertArrayNotHasKey('pasien_rawat_inap', (array) $lain->json('data.0'));
         $ruangA = $this->akunDokter($this->dokter());
         $this->tugaskan($ruangA, $this->buatPeran(['rawat_inap.peta_tempat_tidur']));
         $this->tugaskan($ruangA, $this->buatPeran(['rawat_inap.pindah_ruang']), cakupan: new Cakupan('unit', $this->id['UJI29-RA']));
         $this->masukSebagai($ruangA);
-        $this->minta('GET', $url)->assertOk()->assertJsonPath('data.0.kunjungan_rawat_inap_id', $ri);
+        $this->minta('GET', $url)->assertOk()->assertJsonPath('data.0.kunjungan_rawat_inap_id', $ri)->assertJsonPath('data.0.pasien_rawat_inap.nama', (string) $pasien->nama);
 
         // Sesudah pindah ruang: TT lama (dibersihkan) tanpa kunci, TT baru membawa id yang sama.
         $this->pindah($ri, $this->id['UJI29-201-1'])->assertOk();

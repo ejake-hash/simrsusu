@@ -37,6 +37,8 @@ export interface TempatTidurPeta {
    * bangsal TT (tanpa izin kunci tidak ada).
    */
   kunjungan_rawat_inap_id?: string
+  /** v0.38.0 (keputusan pemilik 11 Nov 2026): dua penanda identitas, syarat sama dengan id kunjungan. Hanya untuk dialog. */
+  pasien_rawat_inap?: { nama: string; no_rm: string; tanggal_lahir: string | null }
 }
 
 export interface IsianPindahRuang {
