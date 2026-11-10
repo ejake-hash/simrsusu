@@ -1,5 +1,5 @@
 import type { NamaIkon } from '@/design-system/ikon/ikon'
-import { INTERVAL_PAPAN } from '@/modules/igd/papan'
+import { INTERVAL_LAYAR_KERJA } from '@/modules/notifikasi/polling'
 import { ApiError } from '@/shared/api/klien'
 import type { FilterPetaServer, RingkasLokasiPeta, StatusTempatTidur, TempatTidurPeta } from './tipe'
 
@@ -10,7 +10,7 @@ import type { FilterPetaServer, RingkasLokasiPeta, StatusTempatTidur, TempatTidu
  */
 
 /** Polling layar kerja K1: sama dengan papan pasien IGD (15 detik, jeda saat tab tidak terlihat). */
-export const INTERVAL_PETA = INTERVAL_PAPAN
+export const INTERVAL_PETA = INTERVAL_LAYAR_KERJA
 
 export const KUNCI_PETA = {
   semua: ['rawat-inap', 'peta-tempat-tidur'] as const,
@@ -42,7 +42,7 @@ const TANDA: Record<KunciStatus, TandaStatus> = {
 export const kunciStatus = (tt: Pick<TempatTidurPeta, 'status' | 'ditutup'>): KunciStatus => (tt.ditutup ? 'ditutup' : tt.status)
 
 /** Nilai di luar kontrak (kontrak lebih baru) tampil netral berteks, peta tidak gagal tampil. */
-export const tandaKunci = (k: KunciStatus): TandaStatus => TANDA[k] ?? { label: 'Status tidak dikenal', jenis: 'netral', ikon: 'info' }
+export const tandaKunci = (k: string): TandaStatus => TANDA[k as KunciStatus] ?? { label: 'Status tidak dikenal', jenis: 'netral', ikon: 'info' }
 export const tandaStatus = (tt: Pick<TempatTidurPeta, 'status' | 'ditutup'>): TandaStatus => tandaKunci(kunciStatus(tt))
 export const labelStatus = (k: KunciStatus) => TANDA[k].label
 
@@ -121,11 +121,17 @@ export function kelompokkanPeta(data: readonly TempatTidurPeta[]): KelompokGedun
   return gedung
 }
 
-/** Jumlah TT per status tampil, urutan tetap; status tanpa TT tetap disebut dengan 0. */
-export function ringkasStatus(data: readonly TempatTidurPeta[]): { kunci: KunciStatus; label: string; jumlah: number }[] {
-  const jumlah = new Map<KunciStatus, number>()
+/**
+ * Jumlah TT per status tampil, urutan tetap; status tanpa TT tetap disebut dengan 0. Status di luar kontrak dijumlah
+ * sebagai "Status tidak dikenal" (hanya bila ada), agar total ringkasan sama dengan jumlah TT.
+ */
+export function ringkasStatus(data: readonly TempatTidurPeta[]): { kunci: string; label: string; jumlah: number }[] {
+  const jumlah = new Map<string, number>()
   for (const tt of data) jumlah.set(kunciStatus(tt), (jumlah.get(kunciStatus(tt)) ?? 0) + 1)
-  return URUTAN_STATUS.map((kunci) => ({ kunci, label: TANDA[kunci].label, jumlah: jumlah.get(kunci) ?? 0 }))
+  const hasil: { kunci: string; label: string; jumlah: number }[] = URUTAN_STATUS.map((kunci) => ({ kunci, label: TANDA[kunci].label, jumlah: jumlah.get(kunci) ?? 0 }))
+  const lain = [...jumlah].filter(([k]) => !(URUTAN_STATUS as readonly string[]).includes(k)).reduce((n, [, j]) => n + j, 0)
+  if (lain > 0) hasil.push({ kunci: 'tidak_dikenal', label: tandaKunci('tidak_dikenal').label, jumlah: lain })
+  return hasil
 }
 
 /** Pilihan lantai dari TT yang sedang dimuat. */
@@ -143,18 +149,26 @@ export function pilihanLantai(data: readonly TempatTidurPeta[]): { nilai: string
  * Pilihan gedung dan bangsal yang pernah terlihat di peta (tanpa endpoint daftar tersendiri): tetap ada selama peta
  * disaring, agar pilihan lain tidak hilang sesudah satu gedung atau bangsal dipilih.
  */
-export function gabungPilihanLokasi(
-  lama: { gedung: RingkasLokasiPeta[]; bangsal: RingkasLokasiPeta[] },
-  data: readonly TempatTidurPeta[],
-): { gedung: RingkasLokasiPeta[]; bangsal: RingkasLokasiPeta[] } {
+export interface PilihanLokasi {
+  gedung: RingkasLokasiPeta[]
+  /** `gedung` = id gedung tempat TT bangsal itu terlihat (null = TT tanpa gedung). */
+  bangsal: (RingkasLokasiPeta & { gedung: (string | null)[] })[]
+}
+export function gabungPilihanLokasi(lama: PilihanLokasi, data: readonly TempatTidurPeta[]): PilihanLokasi {
   const gedung = [...lama.gedung]
-  const bangsal = [...lama.bangsal]
+  const bangsal = lama.bangsal.map((b) => ({ ...b, gedung: [...b.gedung] }))
   for (const tt of data) {
     if (tt.gedung && !gedung.some((g) => g.id === tt.gedung!.id)) gedung.push(tt.gedung)
-    if (!bangsal.some((b) => b.id === tt.bangsal.id)) bangsal.push(tt.bangsal)
+    const gid = tt.gedung?.id ?? null
+    const b = bangsal.find((x) => x.id === tt.bangsal.id)
+    if (!b) bangsal.push({ ...tt.bangsal, gedung: [gid] })
+    else if (!b.gedung.includes(gid)) b.gedung.push(gid)
   }
   return { gedung, bangsal }
 }
+
+/** Bangsal yang bisa dipilih: semua, atau hanya yang TT-nya terlihat di gedung terpilih. */
+export const pilihanBangsal = (lokasi: PilihanLokasi, gedungId: string) => (gedungId ? lokasi.bangsal.filter((b) => b.gedung.includes(gedungId)) : lokasi.bangsal)
 
 /** Aksi petugas 2.27: hanya TT dibersihkan yang tidak ditutup, dan hanya bagi pemegang izin perbaiki. */
 export const bolehTandaiKosongSiap = (tt: Pick<TempatTidurPeta, 'status' | 'ditutup'>, izinPerbaiki: boolean) => izinPerbaiki && !tt.ditutup && tt.status === 'dibersihkan'

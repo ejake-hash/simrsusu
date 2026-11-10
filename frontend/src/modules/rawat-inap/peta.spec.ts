@@ -20,6 +20,7 @@ import {
   INTERVAL_PETA,
   kelompokkanPeta,
   pesanGalatStatus,
+  pilihanBangsal,
   pilihanLantai,
   ringkasStatus,
   saringPeta,
@@ -140,7 +141,18 @@ describe('peta TT: aturan tampil', () => {
     ])
     const lokasi = gabungPilihanLokasi(gabungPilihanLokasi({ gedung: [], bangsal: [] }, data.slice(0, 2)), data)
     expect(lokasi.gedung.map((g) => g.kode)).toEqual(['CTHA', 'CTHG'])
-    expect(lokasi.bangsal.map((b) => b.kode)).toEqual(['CONTOH-ANGGREK', 'CONTOH-MELATI'])
+    expect(lokasi.bangsal.map((b) => [b.kode, b.gedung])).toEqual([['CONTOH-ANGGREK', [L.gedungAnggrek.id]], ['CONTOH-MELATI', [L.gedungRawatInap.id]]])
+    expect(pilihanBangsal(lokasi, L.gedungRawatInap.id).map((b) => b.kode)).toEqual(['CONTOH-MELATI'])
+    expect(pilihanBangsal(lokasi, '')).toHaveLength(2)
+  })
+
+  it('ringkasan menyebut status di luar kontrak hanya bila ada', async () => {
+    const { data } = await peta()
+    expect(ringkasStatus(data).map((r) => r.label)).not.toContain('Status tidak dikenal')
+    const asing = { ...data[0]!, status: 'karantina' as 'terisi' }
+    const r = ringkasStatus([...data, asing, asing])
+    expect(r[r.length - 1]).toEqual({ kunci: 'tidak_dikenal', label: 'Status tidak dikenal', jumlah: 2 })
+    expect(r.reduce((n, x) => n + x.jumlah, 0)).toBe(data.length + 2)
   })
 
   it('pesan galat ubah status per kode kontrak', () => {
@@ -219,9 +231,32 @@ describe('PetaTempatTidurPage: layar', () => {
     expect(document.querySelector<HTMLSelectElement>('#filter-lantai-peta')!.value).toBe('')
     expect(kodeTampil()).toEqual(['CTHA-1-101-1', 'CTHA-1-101-2', 'CTHA-1-101-3', 'CTHA-1-101-4'])
     expect([...document.querySelector<HTMLSelectElement>('#filter-gedung-peta')!.options].map((o) => o.textContent?.trim())).toEqual(['Semua gedung', 'Gedung Anggrek (contoh)', 'Gedung Rawat Inap (contoh)'])
-    await ubah('#filter-bangsal-peta', L.melati.id)
-    expect(terakhir().kueri.get('bangsal_id')).toBe(L.melati.id)
-    expect(document.body.textContent).toContain('Tidak ada TT yang berlaku di gedung atau bangsal ini.')
+    // Bangsal hanya milik gedung terpilih.
+    const opsiBangsal = () => [...document.querySelector<HTMLSelectElement>('#filter-bangsal-peta')!.options].map((o) => o.textContent?.trim())
+    expect(opsiBangsal()).toEqual(['Semua bangsal', 'Bangsal Anggrek (contoh)'])
+    await ubah('#filter-bangsal-peta', L.anggrek.id)
+    expect(terakhir().kueri.get('bangsal_id')).toBe(L.anggrek.id)
+    // Gedung berganti: bangsal yang bukan miliknya dikosongkan dan tidak dikirim.
+    const sebelum = permintaan.length
+    await ubah('#filter-gedung-peta', L.gedungRawatInap.id)
+    expect(document.querySelector<HTMLSelectElement>('#filter-bangsal-peta')!.value).toBe('')
+    expect(opsiBangsal()).toEqual(['Semua bangsal', 'Bangsal Melati (contoh)'])
+    const baru = permintaan.slice(sebelum).filter((p) => p.jalur === '/peta-tempat-tidur')
+    expect(baru.map((p) => [p.kueri.get('gedung_id'), p.kueri.get('bangsal_id')])).toEqual([[L.gedungRawatInap.id, null]])
+    expect(kodeTampil()).toHaveLength(6)
+  })
+
+  it('TT hilang sesudah aksi (404): pesan galat, fokus ke judul kartu filter', async () => {
+    await pasang()
+    tombol('Tandai kosong siap', kartu('CTHG-2-201-2')!)!.click()
+    await tenang()
+    const daftar = gabungan.petaTempatTidur.daftar()
+    daftar.splice(daftar.findIndex((t) => t.kode === 'CTHG-2-201-2'), 1)
+    tombol('Tandai kosong siap', document.querySelector<HTMLElement>('[role="dialog"]')!)!.click()
+    await tenang(20)
+    expect(daftarToast.value.map((t) => t.pesan)).toContain('TT CTHG-2-201-2 tidak ditemukan. Periksa peta terbaru.')
+    expect(kartu('CTHG-2-201-2')).toBeNull()
+    expect(document.activeElement?.id).toBe('judul-filter-peta')
   })
 
   it('tandai kosong siap: konfirmasi, POST, peta dimuat ulang, toast, fokus ke kode TT', async () => {
@@ -274,7 +309,8 @@ describe('PetaTempatTidurPage: layar', () => {
 
   it('polling tiap interval papan IGD dengan If-None-Match sebagai permintaan latar', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
-    await pasang()
+    const wrapper = await pasang()
+    expect(document.body.textContent).toContain('Diperbarui otomatis tiap 15 detik.')
     const awal = permintaan.length
     vi.advanceTimersByTime(INTERVAL_PETA)
     await tenang()
@@ -282,5 +318,12 @@ describe('PetaTempatTidurPage: layar', () => {
     expect(latar).toHaveLength(1)
     expect(latar[0]!.header).toMatchObject({ 'x-permintaan-latar': '1', 'if-none-match': expect.stringMatching(/^"/) })
     expect(INTERVAL_PETA).toBe(15_000)
+
+    // Sesudah halaman ditutup, polling berhenti.
+    wrapper.unmount()
+    const sesudah = permintaan.length
+    vi.advanceTimersByTime(INTERVAL_PETA * 3)
+    await tenang()
+    expect(permintaan.slice(sesudah).filter((p) => p.jalur === '/peta-tempat-tidur')).toHaveLength(0)
   })
 })

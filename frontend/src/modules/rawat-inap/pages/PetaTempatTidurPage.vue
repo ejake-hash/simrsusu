@@ -21,6 +21,7 @@ import {
   kunciStatus,
   labelStatus,
   pesanGalatStatus,
+  pilihanBangsal,
   pilihanLantai,
   ringkasStatus,
   saringPeta,
@@ -30,8 +31,9 @@ import {
   teksHariRawat,
   URUTAN_STATUS,
   type KunciStatus,
+  type PilihanLokasi,
 } from '../peta'
-import type { FilterPetaServer, PetaTempatTidur, RingkasLokasiPeta, TempatTidurPeta } from '../tipe'
+import type { FilterPetaServer, PetaTempatTidur, TempatTidurPeta } from '../tipe'
 
 /**
  * Rawat Inap → Peta tempat tidur (tiket 2.27, kontrak v0.35.0; FR-08-01, FR-08-20, FR-08-04 bagian status). Semua TT yang
@@ -40,7 +42,14 @@ import type { FilterPetaServer, PetaTempatTidur, RingkasLokasiPeta, TempatTidurP
  */
 const gedungId = ref('')
 const bangsalId = ref('')
-const filterServer = computed<FilterPetaServer>(() => ({ gedung_id: gedungId.value || null, bangsal_id: bangsalId.value || null }))
+const lokasi = ref<PilihanLokasi>({ gedung: [], bangsal: [] })
+const opsiBangsal = computed(() => pilihanBangsal(lokasi.value, gedungId.value))
+// Bangsal yang bukan milik gedung baru tidak ikut dikirim (tanpa permintaan antara), lalu dikosongkan.
+const bangsalBerlaku = computed(() => (opsiBangsal.value.some((b) => b.id === bangsalId.value) ? bangsalId.value : ''))
+watch(gedungId, () => {
+  if (!bangsalBerlaku.value) bangsalId.value = ''
+})
+const filterServer = computed<FilterPetaServer>(() => ({ gedung_id: gedungId.value || null, bangsal_id: bangsalBerlaku.value || null }))
 const { kueri, segarkan } = useKueriBerPolling<PetaTempatTidur>(
   () => KUNCI_PETA.peta(filterServer.value),
   (p) => bacaPetaTempatTidur(filterServer.value, p),
@@ -50,7 +59,6 @@ const { kueri, segarkan } = useKueriBerPolling<PetaTempatTidur>(
 const data = computed<TempatTidurPeta[]>(() => kueri.data.value?.data ?? [])
 const terpotong = computed(() => kueri.data.value?.meta.terpotong ?? false)
 
-const lokasi = ref<{ gedung: RingkasLokasiPeta[]; bangsal: RingkasLokasiPeta[] }>({ gedung: [], bangsal: [] })
 watch(data, (d) => (lokasi.value = gabungPilihanLokasi(lokasi.value, d)), { immediate: true })
 
 const lantai = ref('')
@@ -105,18 +113,19 @@ async function simpan() {
   }
   tampilkanToast(...pesan)
 }
-const fokusSesudahTutup = () => (fokusSesudah ? document.getElementById(fokusSesudah) : null)
+// TT bisa hilang dari peta (404, keluar cakupan): fokus ke judul kartu filter, bukan kembali ke tombol yang sudah tiada.
+const fokusSesudahTutup = () => (fokusSesudah ? (document.getElementById(fokusSesudah) ?? document.getElementById('judul-filter-peta')) : null)
 </script>
 
 <template>
   <HalamanModul
     izin="rawat_inap.peta_tempat_tidur.lihat"
     judul="Peta tempat tidur"
-    uraian="Status setiap tempat tidur (TT) per gedung, lantai, bangsal, dan kamar. Diperbarui otomatis tiap 15 detik."
+    :uraian="`Status setiap tempat tidur (TT) per gedung, lantai, bangsal, dan kamar. Diperbarui otomatis tiap ${INTERVAL_PETA / 1000} detik.`"
   >
     <section class="kartu" aria-labelledby="judul-filter-peta">
       <div class="kartu-kepala">
-        <h2 id="judul-filter-peta">Filter dan ringkasan</h2>
+        <h2 id="judul-filter-peta" tabindex="-1">Filter dan ringkasan</h2>
       </div>
       <div class="kartu-isi">
         <div class="filter">
@@ -131,7 +140,7 @@ const fokusSesudahTutup = () => (fokusSesudah ? document.getElementById(fokusSes
             <label for="filter-bangsal-peta">Bangsal</label>
             <select id="filter-bangsal-peta" v-model="bangsalId" class="isian">
               <option value="">Semua bangsal</option>
-              <option v-for="b in lokasi.bangsal" :key="b.id" :value="b.id">{{ b.nama }}</option>
+              <option v-for="b in opsiBangsal" :key="b.id" :value="b.id">{{ b.nama }}</option>
             </select>
           </div>
           <div class="isian-filter">

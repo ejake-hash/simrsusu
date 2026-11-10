@@ -5,6 +5,9 @@ import type { HasilPolling } from './api'
 /** Interval polling notifikasi dan kotak kerja (K1: 30 detik, If-None-Match). */
 export const INTERVAL_POLLING = 30_000
 
+/** Interval layar kerja yang dipolling (K1: papan pasien IGD, peta tempat tidur): 15 detik. */
+export const INTERVAL_LAYAR_KERJA = 15_000
+
 /** ETag terakhir per kunci kueri (modul, bukan reaktif): dipakai bersama lonceng dan halaman yang memakai kunci sama. */
 const etagPerKunci = new Map<string, string | null>()
 
