@@ -6,11 +6,17 @@ use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Antrean\Models\Anjungan;
 use App\Modules\Integrasi\Application\KelolaKredensial;
 use App\Modules\Integrasi\Domain\SistemIntegrasi;
+use App\Modules\MasterData\Models\Bangsal;
 use App\Modules\MasterData\Models\JadwalPraktik;
+use App\Modules\MasterData\Models\Kamar;
+use App\Modules\MasterData\Models\KelasRawat;
 use App\Modules\MasterData\Models\Lokasi;
 use App\Modules\MasterData\Models\Penjamin;
 use App\Modules\MasterData\Models\Poliklinik;
+use App\Modules\MasterData\Models\TempatTidur;
 use App\Modules\MasterData\Models\UnitOrganisasi;
+use App\Modules\RawatInap\Application\UbahStatusTempatTidur;
+use App\Modules\RawatInap\Domain\StatusTempatTidur;
 use App\Modules\Sdm\Models\IzinPraktik;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Console\Command;
@@ -29,6 +35,12 @@ final class KunjunganContoh extends Command
 {
     /** Penanda siap melayani yang dipasang perintah ini; wizard memasang waktu selesai sebenarnya. */
     public const SEJAK = '2026-01-01 00:00:00+00';
+
+    /** Peta TT contoh (2.27): kode ruang => kode TT => status. Semua status peta kecuali TT ditutup (tampil tidak_dipakai). */
+    public const STATUS_CONTOH = [
+        '201' => [1 => StatusTempatTidur::TERISI, 2 => StatusTempatTidur::DIBERSIHKAN, 3 => StatusTempatTidur::DIPESAN],
+        '202' => [1 => StatusTempatTidur::RENCANA_PULANG, 2 => StatusTempatTidur::TIDAK_DIPAKAI, 3 => StatusTempatTidur::KOSONG_SIAP],
+    ];
 
     protected $signature = 'lokal:kunjungan-contoh {--batal : Kosongkan lagi penanda siap melayani dan nonaktifkan poli contoh}';
 
@@ -158,6 +170,8 @@ final class KunjunganContoh extends Command
                 [['CTHLOBI', 'Lobi Rawat Jalan (contoh)'], ['CTHLOKET', 'Loket Pendaftaran 1 (contoh)']]);
             Anjungan::query()->updateOrCreate(['kode' => 'apm-contoh'], ['lokasi_id' => $lobi, 'lokasi_loket_id' => $loket]);
 
+            $this->petaTempatTidurContoh($oleh);
+
             $profil = DB::table('inti.profil_rs')->first(['id', 'siap_melayani_sejak']);
             if ($profil === null) {
                 DB::table('inti.profil_rs')->insert(['id' => (string) Str::uuid7(), 'paket_identitas' => '{}', 'siap_melayani_sejak' => self::SEJAK]);
@@ -169,5 +183,41 @@ final class KunjunganContoh extends Command
         $this->info('Poli, dokter, dan jadwal contoh siap; instalasi ditandai siap melayani.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Peta TT (2.27): gedung `CTHG`, lantai 2, kamar 201/202 di bangsal SINTETIS `CONTOH-MELATI` (unit RUANG-MELATI), kelas
+     * `CONTOH-KELAS`, dan enam TT berlabel contoh (bukan data induk RS). Setiap kali dijalankan status TT dikembalikan ke
+     * STATUS_CONTOH lewat layanan status (riwayat + audit), agar spec peta yang mengubah status bisa diulang.
+     */
+    private function petaTempatTidurContoh(?string $oleh): void
+    {
+        $unit = UnitOrganisasi::query()->where('kode', 'RUANG-MELATI')->value('id');
+        if ($unit === null) {
+            return;
+        }
+        $lokasi = fn (?string $induk, string $jenis, string $kode, string $kodeLengkap, string $nama, ?string $fungsi = null) => Lokasi::query()
+            ->firstOrCreate(['kode_lengkap' => $kodeLengkap], ['induk_id' => $induk, 'jenis' => $jenis, 'kode' => $kode, 'nama' => $nama, 'fungsi' => $fungsi,
+                'unit_organisasi_id' => $jenis === 'gedung' || $jenis === 'lantai' ? null : $unit, 'status' => 'aktif', 'status_berlaku_dari' => '2026-01-01'])->id;
+
+        $lantai = $lokasi($lokasi(null, 'gedung', 'CTHG', 'CTHG', 'Gedung Rawat Inap (contoh)'), 'lantai', '2', 'CTHG-2', 'Lantai 2 (contoh)');
+        $kelas = KelasRawat::query()->firstOrCreate(['kode' => 'CONTOH-KELAS'], ['nama' => 'Kelas contoh', 'berlaku_dari' => '2026-01-01', 'status' => 'aktif'])->id;
+        $bangsal = Bangsal::query()->firstOrCreate(['kode' => 'CONTOH-MELATI'], ['nama' => 'Bangsal Melati (contoh)', 'unit_organisasi_id' => $unit, 'status' => 'aktif'])->id;
+        $layanan = app(UbahStatusTempatTidur::class);
+        foreach (self::STATUS_CONTOH as $ruang => $tempatTidur) {
+            $ruangId = $lokasi($lantai, 'ruang', (string) $ruang, "CTHG-2-$ruang", "Kamar $ruang (contoh)", 'rawat_inap');
+            $kamar = Kamar::query()->firstOrCreate(['lokasi_id' => $ruangId], ['bangsal_id' => $bangsal])->id;
+            foreach ($tempatTidur as $kode => $status) {
+                $kodeLengkap = "CTHG-2-$ruang-$kode";
+                $tt = TempatTidur::query()->where('kode', $kodeLengkap)->first() ?? TempatTidur::query()->create([
+                    'kamar_id' => $kamar, 'lokasi_id' => $lokasi($ruangId, 'tempat_tidur', (string) $kode, $kodeLengkap, "TT $kode"), 'kode' => $kodeLengkap,
+                    'kelas_rawat_id' => $kelas, 'berlaku_dari' => '2026-01-01',
+                ]);
+                $sekarang = (string) DB::table('inti.tempat_tidur')->where('id', $tt->id)->value('status_saat_ini');
+                if ($sekarang !== $status) {
+                    $layanan->ubah($tt->id, $status, StatusTempatTidur::SUMBER_PETUGAS, $oleh, [$sekarang]);
+                }
+            }
+        }
     }
 }

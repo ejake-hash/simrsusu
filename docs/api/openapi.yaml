@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.34.0
+  version: 0.35.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -184,6 +184,13 @@ info:
     ambang mendekati 6 jam). Keputusan pemilik 9 Nov 2026: tanggap tanpa tahap peringatan (menunggu → lewat_batas; batas
     bawaan 5 menit dari PRD), waktu tanggap berakhir saat dokter mulai mengisi asesmen awal IGD, ambang mendekati 6 jam
     kosong sampai RS mengisi (kosong = tanda mati), belum ditriase di atas. Skema lama tidak berubah.
+    v0.35.0: Peta tempat tidur dan status TT (tiket 2.27; FR-08-01, FR-08-20, FR-08-04 bagian status): GET
+    /peta-tempat-tidur?bangsal_id=&gedung_id= (izin rawat_inap.peta_tempat_tidur.lihat, cakupan unit bangsal; polling
+    ETag/If-None-Match → 304, `no-store`, batas laju layar kerja; paling banyak 1000 TT + `meta.terpotong`) berisi TT yang
+    sudah berlaku dengan kamar, bangsal, lantai, gedung, kelas, status, `ditutup`, `dapat_dipilih`, tanpa data pasien.
+    POST /tempat-tidur/{id}/status (izin rawat_inap.peta_tempat_tidur.perbaiki): petugas mengubah `dibersihkan` →
+    `kosong_siap`; status lain berubah dari alur admisi/penempatan (2.28/2.29). Setiap perubahan tercatat di
+    kunjungan.riwayat_status_tempat_tidur (pelaku, sumber kejadian). Skema baru `TempatTidurPeta`; skema lama tidak berubah.
 servers:
   - url: /api/v1
 security:
@@ -6078,6 +6085,87 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /peta-tempat-tidur:
+    get:
+      operationId: bacaPetaTempatTidur
+      summary: Peta tempat tidur seluruh RS per gedung, lantai, bangsal (polling ETag)
+      description: |
+        Izin: rawat_inap.peta_tempat_tidur.lihat (403 sebelum isian dibaca). Cakupan data = unit organisasi bangsal: cakupan
+        unit memuat bangsal di unit itu dan turunannya, cakupan rs memuat semua; TT di luar cakupan tidak dikirim. Layar kerja
+        yang dipolling (K1): batas laju layar kerja; ETag = sidik isi, If-None-Match yang sama → 304 tanpa isi; selalu
+        `Cache-Control: no-store`.
+        - Baris = TT yang sudah mulai berlaku (`berlaku_dari` ≤ hari ini zona RS). TT ditutup (`berlaku_sampai` < hari ini,
+          1.8b) tetap tampil dengan `status` tidak_dipakai, `ditutup` true, `dapat_dipilih` false. TT yang baru berlaku
+          di tanggal mendatang tidak tampil.
+        - Urut gedung, lantai, bangsal, kode TT; tiap kode urut natural sederhana (lebih pendek dulu: "2" sebelum "10").
+          Paling banyak 1000 baris (`meta.terpotong` true bila lebih). Bukan daftar
+          berkursor: layar memuat seluruh peta sekaligus; pencarian kode TT dan pengelompokan di layar.
+        - `bangsal_id`/`gedung_id` menyaring; id tak dikenal → daftar kosong; bukan UUID → 422.
+        - Tanpa data pasien. `hari_rawat` null sampai penempatan pasien (tiket 2.29).
+      parameters:
+        - { in: query, name: bangsal_id, schema: { type: string, format: uuid } }
+        - { in: query, name: gedung_id, schema: { type: string, format: uuid }, description: "Lokasi jenis gedung" }
+        - { in: header, name: If-None-Match, schema: { type: string } }
+      responses:
+        '200':
+          description: Isi peta
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/TempatTidurPeta' } }
+                  meta:
+                    type: object
+                    required: [terpotong]
+                    properties:
+                      terpotong: { type: boolean, description: "true bila TT lebih dari 1000 (hanya 1000 pertama dikirim)" }
+        '304': { description: "Tidak berubah sejak ETag yang dikirim" }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /tempat-tidur/{id}/status:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: ubahStatusTempatTidur
+      summary: Petugas mengubah status TT (dibersihkan → kosong siap)
+      description: |
+        Izin: rawat_inap.peta_tempat_tidur.perbaiki dengan cakupan yang memuat unit bangsal TT (403). Satu-satunya transisi
+        petugas di tiket 2.27: `dibersihkan` → `kosong_siap` (FR-08-04 "selesai dibersihkan"); status lain berubah dari alur
+        admisi, penempatan, pindah, dan pulang (2.28/2.29). Perubahan tercatat di riwayat status TT (pelaku, sumber
+        kejadian `petugas`) dan audit `rawat_inap.status_tempat_tidur_diubah` (kode TT dan status, tanpa data pasien).
+        - `status` selain `kosong_siap` → 422 `validasi_gagal`.
+        - TT ditutup → 409 `tempat_tidur_ditutup`.
+        - Status sekarang bukan `dibersihkan` → 409 `transisi_status_tempat_tidur_tidak_sah`, `rincian` =
+          `[{status_sekarang, status_diminta}]` (muat ulang peta).
+        - TT tidak ada, atau id bukan UUID → 404.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              additionalProperties: false
+              properties:
+                status: { type: string, enum: [kosong_siap] }
+      responses:
+        '200':
+          description: TT sesudah perubahan, bentuk sama dengan baris peta
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/TempatTidurPeta' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /instrumen-triase:
     get:
       operationId: daftarInstrumenTriase
@@ -10060,6 +10148,44 @@ components:
         area: { $ref: '#/components/schemas/RingkasAreaIgd' }
         ditempatkan_pada: { type: string, format: date-time, description: "Jam server penempatan terakhir" }
         ditempatkan_oleh: { $ref: '#/components/schemas/Pelaku' }
+    RingkasLokasiPeta:
+      type: object
+      required: [id, kode, nama]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string, description: "Kode data induk; untuk kamar, lantai, dan gedung = kode segmen lokasi (bukan kode lengkap)" }
+        nama: { type: string }
+    TempatTidurPeta:
+      type: object
+      required: [id, kode, kamar, bangsal, lantai, gedung, kelas_rawat, aturan_jenis_kelamin, isolasi, ekstra, status, status_sejak, ditutup, dapat_dipilih, hari_rawat]
+      description: |
+        Satu TT di peta (v0.35.0; FR-08-01, FR-08-20). Tanpa data pasien. Layar menampilkan status dengan teks/ikon, bukan
+        hanya warna (5.1 butir 4). Status `melewati rencana lama rawat` (FR-08-01) menyusul bersama rencana pulang (2.29+).
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string, description: "Kode TT (kode lengkap lokasi, tetap sejak dibuat)" }
+        kamar:
+          description: "Kamar: id inti.kamar, kode dan nama ruang lokasinya"
+          allOf: [{ $ref: '#/components/schemas/RingkasLokasiPeta' }]
+        bangsal: { $ref: '#/components/schemas/RingkasLokasiPeta' }
+        lantai:
+          description: "Lantai terdekat di atas ruang kamar; null = ruang tidak di bawah lokasi jenis lantai"
+          oneOf: [{ $ref: '#/components/schemas/RingkasLokasiPeta' }, { type: 'null' }]
+        gedung:
+          description: "Gedung di atas ruang kamar; null = ruang tidak di bawah lokasi jenis gedung"
+          oneOf: [{ $ref: '#/components/schemas/RingkasLokasiPeta' }, { type: 'null' }]
+        kelas_rawat: { $ref: '#/components/schemas/RingkasLokasiPeta' }
+        aturan_jenis_kelamin: { type: string, enum: [campur, laki_laki, perempuan] }
+        isolasi: { type: boolean }
+        ekstra: { type: boolean, description: "TT tambahan saat lonjakan" }
+        status:
+          type: string
+          enum: [terisi, kosong_siap, dibersihkan, dipesan, tidak_dipakai, rencana_pulang]
+          description: "TT ditutup selalu tidak_dipakai"
+        status_sejak: { type: string, format: date-time, description: "Jam status tersimpan mulai berlaku" }
+        ditutup: { type: boolean, description: "TT ditutup 1.8b (hari terakhir berlaku sudah lewat)" }
+        dapat_dipilih: { type: boolean, description: "Tidak ditutup dan status kosong_siap (pilihan alokasi 2.28)" }
+        hari_rawat: { type: [integer, 'null'], minimum: 1, description: "Hari rawat pasien di TT terisi; null sampai penempatan (2.29)" }
     RingkasPenjamin:
       type: object
       required: [id, kode, nama, jenis]
