@@ -331,7 +331,8 @@ h4 {
   font-weight: var(--font-weight-semibold);
   overflow-wrap: anywhere;
 }
-.kode:focus-visible {
+.kode:focus-visible,
+#judul-filter-peta:focus-visible {
   outline: 2px solid var(--brand-600);
   outline-offset: 2px;
   border-radius: 4px;
