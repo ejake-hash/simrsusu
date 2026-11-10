@@ -98,7 +98,7 @@ function ajukan() {
       <form v-else class="formulir" novalidate @submit.prevent="ajukan">
         <div class="baris-isian">
           <KolomIsian v-slot="a" label="Kelas rawat diminta" wajib :error="galatIsian.kelas_rawat_id">
-            <select v-bind="a" ref="pilihKelas" v-model="kelasId" class="isian" :disabled="kelas.isPending.value || undefined">
+            <select v-bind="a" ref="pilihKelas" v-model="kelasId" class="isian" :aria-busy="kelas.isPending.value || undefined">
               <option value="" disabled>{{ kelas.isPending.value ? 'Memuat kelas…' : 'Pilih kelas' }}</option>
               <option v-for="k in kelas.data.value ?? []" :key="k.id" :value="k.id">{{ k.nama }}</option>
             </select>

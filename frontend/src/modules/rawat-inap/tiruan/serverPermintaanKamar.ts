@@ -75,11 +75,12 @@ export function buatServerPermintaanKamar(opsi: OpsiServerPermintaanKamar) {
     if (!opsi.boleh('pendaftaran.admisi.input')) return error(403, 'akses_ditolak', 'Anda tidak berhak mengalokasikan tempat tidur.')
     const p = UUID.test(permintaanId) ? daftar.find((x) => x.id === permintaanId) : undefined
     if (!p) return error(404, 'tidak_ditemukan', 'Permintaan kamar tidak ditemukan.')
+    // Urutan kontrak: permintaan (404, 409 bukan menunggu) sebelum TT (422, 409, 422 kelas).
+    if (p.status !== 'menunggu') return error(409, 'permintaan_kamar_tidak_menunggu', 'Permintaan kamar tidak lagi menunggu.', [{ status: p.status }])
     const isi = (r.isi ?? {}) as Record<string, unknown>
     const ttId = typeof isi.tempat_tidur_id === 'string' ? isi.tempat_tidur_id : ''
     const tt = UUID.test(ttId) ? opsi.tempatTidur().find((x) => x.id === ttId) : undefined
     if (!tt) return error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom: 'tempat_tidur_id', pesan: 'Pilih TT yang ada.' }])
-    if (p.status !== 'menunggu') return error(409, 'permintaan_kamar_tidak_menunggu', 'Permintaan kamar tidak lagi menunggu.', [{ status: p.status }])
     if (tt.ditutup || (tt.status === 'kosong_siap' && !tt.dapat_dipilih)) return error(409, 'tempat_tidur_ditutup', 'Tempat tidur sudah ditutup.')
     if (tt.status !== 'kosong_siap') return error(409, 'tempat_tidur_tidak_tersedia', 'Tempat tidur tidak kosong siap.', [{ status_sekarang: tt.status }])
     if (p.kelas_diminta && p.kelas_diminta.id !== tt.kelas_rawat.id) return error(422, 'kelas_tidak_sesuai', 'Kelas TT berbeda dengan kelas yang diminta.')

@@ -47,6 +47,8 @@ const kueri = useInfiniteQuery({
   initialPageParam: null as string | null,
   getNextPageParam: (h) => h.meta.kursor_berikutnya,
   refetchInterval: INTERVAL_LAYAR_KERJA,
+  // Tanpa izin lihat: HalamanModul menampilkan Akses ditolak; tidak ada GET atau polling yang berujung 403.
+  enabled: computed(() => boleh('pendaftaran.admisi.lihat')),
 })
 const antrean = computed<PermintaanTempatTidur[]>(() => kueri.data.value?.pages.flatMap((h) => h.data) ?? [])
 
@@ -211,7 +213,10 @@ const uraianDialog = computed(() => {
         {{ sasaran?.kelas_diminta ? `Belum ada TT kosong siap untuk ${sasaran.kelas_diminta.nama} di cakupan Anda.` : 'Belum ada TT kosong siap di cakupan Anda.' }}
         TT yang dibersihkan bisa ditandai kosong siap di Rawat Inap → Peta tempat tidur.
       </Pesan>
-      <fieldset v-else class="pilihan-tt">
+      <div v-if="izinPeta && kueriPeta.data.value?.meta.terpotong" class="blok-peringatan">
+        <Pesan jenis="peringatan">Peta memuat 1.000 TT pertama saja, jadi daftar TT kosong siap di bawah bisa tidak lengkap.</Pesan>
+      </div>
+      <fieldset v-if="izinPeta && !kueriPeta.isPending.value && !kueriPeta.isError.value && pilihan.length" class="pilihan-tt">
         <legend class="kolom-label">TT kosong siap <span class="kolom-wajib" aria-hidden="true">*</span></legend>
         <p v-if="sasaran?.bangsal_pilihan" class="tafsir">Bangsal pilihan dokter: {{ sasaran.bangsal_pilihan.nama }}.</p>
         <label v-for="tt in pilihan" :key="tt.id" class="pilihan" :class="{ dipilih: ttId === tt.id }">
@@ -312,6 +317,9 @@ const uraianDialog = computed(() => {
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: var(--font-weight-semibold);
+}
+.blok-peringatan {
+  margin-bottom: var(--space-3);
 }
 .blok-galat {
   margin-top: var(--space-3);

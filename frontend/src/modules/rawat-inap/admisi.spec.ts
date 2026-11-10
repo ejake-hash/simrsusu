@@ -1,6 +1,7 @@
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { nextTick, watch } from 'vue'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { useSesiStore } from '@/app/sesi'
@@ -152,7 +153,7 @@ describe('admisi: aturan tampil', () => {
     expect(pesanGalatAlokasi(new ApiError(409, 'tempat_tidur_ditutup', 'x'), 'A-1')).toMatch(/ditutup atau dijadwalkan tutup/)
     expect(pesanGalatAlokasi(new ApiError(422, 'kelas_tidak_sesuai', 'x'), 'A-1')).toMatch(/^Kelas TT A-1 berbeda dengan kelas yang diminta/)
     expect(pesanGalatAlokasi(new ApiError(409, 'permintaan_kamar_tidak_menunggu', 'x'), 'A-1')).toMatch(/sudah tidak menunggu/)
-    expect(pesanGalatAlokasi(new ApiError(403, 'akses_ditolak', 'x'), 'A-1')).toMatch(/cakupan bangsal/)
+    expect(pesanGalatAlokasi(new ApiError(403, 'akses_ditolak', 'x'), 'A-1')).toBe('Anda tidak punya akses mengalokasikan TT A-1 (izin atau cakupan bangsal).')
     expect(pesanGalatAlokasi(new Error('jaringan'), 'A-1')).toBe('TT A-1 gagal dialokasikan. Coba lagi.')
     expect(perluMuatUlang(new ApiError(409, 'x', 'x'))).toBe(true)
     expect(perluMuatUlang(new ApiError(422, 'kelas_tidak_sesuai', 'x'))).toBe(false)
@@ -242,10 +243,63 @@ describe('AdmisiRawatInapPage: layar', () => {
     tombol('Alokasikan CTHG-2-202-3', dialog()!)!.click()
     await tenang(20)
     const sesudah = permintaan.slice(sebelum).map((p) => p.jalur)
-    expect(sesudah).toEqual(expect.arrayContaining(['/peta-tempat-tidur', '/permintaan-tempat-tidur']))
+    // Urutan: POST alokasi (409), lalu antrean dan peta dimuat ulang; pesan baru tampil sesudahnya.
+    const iPost = sesudah.findIndex((j) => j.endsWith('/alokasi'))
+    expect(iPost).toBe(0)
+    expect(sesudah.indexOf('/peta-tempat-tidur')).toBeGreaterThan(iPost)
+    expect(sesudah.indexOf('/permintaan-tempat-tidur')).toBeGreaterThan(iPost)
     expect(dialog()!.textContent).toContain('TT CTHG-2-202-3 sudah tidak kosong siap (mungkin baru dipesan petugas lain).')
     expect(kodePilihan()).toEqual(['CTHA-1-101-1'])
     expect(tombol('Alokasikan TT', dialog()!)!.disabled).toBe(true)
+  })
+
+  for (const [kasus, ubahServer, harap] of [
+    ['409 permintaan sudah tidak menunggu', () => (kamar.daftar().find((p) => p.pasien.nama === 'Pasien Contoh IGD')!.status = 'dialokasikan'), 'Permintaan ini sudah tidak menunggu'],
+    ['404 permintaan tidak ditemukan', () => kamar.daftar().splice(kamar.daftar().findIndex((p) => p.pasien.nama === 'Pasien Contoh IGD'), 1), 'Permintaan kamar tidak ditemukan.'],
+  ] as const) {
+    it(`${kasus}: antrean dimuat ulang dulu, dialog tutup, lalu pesan`, async () => {
+      await pasang()
+      tombol('Alokasikan TT', baris('Pasien Contoh IGD'))!.click()
+      await tenang()
+      await pilihTt('CTHG-2-202-3')
+      ubahServer()
+      // Potret permintaan saat pesan muncul: muat ulang antrean harus sudah terjadi.
+      let saatPesan: string[] = []
+      const henti = watch(() => daftarToast.value.length, () => (saatPesan = permintaan.map((p) => p.jalur)), { flush: 'sync' })
+      const sebelum = permintaan.length
+      tombol('Alokasikan CTHG-2-202-3', dialog()!)!.click()
+      await tenang(20)
+      henti()
+      expect(daftarToast.value.map((t) => [t.jenis, t.pesan.startsWith(harap)])).toContainEqual(['error', true])
+      expect(saatPesan.slice(sebelum)).toContain('/permintaan-tempat-tidur')
+      expect(dialog()).toBeNull()
+      // TT tidak berubah: tetap kosong siap di peta.
+      expect(tt(gabungan.petaTempatTidur.daftar(), 'CTHG-2-202-3').status).toBe('kosong_siap')
+    })
+  }
+
+  it('tanpa izin lihat: tidak ada permintaan ke /permintaan-tempat-tidur', async () => {
+    aturIzin([])
+    await pasang()
+    expect(permintaan.filter((p) => p.jalur === '/permintaan-tempat-tidur')).toEqual([])
+  })
+
+  it('peta terpotong: dialog memperingatkan daftar TT bisa tidak lengkap', async () => {
+    pasangTiruan(klien, {
+      tangani: (r: PermintaanTiruan) => {
+        permintaan.push(r)
+        const jawab = kamar.tangani(r) ?? gabungan.tangani(r)
+        if (r.jalur === '/peta-tempat-tidur' && jawab && !(jawab instanceof Promise) && jawab.status === 200) {
+          return { ...jawab, isi: { ...(jawab.isi as object), meta: { terpotong: true } } }
+        }
+        return jawab
+      },
+    })
+    await pasang()
+    tombol('Alokasikan TT', baris('Pasien Contoh IGD'))!.click()
+    await tenang()
+    expect(dialog()!.textContent).toContain('Peta memuat 1.000 TT pertama saja')
+    expect(kodePilihan()).toEqual(['CTHA-1-101-1', 'CTHG-2-202-3'])
   })
 
   it('kelas tanpa TT kosong siap: pesan, tanpa pilihan', async () => {
@@ -281,6 +335,17 @@ describe('PanelSpri: SPRI dari pemeriksaan poli', () => {
     el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input'))
     await tenang()
   }
+
+  it('buat SPRI: fokus pindah ke pilihan kelas walau kelas masih dimuat', async () => {
+    await pasang()
+    tombol('Buat SPRI')!.click()
+    await nextTick()
+    await nextTick()
+    expect(document.activeElement?.tagName).toBe('SELECT')
+    expect(document.activeElement?.textContent).toContain('Memuat kelas')
+    await tenang()
+    expect(document.activeElement?.tagName).toBe('SELECT')
+  })
 
   it('buat SPRI: isian kelas, tanggal, alasan; simpan; ringkasan SPRI tampil', async () => {
     await pasang()

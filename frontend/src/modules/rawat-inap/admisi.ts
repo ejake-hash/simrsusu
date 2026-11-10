@@ -86,7 +86,7 @@ export function pesanGalatAlokasi(e: unknown, kodeTt: string): string {
     case 'kelas_tidak_sesuai':
       return `Kelas TT ${kodeTt} berbeda dengan kelas yang diminta. Pilih TT dengan kelas yang sama; titip atau naik kelas belum tersedia.`
   }
-  if (e.status === 403) return `Anda tidak punya akses mengalokasikan TT ${kodeTt} (di luar cakupan bangsal Anda).`
+  if (e.status === 403) return `Anda tidak punya akses mengalokasikan TT ${kodeTt} (izin atau cakupan bangsal).`
   if (e.status === 404) return 'Permintaan kamar tidak ditemukan. Antrean sudah dimuat ulang.'
   if (e.status === 422) return `TT ${kodeTt} tidak ditemukan atau tidak sah. Pilih TT dari daftar terbaru.`
   return e.message

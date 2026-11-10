@@ -263,6 +263,10 @@ RM), #137 (layar pendaftaran, e2e admisi). Sisa:
   Usul: filter `fungsi` di `GET /lokasi` atau penanda loket admisi di data induk ([Perlu pemilik]: kontrak di luar tiket), sementara
   naikkan `staleTime`. Tombol Panggil nomor loket nonaktif tanpa penjelasan sebelum loket dipilih: tambah pesan singkat.
   Petugas loket di RS nyata butuh izin `master_data.organisasi.lihat` untuk pemilih ini (catat di penyiapan peran).
+- Tinjauan #201 (2.28-fe, 10 Nov 2026): polling 15 detik lewat `refetchInterval` biasa di Admisi rawat inap, Worklist, Antrean,
+  Triase, Disposisi, Pendaftaran IGD, dan Antrean resep tidak mengirim `X-Permintaan-Latar`, jadi layar yang terbuka tanpa interaksi
+  terus memperpanjang batas diam sesi (PRD 14.2). Usul: refetch berkala memakai header latar lewat composable polling bersama
+  (pola `useKueriBerPolling` papan IGD/peta TT), satu tiket kecil untuk semua layar itu.
 
 ## Tahap B — tiket (rawat jalan + RME)
 
