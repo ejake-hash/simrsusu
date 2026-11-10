@@ -11,13 +11,13 @@ import { buatServerGabungan } from '@/modules/akses/tiruan/serverGabungan'
 import type { PermintaanTiruan, ResponsTiruan } from '@/modules/akses/tiruan/serverTiruan'
 import { ID_SUPERADMIN } from '@/modules/akses/tiruan/serverTiruan'
 import { AREA_IGD_CONTOH } from '@/modules/papan-igd/tiruan/serverPapanIgd'
-import { ambilAturanPapanIgd, ubahAturanPapanIgd } from '@/modules/papan-igd/api'
+import { ambilAturanPapanIgd, daftarAreaIgd, etagArea, ubahAreaIgd, ubahAturanPapanIgd } from '@/modules/papan-igd/api'
 import { buatKunjunganIgd, catatDisposisi, catatTriase } from '@/modules/pendaftaran/apiKunjungan'
 import { ApiError, klien } from '@/shared/api/klien'
 import { aturIzin, vCan } from '@/shared/composables/usePermission'
 import { bacaPapanIgd, tempatkanAreaIgd } from './apiPapan'
 import PapanIgdPage from './pages/PapanIgdPage.vue'
-import { formatMenit, INTERVAL_PAPAN, pesanGalatTempatkan, pilihanArea, tandaLamaIgd, tandaTanggap, teksDisposisiMenunggu, uraianAturan } from './papan'
+import { formatMenit, INTERVAL_PAPAN, pesanGalatTempatkan, pilihanArea, tandaLamaIgd, tandaTanggap, teksDisposisiMenunggu, uraianAturan, waktuTiba } from './papan'
 import type { BarisPapanIgd, PapanIgd } from './tipePapan'
 
 /** Tiket 2.25: server tiruan kontrak v0.34.0 (papan IGD ber-ETag, tempatkan area) dan layar IGD → Papan pasien IGD. Data sintetis. */
@@ -141,6 +141,16 @@ describe('papan IGD: aturan tampil', () => {
     expect(t('lewat_batas')).toEqual({ label: 'Lewat batas tanggap', jenis: 'bahaya', ikon: 'kritis' })
     expect(t('tercapai', 4)).toEqual({ label: 'Tercapai, 4 menit', jenis: 'ok', ikon: 'centang' })
     expect(t('terlambat', 75)).toEqual({ label: 'Terlambat, 1 jam 15 menit', jenis: 'peringatan', ikon: 'peringatan' })
+    // Nilai di luar kontrak: lencana netral berteks, tabel tetap tampil.
+    expect(t('baru' as 'menunggu')).toEqual({ label: 'Tanda tanggap tidak dikenal', jenis: 'netral', ikon: 'info' })
+    expect(tandaLamaIgd(baris({ tanda_lama_igd: 'baru' as 'aman' }))).toEqual({ label: 'Tanda lama tidak dikenal', jenis: 'netral', ikon: 'info' })
+  })
+  it('jam tiba menyebut tanggal bila bukan hari ini (zona RS)', () => {
+    const sekarang = new Date('2026-11-02T05:00:00Z')
+    expect(waktuTiba(baris({ tiba_pada: '2026-11-02T03:10:00Z' }), sekarang)).toBe('Pukul 10.10 WIB')
+    // 1 Nov 17.30 UTC = 2 Nov 00.30 WIB: hari yang sama menurut zona RS.
+    expect(waktuTiba(baris({ tiba_pada: '2026-11-01T17:30:00Z' }), sekarang)).toBe('Pukul 00.30 WIB')
+    expect(waktuTiba(baris({ tiba_pada: '2026-11-01T03:10:00Z' }), sekarang)).toBe('1 November 2026, pukul 10.10 WIB')
   })
   it('tanda lama di IGD: aman tanpa lencana, mendekati dan lebih 6 jam berteks', () => {
     expect(tandaLamaIgd(baris({ tanda_lama_igd: 'aman' }))).toBeNull()
@@ -247,6 +257,8 @@ describe('PapanIgdPage: layar', () => {
     expect(permintaan.some((p) => p.metode.toUpperCase() === 'PUT' && p.jalur.endsWith('/area-igd'))).toBe(true)
     expect(tombol('Tempatkan', barisDari(nama))).toBeUndefined()
     expect(barisDari(nama).querySelector<HTMLSelectElement>('select')!.value).toBe(OBS.id)
+    // Tombol hilang: fokus kembali ke pilihan area baris itu, bukan ke body.
+    expect(document.activeElement).toBe(barisDari(nama).querySelector('select'))
 
     const filter = document.querySelector<HTMLSelectElement>('#filter-area-papan')!
     filter.value = OBS.id
@@ -254,6 +266,20 @@ describe('PapanIgdPage: layar', () => {
     await tenang()
     expect(namaBaris()).toEqual([nama])
     expect(document.querySelector('#judul-papan-igd')!.textContent).toBe('Pasien di Observasi (contoh)')
+  })
+
+  it('belum ada area aktif: petunjuk ke data induk, tanpa pilihan area dan filter', async () => {
+    await igd('satu')
+    for (const a of AREA_IGD_CONTOH) {
+      const isi = await daftarAreaIgd('aktif')
+      const x = isi.data.find((d) => d.id === a.id)!
+      await ubahAreaIgd(x.id, etagArea(x), { status: 'nonaktif', dasar_perubahan: 'SK contoh' })
+    }
+    await pasang()
+    expect(document.body.textContent).toContain('Belum ada area aktif; atur di Master Data → Area & batas papan IGD.')
+    expect(document.querySelector('select[id^="area-"]')).toBeNull()
+    expect(document.querySelector('#filter-area-papan')).toBeNull()
+    expect(barisDari('Contoh Pasien Satu').textContent).toContain('Belum ditempatkan')
   })
 
   it('lihat saja: area sebagai teks tanpa pilihan penempatan', async () => {

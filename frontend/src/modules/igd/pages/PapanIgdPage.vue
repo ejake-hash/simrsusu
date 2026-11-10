@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import DataTable, { type KolomTabel } from '@/design-system/components/DataTable.vue'
 import Lencana from '@/design-system/components/Lencana.vue'
 import Pesan from '@/design-system/components/Pesan.vue'
@@ -13,7 +13,7 @@ import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
 import { boleh } from '@/shared/composables/usePermission'
 import { bacaPapanIgd, tempatkanAreaIgd } from '../apiPapan'
 import LencanaTriase from '../components/LencanaTriase.vue'
-import { formatMenit, INTERVAL_PAPAN, jamTiba, KUNCI_PAPAN, pesanGalatTempatkan, pilihanArea, tandaLamaIgd, tandaTanggap, teksDisposisiMenunggu, uraianAturan } from '../papan'
+import { formatMenit, INTERVAL_PAPAN, KUNCI_PAPAN, pesanGalatTempatkan, pilihanArea, tandaLamaIgd, tandaTanggap, teksDisposisiMenunggu, uraianAturan, waktuTiba } from '../papan'
 import type { BarisPapanIgd, PapanIgd, RingkasAreaIgd } from '../tipePapan'
 
 /**
@@ -34,6 +34,8 @@ watch(meta, (m) => {
   if (m) areaTerakhir.value = m.area
 })
 const areaAktif = computed(() => meta.value?.area ?? areaTerakhir.value)
+/** Data induk belum berisi area aktif: pilihan area disembunyikan, diganti petunjuk. */
+const tanpaArea = computed(() => meta.value !== null && meta.value.area.length === 0)
 const namaAreaFilter = computed(() => areaAktif.value.find((a) => a.id === areaFilter.value)?.nama ?? null)
 
 const bolehTempatkan = computed(() => boleh('igd.papan.input'))
@@ -42,7 +44,7 @@ const kolom = computed<KolomTabel[]>(() => [
   { kunci: 'pasien', label: 'Pasien' },
   { kunci: 'triase', label: 'Triase', lebar: '112px' },
   { kunci: 'keluhan', label: 'Keluhan', prioritas: 3 },
-  { kunci: 'area', label: 'Area', ...(bolehTempatkan.value ? { lebar: '170px' } : {}) },
+  { kunci: 'area', label: 'Area', ...(bolehTempatkan.value && !tanpaArea.value ? { lebar: '170px' } : {}) },
   { kunci: 'tiba', label: 'Tiba dan lama' },
   { kunci: 'tanggap', label: 'Waktu tanggap' },
   { kunci: 'disposisi', label: 'Disposisi menunggu' },
@@ -56,16 +58,26 @@ const berubah = (b: BarisPapanIgd) => nilaiPilihan(b) !== '' && nilaiPilihan(b) 
 async function tempatkan(b: BarisPapanIgd) {
   const areaId = nilaiPilihan(b)
   menyimpan.value = b.kunjungan_id
+  let pesan: [string, 'ok' | 'error']
   try {
     const hasil = await tempatkanAreaIgd(b.kunjungan_id, areaId)
-    tampilkanToast(`${b.pasien.nama} ditempatkan di ${hasil.area.nama}.`, 'ok')
+    pesan = [`${b.pasien.nama} ditempatkan di ${hasil.area.nama}.`, 'ok']
   } catch (e) {
-    tampilkanToast(pesanGalatTempatkan(e), 'error')
+    pesan = [pesanGalatTempatkan(e), 'error']
+  }
+  // Toast sesudah papan termuat ulang, agar pesan sesuai dengan isi papan yang tampil.
+  try {
+    await segarkan()
   } finally {
     delete pilihan[b.kunjungan_id]
     menyimpan.value = null
-    void segarkan()
   }
+  tampilkanToast(...pesan)
+  // Tombol Tempatkan hilang sesudah tersimpan: fokus kembali ke pilihan area baris itu (bila pasien masih di papan).
+  await nextTick()
+  const pilih = document.getElementById(`area-${b.kunjungan_id}`)
+  if (pilih) pilih.focus()
+  else document.getElementById('judul-papan-igd')?.focus()
 }
 </script>
 
@@ -78,10 +90,10 @@ async function tempatkan(b: BarisPapanIgd) {
     <section class="kartu" aria-labelledby="judul-papan-igd">
       <div class="kartu-kepala">
         <div>
-          <h2 id="judul-papan-igd">{{ namaAreaFilter ? `Pasien di ${namaAreaFilter}` : 'Semua pasien IGD' }}</h2>
+          <h2 id="judul-papan-igd" tabindex="-1">{{ namaAreaFilter ? `Pasien di ${namaAreaFilter}` : 'Semua pasien IGD' }}</h2>
           <p v-if="meta">{{ uraianAturan(meta.aturan) }}</p>
         </div>
-        <div class="filter">
+        <div v-if="!tanpaArea" class="filter">
           <label for="filter-area-papan">Area</label>
           <select id="filter-area-papan" v-model="areaFilter" class="isian">
             <option value="">Semua area</option>
@@ -90,6 +102,9 @@ async function tempatkan(b: BarisPapanIgd) {
         </div>
       </div>
 
+      <div v-if="tanpaArea" class="blok">
+        <Pesan jenis="info">Belum ada area aktif; atur di Master Data → Area & batas papan IGD.</Pesan>
+      </div>
       <div v-if="meta?.terpotong" class="blok">
         <Pesan jenis="peringatan">Papan hanya memuat 200 pasien pertama menurut prioritas. Sebagian pasien tidak tampil; pilih area untuk mempersempit papan.</Pesan>
       </div>
@@ -115,7 +130,7 @@ async function tempatkan(b: BarisPapanIgd) {
           <span v-else class="ket">Belum diisi</span>
         </template>
         <template #sel-area="{ baris: b }">
-          <span v-if="bolehTempatkan" class="area">
+          <span v-if="bolehTempatkan && !tanpaArea" class="area">
             <label class="sr-only" :for="`area-${b.kunjungan_id}`">Area {{ b.pasien.nama }}</label>
             <select
               :id="`area-${b.kunjungan_id}`"
@@ -137,7 +152,7 @@ async function tempatkan(b: BarisPapanIgd) {
           </template>
         </template>
         <template #sel-tiba="{ baris: b }">
-          <span class="angka">{{ jamTiba(b) }}</span>
+          <span class="angka">{{ waktuTiba(b, new Date()) }}</span>
           <span class="ket angka">Lama {{ formatMenit(b.lama_di_igd_menit) }}</span>
           <Lencana v-if="tandaLamaIgd(b)" :jenis="tandaLamaIgd(b)!.jenis" tanpa-ikon class="lencana lencana-lama"><Ikon :nama="tandaLamaIgd(b)!.ikon" :ukuran="12" />{{ tandaLamaIgd(b)!.label }}</Lencana>
         </template>

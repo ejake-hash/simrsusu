@@ -1,5 +1,4 @@
 import type { NamaIkon } from '@/design-system/ikon/ikon'
-import { jamWib } from '@/modules/antrean/antrean'
 import { ApiError } from '@/shared/api/klien'
 import { LABEL_STATUS_DISPOSISI } from './disposisi'
 import { waktuTriase } from './triase'
@@ -48,15 +47,28 @@ export function tandaTanggap(b: Pick<BarisPapanIgd, 'tanggap'>): TandaTampil {
       return { label: `Tercapai${menit}`, jenis: 'ok', ikon: 'centang' }
     case 'terlambat':
       return { label: `Terlambat${menit}`, jenis: 'peringatan', ikon: 'peringatan' }
+    // Nilai baru dari server (kontrak lebih baru) tidak boleh membuat tabel gagal tampil.
+    default:
+      return { label: 'Tanda tanggap tidak dikenal', jenis: 'netral', ikon: 'info' }
   }
 }
 
 /** Tanda lama di IGD (FR-00-06, 7.00.2). null = aman (tanpa lencana; lama tetap tertulis). */
 export function tandaLamaIgd(b: Pick<BarisPapanIgd, 'tanda_lama_igd'>): TandaTampil | null {
-  if (b.tanda_lama_igd === 'mendekati_6_jam') return { label: 'Mendekati 6 jam', jenis: 'peringatan', ikon: 'jam' }
-  if (b.tanda_lama_igd === 'lebih_6_jam') return { label: 'Lebih dari 6 jam', jenis: 'bahaya', ikon: 'peringatan' }
-  return null
+  switch (b.tanda_lama_igd) {
+    case 'aman':
+      return null
+    case 'mendekati_6_jam':
+      return { label: 'Mendekati 6 jam', jenis: 'peringatan', ikon: 'jam' }
+    case 'lebih_6_jam':
+      return { label: 'Lebih dari 6 jam', jenis: 'bahaya', ikon: 'peringatan' }
+    default:
+      return { label: 'Tanda lama tidak dikenal', jenis: 'netral', ikon: 'info' }
+  }
 }
+
+/** Jam tiba; tanggal (zona RS) ikut disebut bila bukan hari ini, sama dengan riwayat triase/disposisi. */
+export const waktuTiba = (b: Pick<BarisPapanIgd, 'tiba_pada'>, sekarang: Date) => waktuTriase(b.tiba_pada, sekarang)
 
 /** "Menunggu kamar sejak pukul 10.03 WIB" (tanggal disebut bila bukan hari ini). null = tidak ada. */
 export function teksDisposisiMenunggu(b: Pick<BarisPapanIgd, 'disposisi_menunggu'>, sekarang: Date): string | null {
@@ -65,8 +77,6 @@ export function teksDisposisiMenunggu(b: Pick<BarisPapanIgd, 'disposisi_menunggu
   const waktu = waktuTriase(d.sejak, sekarang)
   return `${LABEL_STATUS_DISPOSISI[d.status]} sejak ${waktu.charAt(0).toLowerCase()}${waktu.slice(1)}`
 }
-
-export const jamTiba = (b: Pick<BarisPapanIgd, 'tiba_pada'>) => jamWib(b.tiba_pada)
 
 /** Uraian batas yang dipakai server untuk tanda baris ini. */
 export function uraianAturan(a: MetaPapanIgd['aturan']): string {
@@ -90,8 +100,8 @@ export function pilihanArea(b: Pick<BarisPapanIgd, 'area'>, aktif: readonly Ring
 /** Pesan galat PUT area-igd per kode kontrak. */
 export function pesanGalatTempatkan(e: unknown): string {
   if (!(e instanceof ApiError)) return 'Penempatan gagal disimpan. Coba lagi.'
-  if (e.status === 422) return 'Area ini tidak lagi aktif. Papan sudah dimuat ulang; pilih area lain.'
-  if (e.status === 409 && e.kode === 'status_tidak_sesuai') return 'Pasien ini tidak lagi aktif di IGD. Papan sudah dimuat ulang.'
-  if (e.status === 404) return 'Kunjungan tidak ditemukan. Papan sudah dimuat ulang.'
+  if (e.status === 422) return 'Area ini tidak lagi aktif. Pilih area lain dari papan terbaru.'
+  if (e.status === 409 && e.kode === 'status_tidak_sesuai') return 'Pasien ini tidak lagi aktif di IGD. Periksa papan terbaru.'
+  if (e.status === 404) return 'Kunjungan tidak ditemukan. Periksa papan terbaru.'
   return e.message
 }
