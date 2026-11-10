@@ -49,6 +49,9 @@ const PETA = {
   pengguna: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   kritis: '<path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3z"/><path d="M12 8v4.5M12 16v.01"/>',
   kisi: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',
+  // Peta tempat tidur (2.27): TT dipesan dan TT sedang dibersihkan.
+  penanda: '<path d="M6 3h12v18l-6-4.5L6 21z"/>',
+  tetes: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
 } as const
 
 export type NamaIkon = keyof typeof PETA

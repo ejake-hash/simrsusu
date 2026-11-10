@@ -1,4 +1,5 @@
 import type { NamaIkon } from '@/design-system/ikon/ikon'
+import { INTERVAL_LAYAR_KERJA } from '@/modules/notifikasi/polling'
 import { ApiError } from '@/shared/api/klien'
 import { LABEL_STATUS_DISPOSISI } from './disposisi'
 import { waktuTriase } from './triase'
@@ -10,8 +11,8 @@ import type { BarisPapanIgd, MetaPapanIgd, RingkasAreaIgd } from './tipePapan'
  * bukan hanya warna (PRD 5.1 butir 4).
  */
 
-/** Polling papan (K1, sampai Reverb): 15 detik, jeda saat tab tidak terlihat. */
-export const INTERVAL_PAPAN = 15_000
+/** Polling papan (K1, sampai Reverb): interval layar kerja, jeda saat tab tidak terlihat. */
+export const INTERVAL_PAPAN = INTERVAL_LAYAR_KERJA
 
 export const KUNCI_PAPAN = {
   semua: ['igd', 'papan'] as const,
