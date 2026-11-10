@@ -9,8 +9,6 @@ use App\Modules\MasterData\Application\PohonUnit;
 use App\Modules\MasterData\Console\MuatReferensi;
 use App\Modules\MasterData\Console\RekamKapasitasTempatTidur;
 use App\Modules\MasterData\Console\TerapkanUsulan;
-use App\Modules\MasterData\Domain\PemeriksaPenempatan;
-use App\Modules\MasterData\Domain\PenempatanBelumAda;
 use App\Modules\MasterData\Events\KapasitasTempatTidurBerubah;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -21,8 +19,7 @@ class ModuleServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(DataUnit::class, PohonUnit::class);
-        // Penempatan pasien dibangun di fase 2; sampai itu TT tidak pernah terisi (tiket 1.8b).
-        $this->app->bind(PemeriksaPenempatan::class, PenempatanBelumAda::class);
+        // PemeriksaPenempatan diikat modul Rawat Inap (penempatan pasien, tiket 2.29).
         // Berstatus (usulan yang sedang diterapkan): satu instans per permintaan/pekerjaan.
         $this->app->scoped(CatatVersi::class);
     }

@@ -107,7 +107,9 @@ final class AkunSintetisSeeder extends Seeder
     private const IZIN_TAMBAHAN_CONTOH = [
         // Tiket 2.28-fe: Admisi rawat inap (pendaftaran.admisi.lihat/input ikut menu pendaftaran) memilih TT kosong siap dari
         // GET /peta-tempat-tidur, jadi butuh lihat peta TT (data induk TT tanpa data pasien, bukan izin sensitif).
-        'contoh_admisi' => ['master_data.organisasi.lihat', 'master_data.jadwal_praktik.lihat', 'master_data.penjamin.lihat', 'rawat_inap.peta_tempat_tidur.lihat'],
+        // Tiket 2.29: admisi menempatkan pasien di TT yang sudah dialokasikan (non-klinis).
+        'contoh_admisi' => ['master_data.organisasi.lihat', 'master_data.jadwal_praktik.lihat', 'master_data.penjamin.lihat', 'rawat_inap.peta_tempat_tidur.lihat',
+            'rawat_inap.penempatan.lihat', 'rawat_inap.penempatan.input'],
         // Tiket 2.15: dokter menyelesaikan kunjungan (aksi tambahan, tidak ikut aksi dasar menu rawat_jalan).
         'contoh_dokter' => ['rawat_jalan.pemeriksaan.sahkan'],
         'contoh_data_induk' => ['sdm.pegawai.lihat', 'farmasi.formularium.lihat', 'farmasi.formularium.input', 'farmasi.formularium.perbaiki'],
@@ -155,6 +157,8 @@ final class AkunSintetisSeeder extends Seeder
             // Tiket 2.26-fe: dokter ber-SIP (lokal:kunjungan-contoh) memberi disposisi IGD; daftar pasien IGD dari Pendaftaran IGD.
             // igd.disposisi.input = IZIN_KLINIS (syarat SIP/SPK lapis 5), bukan izin sensitif: tidak memaksa MFA.
             'igd.pendaftaran.lihat', 'igd.disposisi.lihat', 'igd.disposisi.input',
+            // Tiket 2.29: pindah ruang/kelas pasien rawat inap = izin sel matriks rawat_inap → rawat_inap (IZIN_KLINIS, bukan sensitif).
+            'rawat_inap.pindah_ruang.lihat', 'rawat_inap.pindah_ruang.input',
         ]],
         // Tiket 2.21: akses darurat CPPT (izin sensitif, klinis, butuh MFA); worklist dan CPPT dibaca dari layar rawat jalan.
         'contoh_dokter_darurat' => ['Contoh Dokter Akses Darurat', 'dokter.darurat', [

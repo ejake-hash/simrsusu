@@ -62,7 +62,8 @@ class DisposisiIgdTest extends TestCase
         $pengelola = $this->buatPengguna();
         $this->tugaskan($pengelola, $this->buatPeran(['master_data.matriks_perpindahan']));
         $this->masukSebagai($pengelola);
-        $this->minta('GET', '/api/v1/data-induk/matriks-perpindahan')->assertOk()->assertJsonCount(19, 'data');
+        // 19 sel 2.26 + rawat_inap → rawat_inap (pindah ruang, tiket 2.29).
+        $this->minta('GET', '/api/v1/data-induk/matriks-perpindahan')->assertOk()->assertJsonCount(20, 'data');
         $this->masukSebagai($this->buatPengguna());
         $tolak = $this->minta('GET', '/api/v1/data-induk/matriks-perpindahan?pos_asal=gudang')->assertForbidden();
         $this->assertSesuaiKontrak($tolak, 'GET', '/data-induk/matriks-perpindahan');

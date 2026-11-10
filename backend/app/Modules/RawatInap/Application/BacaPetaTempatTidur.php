@@ -13,7 +13,7 @@ use stdClass;
  * dari ruang kamar lewat inti.lokasi.induk_id (CTE rekursif, leluhur terdekat per jenis), tanpa N+1.
  * - Baris = TT yang sudah mulai berlaku (`berlaku_dari` ≤ hari ini zona RS). TT ditutup (`berlaku_sampai` < hari ini) tetap
  *   tampil sebagai `tidak_dipakai`, `ditutup` true, tidak dapat dipilih; status tersimpannya tidak diubah.
- * - Urut gedung, lantai, bangsal, kode TT; kode urut natural sederhana (panjang dulu, lalu kode: "2" sebelum "10"). Tanpa data pasien apa pun; `hari_rawat` diisi penempatan (2.29).
+ * - Urut gedung, lantai, bangsal, kode TT; kode urut natural sederhana (panjang dulu, lalu kode: "2" sebelum "10"). Tanpa data pasien apa pun; `hari_rawat` dari penempatan aktif (2.29).
  * - Bukan daftar berkursor (layar peta memuat seluruh RS sekaligus): paling banyak BATAS_BARIS, lebih → `terpotong`.
  */
 final class BacaPetaTempatTidur
@@ -68,7 +68,7 @@ final class BacaPetaTempatTidur
                 b.id AS bangsal_id, b.kode AS bangsal_kode, b.nama AS bangsal_nama,
                 lt.id AS lantai_id, lt.kode AS lantai_kode, lt.nama AS lantai_nama,
                 gd.id AS gedung_id, gd.kode AS gedung_kode, gd.nama AS gedung_nama,
-                kr.id AS kelas_id, kr.kode AS kelas_kode, kr.nama AS kelas_nama
+                kr.id AS kelas_id, kr.kode AS kelas_kode, kr.nama AS kelas_nama, pn.mulai_pertama
             FROM inti.tempat_tidur tt
             JOIN inti.kamar km ON km.id = tt.kamar_id
             JOIN inti.lokasi rg ON rg.id = km.lokasi_id
@@ -76,6 +76,9 @@ final class BacaPetaTempatTidur
             JOIN inti.kelas_rawat kr ON kr.id = tt.kelas_rawat_id
             LEFT JOIN leluhur lt ON lt.ruang_id = km.lokasi_id AND lt.jenis = \'lantai\'
             LEFT JOIN leluhur gd ON gd.ruang_id = km.lokasi_id AND gd.jenis = \'gedung\'
+            LEFT JOIN LATERAL (SELECT min(p2.mulai_pada) AS mulai_pertama
+                FROM kunjungan.penempatan_tempat_tidur p1 JOIN kunjungan.penempatan_tempat_tidur p2 ON p2.kunjungan_id = p1.kunjungan_id
+                WHERE p1.tempat_tidur_id = tt.id AND p1.selesai_pada IS NULL) pn ON true
             WHERE '.$saring.'
             ORDER BY length(gd.kode) NULLS LAST, gd.kode, gd.id, length(lt.kode) NULLS LAST, lt.kode, lt.id,
                 length(b.kode), b.kode, length(tt.kode), tt.kode
@@ -120,7 +123,8 @@ final class BacaPetaTempatTidur
             'ditutup' => $ditutup,
             // Penutupan terjadwal (berlaku_sampai terisi) juga tidak dapat dipilih: alokasi 2.28 menolaknya.
             'dapat_dipilih' => $b->berlaku_sampai === null && $status === StatusTempatTidur::KOSONG_SIAP,
-            'hari_rawat' => null,
+            // Penempatan aktif di TT ini; hitungan sejak penempatan pertama kunjungannya (pindah ruang tidak mengulang).
+            'hari_rawat' => $ditutup || $b->mulai_pertama === null ? null : BacaRawatInap::hariRawat((string) $b->mulai_pertama),
         ];
     }
 }

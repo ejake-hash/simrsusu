@@ -6,6 +6,7 @@ use App\Core\Audit\CatatAktivitas;
 use App\Modules\Pendaftaran\Events\EpisodeIgdDibentuk;
 use App\Modules\Pendaftaran\Models\Episode;
 use App\Modules\Pendaftaran\Models\Kunjungan;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -28,6 +29,19 @@ final class BentukEpisodeIgd
     /** Status perintah disposisi yang menahan pasien di IGD sambil menunggu dipindah (kunjungan.perpindahan_pos). */
     public const STATUS_MENUNGGU_PINDAH = ['menunggu_kamar', 'menunggu_kamar_operasi'];
 
+    /**
+     * Saring perintah (alias $alias di kunjungan.perpindahan_pos) yang masih menahan pasien: berstatus menunggu, dan
+     * permintaan kamar yang lahir darinya tidak batal atau sudah ditempatkan. Baris perintah hanya ditambah, jadi
+     * pembatalan permintaan kamar (tiket 2.29, POST /permintaan-tempat-tidur/{id}/batal) melepas perintahnya lewat sini.
+     *
+     * @param  list<string>  $status
+     */
+    public static function saringMasihMenunggu(Builder $q, string $alias, array $status = self::STATUS_MENUNGGU_PINDAH): Builder
+    {
+        return $q->whereIn("$alias.status", $status)->whereNotExists(fn (Builder $r) => $r->from('kunjungan.permintaan_tempat_tidur AS ptt_tutup')
+            ->whereColumn('ptt_tutup.perpindahan_pos_id', "$alias.id")->whereIn('ptt_tutup.status', ['batal', 'ditempatkan']));
+    }
+
     public function __construct(private readonly CatatAktivitas $audit) {}
 
     /** @return int jumlah kunjungan yang dipindah */
@@ -41,8 +55,7 @@ final class BentukEpisodeIgd
                 ->where('k.tiba_pada', '<', self::ambang())->where('e.jenis', Episode::RAWAT_JALAN_HARIAN)
                 // Sudah diputuskan rawat inap/operasi (disposisi 2.26): bukan "IGD > 6 jam tanpa rawat inap"; episodenya
                 // mengikuti SPRI (2.28). Disposisi akhir sesudahnya (mis. APS) membentuk episode ini lewat pindahkanTerkunci().
-                ->whereNotExists(fn ($q) => $q->from('kunjungan.perpindahan_pos AS p')->whereColumn('p.dari_kunjungan_id', 'k.id')
-                    ->whereIn('p.status', self::STATUS_MENUNGGU_PINDAH))
+                ->whereNotExists(fn (Builder $q) => self::saringMasihMenunggu($q->from('kunjungan.perpindahan_pos AS p')->whereColumn('p.dari_kunjungan_id', 'k.id'), 'p'))
                 ->orderBy('k.tiba_pada')->orderBy('k.id')->limit($batas)->pluck('k.id');
             $dipindah = 0;
             foreach ($ids as $id) {
@@ -68,8 +81,7 @@ final class BentukEpisodeIgd
     {
         // Gabung RM yang commit di antara baca dan kunci: lewati (null); putaran berikutnya mengulang dengan pasien yang benar.
         $kunjungan = KunciKunjungan::pasienLaluKunjungan($kunjunganId, lewatiBilaPindah: true);
-        if ($kunjungan === null || DB::table('kunjungan.perpindahan_pos')->where('dari_kunjungan_id', $kunjungan->id)
-            ->whereIn('status', self::STATUS_MENUNGGU_PINDAH)->exists()) {
+        if ($kunjungan === null || self::saringMasihMenunggu(DB::table('kunjungan.perpindahan_pos AS p')->where('p.dari_kunjungan_id', $kunjungan->id), 'p')->exists()) {
             return false;
         }
 

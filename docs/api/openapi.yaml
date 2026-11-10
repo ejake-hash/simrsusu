@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.36.0
+  version: 0.37.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -199,6 +199,16 @@ info:
     disposisi yang menutup kunjungan dan pembatalan kunjungan membatalkan permintaan aktif (TT dipesan kembali kosong
     siap). Usulan matriks perpindahan dengan izin bukan klinis → 422 `izin_bukan_klinis`. Penutupan TT terisi/dipesan →
     409 `tempat_tidur_terisi`. Skema `BarisPapanIgd` + field opsional `permintaan_kamar` (TT dipesan, FR-03-06).
+    v0.37.0: Admisi rawat inap (tiket 2.29; FR-08-06, FR-08-04, FR-00-01, FR-00-03, 7.00.2 baris "Rawat inap"): POST
+    /permintaan-tempat-tidur/{id}/tempatkan (izin rawat_inap.penempatan.input, cakupan unit bangsal TT; kunjungan bangsal
+    jenis `rawat_inap`, penempatan TT, TT `terisi`, episode rawat inap menggabung kunjungan IGD/poli hari yang sama), POST
+    /permintaan-tempat-tidur/{id}/batal (izin pendaftaran.admisi.input; TT pesanan kembali kosong siap), POST
+    /kunjungan/{id}/pindah-ruang (izin sel matriks baru rawat_inap → rawat_inap `rawat_inap.pindah_ruang.input`
+    bersyarat SIP/SPK; TT lama `dibersihkan`, serah terima wajib). Satu permintaan kamar aktif per pasien: SPRI → 409
+    `permintaan_kamar_sudah_ada`; disposisi IGD rawat inap menggantikan permintaan dari kunjungan lain; pasien yang sedang
+    menempati TT → 409 `pasien_sedang_dirawat`. Sub-menu baru `rawat_inap.penempatan` dan `rawat_inap.pindah_ruang`. Skema
+    baru `RawatInap`; enum diperluas: `JenisKunjungan` + `rawat_inap`, jenis episode + `rawat_inap`, status perintah +
+    `dilaksanakan`, status TT + `melewati_rencana_lama_rawat`; `TempatTidurPeta.hari_rawat` kini terisi.
 servers:
   - url: /api/v1
 security:
@@ -5996,7 +6006,11 @@ paths:
           6 jam tetapi belum dipindah lebih dulu dibentukkan episode itu; episode `rawat_jalan_harian` tidak diubah.
           `rawat_inap` → status `menunggu_kamar`: permintaan kamar saja, pasien tidak ditempatkan dan kunjungan tetap di
           IGD (SPRI, antrean, alokasi TT di 2.28). `kamar_operasi` → `menunggu_kamar_operasi`, kunjungan tetap di IGD.
-        - Perintah yang sama masih menunggu (rawat inap atau kamar operasi) → 409 `perintah_sudah_menunggu`.
+        - Perintah yang sama masih menunggu (rawat inap atau kamar operasi) → 409 `perintah_sudah_menunggu`. Perintah rawat
+          inap yang permintaan kamarnya sudah batal atau ditempatkan tidak lagi menunggu (v0.37.0).
+        - `rawat_inap` (v0.37.0): pasien sedang menempati TT → 409 `pasien_sedang_dirawat`; permintaan kamar aktif pasien
+          dari kunjungan lain (mis. SPRI terencana poli) dibatalkan otomatis (alasan "Digantikan permintaan IGD", TT
+          pesanannya kembali kosong siap) lalu permintaan IGD dibuat.
         - Kunjungan bukan IGD, atau IGD yang sudah `selesai`/`batal` → 409 `status_tidak_sesuai`, `rincian` =
           `[{jenis_kunjungan, status}]`.
         - 409 `pasien_digabung`, 409 `instalasi_belum_siap`: seperti triase.
@@ -6109,7 +6123,8 @@ paths:
           Paling banyak 1000 baris (`meta.terpotong` true bila lebih). Bukan daftar
           berkursor: layar memuat seluruh peta sekaligus; pencarian kode TT dan pengelompokan di layar.
         - `bangsal_id`/`gedung_id` menyaring; id tak dikenal → daftar kosong; bukan UUID → 422.
-        - Tanpa data pasien. `hari_rawat` null sampai penempatan pasien (tiket 2.29).
+        - Tanpa data pasien. `hari_rawat` diisi untuk TT dengan penempatan aktif (v0.37.0), dihitung dari penempatan pertama
+          kunjungan rawat inapnya.
       parameters:
         - { in: query, name: bangsal_id, schema: { type: string, format: uuid } }
         - { in: query, name: gedung_id, schema: { type: string, format: uuid }, description: "Lokasi jenis gedung" }
@@ -6190,7 +6205,9 @@ paths:
         kunjungan → 403.
         - Hanya kunjungan poli `dilayani` (dokter sudah mulai periksa); `terdaftar` (bisa batal otomatis jam tutup jadwal),
           `selesai`, atau `batal` → 409 `status_tidak_sesuai`, `rincian` = `[{jenis_kunjungan, status}]`.
-        - Sudah ada permintaan kamar aktif untuk kunjungan ini → 409 `permintaan_kamar_sudah_ada`, `rincian` =
+        - Pasien sedang menempati TT (rawat inap) → 409 `pasien_sedang_dirawat` (v0.37.0).
+        - Pasien sudah punya permintaan kamar aktif dari kunjungan mana pun (v0.37.0; sebelumnya per kunjungan) → 409
+          `permintaan_kamar_sudah_ada`, `rincian` =
           `[{permintaan_tempat_tidur_id}]`.
         - `kelas_rawat_id`/`bangsal_id` bukan data induk aktif, `tanggal_rencana` sebelum hari ini → 422 `validasi_gagal`.
         - 409 `pasien_digabung`, 409 `instalasi_belum_siap`: seperti triase.
@@ -6290,6 +6307,135 @@ paths:
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PermintaanTempatTidur' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /permintaan-tempat-tidur/{id}/tempatkan:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: tempatkanPasien
+      summary: Pasien tiba di bangsal dan menempati TT yang dialokasikan (kunjungan dan episode rawat inap dibuka)
+      description: |
+        Izin rute: rawat_inap.penempatan.input di cakupan mana pun (403 sebelum isian dibaca); permintaan tidak ada atau id
+        bukan UUID → 404; lalu cakupan yang memuat unit bangsal TT pesanan (403). Urutan kunci: pasien → kunjungan asal →
+        permintaan → TT (sama dengan alokasi).
+        - Permintaan bukan `dialokasikan` → 409 `permintaan_kamar_tidak_dialokasikan`, `rincian` = `[{status}]`.
+        - Pasien sudah menempati TT lain → 409 `pasien_sudah_ditempatkan` (satu pasien satu TT; pindah lewat pindah ruang).
+        - TT tidak lagi `dipesan` → 409 `tempat_tidur_tidak_tersedia`, `rincian` = `[{status_sekarang}]`; TT ditutup → 409
+          `tempat_tidur_ditutup`.
+        - 409 `pasien_digabung`, 409 `instalasi_belum_siap`: seperti triase.
+        Akibat (satu transaksi): kunjungan baru jenis `rawat_inap` (unit = bangsal TT, DPJP awal = dokter pemberi perintah
+        rawat, cara bayar dari kunjungan asal), penempatan TT dengan jam server, TT `dipesan → terisi` (riwayat status sumber
+        `penempatan`), permintaan `ditempatkan` (hilang dari antrean; perintah `menunggu_kamar` selesai), kunjungan IGD asal
+        yang masih aktif `selesai` (keluar dari papan IGD), relasi perawatan DPJP. Episode rawat inap (7.00.2): awal rawat
+        inap = `menunggu_sejak` permintaan (jam SPRI atau awal tanggal rencana; tidak sesudah jam penempatan); episode aktif
+        rawat jalan harian / IGD > 6 jam pasien yang memuat kunjungan bertanggal awal itu digabung menjadi satu episode
+        `rawat_inap` (episode kunjungan asal dipakai bila termasuk); tanpa itu episode baru. Audit
+        `rawat_inap.pasien_ditempatkan` (kode TT, tanpa data pasien atau serah terima).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                serah_terima: { type: [string, 'null'], minLength: 5, maxLength: 4000, description: "Serah terima saat pasien tiba di bangsal (bagian data RM-15; klinis, tidak masuk log/audit)" }
+      responses:
+        '201':
+          description: Kunjungan rawat inap yang dibuka
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/RawatInap' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /permintaan-tempat-tidur/{id}/batal:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: batalPermintaanTempatTidur
+      summary: Admisi membatalkan permintaan kamar (TT pesanan kembali kosong siap)
+      description: |
+        Izin rute: pendaftaran.admisi.input (sama dengan alokasi; 403 sebelum isian dibaca); permintaan tidak ada atau id
+        bukan UUID → 404; permintaan yang sudah memesan TT juga butuh cakupan yang memuat unit bangsal TT itu (403).
+        - Permintaan bukan `menunggu`/`dialokasikan` → 409 `permintaan_kamar_tidak_aktif`, `rincian` = `[{status}]`.
+        - `alasan` kosong atau < 5 karakter → 422 `validasi_gagal`.
+        Akibat: jalur yang sama dengan pembatalan karena disposisi/kunjungan batal: permintaan dan SPRI internal `batal`
+        (alasan, pelaku, jam), TT `dipesan → kosong_siap` (riwayat status sumber `alokasi_batal`), tugas menunggu kamar batal.
+        Perintah IGD `menunggu_kamar` yang permintaannya batal tidak lagi menahan pasien: papan IGD tidak menampilkannya
+        sebagai disposisi menunggu dan dokter IGD boleh memberi disposisi baru. Audit `rawat_inap.permintaan_kamar_dibatalkan`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alasan]
+              additionalProperties: false
+              properties:
+                alasan: { type: string, minLength: 5, maxLength: 1000 }
+      responses:
+        '200':
+          description: Permintaan sesudah dibatalkan
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PermintaanTempatTidur' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/pindah-ruang:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: pindahRuang
+      summary: Pindah ruang/kelas pasien rawat inap (perintah sel matriks rawat_inap → rawat_inap)
+      description: |
+        FR-08-06, FR-00-03; PRD 7.00.3 baris "Rawat inap" → "Rawat inap". Pemeriksaan sebelum isian dibaca, berurutan:
+        sel matriks rawat_inap → rawat_inap nonaktif → 422 `perpindahan_di_luar_matriks`; pemberi perintah tidak memegang
+        `izin_perintah` sel itu di cakupan mana pun → 403 (izin bawaan `rawat_inap.pindah_ruang.input` bersyarat SIP/SPK
+        berlaku, 403 `izin_praktik_tidak_berlaku`); kunjungan tidak ada atau id bukan UUID → 404; izin sel tidak mencakup
+        unit bangsal pasien sekarang → 403.
+        - Kunjungan bukan rawat inap yang berjalan, atau tanpa penempatan aktif → 409 `status_tidak_sesuai`, `rincian` =
+          `[{jenis_kunjungan, status}]`.
+        - `tempat_tidur_id` kosong, bukan UUID, TT tidak ada, atau TT pasien sekarang → 422 `validasi_gagal`.
+        - TT tujuan ditutup atau dijadwalkan tutup → 409 `tempat_tidur_ditutup`; bukan `kosong_siap` atau belum berlaku →
+          409 `tempat_tidur_tidak_tersedia`, `rincian` = `[{status_sekarang}]`. Kedua TT dikunci berurutan id.
+        - Kelas TT tujuan boleh berbeda (pindah kelas); titip/naik kelas dan biayanya di Tahap D.
+        - 409 `pasien_digabung`, 409 `instalasi_belum_siap`: seperti triase.
+        Akibat: perintah baru (riwayat GET /kunjungan/{id}/disposisi, status `dilaksanakan`, alasan dan serah terima
+        klinis tidak ke log/audit), penempatan lama selesai (alasan `pindah`), TT lama `terisi → dibersihkan`, penempatan
+        baru dengan jam server, TT baru `kosong_siap → terisi` (riwayat status sumber `pindah_ruang`), unit kunjungan dan
+        kelas dirawat ikut TT baru. DPJP dan relasi perawatannya tetap. `hari_rawat` tidak diulang. Audit
+        `rawat_inap.pindah_ruang`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tempat_tidur_id, alasan, serah_terima]
+              additionalProperties: false
+              properties:
+                tempat_tidur_id: { type: string, format: uuid, description: "TT `dapat_dipilih` dari GET /peta-tempat-tidur" }
+                alasan: { type: string, minLength: 5, maxLength: 1000, description: "Alasan pindah (klinis; tidak masuk log/audit)" }
+                serah_terima: { type: string, minLength: 5, maxLength: 4000, description: "Serah terima antar-ruang (RM-15; klinis, tidak masuk log/audit)" }
+      responses:
+        '200':
+          description: Kunjungan rawat inap sesudah pindah
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/RawatInap' } } }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
@@ -9953,8 +10099,8 @@ components:
         diubah_pada: { type: string, format: date-time }
     JenisKunjungan:
       type: string
-      enum: [poliklinik, igd, rawat_inap_elektif, penunjang_langsung, mcu, terjadwal_rutin, telekonsultasi, kemoterapi_sehari]
-      description: "FR-01-06. POST /kunjungan hanya menerima `poliklinik` (lainnya → 422 `jenis_belum_didukung`); `igd` didaftarkan lewat POST /kunjungan-igd (v0.31.0)."
+      enum: [poliklinik, igd, rawat_inap, rawat_inap_elektif, penunjang_langsung, mcu, terjadwal_rutin, telekonsultasi, kemoterapi_sehari]
+      description: "FR-01-06. POST /kunjungan hanya menerima `poliklinik` (lainnya → 422 `jenis_belum_didukung`); `igd` didaftarkan lewat POST /kunjungan-igd (v0.31.0); `rawat_inap` (kunjungan bangsal, v0.37.0) dibuka POST /permintaan-tempat-tidur/{id}/tempatkan."
     CaraBayar:
       type: string
       enum: [jkn, non_jkn]
@@ -9978,7 +10124,7 @@ components:
       required: [id, jenis, mulai_tanggal]
       properties:
         id: { type: string, format: uuid }
-        jenis: { type: string, enum: [rawat_jalan_harian, igd_lebih_6_jam], description: "7.00.2. `igd_lebih_6_jam` sejak v0.31.0 (kunjungan IGD > 6 jam tanpa rawat inap, tiket 2.23); jenis episode lain menyusul tahap berikutnya." }
+        jenis: { type: string, enum: [rawat_jalan_harian, igd_lebih_6_jam, rawat_inap], description: "7.00.2. `igd_lebih_6_jam` sejak v0.31.0 (kunjungan IGD > 6 jam tanpa rawat inap, tiket 2.23); `rawat_inap` sejak v0.37.0 (terbentuk saat penempatan TT, menggabung kunjungan IGD/poli hari yang sama, tiket 2.29); jenis episode lain menyusul tahap berikutnya." }
         mulai_tanggal: { type: string, format: date, description: "Tanggal episode terbentuk (zona RS)" }
     IsianKunjungan:
       type: object
@@ -10164,7 +10310,7 @@ components:
           description: "Potret episode sesudah perintah (tidak ikut berubah sesudahnya)"
           properties:
             id: { type: string, format: uuid }
-            jenis: { type: string, enum: [rawat_jalan_harian, igd_lebih_6_jam] }
+            jenis: { type: string, enum: [rawat_jalan_harian, igd_lebih_6_jam, rawat_inap] }
             status: { type: string, enum: [aktif, selesai] }
         pos_asal: { $ref: '#/components/schemas/PosAsalPerpindahan' }
         tujuan: { $ref: '#/components/schemas/PosTujuanPerpindahan' }
@@ -10173,8 +10319,8 @@ components:
         serah_terima: { type: [string, 'null'] }
         status:
           type: string
-          enum: [selesai, menunggu_kamar, menunggu_kamar_operasi]
-          description: "Akibat pada kunjungan asal saat perintah: selesai = kunjungan IGD ditutup; menunggu_kamar = permintaan kamar rawat inap (kelanjutannya di permintaan tempat tidur 2.28); menunggu_kamar_operasi = menunggu diterima kamar operasi"
+          enum: [selesai, menunggu_kamar, menunggu_kamar_operasi, dilaksanakan]
+          description: "Akibat pada kunjungan asal saat perintah: selesai = kunjungan IGD ditutup; menunggu_kamar = permintaan kamar rawat inap (kelanjutannya di permintaan tempat tidur 2.28; selesai saat ditempatkan atau batal, 2.29); menunggu_kamar_operasi = menunggu diterima kamar operasi; dilaksanakan (v0.37.0) = perintah langsung dijalankan dan kunjungan tetap berjalan (pindah ruang rawat inap)"
         diputuskan_oleh: { $ref: '#/components/schemas/Pelaku' }
         diputuskan_pada: { type: string, format: date-time, description: "Jam server" }
     RingkasAreaIgd:
@@ -10346,7 +10492,8 @@ components:
       required: [id, kode, kamar, bangsal, lantai, gedung, kelas_rawat, aturan_jenis_kelamin, isolasi, ekstra, status, status_sejak, ditutup, dapat_dipilih, hari_rawat]
       description: |
         Satu TT di peta (v0.35.0; FR-08-01, FR-08-20). Tanpa data pasien. Layar menampilkan status dengan teks/ikon, bukan
-        hanya warna (5.1 butir 4). Status `melewati rencana lama rawat` (FR-08-01) menyusul bersama rencana pulang (2.29+).
+        hanya warna (5.1 butir 4). Status `melewati_rencana_lama_rawat` (FR-08-01) dikenal sejak v0.37.0; disetel bersama
+        rencana pulang (2.40).
       properties:
         id: { type: string, format: uuid }
         kode: { type: string, description: "Kode TT (kode lengkap lokasi, tetap sejak dibuat)" }
@@ -10366,12 +10513,42 @@ components:
         ekstra: { type: boolean, description: "TT tambahan saat lonjakan" }
         status:
           type: string
-          enum: [terisi, kosong_siap, dibersihkan, dipesan, tidak_dipakai, rencana_pulang]
-          description: "TT ditutup selalu tidak_dipakai"
+          enum: [terisi, kosong_siap, dibersihkan, dipesan, tidak_dipakai, rencana_pulang, melewati_rencana_lama_rawat]
+          description: "TT ditutup selalu tidak_dipakai. `melewati_rencana_lama_rawat` sejak v0.37.0 (FR-08-01; disetel rencana pulang, 2.40)"
         status_sejak: { type: string, format: date-time, description: "Jam status tersimpan mulai berlaku" }
         ditutup: { type: boolean, description: "TT ditutup 1.8b (hari terakhir berlaku sudah lewat)" }
         dapat_dipilih: { type: boolean, description: "Status kosong_siap dan tidak ditutup maupun dijadwalkan tutup (pilihan alokasi 2.28; sejak v0.36.0 penutupan terjadwal ikut false)" }
-        hari_rawat: { type: [integer, 'null'], minimum: 1, description: "Hari rawat pasien di TT terisi; null sampai penempatan (2.29)" }
+        hari_rawat: { type: [integer, 'null'], minimum: 1, description: "Hari rawat pasien yang menempati TT ini (v0.37.0): tanggal hari ini zona RS − tanggal penempatan pertama kunjungan rawat inapnya + 1 (pindah ruang tidak mengulang hitungan); null = tidak ada penempatan aktif" }
+    RawatInap:
+      type: object
+      required: [kunjungan, pasien, episode, permintaan_tempat_tidur_id, asal, kelas_dirawat, mulai_pada, penempatan, hari_rawat]
+      description: |
+        Kunjungan rawat inap (v0.37.0, tiket 2.29; kunjungan.rawat_inap + penempatan aktif). Data pasien = dua penanda
+        identitas; serah terima klinis tidak dikirim.
+      properties:
+        kunjungan:
+          type: object
+          required: [id, nomor, status]
+          properties:
+            id: { type: string, format: uuid, description: "Kunjungan jenis rawat_inap (id untuk POST /kunjungan/{id}/pindah-ruang)" }
+            nomor: { type: string, examples: ['RI-20261102-0003'] }
+            status: { $ref: '#/components/schemas/StatusKunjungan' }
+        pasien: { $ref: '#/components/schemas/RingkasPasienKunjungan' }
+        episode: { $ref: '#/components/schemas/RingkasEpisode' }
+        permintaan_tempat_tidur_id: { type: string, format: uuid, description: "Permintaan kamar yang ditempatkan" }
+        asal: { type: string, enum: [igd, poliklinik], description: "Pos asal permintaan kamar" }
+        kelas_dirawat: { $ref: '#/components/schemas/RingkasKelasRawat', description: "Kelas TT sekarang (ikut pindah kelas)" }
+        mulai_pada: { type: string, format: date-time, description: "Awal rawat inap (7.00.2): jam SPRI, atau awal tanggal rencana; tidak sesudah jam penempatan pertama" }
+        penempatan:
+          type: [object, 'null']
+          required: [id, tempat_tidur, mulai_pada, ditempatkan_oleh]
+          description: "Penempatan TT aktif; null = tidak menempati TT (pulang, 2.40)"
+          properties:
+            id: { type: string, format: uuid }
+            tempat_tidur: { $ref: '#/components/schemas/RingkasTempatTidurDipesan' }
+            mulai_pada: { type: string, format: date-time, description: "Jam server" }
+            ditempatkan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        hari_rawat: { type: [integer, 'null'], minimum: 1, description: "Sama dengan TempatTidurPeta.hari_rawat" }
     RingkasPenjamin:
       type: object
       required: [id, kode, nama, jenis]

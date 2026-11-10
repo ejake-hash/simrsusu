@@ -72,7 +72,9 @@ final class KelolaDisposisi
             Gate::forUser($dokter)->authorize($aturan->izin_perintah, Cakupan::rs());
 
             $status = self::MENUNGGU[$tujuan] ?? 'selesai';
-            if ($status !== 'selesai' && DB::table('kunjungan.perpindahan_pos')->where('dari_kunjungan_id', $k->id)->where('status', $status)->exists()) {
+            // Perintah rawat inap yang permintaan kamarnya sudah dibatalkan (2.29) tidak lagi menahan perintah baru.
+            if ($status !== 'selesai' && BentukEpisodeIgd::saringMasihMenunggu(DB::table('kunjungan.perpindahan_pos AS p')
+                ->where('p.dari_kunjungan_id', $k->id), 'p', [$status])->exists()) {
                 throw new ApiError(409, 'perintah_sudah_menunggu', 'Perintah ini sudah tercatat dan masih menunggu. Buka riwayat disposisi.',
                     [['pos_tujuan' => $tujuan, 'status' => $status]]);
             }
