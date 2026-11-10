@@ -25,7 +25,9 @@ use Illuminate\Support\Str;
 
 /**
  * Satu-satunya pembuat permintaan kamar (tiket 2.28; FR-08-03, FR-03-07, PRD 7.00.2 baris "Rawat inap"): SPRI dokter
- * poli (POST /kunjungan/{id}/spri) dan disposisi IGD → rawat inap (kejadian DisposisiRawatInap, 2.26) sama-sama lewat
+ * poli (POST /kunjungan/{id}/spri; hanya kunjungan poli `dilayani`, karena `terdaftar` bisa batal otomatis jam tutup;
+ * urutan cek: sel matriks aktif → izin sel di cakupan mana pun termasuk SIP → kunjungan ada → bukan IGD → cakupan unit
+ * poli) dan disposisi IGD → rawat inap (kejadian DisposisiRawatInap, 2.26) sama-sama lewat
  * buat(): SPRI internal (kunjungan.surat_kontrol) + permintaan berstatus `menunggu`. Permintaan IGD membuka tugas
  * PERMINTAAN_KAMAR_MENUNGGU (hanya bila jenisnya diaktifkan RS) yang selesai saat alokasi dan batal bersama permintaan.
  * Permintaan aktif ikut batal lewat kejadian, bukan teks (tinjauan #194 butir 1): disposisi IGD yang menutup kunjungan

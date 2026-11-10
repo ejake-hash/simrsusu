@@ -724,8 +724,9 @@ dan ikut membatalkan permintaannya); izin sel matriks diperiksa di cakupan mana 
 dibaca, 409 `spri_igd_lewat_disposisi` tanpa rincian. Asumsi: antrean diurutkan dan lama menunggu dihitung dari
 `menunggu_sejak` = max(jam SPRI, awal tanggal rencana zona RS), jadi SPRI terencana tidak mendahului yang menunggu sekarang;
 alokasi tetap boleh sebelum tanggal rencana. TT yang penutupannya sudah dijadwalkan (`berlaku_sampai` terisi) tidak bisa
-dialokasikan (409 `tempat_tidur_ditutup`) dan `dapat_dipilih` peta false; `tutup()` menolak TT terisi/dipesan hanya untuk
-penutupan mulai hari ini (tanggal depan lewat pemeriksaan per tanggal 1.8b). Asumsi: "eskalasi ke Kepala IGD" (FR-03-07) =
+dialokasikan (409 `tempat_tidur_ditutup`) dan `dapat_dipilih` peta false. Asumsi: penutupan terjadwal berapa pun jauhnya
+langsung membuat TT tidak bisa dipilih/dialokasikan. `tutup()` menolak TT terisi/dipesan untuk semua tanggal mulai tutup,
+karena `PenempatanBelumAda::terisiAtauDipesan()` selalu false sampai 2.29. Asumsi: "eskalasi ke Kepala IGD" (FR-03-07) =
 teguran tingkat 2 ke kepala unit teguran jenis tugas (unit IGD); tingkat 3 mengikuti aturan 1.7. Asumsi: perintah
 `menunggu_kamar` dari 2.26 yang tercatat sebelum migrasi ini tidak diisi-ulang menjadi permintaan kamar (belum ada data
 produksi).
@@ -734,6 +735,8 @@ Menyusul (dari tinjauan #200, tidak dikerjakan di 2.28):
   inap bisa punya dua permintaan/dua TT dipesan. Endpoint batal permintaan kamar juga belum ada. Untuk 2.29.
 - `UbahStatusTempatTidur` memanggil `audit->catat()` di tengah transaksi alokasi/batal (kunci rantai audit dipegang lebih
   lama). Pola diterima; ditinjau ulang bila throughput menjadi masalah.
+- 2.29 mengganti `PenempatanBelumAda` dengan pemeriksa penempatan nyata; sesudah itu penolakan `tutup()` berdasarkan status
+  sekarang boleh dilonggarkan untuk penutupan bertanggal depan (diperiksa per tanggal).
 
 ### 2.29 · Admisi rawat inap: penempatan TT, pindah ruang, episode rawat inap
 Tujuan : pasien tiba di bangsal, menempati TT, dan seluruh kunjungan sebelumnya hari itu tergabung ke episode rawat inap.
