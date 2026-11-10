@@ -95,9 +95,9 @@ class PetaTempatTidurTest extends TestCase
         $this->assertSame(['A-1-101-1', 'A-1-101-2', 'A-2-201-1', 'A-2-201-2', 'A-10-1001-1', 'B-1-101-1', 'C-1-1', 'D-S-3-301-1'], array_keys($baris));
         // TT ditutup tampil tidak_dipakai (status tersimpan tetap dibersihkan); hari terakhir berlaku = hari ini masih terbuka.
         $this->assertSame(['terisi', 'kosong_siap', 'tidak_dipakai', 'dibersihkan', 'kosong_siap', 'dipesan', 'rencana_pulang', 'kosong_siap'],
-            array_values(array_column($baris, 'status')));
-        $this->assertSame([false, false, true, false, false, false, false, false], array_values(array_column($baris, 'ditutup')));
-        $this->assertSame([false, true, false, false, true, false, false, true], array_values(array_column($baris, 'dapat_dipilih')));
+            array_column($baris, 'status'));
+        $this->assertSame([false, false, true, false, false, false, false, false], array_column($baris, 'ditutup'));
+        $this->assertSame([false, true, false, false, true, false, false, true], array_column($baris, 'dapat_dipilih'));
         $this->assertSame(array_fill(0, 8, null), array_values(array_map(fn (array $b) => $b['hari_rawat'], $baris)));
         $a = $baris['A-1-101-1'];
         $this->assertSame(['id' => $this->id['A'], 'kode' => 'A', 'nama' => 'Lokasi A'], $a['gedung']);
