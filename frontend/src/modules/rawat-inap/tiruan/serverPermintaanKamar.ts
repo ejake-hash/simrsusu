@@ -141,6 +141,7 @@ export function buatServerPermintaanKamar(opsi: OpsiServerPermintaanKamar) {
     tt.status = 'terisi'
     tt.status_sejak = jam
     tt.hari_rawat = 1
+    tt.kunjungan_rawat_inap_id = id(700 + nomorRi + 1)
     p.status = 'ditempatkan'
     p.revisi++
     ditempatkan.add(p.pasien.id)
@@ -152,7 +153,49 @@ export function buatServerPermintaanKamar(opsi: OpsiServerPermintaanKamar) {
       penempatan: { id: id(900 + n), tempat_tidur: structuredClone(p.tempat_tidur), mulai_pada: jam, ditempatkan_oleh: { id: id(401), nama: 'Contoh Petugas Admisi' } },
       hari_rawat: 1,
     }
+    rawat.set(data.kunjungan.id, { pasien: data.pasien, nomor: data.kunjungan.nomor, asal: p.asal, permintaan: p.id, mulai: p.menunggu_sejak })
     return { status: 201, header: NO_STORE, isi: { data } }
+  }
+
+  /** Kunjungan RI tiruan: dari tempatkan, atau pasien sintetis untuk TT berpasien bawaan peta tiruan. */
+  const rawat = new Map<string, { pasien: PermintaanTempatTidur['pasien']; nomor: string; asal: 'igd' | 'poliklinik'; permintaan: string; mulai: string }>()
+  const dataRawat = (kunjunganId: string) =>
+    rawat.get(kunjunganId) ?? {
+      pasien: { id: id(600), no_rm: '900099', nama: 'Pasien Contoh Rawat Inap', jenis_kelamin: 'laki_laki' as const, tanggal_lahir: '1965-05-05' },
+      nomor: 'RI-20261030-0001', asal: 'igd' as const, permintaan: id(601), mulai: '2026-10-30T02:00:00.000Z',
+    }
+
+  /** Urutan kontrak v0.37.0: izin sel matriks (403), kunjungan (404), status (409), lalu isian dan TT tujuan. */
+  function pindah(kunjunganId: string, r: PermintaanTiruan): ResponsTiruan {
+    if (!opsi.boleh('rawat_inap.pindah_ruang.input')) return error(403, 'akses_ditolak', 'Anda tidak berhak memindahkan pasien.')
+    if (!UUID.test(kunjunganId)) return error(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.')
+    const asal = opsi.tempatTidur().find((x) => x.kunjungan_rawat_inap_id === kunjunganId)
+    if (!asal) return error(409, 'status_tidak_sesuai', 'Kunjungan bukan rawat inap yang menempati TT.', [{ jenis_kunjungan: 'rawat_inap', status: 'dilayani' }])
+    const isi = (r.isi ?? {}) as Record<string, unknown>
+    const rincian: Record<string, unknown>[] = []
+    for (const kolom of ['alasan', 'serah_terima'] as const) {
+      if (typeof isi[kolom] !== 'string' || (isi[kolom] as string).trim().length < 5) rincian.push({ kolom, pesan: 'Isi minimal 5 karakter.' })
+    }
+    const ttId = typeof isi.tempat_tidur_id === 'string' ? isi.tempat_tidur_id : ''
+    const ke = UUID.test(ttId) ? opsi.tempatTidur().find((x) => x.id === ttId) : undefined
+    if (!ke || ke.id === asal.id) rincian.push({ kolom: 'tempat_tidur_id', pesan: 'Pilih TT tujuan lain dari peta.' })
+    if (rincian.length || !ke) return error(422, 'validasi_gagal', 'Isian belum benar.', rincian)
+    if (ke.ditutup || (ke.status === 'kosong_siap' && !ke.dapat_dipilih)) return error(409, 'tempat_tidur_ditutup', 'Tempat tidur sudah ditutup.')
+    if (ke.status !== 'kosong_siap') return error(409, 'tempat_tidur_tidak_tersedia', 'Tempat tidur tidak kosong siap.', [{ status_sekarang: ke.status }])
+    const jam = sekarang().toISOString()
+    const hari = asal.hari_rawat
+    Object.assign(ke, { status: 'terisi', status_sejak: jam, dapat_dipilih: false, hari_rawat: hari, kunjungan_rawat_inap_id: kunjunganId })
+    Object.assign(asal, { status: 'dibersihkan', status_sejak: jam, hari_rawat: null })
+    delete asal.kunjungan_rawat_inap_id
+    const d = dataRawat(kunjunganId)
+    const data = {
+      kunjungan: { id: kunjunganId, nomor: d.nomor, status: 'dilayani' }, pasien: structuredClone(d.pasien),
+      episode: { id: id(850), jenis: 'rawat_inap', mulai_tanggal: d.mulai.slice(0, 10) }, permintaan_tempat_tidur_id: d.permintaan, asal: d.asal,
+      kelas_dirawat: ke.kelas_rawat, mulai_pada: d.mulai,
+      penempatan: { id: id(950), tempat_tidur: { id: ke.id, kode: ke.kode, bangsal: ke.bangsal }, mulai_pada: jam, ditempatkan_oleh: { id: id(402), nama: 'Contoh Dokter' } },
+      hari_rawat: hari,
+    }
+    return { status: 200, header: NO_STORE, isi: { data } }
   }
 
   /** Batal oleh admisi: izin alokasi; menunggu/dialokasikan saja; TT pesanan kembali kosong siap. */
@@ -184,6 +227,7 @@ export function buatServerPermintaanKamar(opsi: OpsiServerPermintaanKamar) {
     if (bagian[0] === 'permintaan-tempat-tidur' && bagian[2] === 'alokasi' && bagian.length === 3 && m === 'POST') return alokasi(bagian[1]!, r)
     if (bagian[0] === 'permintaan-tempat-tidur' && bagian[2] === 'tempatkan' && bagian.length === 3 && m === 'POST') return tempatkan(bagian[1]!, r)
     if (bagian[0] === 'permintaan-tempat-tidur' && bagian[2] === 'batal' && bagian.length === 3 && m === 'POST') return batal(bagian[1]!, r)
+    if (bagian[0] === 'kunjungan' && bagian[2] === 'pindah-ruang' && bagian.length === 3 && m === 'POST') return pindah(bagian[1]!, r)
     if (bagian[0] === 'kunjungan' && bagian[2] === 'spri' && bagian.length === 3 && m === 'POST') return spri(bagian[1]!, r)
     return null
   }

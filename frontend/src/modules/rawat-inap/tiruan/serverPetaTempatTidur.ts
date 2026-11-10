@@ -70,7 +70,18 @@ export function buatServerPetaTempatTidur(opsi: OpsiServerPetaTempatTidur) {
   ]
   // TT berpasien membawa hari rawat (v0.37.0); TT lain null.
   const hariRawat: Partial<Record<StatusTempatTidur, number>> = { terisi: 3, rencana_pulang: 5 }
-  for (const [kamar, kode, status] of contoh) tambah(L.gedungRawatInap, L.lantai2, L.melati, kamar, kode, status, { hari_rawat: hariRawat[status] ?? null })
+  // v0.38.0: TT berpasien membawa id kunjungan rawat inap (disimpan di sini, dikirim hanya bagi izin pindah ruang).
+  let nomorRi = 500
+  for (const [kamar, kode, status] of contoh) {
+    const berpasien = hariRawat[status] !== undefined
+    tambah(L.gedungRawatInap, L.lantai2, L.melati, kamar, kode, status, { hari_rawat: hariRawat[status] ?? null, ...(berpasien ? { kunjungan_rawat_inap_id: id(nomorRi++) } : {}) })
+  }
+  /** Bentuk keluar: `kunjungan_rawat_inap_id` dibuang bila pemanggil tidak memegang rawat_inap.pindah_ruang.input. */
+  const keluar = (tt: TempatTidurPeta, bolehPindah: boolean): TempatTidurPeta => {
+    const salinan = structuredClone(tt)
+    if (!bolehPindah || salinan.ditutup) delete salinan.kunjungan_rawat_inap_id
+    return salinan
+  }
 
   function peta(r: PermintaanTiruan): ResponsTiruan {
     if (!opsi.boleh('rawat_inap.peta_tempat_tidur.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak melihat peta tempat tidur.')
@@ -80,7 +91,8 @@ export function buatServerPetaTempatTidur(opsi: OpsiServerPetaTempatTidur) {
       if (nilai && !UUID.test(nilai)) return error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom, pesan: 'Harus UUID.' }])
     }
     const data = daftar.filter((tt) => (!gedung || tt.gedung?.id === gedung) && (!bangsal || tt.bangsal.id === bangsal))
-    const isi = { data, meta: { terpotong: false } }
+    const bolehPindah = opsi.boleh('rawat_inap.pindah_ruang.input')
+    const isi = { data: data.map((tt) => keluar(tt, bolehPindah)), meta: { terpotong: false } }
     const e = sidik(isi)
     if (r.header['if-none-match'] === e) return { status: 304, header: { ...NO_STORE, ETag: e }, isi: null }
     return { status: 200, header: { ...NO_STORE, ETag: e }, isi: structuredClone(isi) }
@@ -99,7 +111,7 @@ export function buatServerPetaTempatTidur(opsi: OpsiServerPetaTempatTidur) {
     tt.status = 'kosong_siap'
     tt.status_sejak = sekarang().toISOString()
     tt.dapat_dipilih = dapatDipilih(tt)
-    return { status: 200, header: NO_STORE, isi: { data: structuredClone(tt) } }
+    return { status: 200, header: NO_STORE, isi: { data: keluar(tt, false) } }
   }
 
   function tangani(r: PermintaanTiruan): ResponsTiruan | null {

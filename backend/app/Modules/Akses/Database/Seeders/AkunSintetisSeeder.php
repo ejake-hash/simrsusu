@@ -165,6 +165,9 @@ final class AkunSintetisSeeder extends Seeder
             'igd.pendaftaran.lihat', 'igd.disposisi.lihat', 'igd.disposisi.input',
             // Tiket 2.29: pindah ruang/kelas pasien rawat inap = izin sel matriks rawat_inap → rawat_inap (IZIN_KLINIS, bukan sensitif).
             'rawat_inap.pindah_ruang.lihat', 'rawat_inap.pindah_ruang.input',
+            // Tiket 2.29-fe (v0.38.0): pindah ruang dimulai dari peta TT (id kunjungan RI + pilihan TT tujuan); data induk TT
+            // tanpa data pasien, bukan izin sensitif.
+            'rawat_inap.peta_tempat_tidur.lihat',
         ]],
         // Tiket 2.21: akses darurat CPPT (izin sensitif, klinis, butuh MFA); worklist dan CPPT dibaca dari layar rawat jalan.
         'contoh_dokter_darurat' => ['Contoh Dokter Akses Darurat', 'dokter.darurat', [

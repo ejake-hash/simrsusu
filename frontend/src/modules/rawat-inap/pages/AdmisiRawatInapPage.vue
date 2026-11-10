@@ -223,7 +223,7 @@ async function batalkan() {
     const tt = p.tempat_tidur ? ` TT ${p.tempat_tidur.kode} kembali kosong siap.` : ''
     tampilkanToast(`Permintaan kamar ${p.pasien.nama} dibatalkan.${tt}`, 'ok')
   } catch (e) {
-    if (perluMuatUlang(e)) await kueri.refetch()
+    if (perluMuatUlang(e)) await Promise.all([kueri.refetch(), qc.invalidateQueries({ queryKey: KUNCI_PETA.semua })])
     if (permintaanBasi(e)) {
       fokusSesudah = `permintaan-${p.id}`
       bukaBatal.value = false
@@ -377,7 +377,7 @@ const identitas = (p: PermintaanTempatTidur) => `${p.pasien.nama}, No. RM ${form
       :sibuk="membatalkan"
       :fokus-sesudah-tutup="fokusSesudahTutup"
     >
-      <KolomIsian v-slot="a" label="Alasan pembatalan" wajib petunjuk="5 sampai 1.000 karakter, tersimpan bersama pembatalan." :error="errorAlasan ?? undefined">
+      <KolomIsian v-slot="a" label="Alasan pembatalan" wajib petunjuk="5 sampai 1.000 karakter, tersimpan bersama pembatalan." :error="errorAlasan ?? (alasanBatal.trim() && kurangBatal ? kurangBatal : undefined)">
         <textarea v-bind="a" v-model="alasanBatal" class="isian" rows="3" maxlength="1000"></textarea>
       </KolomIsian>
       <div v-if="pesanBatal" class="blok-galat">

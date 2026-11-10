@@ -15,6 +15,9 @@ use stdClass;
  *   tampil sebagai `tidak_dipakai`, `ditutup` true, tidak dapat dipilih; status tersimpannya tidak diubah.
  * - Urut gedung, lantai, bangsal, kode TT; kode urut natural sederhana (panjang dulu, lalu kode: "2" sebelum "10"). Tanpa data pasien apa pun; `hari_rawat` dari penempatan aktif (2.29).
  * - Bukan daftar berkursor (layar peta memuat seluruh RS sekaligus): paling banyak BATAS_BARIS, lebih → `terpotong`.
+ * - `kunjungan_rawat_inap_id` (v0.38.0, keputusan pemilik 10 Nov 2026) hanya untuk TT berpenempatan aktif di unit bangsal
+ *   yang ada di `$unitPindahRuang` (cakupan rawat_inap.pindah_ruang.input pemanggil); di luar itu kunci tidak dikirim.
+ *   Diambil di kueri yang sama dengan hari rawat (tanpa N+1).
  */
 final class BacaPetaTempatTidur
 {
@@ -26,9 +29,10 @@ final class BacaPetaTempatTidur
     /**
      * @param  array{bangsal_id?: string|null, gedung_id?: string|null, tempat_tidur_id?: string|null}  $filter
      * @param  list<string>|null  $unitBangsal  unit organisasi bangsal yang terjangkau; null = seluruh RS
+     * @param  list<string>|null  $unitPindahRuang  unit bangsal tempat id kunjungan RI boleh dikirim; null = seluruh RS, [] = tidak ada
      * @return array{baris: list<array<string, mixed>>, terpotong: bool}
      */
-    public function baca(array $filter, ?array $unitBangsal): array
+    public function baca(array $filter, ?array $unitBangsal, ?array $unitPindahRuang = []): array
     {
         $ikatan = [self::KEDALAMAN_MAKS];
         $saring = 'true';
@@ -68,7 +72,8 @@ final class BacaPetaTempatTidur
                 b.id AS bangsal_id, b.kode AS bangsal_kode, b.nama AS bangsal_nama,
                 lt.id AS lantai_id, lt.kode AS lantai_kode, lt.nama AS lantai_nama,
                 gd.id AS gedung_id, gd.kode AS gedung_kode, gd.nama AS gedung_nama,
-                kr.id AS kelas_id, kr.kode AS kelas_kode, kr.nama AS kelas_nama, pn.mulai_pertama
+                kr.id AS kelas_id, kr.kode AS kelas_kode, kr.nama AS kelas_nama, pn.mulai_pertama,
+                pn.kunjungan_id, b.unit_organisasi_id AS bangsal_unit_id
             FROM inti.tempat_tidur tt
             JOIN inti.kamar km ON km.id = tt.kamar_id
             JOIN inti.lokasi rg ON rg.id = km.lokasi_id
@@ -76,7 +81,7 @@ final class BacaPetaTempatTidur
             JOIN inti.kelas_rawat kr ON kr.id = tt.kelas_rawat_id
             LEFT JOIN leluhur lt ON lt.ruang_id = km.lokasi_id AND lt.jenis = \'lantai\'
             LEFT JOIN leluhur gd ON gd.ruang_id = km.lokasi_id AND gd.jenis = \'gedung\'
-            LEFT JOIN LATERAL (SELECT min(p2.mulai_pada) AS mulai_pertama
+            LEFT JOIN LATERAL (SELECT min(p2.mulai_pada) AS mulai_pertama, (array_agg(p1.kunjungan_id))[1] AS kunjungan_id
                 FROM kunjungan.penempatan_tempat_tidur p1 JOIN kunjungan.penempatan_tempat_tidur p2 ON p2.kunjungan_id = p1.kunjungan_id
                 WHERE p1.tempat_tidur_id = tt.id AND p1.selesai_pada IS NULL) pn ON true
             WHERE '.$saring.'
@@ -85,7 +90,7 @@ final class BacaPetaTempatTidur
             LIMIT ?', $ikatan);
 
         return [
-            'baris' => array_values(array_map(fn (stdClass $b) => $this->bentuk($b), array_slice($hasil, 0, self::BATAS_BARIS))),
+            'baris' => array_values(array_map(fn (stdClass $b) => $this->bentuk($b, $unitPindahRuang),array_slice($hasil, 0, self::BATAS_BARIS))),
             'terpotong' => count($hasil) > self::BATAS_BARIS,
         ];
     }
@@ -100,14 +105,17 @@ final class BacaPetaTempatTidur
         return $this->baca(['tempat_tidur_id' => $tempatTidurId], null)['baris'][0] ?? null;
     }
 
-    /** @return array<string, mixed> */
-    private function bentuk(stdClass $b): array
+    /**
+     * @param  list<string>|null  $unitPindahRuang
+     * @return array<string, mixed>
+     */
+    private function bentuk(stdClass $b, ?array $unitPindahRuang): array
     {
         $ditutup = UbahStatusTempatTidur::ditutup($b->berlaku_sampai);
         $status = $ditutup ? StatusTempatTidur::TIDAK_DIPAKAI : (string) $b->status_saat_ini;
         $ringkas = fn (mixed $id, mixed $kode, mixed $nama) => $id === null ? null : ['id' => (string) $id, 'kode' => (string) $kode, 'nama' => (string) $nama];
 
-        return [
+        $baris = [
             'id' => (string) $b->id,
             'kode' => (string) $b->kode,
             'kamar' => $ringkas($b->kamar_id, $b->kamar_kode, $b->kamar_nama),
@@ -126,5 +134,12 @@ final class BacaPetaTempatTidur
             // Penempatan aktif di TT ini; hitungan sejak penempatan pertama kunjungannya (pindah ruang tidak mengulang).
             'hari_rawat' => $ditutup || $b->mulai_pertama === null ? null : BacaRawatInap::hariRawat((string) $b->mulai_pertama),
         ];
+        // Data bagian yang tidak diizinkan tidak dikirim (PRD 9.2): kunci hanya ada bila pemanggil boleh memindahkan pasien di bangsal ini.
+        if (! $ditutup && $b->kunjungan_id !== null
+            && ($unitPindahRuang === null || in_array((string) $b->bangsal_unit_id, $unitPindahRuang, true))) {
+            $baris['kunjungan_rawat_inap_id'] = (string) $b->kunjungan_id;
+        }
+
+        return $baris;
     }
 }

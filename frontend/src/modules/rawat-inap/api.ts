@@ -2,7 +2,7 @@ import type { AxiosResponse } from 'axios'
 import type { HasilPolling } from '@/modules/notifikasi/api'
 import type { Halaman } from '@/modules/akses/tipePengaturan'
 import { klien } from '@/shared/api/klien'
-import type { FilterPetaServer, IsianSpri, PermintaanTempatTidur, PetaTempatTidur, RawatInap, TempatTidurPeta } from './tipe'
+import type { FilterPetaServer, IsianPindahRuang, IsianSpri,PermintaanTempatTidur, PetaTempatTidur, RawatInap, TempatTidurPeta } from './tipe'
 
 /**
  * Klien peta tempat tidur (docs/api/openapi.yaml v0.35.0, tiket 2.27). Pola K1 sama dengan papan pasien IGD: If-None-Match
@@ -44,6 +44,12 @@ export async function tempatkanPasien(permintaanId: string, serahTerima: string 
 /** POST /permintaan-tempat-tidur/{id}/batal (v0.37.0): permintaan menunggu/dialokasikan batal, TT pesanan kembali kosong siap. */
 export async function batalkanPermintaanKamar(permintaanId: string, alasan: string): Promise<PermintaanTempatTidur> {
   const { data } = await klien.post<{ data: PermintaanTempatTidur }>(`/permintaan-tempat-tidur/${permintaanId}/batal`, { alasan })
+  return data.data
+}
+
+/** POST /kunjungan/{id}/pindah-ruang (v0.37.0): TT lama → dibersihkan, TT tujuan → terisi; id kunjungan dari peta (v0.38.0). */
+export async function pindahRuang(kunjunganId: string, isian: IsianPindahRuang): Promise<RawatInap> {
+  const { data } = await klien.post<{ data: RawatInap }>(`/kunjungan/${kunjunganId}/pindah-ruang`, isian)
   return data.data
 }
 

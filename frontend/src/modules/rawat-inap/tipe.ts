@@ -32,6 +32,17 @@ export interface TempatTidurPeta {
   dapat_dipilih: boolean
   /** Hari rawat pasien yang menempati TT (v0.37.0, dari penempatan pertama; pindah ruang tidak mengulang); null = kosong. */
   hari_rawat: number | null
+  /**
+   * v0.38.0: kunjungan rawat inap yang menempati TT; hanya dikirim bagi pemegang rawat_inap.pindah_ruang.input di cakupan
+   * bangsal TT (tanpa izin kunci tidak ada).
+   */
+  kunjungan_rawat_inap_id?: string
+}
+
+export interface IsianPindahRuang {
+  tempat_tidur_id: string
+  alasan: string
+  serah_terima: string
 }
 
 export interface PetaTempatTidur {

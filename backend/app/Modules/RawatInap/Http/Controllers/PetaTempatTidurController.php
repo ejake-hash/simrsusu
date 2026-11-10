@@ -28,15 +28,19 @@ final class PetaTempatTidurController
 {
     private const IZIN = 'rawat_inap.peta_tempat_tidur';
 
+    private const IZIN_PINDAH_RUANG = 'rawat_inap.pindah_ruang.input';
+
     public function index(Request $request, BacaPetaTempatTidur $peta, AccessEvaluator $evaluator, PohonUnit $pohon): Response
     {
         $filter = $request->validate(['bangsal_id' => ['nullable', 'uuid'], 'gedung_id' => ['nullable', 'uuid']]);
         /** @var Pengguna $pengguna */
         $pengguna = $request->user();
         $akar = $evaluator->unitTerjangkau($pengguna, self::IZIN.'.lihat');
+        // v0.38.0: id kunjungan RI hanya untuk bangsal di cakupan izin pindah ruang (null = seluruh RS, [] = tidak dikirim).
+        $akarPindah = $evaluator->unitTerjangkau($pengguna, self::IZIN_PINDAH_RUANG);
         $isi = $peta->baca([
             'bangsal_id' => $filter['bangsal_id'] ?? null, 'gedung_id' => $filter['gedung_id'] ?? null,
-        ], $akar === null ? null : $pohon->subpohon($akar));
+        ], $akar === null ? null : $pohon->subpohon($akar), $akarPindah === null ? null : ($akarPindah === [] ? [] : $pohon->subpohon($akarPindah)));
 
         $hasil = EtagIsi::terapkan($request, new JsonResponse(['data' => $isi['baris'], 'meta' => ['terpotong' => $isi['terpotong']]]));
         $hasil->headers->set('Cache-Control', 'no-store');

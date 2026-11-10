@@ -182,6 +182,57 @@ export const pilihanBangsal = (lokasi: PilihanLokasi, gedungId: string) => (gedu
 /** Aksi petugas 2.27: hanya TT dibersihkan yang tidak ditutup, dan hanya bagi pemegang izin perbaiki. */
 export const bolehTandaiKosongSiap = (tt: Pick<TempatTidurPeta, 'status' | 'ditutup'>, izinPerbaiki: boolean) => izinPerbaiki && !tt.ditutup && tt.status === 'dibersihkan'
 
+/**
+ * Pindah ruang (2.29, v0.38.0): hanya TT berpasien yang membawa `kunjungan_rawat_inap_id` (server mengirimnya hanya bagi
+ * pemegang rawat_inap.pindah_ruang.input di cakupan bangsal TT) dan hanya bila layar juga memegang izin itu.
+ */
+export const bolehPindahRuang = (tt: Pick<TempatTidurPeta, 'ditutup' | 'kunjungan_rawat_inap_id'>, izinPindah: boolean) =>
+  izinPindah && !tt.ditutup && typeof tt.kunjungan_rawat_inap_id === 'string' && tt.kunjungan_rawat_inap_id !== ''
+
+/** TT tujuan pindah ruang: `dapat_dipilih` kosong siap, bukan TT asal. Kelas boleh beda (pindah kelas). Urutan server tetap. */
+export function pilihanTtPindah(peta: readonly TempatTidurPeta[], asal: Pick<TempatTidurPeta, 'id'>): TempatTidurPeta[] {
+  return peta.filter((tt) => tt.id !== asal.id && tt.dapat_dipilih && tt.status === 'kosong_siap' && !tt.ditutup)
+}
+
+export const pindahKelas = (asal: Pick<TempatTidurPeta, 'kelas_rawat'>, tujuan: Pick<TempatTidurPeta, 'kelas_rawat'>) => asal.kelas_rawat.id !== tujuan.kelas_rawat.id
+
+/** Alasan dan serah terima RM-15 wajib, masing-masing minimal 5 karakter (kontrak). null = siap dikirim. */
+export function kurangPindahRuang(isi: { tempat_tidur_id: string; alasan: string; serah_terima: string }): string | null {
+  if (!isi.tempat_tidur_id) return 'Pilih TT tujuan.'
+  if (isi.alasan.trim().length < 5) return 'Isi alasan pindah, minimal 5 karakter.'
+  if (isi.serah_terima.trim().length < 5) return 'Isi serah terima antar-ruang, minimal 5 karakter.'
+  return null
+}
+
+/** Galat pindah ruang yang berarti pasien/kunjungan sudah berubah: dialog ditutup, peta dimuat ulang, pesan di toast. */
+export const kunjunganPindahBasi = (e: unknown) => e instanceof ApiError && (e.status === 404 || e.kode === 'status_tidak_sesuai')
+
+/** Pesan galat POST pindah ruang per kode kontrak. null = galat kolom alasan/serah terima (tampil di kolomnya). */
+export function pesanGalatPindahRuang(e: unknown, kodeTujuan: string): string | null {
+  if (!(e instanceof ApiError)) return `Pasien gagal dipindah ke TT ${kodeTujuan}. Coba lagi.`
+  switch (e.kode) {
+    case 'tempat_tidur_ditutup':
+      return `TT ${kodeTujuan} sudah ditutup atau dijadwalkan tutup. Peta sudah dimuat ulang; pilih TT lain.`
+    case 'tempat_tidur_tidak_tersedia':
+      return `TT ${kodeTujuan} sudah tidak kosong siap (mungkin baru dipakai petugas lain). Peta sudah dimuat ulang; pilih TT lain.`
+    case 'status_tidak_sesuai':
+      return 'Pasien ini sudah tidak menempati TT ini (sudah pindah atau pulang). Peta sudah dimuat ulang.'
+    case 'perpindahan_di_luar_matriks':
+      return 'Pindah ruang rawat inap tidak aktif di matriks perpindahan. Hubungi pengelola data induk.'
+    case 'izin_praktik_tidak_berlaku':
+      return 'SIP/SPK Anda tidak berlaku hari ini. Pindah ruang hanya oleh dokter dengan SIP berlaku.'
+    case 'pasien_digabung':
+      return 'Rekam medis pasien ini sudah digabung ke RM lain. Muat ulang peta.'
+    case 'instalasi_belum_siap':
+      return 'Instalasi belum siap melayani. Hubungi pengelola sistem.'
+  }
+  if (e.status === 403) return 'Anda tidak punya akses memindahkan pasien di bangsal ini (izin atau cakupan bangsal).'
+  if (e.status === 404) return 'Kunjungan rawat inap tidak ditemukan. Peta sudah dimuat ulang.'
+  if (e.status === 422 && e.rincian.some((r) => r.kolom === 'alasan' || r.kolom === 'serah_terima')) return null
+  if (e.status === 422) return `TT ${kodeTujuan} tidak sah sebagai tujuan. Pilih TT dari peta terbaru.`
+  return e.message
+}
+
 /** Pesan galat POST status TT per kode kontrak. */
 export function pesanGalatStatus(e: unknown, kode: string): string {
   if (!(e instanceof ApiError)) return `Status TT ${kode} gagal diubah. Coba lagi.`

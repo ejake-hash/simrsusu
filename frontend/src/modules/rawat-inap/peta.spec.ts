@@ -15,11 +15,17 @@ import { aturIzin, vCan } from '@/shared/composables/usePermission'
 import { bacaPetaTempatTidur, tandaiKosongSiap } from './api'
 import PetaTempatTidurPage from './pages/PetaTempatTidurPage.vue'
 import {
+  bolehPindahRuang,
   bolehTandaiKosongSiap,
   gabungPilihanLokasi,
   INTERVAL_PETA,
   kelompokkanPeta,
+  kunjunganPindahBasi,
+  kurangPindahRuang,
+  pesanGalatPindahRuang,
   pesanGalatStatus,
+  pilihanTtPindah,
+  pindahKelas,
   pilihanBangsal,
   pilihanLantai,
   ringkasStatus,
@@ -29,7 +35,8 @@ import {
   teksHariRawat,
   TANPA_LANTAI,
 } from './peta'
-import { LOKASI_PETA_CONTOH as L } from './tiruan/serverPetaTempatTidur'
+import { buatServerPermintaanKamar } from './tiruan/serverPermintaanKamar'
+import { buatServerPetaTempatTidur, LOKASI_PETA_CONTOH as L } from './tiruan/serverPetaTempatTidur'
 import type { PetaTempatTidur, TempatTidurPeta } from './tipe'
 
 /** Tiket 2.27: server tiruan kontrak v0.35.0 (peta TT ber-ETag, ubah status) dan layar Rawat Inap → Peta tempat tidur. Data sintetis. */
@@ -163,6 +170,36 @@ describe('peta TT: aturan tampil', () => {
     expect(pesanGalatStatus(new ApiError(403, 'akses_ditolak', 'x'), 'A-1')).toMatch(/tidak punya akses/)
     expect(pesanGalatStatus(new ApiError(404, 'tidak_ditemukan', 'x'), 'A-1')).toMatch(/tidak ditemukan/)
     expect(pesanGalatStatus(new Error('jaringan'), 'A-1')).toBe('Status TT A-1 gagal diubah. Coba lagi.')
+  })
+
+  it('pindah ruang: aksi, pilihan tujuan, pindah kelas, isian wajib, pesan galat per kode', async () => {
+    expect(bolehPindahRuang(tt({ kunjungan_rawat_inap_id: 'k' }), true)).toBe(true)
+    expect(bolehPindahRuang(tt({ kunjungan_rawat_inap_id: 'k' }), false)).toBe(false)
+    expect(bolehPindahRuang(tt({}), true)).toBe(false)
+    expect(bolehPindahRuang(tt({ kunjungan_rawat_inap_id: 'k', ditutup: true }), true)).toBe(false)
+    const { data } = await peta()
+    const asal = data.find((t) => t.kode === 'CTHG-2-201-1')!
+    expect(pilihanTtPindah(data, asal).map((t) => t.kode)).toEqual(['CTHA-1-101-1', 'CTHG-2-202-3'])
+    const kosong = data.find((t) => t.kode === 'CTHG-2-202-3')!
+    expect(pilihanTtPindah(data, kosong).map((t) => t.kode)).toEqual(['CTHA-1-101-1'])
+    expect(pindahKelas(asal, kosong)).toBe(false)
+    expect(pindahKelas(asal, { kelas_rawat: { id: 'lain', kode: 'K2', nama: 'K2' } })).toBe(true)
+    expect(kurangPindahRuang({ tempat_tidur_id: '', alasan: 'Alasan cukup', serah_terima: 'Serah cukup' })).toBe('Pilih TT tujuan.')
+    expect(kurangPindahRuang({ tempat_tidur_id: 't', alasan: 'abc', serah_terima: 'Serah cukup' })).toMatch(/alasan pindah/)
+    expect(kurangPindahRuang({ tempat_tidur_id: 't', alasan: 'Alasan cukup', serah_terima: '  ab ' })).toMatch(/serah terima/)
+    expect(kurangPindahRuang({ tempat_tidur_id: 't', alasan: 'Alasan cukup', serah_terima: 'Serah cukup' })).toBeNull()
+    expect(pesanGalatPindahRuang(new ApiError(409, 'tempat_tidur_tidak_tersedia', 'x'), 'B-1')).toMatch(/^TT B-1 sudah tidak kosong siap/)
+    expect(pesanGalatPindahRuang(new ApiError(409, 'tempat_tidur_ditutup', 'x'), 'B-1')).toMatch(/^TT B-1 sudah ditutup/)
+    expect(pesanGalatPindahRuang(new ApiError(409, 'status_tidak_sesuai', 'x'), 'B-1')).toMatch(/sudah tidak menempati TT ini/)
+    expect(pesanGalatPindahRuang(new ApiError(422, 'perpindahan_di_luar_matriks', 'x'), 'B-1')).toMatch(/matriks perpindahan/)
+    expect(pesanGalatPindahRuang(new ApiError(403, 'izin_praktik_tidak_berlaku', 'x'), 'B-1')).toMatch(/SIP\/SPK/)
+    expect(pesanGalatPindahRuang(new ApiError(403, 'akses_ditolak', 'x'), 'B-1')).toMatch(/cakupan bangsal/)
+    expect(pesanGalatPindahRuang(new ApiError(422, 'validasi_gagal', 'x', [{ kolom: 'serah_terima', pesan: 'y' }]), 'B-1')).toBeNull()
+    expect(pesanGalatPindahRuang(new ApiError(422, 'validasi_gagal', 'x', [{ kolom: 'tempat_tidur_id', pesan: 'y' }]), 'B-1')).toMatch(/tidak sah sebagai tujuan/)
+    expect(pesanGalatPindahRuang(new Error('jaringan'), 'B-1')).toBe('Pasien gagal dipindah ke TT B-1. Coba lagi.')
+    expect(kunjunganPindahBasi(new ApiError(409, 'status_tidak_sesuai', 'x'))).toBe(true)
+    expect(kunjunganPindahBasi(new ApiError(404, 'tidak_ditemukan', 'x'))).toBe(true)
+    expect(kunjunganPindahBasi(new ApiError(409, 'tempat_tidur_tidak_tersedia', 'x'))).toBe(false)
   })
 })
 
@@ -311,6 +348,92 @@ describe('PetaTempatTidurPage: layar', () => {
     await pasang()
     expect(document.body.textContent).toContain('Peta tempat tidur gagal dimuat')
     expect(tombol('Coba lagi')).toBeDefined()
+  })
+
+  describe('pindah ruang (2.29, v0.38.0)', () => {
+    let peta: ReturnType<typeof buatServerPetaTempatTidur>
+    let izinServer: Set<string>
+    beforeEach(() => {
+      izinServer = new Set([...IZIN, 'rawat_inap.pindah_ruang.input'])
+      peta = buatServerPetaTempatTidur({ boleh: (k) => izinServer.has(k), sekarang: () => new Date('2026-11-02T03:00:00Z') })
+      const kamar = buatServerPermintaanKamar({ boleh: (k) => izinServer.has(k), tempatTidur: peta.daftar, sekarang: () => new Date('2026-11-02T03:00:00Z') })
+      pasangTiruan(klien, { tangani: (r: PermintaanTiruan) => (permintaan.push(r), kamar.tangani(r) ?? peta.tangani(r) ?? gabungan.tangani(r)) })
+      aturIzin([...IZIN, 'rawat_inap.pindah_ruang.input'])
+    })
+    const dialog = () => document.querySelector<HTMLElement>('[role="dialog"]')
+    const isi = async (label: RegExp, nilai: string) => {
+      const kolom = [...dialog()!.querySelectorAll('textarea')].find((t) => label.test(document.querySelector(`label[for="${t.id}"]`)?.textContent ?? ''))!
+      kolom.value = nilai
+      kolom.dispatchEvent(new Event('input'))
+      await tenang()
+    }
+    const pilih = async (kode: string) => {
+      ;[...dialog()!.querySelectorAll<HTMLInputElement>('input[type="radio"]')].find((r) => r.closest('label')?.textContent?.includes(kode))!.click()
+      await tenang()
+    }
+
+    it('server: id kunjungan RI hanya bagi izin pindah ruang; tanpa izin kunci tidak ada', async () => {
+      const dengan = (await bacaPetaTempatTidur({ gedung_id: null, bangsal_id: null })) as { berubah: true; data: PetaTempatTidur }
+      expect(dengan.data.data.filter((t) => 'kunjungan_rawat_inap_id' in t).map((t) => t.kode)).toEqual(['CTHG-2-201-1', 'CTHG-2-202-1'])
+      izinServer.delete('rawat_inap.pindah_ruang.input')
+      const tanpa = (await bacaPetaTempatTidur({ gedung_id: null, bangsal_id: null })) as { berubah: true; data: PetaTempatTidur }
+      expect(tanpa.data.data.some((t) => 'kunjungan_rawat_inap_id' in t)).toBe(false)
+    })
+
+    it('aksi hanya di TT berpasien yang membawa id; dialog: TT asal, tujuan kosong siap selain asal, alasan dan serah terima wajib; sukses memuat ulang peta', async () => {
+      await pasang()
+      const beraksi = [...document.querySelectorAll('[role="group"]')].filter((g) => tombol('Pindah ruang', g)).map((g) => g.getAttribute('aria-label'))
+      expect(beraksi).toEqual(['TT CTHG-2-201-1', 'TT CTHG-2-202-1'])
+      tombol('Pindah ruang', kartu('CTHG-2-201-1')!)!.click()
+      await tenang()
+      expect(dialog()!.textContent).toContain('Pindah ruang pasien di CTHG-2-201-1')
+      expect(dialog()!.textContent).toContain('TT asal CTHG-2-201-1 · Bangsal Melati (contoh) · Kelas contoh · hari rawat ke-3')
+      // Tujuan: dapat_dipilih kosong siap; TT dijadwalkan tutup dan TT asal tidak ditawarkan.
+      expect([...dialog()!.querySelectorAll('.pilihan .kode')].map((e) => e.textContent?.trim())).toEqual(['CTHA-1-101-1', 'CTHG-2-202-3'])
+      const kirim = () => [...dialog()!.querySelectorAll('button')].find((b) => /^Pindahkan/.test(b.textContent?.trim() ?? ''))!
+      expect(kirim().disabled).toBe(true)
+      expect(dialog()!.textContent).toContain('Pilih TT tujuan.')
+      await pilih('CTHG-2-202-3')
+      await isi(/Alasan pindah/, 'Butuh kamar dekat nurse station (sintetis)')
+      expect(dialog()!.textContent).toContain('Isi serah terima antar-ruang, minimal 5 karakter.')
+      await isi(/Serah terima antar-ruang/, 'Stabil, infus jalan (sintetis)')
+      expect(kirim().disabled).toBe(false)
+      expect(kirim().textContent?.trim()).toBe('Pindahkan ke CTHG-2-202-3')
+      kirim().click()
+      await tenang(20)
+      const post = permintaan.find((p) => p.jalur.endsWith('/pindah-ruang'))!
+      expect(post.jalur).toBe(`/kunjungan/${peta.daftar().find((t) => t.kode === 'CTHG-2-202-3')!.kunjungan_rawat_inap_id}/pindah-ruang`)
+      expect(post.isi).toEqual({ tempat_tidur_id: peta.daftar().find((t) => t.kode === 'CTHG-2-202-3')!.id, alasan: 'Butuh kamar dekat nurse station (sintetis)', serah_terima: 'Stabil, infus jalan (sintetis)' })
+      expect(dialog()).toBeNull()
+      expect(daftarToast.value.map((t) => t.pesan)).toContain('Pasien Contoh Rawat Inap (No. RM 900.099) dipindah dari TT CTHG-2-201-1 ke TT CTHG-2-202-3.')
+      expect(kartu('CTHG-2-201-1')!.textContent).toContain('Dibersihkan')
+      expect(kartu('CTHG-2-202-3')!.textContent).toMatch(/Terisi\s*Hari ke-3/)
+      expect(document.activeElement?.textContent?.trim()).toBe('CTHG-2-202-3')
+    })
+
+    it('pindah kelas diberi keterangan; 409 TT tujuan dipakai pihak lain: peta dimuat ulang, pesan di dialog', async () => {
+      const lain = peta.daftar().find((t) => t.kode === 'CTHA-1-101-1')!
+      lain.kelas_rawat = { id: 'kelas-lain', kode: 'K2', nama: 'Kelas dua contoh' }
+      await pasang()
+      tombol('Pindah ruang', kartu('CTHG-2-201-1')!)!.click()
+      await tenang()
+      expect(dialog()!.textContent).toMatch(/CTHA-1-101-1.*Kelas dua contoh · pindah kelas/)
+      await pilih('CTHA-1-101-1')
+      expect(dialog()!.textContent).toContain('Pindah kelas: Kelas contoh ke Kelas dua contoh.')
+      await isi(/Alasan pindah/, 'Permintaan keluarga (sintetis)')
+      await isi(/Serah terima antar-ruang/, 'Stabil (sintetis) tanpa keluhan')
+      peta.aturStatus('CTHA-1-101-1', 'dipesan')
+      ;[...dialog()!.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Pindahkan ke CTHA-1-101-1')!.click()
+      await tenang(20)
+      expect(dialog()!.textContent).toContain('TT CTHA-1-101-1 sudah tidak kosong siap')
+      expect([...dialog()!.querySelectorAll('.pilihan .kode')].map((e) => e.textContent?.trim())).toEqual(['CTHG-2-202-3'])
+    })
+
+    it('tanpa izin pindah ruang: tidak ada aksi walau server mengirim id', async () => {
+      aturIzin(IZIN)
+      await pasang()
+      expect(tombol('Pindah ruang')).toBeUndefined()
+    })
   })
 
   it('polling tiap interval papan IGD dengan If-None-Match sebagai permintaan latar', async () => {

@@ -118,7 +118,7 @@ export function pesanGalatTempatkan(e: unknown, kodeTt: string): string | null {
     case 'permintaan_kamar_tidak_dialokasikan':
       return 'Permintaan ini sudah tidak berstatus TT dipesan (sudah ditempatkan atau dibatalkan). Antrean sudah dimuat ulang.'
     case 'pasien_sudah_ditempatkan':
-      return 'Pasien ini sudah menempati TT lain. Satu pasien hanya menempati satu TT; perpindahan lewat pindah ruang.'
+      return 'Pasien ini sudah menempati TT lain. Satu pasien hanya menempati satu TT; untuk memindahkannya pakai Pindah ruang di Peta tempat tidur.'
     case 'tempat_tidur_tidak_tersedia':
       return `TT ${kodeTt} sudah tidak berstatus dipesan untuk pasien ini. Antrean sudah dimuat ulang; periksa peta TT.`
     case 'tempat_tidur_ditutup':
@@ -159,7 +159,7 @@ export function pesanGalatSpri(e: unknown): string | null {
     case 'spri_igd_lewat_disposisi':
       return 'Rawat inap pasien IGD diputuskan lewat IGD → Disposisi.'
     case 'pasien_sedang_dirawat':
-      return 'Pasien ini sedang dirawat inap dan menempati TT. SPRI baru tidak diperlukan; perpindahan lewat pindah ruang.'
+      return 'Pasien ini sedang dirawat inap dan menempati TT. SPRI baru tidak diperlukan; untuk memindahkannya pakai Pindah ruang di Peta tempat tidur.'
   }
   if (e.status === 403) return 'Akun Anda tidak memegang izin memberi SPRI untuk poli ini. SPRI hanya dari dokter yang diizinkan matriks perpindahan.'
   if (e.status === 404) return 'Kunjungan tidak ditemukan.'

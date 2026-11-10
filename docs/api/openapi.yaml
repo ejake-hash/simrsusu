@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.37.0
+  version: 0.38.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -209,6 +209,9 @@ info:
     menempati TT → 409 `pasien_sedang_dirawat`. Sub-menu baru `rawat_inap.penempatan` dan `rawat_inap.pindah_ruang`. Skema
     baru `RawatInap`; enum diperluas: `JenisKunjungan` + `rawat_inap`, jenis episode + `rawat_inap`, status perintah +
     `dilaksanakan`, status TT + `melewati_rencana_lama_rawat`; `TempatTidurPeta.hari_rawat` kini terisi.
+    v0.38.0 (keputusan pemilik 10 Nov 2026, tiket 2.29 FE): `TempatTidurPeta` + field opsional `kunjungan_rawat_inap_id`
+    (id kunjungan rawat inap TT berpenempatan aktif) hanya bagi pemegang rawat_inap.pindah_ruang.input di cakupan yang
+    memuat unit bangsal TT; tanpa izin itu kunci tidak dikirim. Sumber id untuk POST /kunjungan/{id}/pindah-ruang dari peta.
 servers:
   - url: /api/v1
 security:
@@ -10519,6 +10522,7 @@ components:
         ditutup: { type: boolean, description: "TT ditutup 1.8b (hari terakhir berlaku sudah lewat)" }
         dapat_dipilih: { type: boolean, description: "Status kosong_siap dan tidak ditutup maupun dijadwalkan tutup (pilihan alokasi 2.28; sejak v0.36.0 penutupan terjadwal ikut false)" }
         hari_rawat: { type: [integer, 'null'], minimum: 1, description: "Hari rawat pasien yang menempati TT ini (v0.37.0): tanggal hari ini zona RS − tanggal penempatan pertama kunjungan rawat inapnya + 1 (pindah ruang tidak mengulang hitungan); null = tidak ada penempatan aktif" }
+        kunjungan_rawat_inap_id: { type: string, format: uuid, description: "Opsional (v0.38.0): kunjungan rawat inap yang menempati TT ini (id untuk POST /kunjungan/{id}/pindah-ruang). Hanya dikirim untuk TT berpenempatan aktif yang tidak ditutup, dan hanya bila pemanggil memegang rawat_inap.pindah_ruang.input di cakupan yang memuat unit bangsal TT; selain itu kunci tidak ada (bukan null). Tanpa data pasien lain." }
     RawatInap:
       type: object
       required: [kunjungan, pasien, episode, permintaan_tempat_tidur_id, asal, kelas_dirawat, mulai_pada, penempatan, hari_rawat]

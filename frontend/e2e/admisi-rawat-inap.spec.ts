@@ -4,17 +4,20 @@ import { artisan, bersihkanPesertaSintetis, daftarkanKunjunganJkn, halamanAdmisi
 /**
  * 2.28-fe: SPRI dari Pemeriksaan poli → antrean Admisi rawat inap → alokasi TT → TT "Dipesan" di peta TT, ke backend asli
  * @1440 px + axe. 2.29-fe: batal permintaan (TT kembali kosong siap), lalu SPRI kedua → alokasi → tempatkan → TT "Terisi"
- * dengan "Hari ke-1" di peta. Akun `dokter.poli` (SIP sintetis dari `lokal:kunjungan-contoh`, izin sel bawaan poliklinik →
- * rawat inap rawat_jalan.pemeriksaan.sahkan) dan `admisi` (pendaftaran.admisi.lihat/input, rawat_inap.penempatan.input,
- * lihat peta TT; tanpa izin sensitif). Data SINTETIS: peserta BPJS contoh, poli contoh, TT CTHG-2-202-3 (kelas contoh) yang
- * statusnya dikembalikan ke kosong siap tiap `lokal:kunjungan-contoh` dijalankan, dan penempatannya diakhiri
- * `bersihkanPesertaSintetis`, jadi uji bisa diulang. Seri: langkah berikut memakai nomor kunjungan langkah sebelumnya.
- * Spec ini proyek terakhir di playwright.config.ts: sesudahnya pasien contoh menempati TT.
+ * dengan "Hari ke-1" di peta, lalu pindah ruang dari peta ke TT kosong siap kedua (TT lama "Dibersihkan"). Akun
+ * `dokter.poli` (SIP sintetis dari `lokal:kunjungan-contoh`; izin sel bawaan poliklinik → rawat inap
+ * rawat_jalan.pemeriksaan.sahkan, rawat inap → rawat inap rawat_inap.pindah_ruang.input, dan lihat peta TT) dan `admisi`
+ * (pendaftaran.admisi.lihat/input, rawat_inap.penempatan.input, lihat peta TT; tanpa izin sensitif). Data SINTETIS: peserta
+ * BPJS contoh, poli contoh, TT CTHG-2-202-3 dan CTHG-2-202-4 (kelas contoh). Agar bisa diulang: beforeAll dan afterAll
+ * memanggil `bersihkanPesertaSintetis` (kunjungan pasien contoh batal, penempatan aktifnya diakhiri lewat DB), lalu beforeAll
+ * memulihkan status TT contoh lewat `lokal:kunjungan-contoh` dan afterAll menjalankan `--batal`. Seri: langkah berikut memakai
+ * nomor kunjungan langkah sebelumnya. Spec ini proyek terakhir di playwright.config.ts.
  */
 const kartu = '9990000000001'
 const nama = 'Peserta Sintetis BPJS'
 const poli = 'Poli Penyakit Dalam (contoh)'
 const kodeTt = 'CTHG-2-202-3'
+const kodeTujuan = 'CTHG-2-202-4'
 let nomor = ''
 let nomorKunjungan = ''
 
@@ -75,9 +78,9 @@ async function alokasikan(page: Page, axe: boolean) {
   await expect(page.getByText(`TT ${kodeTt} dipesan untuk ${nama}.`).first()).toBeVisible()
 }
 
-const petaTt = async (page: Page) => {
+const petaTt = async (page: Page, kode = kodeTt) => {
   await page.goto('/rawat-inap/peta-tempat-tidur')
-  return page.getByRole('group', { name: `TT ${kodeTt}`, exact: true })
+  return page.getByRole('group', { name: `TT ${kode}`, exact: true })
 }
 
 test('dokter poli membuat SPRI dari pemeriksaan: ringkasan SPRI tampil', async ({ browser }, info) => {
@@ -171,6 +174,36 @@ test('SPRI kedua → alokasi → tempatkan: TT Terisi dengan Hari ke-1 di peta',
   const tt = await petaTt(page)
   await expect(tt).toContainText('Terisi')
   await expect(tt).toContainText('Hari ke-1')
+  // Admisi tidak memegang izin pindah ruang: peta tanpa aksi Pindah ruang.
+  await expect(tt.getByRole('button', { name: /Pindah ruang/ })).toHaveCount(0)
+  expect(await pelanggaranAxe(page)).toEqual([])
+  await page.close()
+})
+
+test('dokter memindahkan pasien dari peta TT: TT lama Dibersihkan, TT baru Terisi Hari ke-1', async ({ browser }, info) => {
+  test.setTimeout(120_000)
+  expect(nomorKunjungan).not.toBe('')
+  const asal = new URL(info.project.use.baseURL ?? '').origin
+  const page = await halamanAkun(browser, asal, 'dokter.poli')
+  await tungguJatahPenuh(page.context().request, asal)
+  const lama = await petaTt(page)
+  await expect(lama).toContainText('Terisi')
+  await lama.getByRole('button', { name: `Pindah ruang pasien di ${kodeTt}` }).click()
+  const dialog = page.getByRole('dialog', { name: `Pindah ruang pasien di ${kodeTt}` })
+  await expect(dialog).toContainText(`TT asal ${kodeTt} · Bangsal Melati (contoh) · Kelas contoh · hari rawat ke-1`)
+  // TT asal tidak ditawarkan sebagai tujuan.
+  await expect(dialog.getByRole('radio', { name: new RegExp(kodeTt) })).toHaveCount(0)
+  await dialog.getByRole('radio', { name: new RegExp(kodeTujuan) }).check()
+  await dialog.getByRole('textbox', { name: /Alasan pindah/ }).fill('Pindah kamar uji sintetis e2e')
+  await dialog.getByRole('textbox', { name: /Serah terima antar-ruang/ }).fill('Kondisi stabil, uji sintetis e2e')
+  expect(await pelanggaranAxe(page)).toEqual([])
+  await dialog.getByRole('button', { name: `Pindahkan ke ${kodeTujuan}` }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByText(new RegExp(`${nama} \\(No\\. RM .+\\) dipindah dari TT ${kodeTt} ke TT ${kodeTujuan}\\.`))).toBeVisible()
+  await expect(lama).toContainText('Dibersihkan')
+  const baru = page.getByRole('group', { name: `TT ${kodeTujuan}`, exact: true })
+  await expect(baru).toContainText('Terisi')
+  await expect(baru).toContainText('Hari ke-1')
   expect(await pelanggaranAxe(page)).toEqual([])
   await page.close()
 })
