@@ -35,7 +35,7 @@ import type { PermintaanTempatTidur, TempatTidurPeta } from '../tipe'
  * Pendaftaran → Admisi rawat inap (tiket 2.28, kontrak v0.36.0; FR-08-03). Satu antrean RS untuk semua permintaan kamar
  * (SPRI poli dan disposisi IGD), terlama di atas; urutan dan lama menunggu dari server. Alokasi memilih TT `dapat_dipilih`
  * dari peta TT (sumber yang sama dengan Rawat Inap → Peta tempat tidur) lalu TT menjadi dipesan. Galat 409 memuat ulang
- * antrean dan pilihan TT dulu, baru pesan tampil (pola peta TT #199).
+ * antrean dan pilihan TT dulu, baru pesan tampil (pola peta TT, PR 199).
  */
 const qc = useQueryClient()
 const route = useRoute()
