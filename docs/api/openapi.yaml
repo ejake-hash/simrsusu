@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.35.0
+  version: 0.36.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -191,6 +191,14 @@ info:
     POST /tempat-tidur/{id}/status (izin rawat_inap.peta_tempat_tidur.perbaiki): petugas mengubah `dibersihkan` →
     `kosong_siap`; status lain berubah dari alur admisi/penempatan (2.28/2.29). Setiap perubahan tercatat di
     kunjungan.riwayat_status_tempat_tidur (pelaku, sumber kejadian). Skema baru `TempatTidurPeta`; skema lama tidak berubah.
+    v0.36.0: SPRI, antrean permintaan kamar, alokasi TT (tiket 2.28; FR-08-03, FR-03-06, FR-03-07, 7.00.2 baris "Rawat
+    inap"): POST /kunjungan/{id}/spri (dokter poli, izin sel matriks poliklinik → rawat_inap bersyarat SIP/SPK), GET
+    /permintaan-tempat-tidur (izin pendaftaran.admisi.lihat; permintaan aktif dari IGD dan poli, paling lama menunggu di atas,
+    lama menunggu dihitung server), POST /permintaan-tempat-tidur/{id}/alokasi (izin pendaftaran.admisi.input, cakupan unit
+    bangsal TT; TT → `dipesan`). Disposisi IGD → rawat inap (v0.33.0) kini juga membuat SPRI internal dan permintaan kamar;
+    disposisi yang menutup kunjungan dan pembatalan kunjungan membatalkan permintaan aktif (TT dipesan kembali kosong
+    siap). Usulan matriks perpindahan dengan izin bukan klinis → 422 `izin_bukan_klinis`. Penutupan TT terisi/dipesan →
+    409 `tempat_tidur_terisi`. Skema `BarisPapanIgd` + field opsional `permintaan_kamar` (TT dipesan, FR-03-06).
 servers:
   - url: /api/v1
 security:
@@ -6166,6 +6174,123 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/spri:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: buatSpri
+      summary: SPRI dokter poli → permintaan kamar berstatus menunggu (jam server dan pemberi perintah dari sesi)
+      description: |
+        Keputusan rawat inap dari poliklinik (7.00.3 baris "Poliklinik" → "Rawat inap"; 7.00.2 baris "Rawat inap"). Rawat
+        inap pasien IGD lewat POST /kunjungan/{id}/disposisi (tujuan `rawat_inap`), yang memakai layanan yang sama.
+        Pemeriksaan sebelum isian dibaca, berurutan: kunjungan tidak ada → 404; kunjungan IGD → 409
+        `spri_igd_lewat_disposisi`; sel matriks poliklinik → rawat_inap nonaktif → 422 `perpindahan_di_luar_matriks`;
+        pemberi perintah tidak memegang `izin_perintah` sel itu di cakupan unit poli kunjungan → 403 (izin bawaan
+        `rawat_jalan.pemeriksaan.sahkan` bersyarat SIP/SPK berlaku, 403 `izin_praktik_tidak_berlaku`).
+        - Kunjungan `selesai`/`batal` → 409 `status_tidak_sesuai`, `rincian` = `[{jenis_kunjungan, status}]`.
+        - Sudah ada permintaan kamar aktif untuk kunjungan ini → 409 `permintaan_kamar_sudah_ada`, `rincian` =
+          `[{permintaan_tempat_tidur_id}]`.
+        - `kelas_rawat_id`/`bangsal_id` bukan data induk aktif, `tanggal_rencana` sebelum hari ini → 422 `validasi_gagal`.
+        - 409 `pasien_digabung`, 409 `instalasi_belum_siap`: seperti triase.
+        Akibat: perintah perpindahan baru (`menunggu_kamar`, alasan klinis tidak ke log/audit), SPRI internal
+        (kunjungan.surat_kontrol jenis `spri`, nomor BPJS kosong), permintaan kamar `menunggu`. Jam SPRI = awal rawat inap
+        untuk episode rawat inap (2.29). Audit `rawat_inap.permintaan_kamar_dibuat` tanpa identitas pasien.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alasan, kelas_rawat_id]
+              additionalProperties: false
+              properties:
+                alasan: { type: string, minLength: 5, maxLength: 1000, description: "Alasan rawat (klinis; tidak masuk log/audit)" }
+                kelas_rawat_id: { type: string, format: uuid, description: "Kelas yang diminta (GET /kelas-rawat)" }
+                bangsal_id: { type: [string, 'null'], format: uuid, description: "Bangsal pilihan; null = bebas" }
+                tanggal_rencana: { type: [string, 'null'], format: date, description: "Rencana rawat, zona RS; null = hari ini" }
+      responses:
+        '201':
+          description: Permintaan kamar tersimpan
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PermintaanTempatTidur' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /permintaan-tempat-tidur:
+    get:
+      operationId: daftarPermintaanTempatTidur
+      summary: Antrean permintaan kamar (IGD dan poli), paling lama menunggu di atas
+      description: |
+        Izin: pendaftaran.admisi.lihat di cakupan mana pun (403 sebelum isian dibaca); satu antrean RS (FR-08-03).
+        - Hanya permintaan aktif: `menunggu` (belum ada TT) dan `dialokasikan` (TT dipesan, pasien belum ditempatkan, 2.29).
+          Permintaan yang batal (disposisi lain, kunjungan batal) tidak tampil. `status` menyaring salah satunya.
+        - Urut `(diminta_pada, id)` terlama dulu, kursor keyset. `lama_menunggu_menit` dihitung server dari jam SPRI,
+          dibulatkan ke atas.
+        - Data pasien = dua penanda identitas; alasan klinis SPRI tidak dikirim.
+      parameters:
+        - { in: query, name: status, schema: { type: string, enum: [menunggu, dialokasikan] } }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman antrean (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/PermintaanTempatTidur' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /permintaan-tempat-tidur/{id}/alokasi:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: alokasiTempatTidur
+      summary: Alokasikan TT kosong siap ke permintaan kamar (TT → dipesan)
+      description: |
+        Izin rute: pendaftaran.admisi.input (403 sebelum isian dibaca); lalu cakupan yang memuat unit bangsal TT (403),
+        pola POST /tempat-tidur/{id}/status. Permintaan dikunci, lalu baris TT: dua alokasi serentak ke TT yang sama → satu
+        berhasil, yang lain 409.
+        - Permintaan tidak ada, atau id bukan UUID → 404. Permintaan bukan `menunggu` → 409 `permintaan_kamar_tidak_menunggu`,
+          `rincian` = `[{status}]`.
+        - `tempat_tidur_id` kosong, bukan UUID, atau TT tidak ada → 422 `validasi_gagal`.
+        - TT ditutup (1.8b) → 409 `tempat_tidur_ditutup`. TT bukan `kosong_siap` atau belum berlaku hari ini → 409
+          `tempat_tidur_tidak_tersedia`, `rincian` = `[{status_sekarang}]`.
+        - Kelas TT berbeda dengan kelas diminta → 422 `kelas_tidak_sesuai` (titip/naik kelas di luar tiket ini). Permintaan
+          IGD tanpa kelas diminta menerima kelas apa pun.
+        Akibat: TT `dipesan` di peta TT dan papan IGD (riwayat status sumber `alokasi`), permintaan `dialokasikan`, tugas
+        menunggu kamar selesai. Audit `rawat_inap.tempat_tidur_dialokasikan` (kode TT, tanpa data pasien).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tempat_tidur_id]
+              additionalProperties: false
+              properties:
+                tempat_tidur_id: { type: string, format: uuid, description: "TT `dapat_dipilih` dari GET /peta-tempat-tidur" }
+      responses:
+        '200':
+          description: Permintaan sesudah alokasi
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/PermintaanTempatTidur' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /instrumen-triase:
     get:
       operationId: daftarInstrumenTriase
@@ -10125,6 +10250,62 @@ components:
           properties:
             status: { type: string, enum: [menunggu_kamar, menunggu_kamar_operasi] }
             sejak: { type: string, format: date-time, description: "Jam perintah disposisi (PRD 11.2 `menunggu_kamar_sejak`)" }
+        permintaan_kamar:
+          type: [object, 'null']
+          required: [id, status, tempat_tidur]
+          description: "Opsional (v0.36.0, FR-03-06): permintaan kamar aktif; null = tidak ada. TT dari sumber yang sama dengan peta TT"
+          properties:
+            id: { type: string, format: uuid, description: "Id untuk POST /permintaan-tempat-tidur/{id}/alokasi" }
+            status: { type: string, enum: [menunggu, dialokasikan] }
+            tempat_tidur:
+              description: "TT yang dipesan; null = belum dialokasikan"
+              oneOf: [{ $ref: '#/components/schemas/RingkasTempatTidurDipesan' }, { type: 'null' }]
+    RingkasTempatTidurDipesan:
+      type: object
+      required: [id, kode, bangsal]
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string, description: "Kode TT" }
+        bangsal: { $ref: '#/components/schemas/RingkasLokasiPeta' }
+    PermintaanTempatTidur:
+      type: object
+      required: [id, kunjungan, pasien, asal, status, kelas_diminta, bangsal_pilihan, spri, diminta_oleh, diminta_pada, lama_menunggu_menit, tempat_tidur, dialokasikan_pada]
+      description: "Satu permintaan kamar di antrean (kunjungan.permintaan_tempat_tidur, v0.36.0; FR-08-03)."
+      properties:
+        id: { type: string, format: uuid }
+        kunjungan:
+          type: object
+          required: [id, nomor, jenis_kunjungan]
+          properties:
+            id: { type: string, format: uuid }
+            nomor: { type: string }
+            jenis_kunjungan: { type: string, enum: [poliklinik, igd] }
+        pasien: { $ref: '#/components/schemas/RingkasPasienKunjungan' }
+        asal: { type: string, enum: [igd, poliklinik], description: "Pos asal matriks 7.00.3; kamar operasi dan elektif menyusul" }
+        status:
+          type: string
+          enum: [menunggu, dialokasikan, ditempatkan, batal]
+          description: "Antrean hanya memuat menunggu dan dialokasikan; ditempatkan (2.29) dan batal tidak tampil di antrean"
+        kelas_diminta:
+          description: "null = belum ditentukan (disposisi IGD); alokasi menerima kelas apa pun"
+          oneOf: [{ $ref: '#/components/schemas/RingkasKelasRawat' }, { type: 'null' }]
+        bangsal_pilihan:
+          oneOf: [{ $ref: '#/components/schemas/RingkasLokasiPeta' }, { type: 'null' }]
+        spri:
+          type: object
+          required: [id, tanggal_rencana, no_surat_bpjs]
+          description: "SPRI internal (kunjungan.surat_kontrol jenis spri)"
+          properties:
+            id: { type: string, format: uuid }
+            tanggal_rencana: { type: string, format: date }
+            no_surat_bpjs: { type: [string, 'null'], description: "Kosong sampai bridging BPJS diputuskan" }
+        diminta_oleh: { $ref: '#/components/schemas/Pelaku' }
+        diminta_pada: { type: string, format: date-time, description: "Jam server SPRI (awal rawat inap untuk 2.29)" }
+        lama_menunggu_menit: { type: integer, minimum: 0, description: "Menit sejak diminta_pada, dihitung server, dibulatkan ke atas" }
+        tempat_tidur:
+          description: "TT yang dipesan; null = belum dialokasikan"
+          oneOf: [{ $ref: '#/components/schemas/RingkasTempatTidurDipesan' }, { type: 'null' }]
+        dialokasikan_pada: { type: [string, 'null'], format: date-time }
     MetaPapanIgd:
       type: object
       required: [area, aturan, terpotong, waktu_server]

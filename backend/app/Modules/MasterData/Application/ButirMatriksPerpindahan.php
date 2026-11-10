@@ -96,8 +96,17 @@ final class ButirMatriksPerpindahan
     public function terapkan(Pengguna $penyunting, array $butir, string $berlakuDari, string $dasar): string
     {
         $nilai = (array) ($butir['nilai_baru'] ?? []);
-        if (isset($nilai['izin_perintah']) && ! DB::table('akses.izin')->where('kode', $nilai['izin_perintah'])->exists()) {
-            throw new ApiError(422, 'isian_tidak_valid', 'Kode izin tidak dikenal.', [['kolom' => 'nilai_baru.izin_perintah']]);
+        if (isset($nilai['izin_perintah'])) {
+            $klinis = DB::table('akses.izin')->where('kode', $nilai['izin_perintah'])->value('butuh_kewenangan_klinis');
+            if ($klinis === null) {
+                throw new ApiError(422, 'isian_tidak_valid', 'Kode izin tidak dikenal.', [['kolom' => 'nilai_baru.izin_perintah']]);
+            }
+            // Keputusan pemilik 10 Nov 2026 (tinjauan #194 butir 2): perintah perpindahan klinis (7.00.3 butir 1) hanya dari
+            // izin bersyarat SIP/SPK. Dipanggil saat uji kering pengajuan dan saat penerapan, jadi keduanya menolak.
+            if (! $klinis) {
+                throw new ApiError(422, 'izin_bukan_klinis', 'Izin pemberi perintah harus izin klinis (bersyarat SIP/SPK berlaku).',
+                    [['kolom' => 'nilai_baru.izin_perintah']]);
+            }
         }
         try {
             return DB::transaction(fn () => $butir['aksi'] === 'tambah'

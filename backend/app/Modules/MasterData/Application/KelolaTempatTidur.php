@@ -13,6 +13,7 @@ use App\Modules\MasterData\Models\Kamar;
 use App\Modules\MasterData\Models\KelasRawat;
 use App\Modules\MasterData\Models\Lokasi;
 use App\Modules\MasterData\Models\TempatTidur;
+use App\Modules\RawatInap\Domain\StatusTempatTidur;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -114,11 +115,18 @@ final class KelolaTempatTidur
         }
 
         return DB::transaction(function () use ($penyunting, $tt, $versi, $mulai, $alasan, $dasar) {
+            // Kunci baris TT lebih dulu (tinjauan #198 butir 1): alokasi 2.28 mengunci baris yang sama sebelum memesan,
+            // jadi penutupan dan alokasi serentak tidak bisa sama-sama lolos.
+            $status = DB::table('inti.tempat_tidur')->where('id', $tt->id)->lockForUpdate()->value('status_saat_ini');
             SuntinganBerversi::naikkan(TempatTidur::class, $tt->id, $versi, $penyunting->id, 'Tempat tidur');
             $tt->refresh();
             $this->pastikanBelumDitutup($tt);
             if ($mulai < $tt->berlaku_dari->toDateString()) {
                 throw $this->tanggalTidakValid('berlaku_dari', 'Penutupan tidak bisa sebelum TT mulai berlaku.');
+            }
+            if (in_array($status, [StatusTempatTidur::TERISI, StatusTempatTidur::DIPESAN], true)) {
+                throw new ApiError(409, 'tempat_tidur_terisi', 'TT sedang terisi atau dipesan; tutup sesudah pasien pindah atau pesanan dibatalkan.',
+                    [['status_sekarang' => $status]]);
             }
             if ($this->penempatan->terisiAtauDipesan($tt->id, $mulai)) {
                 throw new ApiError(409, 'tempat_tidur_terisi', 'TT terisi atau dipesan pada tanggal itu.');

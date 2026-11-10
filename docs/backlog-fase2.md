@@ -562,7 +562,7 @@ Dirinci 9 Nov 2026 dari PRD 7.00.2–7.00.5, 7.03, 7.04, 7.05, 7.08, 7.19, 7.20,
 | 2.25 | Papan pasien IGD (polling) | BE+FE | M | 2.24 · **Selesai** (BE+kontrak #196 v0.34.0: GET `/igd/papan` polling ETag/304 `no-store`, maks 200 baris + `meta.terpotong`, urut belum ditriase → merah → kuning → hijau → hitam lalu jam tiba, tanda tanggap dan 6 jam dihitung server; PUT `/kunjungan/{id}/area-igd`; data induk area IGD dan aturan papan (`master_data.papan_igd`); FE #197: layar IGD → Papan pasien IGD (urutan server, lencana berteks + ikon, filter area, tempatkan per baris, polling 15 detik If-None-Match lewat sesi petugas dengan `X-Permintaan-Latar`, muat di 1024 px) dan Master Data → Area & batas papan IGD (dasar perubahan, If-Match), sub-menu TERSEDIA; keputusan pemilik 9 Nov 2026: tanggap tanpa tahap peringatan, berakhir saat dokter mulai mengisi asesmen awal, ambang mendekati 6 jam kosong = mati, belum ditriase di atas) |
 | 2.26 | Matriks perpindahan sebagai data induk + disposisi IGD | BE+FE | M | 2.23 · **Selesai** (BE+kontrak #194 v0.33.0: `kunjungan.aturan_perpindahan` isi awal tabel 7.00.3 + APS/DOA, GET `/data-induk/matriks-perpindahan`, perubahan lewat usulan `matriks_perpindahan`; POST/GET `/kunjungan/{id}/disposisi` hanya ditambah, izin sel matriks lewat AccessEvaluator, `igd.disposisi.input` bersyarat SIP; pulang/APS/rujuk/meninggal/DOA menutup kunjungan IGD, rawat inap `menunggu_kamar`, kamar operasi `menunggu_kamar_operasi`; FE #195: layar IGD → Disposisi, Master Data → Matriks perpindahan (usulan tambah/ubah/nonaktifkan sel), tautan Disposisi di Pendaftaran IGD, sub-menu TERSEDIA; akun e2e `dokter.poli` memegang `igd.pendaftaran.lihat` + `igd.disposisi.*`) |
 | 2.27 | Peta tempat tidur dan status TT | BE+FE | M | — · **Selesai** (BE+kontrak #198 v0.35.0: GET `/peta-tempat-tidur` polling ETag/304 `no-store`, maks 1000 TT + `meta.terpotong`, saring gedung/bangsal, cakupan unit bangsal; POST `/tempat-tidur/{id}/status` dibersihkan → kosong siap dengan riwayat dan audit; FE #199: layar Rawat Inap → Peta tempat tidur (gedung → lantai → bangsal → kamar, status berteks + ikon, TT ditutup tanpa aksi, filter gedung/bangsal ke API dan lantai/status/kode TT di layar, ringkasan per status, Tandai kosong siap berizin perbaiki, polling sama dengan papan IGD), sub-menu TERSEDIA, modul 08 aktif di `lokal:kunjungan-contoh`) |
-| 2.28 | SPRI, antrean permintaan kamar, alokasi TT | BE+FE | M | 2.26, 2.27 · Siap |
+| 2.28 | SPRI, antrean permintaan kamar, alokasi TT | BE+FE | M | 2.26, 2.27 · Sebagian (BE+kontrak #200 v0.36.0: POST `/kunjungan/{id}/spri` dokter poli lewat izin sel matriks bersyarat SIP, disposisi IGD rawat inap memakai layanan yang sama; `kunjungan.surat_kontrol` jenis spri + `kunjungan.permintaan_tempat_tidur` satu aktif per kunjungan; GET `/permintaan-tempat-tidur` antrean aktif terlama dulu dengan lama menunggu dari server; POST `/permintaan-tempat-tidur/{id}/alokasi` kunci permintaan lalu TT, TT → dipesan; permintaan batal lewat kejadian disposisi/pembatalan kunjungan, TT kembali kosong siap; papan IGD `permintaan_kamar`; tugas eskalasi menunggu kamar nonaktif sampai RS menyetel; FE menyusul) |
 | 2.29 | Admisi rawat inap: penempatan TT, pindah ruang, episode rawat inap | BE+FE | M | 2.28 · Siap |
 | 2.30 | Lab: daftar kerja dan spesimen (order → diterima lab) | BE+FE | M | — · Siap |
 | 2.31 | Lab: hasil, nilai rujukan data induk, validasi, hasil mengikuti pasien | BE+FE | M | 2.30 · Siap |
@@ -683,19 +683,42 @@ Uji    :
 - TT teralokasi berstatus "dipesan" di peta TT (2.27) dan di papan IGD (FR-03-06).
 - Menunggu melewati batas data induk RS → tugas eskalasi ke Kepala IGD dengan jam eskalasi (FR-03-07, 7.53).
 Di luar: penempatan pasien (2.29), deposit/naik kelas (Tahap D).
-Catatan tinjauan #194 (wajib di 2.28):
-1. Perintah `menunggu_kamar` tidak pernah ditutup (`kunjungan.perpindahan_pos` hanya ditambah): antrean kamar harus digabung
+Catatan tinjauan #194 (wajib di 2.28) — butir 1–3 selesai di #200:
+1. ~~Perintah `menunggu_kamar` tidak pernah ditutup (`kunjungan.perpindahan_pos` hanya ditambah): antrean kamar harus digabung
    dengan status kunjungan, atau permintaan kamar membatalkan diri lewat kejadian `DisposisiDicatat` (pasien APS/meninggal
-   sesudah menunggu kamar).
-2. Izin sel matriks bisa diusulkan ke izin non-klinis (`ButirMatriksPerpindahan` hanya memeriksa keberadaan izin): tolak atau
-   peringatkan izin tanpa `butuh_kewenangan_klinis` sebelum 2.28 memakai sel SPRI.
-3. Sel poliklinik memakai `rawat_jalan.pemeriksaan.sahkan` yang bukan `IZIN_KLINIS`: putuskan sebelum `poliklinik → rawat_inap`
-   dipakai.
+   sesudah menunggu kamar).~~ Selesai #200: permintaan batal lewat `DisposisiDicatat` (status `selesai`) dan
+   `KunjunganDibatalkan`; antrean hanya permintaan aktif.
+2. ~~Izin sel matriks bisa diusulkan ke izin non-klinis (`ButirMatriksPerpindahan` hanya memeriksa keberadaan izin): tolak atau
+   peringatkan izin tanpa `butuh_kewenangan_klinis` sebelum 2.28 memakai sel SPRI.~~ Selesai #200: 422 `izin_bukan_klinis`.
+3. ~~Sel poliklinik memakai `rawat_jalan.pemeriksaan.sahkan` yang bukan `IZIN_KLINIS`: putuskan sebelum `poliklinik → rawat_inap`
+   dipakai.~~ Selesai #200: izin itu kini `IZIN_KLINIS`.
 Catatan tinjauan #198 (wajib di 2.28/2.29):
-1. `KelolaTempatTidur::tutup()` belum mengunci baris TT dan belum menolak TT berstatus terisi/dipesan (`PemeriksaPenempatan`
-   masih `PenempatanBelumAda`): kunci baris dan baca `status_saat_ini` sebelum alokasi/penempatan memakai status itu.
+1. ~~`KelolaTempatTidur::tutup()` belum mengunci baris TT dan belum menolak TT berstatus terisi/dipesan (`PemeriksaPenempatan`
+   masih `PenempatanBelumAda`): kunci baris dan baca `status_saat_ini` sebelum alokasi/penempatan memakai status itu.~~
+   Selesai #200: `tutup()` mengunci baris TT `FOR UPDATE` dan menolak `terisi`/`dipesan` (409 `tempat_tidur_terisi`).
 2. Status "melewati rencana lama rawat" (FR-08-01) perlu perluasan CHECK status di `inti.tempat_tidur` dan
-   `kunjungan.riwayat_status_tempat_tidur` lewat migrasi baru di 2.29.
+   `kunjungan.riwayat_status_tempat_tidur` lewat migrasi baru di 2.29. (Tetap untuk 2.29.)
+Keputusan pemilik 10 Nov 2026:
+1. Batas lama menunggu kamar sebelum eskalasi ke Kepala IGD (FR-03-07): jenis tugas `PERMINTAAN_KAMAR_MENUNGGU` dipasang
+   **nonaktif** sampai RS mengisi batasnya sendiri di layar Jenis Tugas (pola "kosong = mati" papan IGD).
+2. Usulan matriks perpindahan yang memasang `izin_perintah` tanpa `butuh_kewenangan_klinis` ditolak 422 `izin_bukan_klinis`,
+   saat diajukan (uji kering) maupun saat diterapkan.
+3. `rawat_jalan.pemeriksaan.sahkan` menjadi izin klinis (`MenuBawaan::IZIN_KLINIS`, migrasi memanggil `pasang()`); pemegang
+   tanpa SIP/SPK berlaku tidak lagi bisa menyelesaikan kunjungan poli maupun memberi SPRI (mengencangkan).
+Asumsi BE #200: angka jenis tugas menunggu kamar (batas 240 menit dari contoh PRD FR-53-05 "> 4 jam", pengingat −60,
+teguran 0, eskalasi 240) hanya pengisi CHECK `batas_menit > 0` selama nonaktif, bukan nilai klinis; RS wajib menyetel batas
+dan unit teguran (unit IGD, kepalanya = Kepala IGD) sebelum mengaktifkan. Pelaksana tugas = peran pemegang
+`pendaftaran.admisi.input` (tanpa peran itu: pemberi perintah); hanya permintaan asal IGD yang dieskalasi. SPRI endpoint hanya
+untuk kunjungan poli (IGD → 409 `spri_igd_lewat_disposisi`, rawat inap IGD lewat disposisi yang memakai layanan yang sama);
+SPRI juga dicatat sebagai perintah `perpindahan_pos` `menunggu_kamar`, serah terima opsional (RM-15 saat penempatan 2.29).
+Episode rawat inap belum dibentuk: jam SPRI (`surat_kontrol.diterbitkan_pada` = `permintaan.diminta_pada`) disimpan sebagai
+awal rawat inap untuk 2.29. Permintaan IGD tanpa kelas diminta (disposisi tidak memilih kelas) menerima TT kelas apa pun;
+kelas berbeda dari kelas diminta → 422 `kelas_tidak_sesuai` (titip/naik kelas Tahap D). Antrean = satu antrean RS untuk izin
+`pendaftaran.admisi.lihat` di cakupan mana pun (permintaan belum punya bangsal); alokasi dibatasi cakupan unit bangsal TT.
+Permintaan batal bila disposisi menutup kunjungan IGD (status `selesai`), bukan bila menunggu kamar operasi. Permintaan
+poli tetap aktif sesudah kunjungan poli selesai (pasien menunggu kamar), batal hanya bila kunjungan dibatalkan. Uji
+serentak memakai urutan kunci + 409 status (repo belum punya pola uji dua koneksi). Usulan yang izinnya berubah tidak klinis
+sesudah diajukan berakhir `gagal_diterapkan` (mesin usulan), bukan respons 422. Nomor SPRI BPJS [Perlu pemilik].
 
 ### 2.29 · Admisi rawat inap: penempatan TT, pindah ruang, episode rawat inap
 Tujuan : pasien tiba di bangsal, menempati TT, dan seluruh kunjungan sebelumnya hari itu tergabung ke episode rawat inap.

@@ -25,8 +25,14 @@ final class StatusTempatTidur
     /** Petugas ruangan (tiket 2.27). */
     public const SUMBER_PETUGAS = 'petugas';
 
-    /** `alokasi` (2.28), `penempatan`, `pindah_ruang`, `pulang` (2.29). */
-    public const SUMBER = [self::SUMBER_PETUGAS, 'alokasi', 'penempatan', 'pindah_ruang', 'pulang'];
+    /** Alokasi permintaan kamar (2.28): kosong siap → dipesan. */
+    public const SUMBER_ALOKASI = 'alokasi';
+
+    /** Permintaan kamar yang sudah dialokasikan dibatalkan (2.28): dipesan → kosong siap. */
+    public const SUMBER_ALOKASI_BATAL = 'alokasi_batal';
+
+    /** `alokasi`, `alokasi_batal` (2.28), `penempatan`, `pindah_ruang`, `pulang` (2.29). */
+    public const SUMBER = [self::SUMBER_PETUGAS, self::SUMBER_ALOKASI, self::SUMBER_ALOKASI_BATAL, 'penempatan', 'pindah_ruang', 'pulang'];
 
     /**
      * Transisi yang boleh diminta petugas lewat POST /tempat-tidur/{id}/status: status tujuan => status asal yang sah.
