@@ -4,7 +4,9 @@ namespace Tests\Feature\RawatInap;
 
 use App\Core\Http\ApiError;
 use App\Core\Http\SuntinganBerversi;
+use App\Modules\Akses\Application\KelolaRelasiPerawatan;
 use App\Modules\Akses\Domain\Cakupan;
+use App\Modules\Akses\Domain\RelasiPerawatan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\MasterData\Application\KelolaTempatTidur;
 use App\Modules\MasterData\Domain\PemeriksaPenempatan;
@@ -181,6 +183,30 @@ class AdmisiRawatInapTest extends TestCase
         $this->assertSame(['rawat_inap', 'aktif'], [DB::table('kunjungan.episode')->where('id', $episodeIgd)->value('jenis'),
             DB::table('kunjungan.episode')->where('id', $episodeIgd)->value('status')]);
         $this->assertSame(1, DB::table('kunjungan.episode')->where('pasien_id', $pasien->id)->count());
+    }
+
+    public function test_relasi_dpjp_rawat_inap_tanpa_akhir_berlaku_sampai_diakhiri(): void
+    {
+        // Dokter IGD tidak punya relasi dokter jadwal: lapis 4 hanya dari relasi DPJP rawat inap.
+        $pasien = $this->pasien();
+        $relasi = app(RelasiPerawatan::class);
+        $this->assertFalse($relasi->merawat($this->dokterIgd, $pasien->id));
+        $permintaan = $this->permintaanDari($this->igdMenungguKamar($pasien));
+        $this->masukSebagai($this->admisi);
+        $this->alokasi($permintaan, $this->id['UJI29-101-1'])->assertOk();
+        $ri = (string) $this->tempatkan($permintaan)->assertCreated()->json('data.kunjungan.id');
+        $this->assertTrue($relasi->merawat($this->dokterIgd, $pasien->id));
+        $this->travel(30)->days();
+        $this->assertTrue($relasi->merawat($this->dokterIgd, $pasien->id));
+        app(KelolaRelasiPerawatan::class)->akhiri('kunjungan', $ri, 'Pasien pulang (uji)', null);
+        $this->assertFalse($relasi->merawat($this->dokterIgd, $pasien->id));
+
+        // CHECK: berlaku_sampai kosong hanya untuk dpjp_rawat_inap; dokter_jadwal wajib berisi.
+        $baris = ['pasien_id' => $pasien->id, 'pegawai_id' => $this->pegawaiIgd->id, 'sumber_jenis' => 'kunjungan', 'berlaku_dari' => now()];
+        $this->assertDitolakBasisData('23514', fn () => DB::table('akses.relasi_perawatan')->insert(
+            ['id' => (string) Str::uuid7(), ...$baris, 'peran' => 'dokter_jadwal', 'sumber_id' => (string) Str::uuid7(), 'berlaku_sampai' => null]));
+        DB::table('akses.relasi_perawatan')->insert(
+            ['id' => (string) Str::uuid7(), ...$baris, 'peran' => 'dpjp_rawat_inap', 'sumber_id' => (string) Str::uuid7(), 'berlaku_sampai' => null]);
     }
 
     public function test_spri_tanggal_lain_membentuk_episode_rawat_inap_baru(): void

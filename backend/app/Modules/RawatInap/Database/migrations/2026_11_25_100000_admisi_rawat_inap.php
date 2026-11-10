@@ -21,7 +21,7 @@ use Illuminate\Support\Str;
  * - Status TT `melewati_rencana_lama_rawat` (FR-08-01; tinjauan #198 butir 2): CHECK saja, disetel rencana pulang (2.40).
  * - Perintah perpindahan berstatus `dilaksanakan`: perintah yang langsung dijalankan tanpa menutup kunjungan (pindah ruang).
  * - Relasi perawatan DPJP rawat inap (lapis 4, PRD 9.2.5 "DPJP rawat inap menyusul"): berlaku sejak penempatan sampai
- *   diakhiri (pulang 2.40), jadi `berlaku_sampai` boleh kosong untuk relasi tanpa akhir yang diketahui.
+ *   diakhiri (pulang 2.40), jadi `berlaku_sampai` boleh kosong, hanya untuk peran `dpjp_rawat_inap`.
  * - Sub-menu rawat_inap.penempatan (non-klinis) dan rawat_inap.pindah_ruang (IZIN_KLINIS); sel matriks rawat_inap →
  *   rawat_inap (PRD 7.00.3 "pindah ruang/kelas"). Aksi dasar saja, jadi izin_jenis_aksi_cek tidak berubah.
  */
@@ -111,8 +111,8 @@ return new class extends Migration
         // Relasi perawatan DPJP rawat inap (lapis 4).
         DB::statement('ALTER TABLE akses.relasi_perawatan DROP CONSTRAINT relasi_perawatan_cek');
         DB::statement('ALTER TABLE akses.relasi_perawatan ALTER COLUMN berlaku_sampai DROP NOT NULL');
-        DB::statement("ALTER TABLE akses.relasi_perawatan ADD CONSTRAINT relasi_perawatan_cek CHECK (peran IN ('dokter_jadwal', 'dpjp_rawat_inap') AND sumber_jenis IN ('kunjungan') AND status IN ('aktif', 'batal') AND (berlaku_sampai IS NULL OR berlaku_sampai > berlaku_dari) AND ((status = 'batal') = (dibatalkan_pada IS NOT NULL)))");
-        DB::statement("COMMENT ON COLUMN akses.relasi_perawatan.berlaku_sampai IS 'Kosong = berlaku sampai diakhiri (DPJP rawat inap sampai pulang)'");
+        DB::statement("ALTER TABLE akses.relasi_perawatan ADD CONSTRAINT relasi_perawatan_cek CHECK (peran IN ('dokter_jadwal', 'dpjp_rawat_inap') AND sumber_jenis IN ('kunjungan') AND status IN ('aktif', 'batal') AND (berlaku_sampai IS NOT NULL OR peran = 'dpjp_rawat_inap') AND (berlaku_sampai IS NULL OR berlaku_sampai > berlaku_dari) AND ((status = 'batal') = (dibatalkan_pada IS NOT NULL)))");
+        DB::statement("COMMENT ON COLUMN akses.relasi_perawatan.berlaku_sampai IS 'Kosong hanya untuk dpjp_rawat_inap = berlaku sampai diakhiri (pulang); peran lain wajib berisi'");
 
         MenuBawaan::pasang();
         app(CacheHakAkses::class)->lupakanSemua();
