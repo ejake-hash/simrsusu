@@ -205,7 +205,7 @@ final class KunjunganContoh extends Command
         $bangsal = Bangsal::query()->firstOrCreate(['kode' => 'CONTOH-MELATI'], ['nama' => 'Bangsal Melati (contoh)', 'unit_organisasi_id' => $unit, 'status' => 'aktif'])->id;
         $layanan = app(UbahStatusTempatTidur::class);
         foreach (self::STATUS_CONTOH as $ruang => $tempatTidur) {
-            $ruangId = $lokasi($lantai, 'ruang', $ruang, "CTHG-2-$ruang", "Kamar $ruang (contoh)", 'rawat_inap');
+            $ruangId = $lokasi($lantai, 'ruang', (string) $ruang, "CTHG-2-$ruang", "Kamar $ruang (contoh)", 'rawat_inap');
             $kamar = Kamar::query()->firstOrCreate(['lokasi_id' => $ruangId], ['bangsal_id' => $bangsal])->id;
             foreach ($tempatTidur as $kode => $status) {
                 $kodeLengkap = "CTHG-2-$ruang-$kode";

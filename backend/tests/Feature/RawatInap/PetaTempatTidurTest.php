@@ -233,7 +233,7 @@ class PetaTempatTidurTest extends TestCase
         ])->id;
     }
 
-    /** @param  array<string, string>  $status  kode TT => status tersimpan */
+    /** @param  array<int|string, string>  $status  kode TT => status tersimpan */
     private function tt(string $induk, string $kodeRuang, string $bangsal, array $status): void
     {
         $kodeInduk = (string) Lokasi::query()->whereKey($induk)->value('kode_lengkap');
