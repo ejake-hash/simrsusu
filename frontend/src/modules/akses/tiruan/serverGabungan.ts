@@ -6,6 +6,7 @@ import { buatServerPapanIgd } from '../../papan-igd/tiruan/serverPapanIgd'
 import { buatServerPasien } from '../../pendaftaran/tiruan/serverPasien'
 import { buatServerFormularium } from '../../formularium/tiruan/serverFormularium'
 import { buatServerRawatJalan } from '../../rawat-jalan/tiruan/serverRawatJalan'
+import { buatServerPetaTempatTidur } from '../../rawat-inap/tiruan/serverPetaTempatTidur'
 import { buatServerPenjamin } from '../../penjamin/tiruan/serverPenjamin'
 import { buatServerLokasi } from '../../organisasi/tiruan/serverLokasi'
 import { buatServerJadwal } from '../../jadwal-praktik/tiruan/serverJadwal'
@@ -109,6 +110,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
   const pasien = buatServerPasien({ boleh: akses.bolehSaya, penggunaId: () => akses.penggunaSaatIni(), sekarang: opsi.sekarang })
   const instrumenTriase = buatServerInstrumenTriase({ boleh: akses.bolehSaya, sekarang: opsi.sekarang })
   const papanIgd = buatServerPapanIgd({ boleh: akses.bolehSaya, sekarang: opsi.sekarang })
+  const petaTempatTidur = buatServerPetaTempatTidur({ boleh: akses.bolehSaya, sekarang: opsi.sekarang })
   const kunjungan = buatServerKunjungan({
     instrumenTriase: instrumenTriase.aktif,
     matriks,
@@ -166,12 +168,14 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     instrumenTriase,
     matriks,
     papanIgd,
+    petaTempatTidur,
     rawatJalan,
     tangani: (r: PermintaanTiruan): ResponsTiruan | Promise<ResponsTiruan> | null => {
       if (akses.wajibGantiSandi() && !bebasGantiSandi(r)) {
         return { status: 403, isi: { error: { kode: 'wajib_ganti_sandi', pesan: 'Ganti sandi awal Anda lebih dulu.', rincian: [] } } }
       }
-      return akses.tangani(r) ?? organisasi.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? matriks.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r) ?? instrumenTriase.tangani(r) ?? papanIgd.tangani(r) ?? formularium.tangani(r) ?? pasien.tangani(r) ?? kunjungan.tangani(r) ?? rawatJalan.tangani(r)
+      // Peta TT sebelum lokasi: server lokasi menangani seluruh /tempat-tidur/* (data induk), termasuk /status.
+      return akses.tangani(r) ?? organisasi.tangani(r) ?? petaTempatTidur.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? matriks.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r) ?? instrumenTriase.tangani(r) ?? papanIgd.tangani(r) ?? formularium.tangani(r) ?? pasien.tangani(r) ?? kunjungan.tangani(r) ?? rawatJalan.tangani(r)
     },
   }
 }

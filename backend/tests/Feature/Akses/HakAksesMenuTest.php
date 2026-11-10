@@ -93,6 +93,19 @@ class HakAksesMenuTest extends TestCase
         }
     }
 
+    public function test_sub_menu_peta_tempat_tidur_tersedia_bila_modul_08_aktif(): void
+    {
+        $pengguna = $this->buatPengguna();
+        $this->tugaskan($pengguna, $this->buatPeran(['rawat_inap.peta_tempat_tidur', 'rawat_inap.pasien']));
+        DB::table('inti.modul_aktif')->insert(['id' => (string) Str::uuid7(), 'modul_no' => 8]);
+
+        $menu = $this->masukLaluMenu($pengguna)->assertOk();
+
+        $this->assertSame('aktif', $this->item($menu, 'rawat_inap.peta_tempat_tidur')['status']);
+        // Sub-menu Rawat Inap lain belum dibangun.
+        $this->assertSame('segera', $this->item($menu, 'rawat_inap.pasien')['status']);
+    }
+
     public function test_peran_memberi_sub_menu_dan_izin_dengan_status_dari_modul_aktif(): void
     {
         $pengguna = $this->buatPengguna();
