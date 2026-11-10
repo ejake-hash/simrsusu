@@ -41,6 +41,15 @@ export interface BarisPapanIgd {
   lebih_6_jam: boolean
   tanggap: TanggapPapanIgd
   disposisi_menunggu: { status: StatusDisposisiMenunggu; sejak: string } | null
+  /** Opsional (v0.36.0, FR-03-06): permintaan kamar aktif; null/tidak ada = tidak ada. TT dari sumber yang sama dengan peta TT. */
+  permintaan_kamar?: PermintaanKamarPapan | null
+}
+
+export interface PermintaanKamarPapan {
+  id: string
+  status: 'menunggu' | 'dialokasikan'
+  /** null = belum dialokasikan. */
+  tempat_tidur: { id: string; kode: string; bangsal: { id: string; kode: string; nama: string } } | null
 }
 
 export interface MetaPapanIgd {

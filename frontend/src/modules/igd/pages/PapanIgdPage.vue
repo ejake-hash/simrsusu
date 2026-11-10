@@ -13,7 +13,7 @@ import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
 import { boleh } from '@/shared/composables/usePermission'
 import { bacaPapanIgd, tempatkanAreaIgd } from '../apiPapan'
 import LencanaTriase from '../components/LencanaTriase.vue'
-import { formatMenit, INTERVAL_PAPAN, KUNCI_PAPAN, pesanGalatTempatkan, pilihanArea, tandaLamaIgd, tandaTanggap, teksDisposisiMenunggu, uraianAturan, waktuTiba } from '../papan'
+import { formatMenit, INTERVAL_PAPAN, KUNCI_PAPAN, pesanGalatTempatkan, pilihanArea, tandaLamaIgd, tandaPermintaanKamar, tandaTanggap, teksDisposisiMenunggu, uraianAturan, waktuTiba } from '../papan'
 import type { BarisPapanIgd, PapanIgd, RingkasAreaIgd } from '../tipePapan'
 
 /**
@@ -47,7 +47,7 @@ const kolom = computed<KolomTabel[]>(() => [
   { kunci: 'area', label: 'Area', ...(bolehTempatkan.value && !tanpaArea.value ? { lebar: '170px' } : {}) },
   { kunci: 'tiba', label: 'Tiba dan lama' },
   { kunci: 'tanggap', label: 'Waktu tanggap' },
-  { kunci: 'disposisi', label: 'Disposisi menunggu' },
+  { kunci: 'disposisi', label: 'Disposisi dan kamar' },
 ])
 
 // ── Tempatkan ke area: pilih di baris, lalu simpan (pilihan lewat papan ketik tidak langsung mengirim) ──
@@ -161,7 +161,11 @@ async function tempatkan(b: BarisPapanIgd) {
         </template>
         <template #sel-disposisi="{ baris: b }">
           <span v-if="b.disposisi_menunggu" class="disposisi">{{ teksDisposisiMenunggu(b, new Date()) }}</span>
-          <span v-else class="ket">Tidak ada</span>
+          <span v-else-if="!tandaPermintaanKamar(b)" class="ket">Tidak ada</span>
+          <template v-if="tandaPermintaanKamar(b)">
+            <Lencana :jenis="tandaPermintaanKamar(b)!.jenis" tanpa-ikon class="lencana lencana-lama"><Ikon :nama="tandaPermintaanKamar(b)!.ikon" :ukuran="12" />{{ tandaPermintaanKamar(b)!.label }}</Lencana>
+            <span v-if="tandaPermintaanKamar(b)!.rincian" class="ket-kuat">{{ tandaPermintaanKamar(b)!.rincian }}</span>
+          </template>
         </template>
       </DataTable>
     </section>
@@ -216,6 +220,11 @@ async function tempatkan(b: BarisPapanIgd) {
 }
 .lencana-lama {
   margin-top: var(--space-1);
+}
+.ket-kuat {
+  display: block;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
 }
 .disposisi {
   font-size: 13px;

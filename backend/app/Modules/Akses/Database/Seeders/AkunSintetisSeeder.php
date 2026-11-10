@@ -105,7 +105,9 @@ final class AkunSintetisSeeder extends Seeder
      * Pemilih dokter di layar Jadwal praktik memakai GET /pegawai (sdm.pegawai.lihat).
      */
     private const IZIN_TAMBAHAN_CONTOH = [
-        'contoh_admisi' => ['master_data.organisasi.lihat', 'master_data.jadwal_praktik.lihat', 'master_data.penjamin.lihat'],
+        // Tiket 2.28-fe: Admisi rawat inap (pendaftaran.admisi.lihat/input ikut menu pendaftaran) memilih TT kosong siap dari
+        // GET /peta-tempat-tidur, jadi butuh lihat peta TT (data induk TT tanpa data pasien, bukan izin sensitif).
+        'contoh_admisi' => ['master_data.organisasi.lihat', 'master_data.jadwal_praktik.lihat', 'master_data.penjamin.lihat', 'rawat_inap.peta_tempat_tidur.lihat'],
         // Tiket 2.15: dokter menyelesaikan kunjungan (aksi tambahan, tidak ikut aksi dasar menu rawat_jalan).
         'contoh_dokter' => ['rawat_jalan.pemeriksaan.sahkan'],
         'contoh_data_induk' => ['sdm.pegawai.lihat', 'farmasi.formularium.lihat', 'farmasi.formularium.input', 'farmasi.formularium.perbaiki'],

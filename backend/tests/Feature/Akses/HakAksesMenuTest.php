@@ -66,6 +66,18 @@ class HakAksesMenuTest extends TestCase
         $this->assertSame('aktif', $this->item($menu, 'pendaftaran')['status']);
     }
 
+    public function test_sub_menu_admisi_rawat_inap_tersedia_bila_modul_01_aktif(): void
+    {
+        DB::table('inti.modul_aktif')->insert(['id' => (string) Str::uuid7(), 'modul_no' => 1]);
+        $pengguna = $this->buatPengguna();
+        $this->tugaskan($pengguna, $this->buatPeran(['pendaftaran.admisi']));
+
+        $menu = $this->masukLaluMenu($pengguna)->assertOk();
+
+        $this->assertSame('aktif', $this->item($menu, 'pendaftaran.admisi')['status']);
+        $this->assertSame('aktif', $this->item($menu, 'pendaftaran')['status']);
+    }
+
     public function test_sub_menu_penjamin_tarif_jadwal_praktik_tersedia_di_menu(): void
     {
         $pengguna = $this->buatPengguna();

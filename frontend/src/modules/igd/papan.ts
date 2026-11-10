@@ -79,6 +79,20 @@ export function teksDisposisiMenunggu(b: Pick<BarisPapanIgd, 'disposisi_menunggu
   return `${LABEL_STATUS_DISPOSISI[d.status]} sejak ${waktu.charAt(0).toLowerCase()}${waktu.slice(1)}`
 }
 
+/**
+ * Permintaan kamar pasien IGD (FR-03-06, v0.36.0): teks + ikon, bukan hanya warna. Dipesan menyebut kode TT dan bangsal
+ * (label sama dengan status TT "Dipesan" di peta TT). null = tidak ada permintaan aktif.
+ */
+export function tandaPermintaanKamar(b: Pick<BarisPapanIgd, 'permintaan_kamar'>): (TandaTampil & { rincian: string | null }) | null {
+  const p = b.permintaan_kamar
+  if (!p) return null
+  if (p.status === 'dialokasikan') {
+    return { label: 'TT dipesan', jenis: 'ok', ikon: 'penanda', rincian: p.tempat_tidur ? `${p.tempat_tidur.kode} · ${p.tempat_tidur.bangsal.nama}` : null }
+  }
+  if (p.status === 'menunggu') return { label: 'Menunggu alokasi TT', jenis: 'info', ikon: 'jam', rincian: null }
+  return { label: 'Status kamar tidak dikenal', jenis: 'netral', ikon: 'info', rincian: null }
+}
+
 /** Uraian batas yang dipakai server untuk tanda baris ini. */
 export function uraianAturan(a: MetaPapanIgd['aturan']): string {
   const tanggap = `Batas tanggap ${formatMenit(a.batas_tanggap_menit)} sejak tiba sampai dokter mulai mengisi asesmen awal.`

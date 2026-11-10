@@ -14,6 +14,7 @@ import { boleh } from '@/shared/composables/usePermission'
 import { bacaPetaTempatTidur, tandaiKosongSiap } from '../api'
 import {
   bolehTandaiKosongSiap,
+  dijadwalkanTutup,
   gabungPilihanLokasi,
   INTERVAL_PETA,
   kelompokkanPeta,
@@ -210,6 +211,7 @@ const fokusSesudahTutup = () => (fokusSesudah ? (document.getElementById(fokusSe
                     <span v-if="teksHariRawat(tt)" class="hari">{{ teksHariRawat(tt) }}</span>
                   </span>
                   <span class="ket">{{ keteranganTt(tt) }}</span>
+                  <span v-if="dijadwalkanTutup(tt)" class="tutup-terjadwal"><Ikon nama="gembok" :ukuran="12" />Dijadwalkan tutup, tidak bisa dialokasikan</span>
                   <Tombol v-if="bolehTandaiKosongSiap(tt, izinPerbaiki)" class="aksi" :aria-label="`Tandai kosong siap ${tt.kode}`" @click="minta(tt)">Tandai kosong siap</Tombol>
                 </div>
               </li>
@@ -351,6 +353,13 @@ h4 {
 .ket {
   font-size: 12px;
   color: var(--muted);
+}
+.tutup-terjadwal {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
 }
 .aksi {
   justify-self: start;
