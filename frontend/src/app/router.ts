@@ -44,6 +44,7 @@ export const router = createRouter({
         { path: '', name: 'beranda', component: () => import('@/modules/beranda/pages/BerandaPage.vue'), meta: { judul: 'Beranda' } },
         { path: 'pendaftaran/pasien', name: 'pendaftaran-pasien', component: () => import('@/modules/pendaftaran/pages/PasienPage.vue'), meta: { judul: 'Pendaftaran pasien' } },
         { path: 'pendaftaran/master-pasien', name: 'pendaftaran-master-pasien', component: () => import('@/modules/pendaftaran/pages/MasterPasienPage.vue'), meta: { judul: 'Master pasien' } },
+        { path: 'pendaftaran/admisi', name: 'pendaftaran-admisi', component: () => import('@/modules/rawat-inap/pages/AdmisiRawatInapPage.vue'), meta: { judul: 'Admisi rawat inap' } },
         { path: 'pendaftaran/antrean', name: 'pendaftaran-antrean', component: () => import('@/modules/antrean/pages/AntreanPage.vue'), meta: { judul: 'Antrean & display' } },
         { path: 'rawat-jalan/worklist', name: 'rawat-jalan-worklist', component: () => import('@/modules/rawat-jalan/pages/WorklistPage.vue'), props: { mode: 'worklist' }, meta: { judul: 'Worklist poliklinik' } },
         { path: 'rawat-jalan/pemeriksaan', name: 'rawat-jalan-pemeriksaan', component: () => import('@/modules/rawat-jalan/pages/WorklistPage.vue'), props: { mode: 'pemeriksaan' }, meta: { judul: 'Pemeriksaan' } },

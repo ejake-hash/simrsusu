@@ -8,6 +8,7 @@ import Tombol from '@/design-system/components/Tombol.vue'
 import { tampilkanToast } from '@/design-system/components/toast'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
+import PanelSpri from '@/modules/rawat-inap/components/PanelSpri.vue'
 import OrderPenunjang from '@/shared/components/OrderPenunjang.vue'
 import { boleh } from '@/shared/composables/usePermission'
 import { catatDiagnosis, cariKodeIcd10, daftarDiagnosis, mulaiPeriksa, ringkasanKlinis, selesaiPeriksa, ubahDiagnosis } from '../api'
@@ -200,6 +201,9 @@ const tutup = useMutation({
 
       <OrderPenunjang v-if="episodeId" :kunjungan-id="kunjunganId" :episode-id="episodeId" :bisa-pesan="dilayani && boleh('rawat_jalan.pemeriksaan.order.input')" />
       <PanelResep v-if="boleh('rawat_jalan.pemeriksaan.resep.lihat')" :kunjungan-id="kunjunganId" :identitas="identitas" :bisa-tulis="dilayani && boleh('rawat_jalan.pemeriksaan.resep.input')" />
+
+      <!-- SPRI (2.28): izin sel bawaan poliklinik → rawat inap = rawat_jalan.pemeriksaan.sahkan; server tetap penentu. -->
+      <PanelSpri v-if="dilayani && bisaSelesai" :kunjungan-id="kunjunganId" :nama-pasien="baris.pasien.nama" />
 
       <div v-if="dilayani && bisaSelesai" class="selesai">
         <Pesan v-if="tutup.isError.value" jenis="error">{{ pesanPemeriksaan(tutup.error.value) }}</Pesan>

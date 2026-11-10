@@ -201,6 +201,10 @@ describe('PetaTempatTidurPage: layar', () => {
     expect(kartu('CTHA-1-101-1')!.textContent).toContain('Kelas contoh · Isolasi · Khusus laki-laki')
     expect(kartu('CTHA-1-101-3')!.textContent).toContain('Ditutup')
     expect(kartu('CTHA-1-101-3')!.querySelector('button')).toBeNull()
+    // v0.36.0: penutupan terjadwal tetap kosong siap, tetapi berketerangan tidak bisa dialokasikan.
+    expect(kartu('CTHA-1-101-4')!.textContent).toContain('Kosong siap')
+    expect(kartu('CTHA-1-101-4')!.textContent).toContain('Dijadwalkan tutup, tidak bisa dialokasikan')
+    expect(kartu('CTHG-2-202-3')!.textContent).not.toContain('Dijadwalkan tutup')
     expect(document.querySelector('[aria-label="Jumlah TT per status"]')!.textContent).toMatch(/Dibersihkan\s*2/)
     const beraksi = [...document.querySelectorAll('[role="group"]')].filter((g) => tombol('Tandai kosong siap', g)).map((g) => g.getAttribute('aria-label'))
     expect(beraksi).toEqual(['TT CTHA-1-101-2', 'TT CTHG-2-201-2'])

@@ -8,7 +8,7 @@ import { defineConfig, devices } from '@playwright/test'
 const LAYAR_FASE2 = /(penjamin|buku-tarif|jadwal-praktik|gabung-rm|formularium|instrumen-triase|matriks-perpindahan|papan-igd)\.spec\.ts/
 /** Spec yang punya proyek berurutan sendiri; desktop/seluler mengabaikannya. */
 // Garis miring di depan: `papan-igd.spec.ts` (fase2) tidak ikut tertangkap pola `igd.spec.ts`.
-const LAYAR_FASE2_ATAU_BERURUTAN = [/\/(pengaturan|fase1|pendaftaran|antrean|rawat-jalan|akses-darurat|anjungan|igd|peta-tempat-tidur)\.spec\.ts/, LAYAR_FASE2]
+const LAYAR_FASE2_ATAU_BERURUTAN = [/\/(pengaturan|fase1|pendaftaran|antrean|rawat-jalan|akses-darurat|anjungan|igd|peta-tempat-tidur|admisi-rawat-inap)\.spec\.ts/, LAYAR_FASE2]
 const port = Number(process.env.E2E_PORT ?? 5173)
 const baseURL = `http://localhost:${port}`
 
@@ -54,6 +54,8 @@ export default defineConfig({
     { name: 'igd', testMatch: /\/igd\.spec\.ts/, dependencies: ['anjungan'], workers: 1, use: { ...devices['Desktop Chrome'] } },
     // 2.27-fe: peta TT (perawat); lokal:kunjungan-contoh memulihkan status TT contoh lalu spec mengubah satu TT, jadi sesudah igd.
     { name: 'peta-tempat-tidur', testMatch: /\/peta-tempat-tidur\.spec\.ts/, dependencies: ['igd'], workers: 1, use: { ...devices['Desktop Chrome'] } },
+    // 2.28-fe: SPRI (dokter.poli) → antrean admisi → alokasi TT; memakai data contoh pendaftaran dan TT contoh, jadi sesudah peta TT.
+    { name: 'admisi-rawat-inap', testMatch: /\/admisi-rawat-inap\.spec\.ts/, dependencies: ['peta-tempat-tidur'], workers: 1, use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
     command: `npm run dev -- --port ${port} --strictPort`,

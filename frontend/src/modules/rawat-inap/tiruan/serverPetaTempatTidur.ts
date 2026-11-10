@@ -46,12 +46,15 @@ export function buatServerPetaTempatTidur(opsi: OpsiServerPetaTempatTidur) {
   const sekarang = opsi.sekarang ?? (() => new Date())
   const L = LOKASI_PETA_CONTOH
   let nomor = 100
+  // Kode TT yang penutupannya sudah dijadwalkan (v0.36.0): tetap kosong siap tetapi tidak dapat dipilih.
+  const tutupTerjadwal = new Set(['CTHA-1-101-4'])
+  const dapatDipilih = (tt: Pick<TempatTidurPeta, 'kode' | 'ditutup' | 'status'>) => !tt.ditutup && tt.status === 'kosong_siap' && !tutupTerjadwal.has(tt.kode)
   const daftar: TempatTidurPeta[] = []
   function tambah(gedung: RingkasLokasiPeta, lantai: RingkasLokasiPeta, bangsal: RingkasLokasiPeta, kamar: RingkasLokasiPeta, kode: string, status: StatusTempatTidur, lain: Partial<TempatTidurPeta> = {}) {
     const ditutup = lain.ditutup ?? false
     const tt: TempatTidurPeta = {
       id: id(++nomor), kode, kamar, bangsal, lantai, gedung, kelas_rawat: L.kelas, aturan_jenis_kelamin: 'campur', isolasi: false, ekstra: false,
-      status: ditutup ? 'tidak_dipakai' : status, status_sejak: '2026-11-02T01:00:00.000Z', ditutup, dapat_dipilih: !ditutup && status === 'kosong_siap', hari_rawat: null, ...lain,
+      status: ditutup ? 'tidak_dipakai' : status, status_sejak: '2026-11-02T01:00:00.000Z', ditutup, dapat_dipilih: dapatDipilih({ kode, ditutup, status }), hari_rawat: null, ...lain,
     }
     daftar.push(tt)
     return tt
@@ -93,7 +96,7 @@ export function buatServerPetaTempatTidur(opsi: OpsiServerPetaTempatTidur) {
     }
     tt.status = 'kosong_siap'
     tt.status_sejak = sekarang().toISOString()
-    tt.dapat_dipilih = true
+    tt.dapat_dipilih = dapatDipilih(tt)
     return { status: 200, header: NO_STORE, isi: { data: structuredClone(tt) } }
   }
 
@@ -110,7 +113,7 @@ export function buatServerPetaTempatTidur(opsi: OpsiServerPetaTempatTidur) {
     const tt = daftar.find((x) => x.kode === kode)
     if (tt) {
       tt.status = status
-      tt.dapat_dipilih = !tt.ditutup && status === 'kosong_siap'
+      tt.dapat_dipilih = dapatDipilih(tt)
     }
   }
 

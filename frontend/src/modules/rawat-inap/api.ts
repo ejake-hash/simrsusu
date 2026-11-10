@@ -1,7 +1,8 @@
 import type { AxiosResponse } from 'axios'
 import type { HasilPolling } from '@/modules/notifikasi/api'
+import type { Halaman } from '@/modules/akses/tipePengaturan'
 import { klien } from '@/shared/api/klien'
-import type { FilterPetaServer, PetaTempatTidur, TempatTidurPeta } from './tipe'
+import type { FilterPetaServer, IsianSpri, PermintaanTempatTidur, PetaTempatTidur, TempatTidurPeta } from './tipe'
 
 /**
  * Klien peta tempat tidur (docs/api/openapi.yaml v0.35.0, tiket 2.27). Pola K1 sama dengan papan pasien IGD: If-None-Match
@@ -20,6 +21,24 @@ export async function bacaPetaTempatTidur(filter: FilterPetaServer, polling: { e
   if (r.status === 304) return { berubah: false }
   const e = r.headers.etag
   return { berubah: true, data: r.data, etag: typeof e === 'string' && e ? e : null }
+}
+
+/** GET /permintaan-tempat-tidur (v0.36.0): antrean aktif, terlama dulu, kursor keyset. */
+export async function daftarPermintaanTempatTidur(status: 'menunggu' | 'dialokasikan' | null, kursor: string | null = null, batas = 50): Promise<Halaman<PermintaanTempatTidur>> {
+  const { data } = await klien.get<Halaman<PermintaanTempatTidur>>('/permintaan-tempat-tidur', { params: { status: status ?? undefined, kursor: kursor ?? undefined, batas } })
+  return data
+}
+
+/** POST /permintaan-tempat-tidur/{id}/alokasi: TT kosong siap → dipesan. */
+export async function alokasikanTempatTidur(permintaanId: string, tempatTidurId: string): Promise<PermintaanTempatTidur> {
+  const { data } = await klien.post<{ data: PermintaanTempatTidur }>(`/permintaan-tempat-tidur/${permintaanId}/alokasi`, { tempat_tidur_id: tempatTidurId })
+  return data.data
+}
+
+/** POST /kunjungan/{id}/spri: SPRI dokter poli → permintaan kamar menunggu (jam dan pemberi perintah dari server). */
+export async function buatSpri(kunjunganId: string, isian: IsianSpri): Promise<PermintaanTempatTidur> {
+  const { data } = await klien.post<{ data: PermintaanTempatTidur }>(`/kunjungan/${kunjunganId}/spri`, isian)
+  return data.data
 }
 
 /** POST /tempat-tidur/{id}/status: satu-satunya transisi petugas di 2.27, dibersihkan → kosong siap. */

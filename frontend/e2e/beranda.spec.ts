@@ -4,7 +4,7 @@ import { masukLewatApi, SANDI, tanpaGulirSamping } from './bantu'
 
 /**
  * Beranda (tiket 1.2e) ke backend asli dengan akun sintetis AkunSintetisSeeder. Peran contoh: dokter →
- * IGD, Rawat Jalan, Rekam Medis; admisi → Pendaftaran (semuanya Segera hadir di APP_ENV=local) + Master Data
+ * IGD, Rawat Jalan, Rekam Medis; admisi → Pendaftaran (semuanya Segera hadir di APP_ENV=local) + Rawat Inap (lihat peta TT) + Master Data
  * (lihat poli, jadwal, penjamin untuk layar kunjungan poli);
  * tanpa.peran tanpa penugasan.
  * Kartu modul aktif (Pengaturan) diuji di pengaturan.spec.ts dengan sesi superadmin.
@@ -56,7 +56,9 @@ test('kisi modul mengikuti peran: dokter dan admisi berbeda; sub-menu kartu memb
 
   const admisi = await halaman(browser, asal, 'admisi')
   await bukaBeranda(admisi, 'Contoh Petugas Admisi')
-  await expect(judulKartu(admisi)).toHaveText(['Pendaftaran', 'Master Data'])
+  // Rawat Inap (lihat peta TT untuk alokasi 2.28) tampil aktif atau nonaktif tergantung modul 08 di instalasi uji saat itu.
+  await expect(judulKartu(admisi).first()).toBeVisible()
+  expect((await judulKartu(admisi).allTextContents()).map((j) => j.trim()).filter((j) => j !== 'Rawat Inap')).toEqual(['Pendaftaran', 'Master Data'])
   await modulSaya(admisi).getByRole('link', { name: 'Pendaftaran', exact: true }).click()
   await expect(admisi.getByRole('heading', { level: 1, name: 'Pendaftaran' })).toBeVisible()
   await expect(admisi.getByText(/tersedia pada fase \d/)).toBeVisible()

@@ -59,6 +59,13 @@ export function tandaTambahan(tt: Pick<TempatTidurPeta, 'isolasi' | 'ekstra' | '
   return hasil
 }
 
+/**
+ * TT kosong siap yang tidak dapat dipilih (v0.36.0): penutupannya sudah dijadwalkan (1.8b, `berlaku_sampai` terisi) tetapi
+ * hari terakhirnya belum lewat. Statusnya tetap "Kosong siap"; layar menambah keterangan agar admisi tidak mencarinya
+ * di pilihan alokasi.
+ */
+export const dijadwalkanTutup = (tt: Pick<TempatTidurPeta, 'status' | 'ditutup' | 'dapat_dipilih'>) => !tt.ditutup && tt.status === 'kosong_siap' && !tt.dapat_dipilih
+
 /** Nilai pilihan lantai untuk TT yang ruangnya tidak di bawah lokasi lantai. */
 export const TANPA_LANTAI = 'tanpa-lantai'
 const kunciLantai = (tt: Pick<TempatTidurPeta, 'lantai'>) => tt.lantai?.id ?? TANPA_LANTAI
