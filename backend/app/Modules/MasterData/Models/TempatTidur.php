@@ -19,6 +19,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $berlaku_sampai hari terakhir dihitung
  * @property string|null $alasan_tutup
  * @property string|null $satusehat_lokasi_id
+ * @property string $status_saat_ini status peta TT; hanya diubah RawatInap\Application\UbahStatusTempatTidur (tiket 2.27)
+ * @property Carbon $status_sejak
  * @property int $revisi
  * @property Carbon $diubah_pada
  */
@@ -38,6 +40,6 @@ final class TempatTidur extends Model
 
     protected function casts(): array
     {
-        return ['berlaku_dari' => 'date', 'berlaku_sampai' => 'date', 'isolasi' => 'boolean', 'ekstra' => 'boolean', 'revisi' => 'integer'];
+        return ['berlaku_dari' => 'date', 'berlaku_sampai' => 'date', 'isolasi' => 'boolean', 'ekstra' => 'boolean', 'revisi' => 'integer', 'status_sejak' => 'datetime'];
     }
 }

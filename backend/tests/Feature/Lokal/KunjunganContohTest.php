@@ -61,6 +61,30 @@ class KunjunganContohTest extends TestCase
         $this->assertSame(60, (int) DB::table('inti.aturan_papan_igd')->value('peringatan_lama_igd_menit'));
     }
 
+    public function test_peta_tempat_tidur_contoh_lewat_layanan_status_dan_dipulihkan_saat_diulang(): void
+    {
+        $this->app['env'] = 'local';
+        $this->seed(OrganisasiSintetisSeeder::class);
+        $this->artisan('lokal:kunjungan-contoh')->assertSuccessful();
+
+        $status = fn () => DB::table('inti.tempat_tidur')->where('kode', 'like', 'CTHG-%')->orderBy('kode')->pluck('status_saat_ini', 'kode')->all();
+        $harap = ['CTHG-2-201-1' => 'terisi', 'CTHG-2-201-2' => 'dibersihkan', 'CTHG-2-201-3' => 'dipesan',
+            'CTHG-2-202-1' => 'rencana_pulang', 'CTHG-2-202-2' => 'tidak_dipakai', 'CTHG-2-202-3' => 'kosong_siap'];
+        $this->assertSame($harap, $status());
+        $riwayat = fn () => DB::table('kunjungan.riwayat_status_tempat_tidur as r')->join('inti.tempat_tidur as tt', 'tt.id', '=', 'r.tempat_tidur_id')
+            ->where('tt.kode', 'like', 'CTHG-%')->count();
+        // Lima TT berubah dari status awal kosong_siap, masing-masing satu riwayat bersumber petugas.
+        $this->assertSame(5, $riwayat());
+        $this->assertSame(['petugas'], DB::table('kunjungan.riwayat_status_tempat_tidur')->distinct()->pluck('sumber_kejadian')->all());
+
+        // Spec peta mengubah dibersihkan → kosong_siap; diulang → status contoh dipulihkan, TT tidak berganda.
+        DB::table('inti.tempat_tidur')->where('kode', 'CTHG-2-201-2')->update(['status_saat_ini' => 'kosong_siap']);
+        $this->artisan('lokal:kunjungan-contoh')->assertSuccessful();
+        $this->assertSame($harap, $status());
+        $this->assertSame(6, $riwayat());
+        $this->assertSame(['Bangsal Melati (contoh)'], DB::table('inti.bangsal')->where('kode', 'CONTOH-MELATI')->pluck('nama')->all());
+    }
+
     public function test_paket_icd_yang_sudah_dimuat_rs_tidak_disentuh(): void
     {
         $this->app['env'] = 'local';

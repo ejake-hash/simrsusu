@@ -65,7 +65,8 @@ final class KelolaTempatTidur
                 'aturan_jenis_kelamin' => $isi['aturan_jenis_kelamin'] ?? 'campur', 'isolasi' => $isi['isolasi'] ?? false,
                 'ekstra' => $isi['ekstra'] ?? false, 'berlaku_dari' => $berlakuDari,
             ]);
-            $tt->forceFill(['dibuat_oleh' => $penyunting->id, 'diubah_oleh' => $penyunting->id])->save();
+            // Status peta awal kosong_siap (bawaan kolom) sejak jam aplikasi, bukan jam transaksi database (tiket 2.27).
+            $tt->forceFill(['dibuat_oleh' => $penyunting->id, 'diubah_oleh' => $penyunting->id, 'status_sejak' => now()])->save();
 
             // Termasuk TT yang baru mulai dihitung di tanggal mendatang (belum ditutup).
             $belumDitutup = TempatTidur::query()->where('kamar_id', $kamar->id)

@@ -659,6 +659,12 @@ Uji    :
 - Perubahan status tercatat di riwayat dengan pelaku dan sumber kejadian; TT "dibersihkan" → "kosong siap" oleh petugas berizin.
 - Layar @1440 + axe, status tidak hanya warna.
 Di luar: SIRANAP/Aplicares (Tahap D), KPI BOR (Fase 4), housekeeping penuh.
+Asumsi BE #198: modul baru `RawatInap` (08). `GET /peta-tempat-tidur` tanpa `Paginasi::respons()`: maks 1000 TT +
+`meta.terpotong`, satu ETag untuk seluruh peta. TT ditutup (1.8b) tetap tampil `tidak_dipakai`, `ditutup` true, tidak dapat
+dipilih (status tersimpan tidak diubah); TT yang baru berlaku di tanggal mendatang tidak tampil. `hari_rawat` null sampai
+penempatan (2.29). Cakupan = unit organisasi bangsal (cakupan unit memuat turunannya): GET menyaring, POST di luar cakupan 403.
+Riwayat status hanya ditambah (`simrs_app` tanpa UPDATE, pola triase); layanan `UbahStatusTempatTidur` menerima status asal
+yang sah dari pemanggil (2.28/2.29 menetapkan transisinya sendiri).
 
 ### 2.28 · SPRI, antrean permintaan kamar, alokasi TT
 Tujuan : semua permintaan kamar (IGD, poli, elektif) ada di satu antrean dengan lama menunggu, lalu dialokasikan ke TT yang kosong.

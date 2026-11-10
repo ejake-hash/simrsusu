@@ -6,6 +6,7 @@ use App\Modules\Integrasi\ModuleServiceProvider as ModulIntegrasi;
 use App\Modules\MasterData\ModuleServiceProvider as ModulMasterData;
 use App\Modules\Notifikasi\ModuleServiceProvider as ModulNotifikasi;
 use App\Modules\Pendaftaran\ModuleServiceProvider as ModulPendaftaran;
+use App\Modules\RawatInap\ModuleServiceProvider as ModulRawatInap;
 use App\Modules\RekamMedis\ModuleServiceProvider as ModulRekamMedis;
 use App\Modules\Sdm\ModuleServiceProvider as ModulSdm;
 use App\Modules\Ttd\ModuleServiceProvider as ModulTtd;
@@ -23,5 +24,6 @@ return [
     ModulPendaftaran::class,
     ModulAntrean::class,
     ModulRekamMedis::class,
+    ModulRawatInap::class,
     HorizonServiceProvider::class,
 ];
