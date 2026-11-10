@@ -576,6 +576,7 @@ Dirinci 9 Nov 2026 dari PRD 7.00.2–7.00.5, 7.03, 7.04, 7.05, 7.08, 7.19, 7.20,
 | 2.39 | Farmasi: obat kronis JKN 7 + 23 hari | BE+FE | M | 2.37 · Siap |
 | 2.40 | Pemulangan: rencana pulang, resume medis ber-TTE, daftar periksa | BE+FE | M | 2.29 · Siap |
 | 2.41 | Konsul / rujukan internal antar-poli | BE+FE | S | — · Siap |
+| 2.42 | Mode display papan IGD (token perangkat) | BE+FE | M | 2.25 · Siap |
 
 Urutan (satu agen; kolom BE lalu FE berurutan): 2.23 → 2.24 → 2.26 → 2.25 → 2.27 → 2.28 → 2.29 → 2.40; penunjang 2.30 → 2.31 → 2.32,
 2.33 → 2.34; farmasi 2.35 → 2.36 → 2.37 → 2.38/2.39; 2.41 kapan saja. Tiap tiket M: PR "BE+kontrak" lalu PR FE (keputusan pemilik 9 Nov).
@@ -626,8 +627,8 @@ berakhir saat dokter mulai mengisi asesmen awal; belum ditriase di atas.
 Asumsi BE #196: `GET /igd/papan` tidak memakai `Paginasi::respons()`: maks 200 baris + `meta.terpotong`, urutan prioritas
 klinis (triase lalu jam tiba) bukan kursor waktu, dan satu ETag untuk seluruh papan.
 Asumsi FE #197: polling papan memakai sesi petugas sebagai permintaan latar (tidak memperpanjang batas diam 15 menit,
-PRD 14.2), jadi papan di layar besar tanpa interaksi ikut keluar sesi; mode layar papan bertoken perangkat (pola display
-antrean) belum ada. Tempatkan area = pilih lalu tombol Tempatkan (bukan kirim saat pilihan berubah) agar navigasi papan ketik
+PRD 14.2), jadi papan di layar besar tanpa interaksi ikut keluar sesi (keputusan pemilik 9 Nov 2026: papan 2.25 hanya
+layar kerja petugas; monitor dinding bertoken perangkat = tiket 2.42). Tempatkan area = pilih lalu tombol Tempatkan (bukan kirim saat pilihan berubah) agar navigasi papan ketik
 tidak mengirim penempatan berulang.
 
 ### 2.26 · Matriks perpindahan sebagai data induk + disposisi IGD
@@ -812,6 +813,17 @@ Di luar: kirim resume ke pasien (FR-05-08, kanal menunggu portal 7.48), surat ke
 FR     : FR-04-04, FR-07-25; `kunjungan.rujukan` arah `internal` (11.2)
 Uji    : dokter poli membuat konsul ke poli lain dengan alasan; hari yang sama → kunjungan baru di episode yang sama (7.00.3 baris
          Poliklinik); konsul tampil di worklist poli tujuan; jawaban konsul masuk CPPT. Di luar: SISRUTE dan VClaim ([Perlu pemilik]).
+
+### 2.42 · Mode display papan IGD (token perangkat)
+Tujuan : papan pasien IGD tampil di monitor dinding tanpa sesi petugas, pola display antrean 2.8 (token perangkat). Keputusan
+         pemilik 9 Nov 2026: papan 2.25 hanya untuk layar kerja petugas (sesi petugas, batas diam 15 menit berlaku).
+FR     : FR-03-03
+Uji    :
+- Token perangkat hanya berkemampuan `papan_igd`; token display antrean atau anjungan ditolak.
+- Identitas yang boleh tampil di layar umum mengikuti keputusan PDP **[Perlu pemilik]**: nama lengkap, inisial, atau No. RM?
+- Tanpa keluhan dan data klinis lain selain triase, area, lama di IGD, dan tanda waktu.
+- Polling ETag/If-None-Match → 304 bila tidak berubah.
+- Token dicabut saat layar terbuka → layar meminta petugas, token dibuang (pola anjungan 2.20).
 
 ### Keluar Tahap C (CI, data sintetis)
 - e2e: pasien IGD → triase → papan → order lab cito → hasil kritis dilaporkan → SPRI → alokasi TT → penempatan → resep RI ditelaah dan
