@@ -788,7 +788,8 @@ Keputusan pemilik 11 Nov 2026: peta TT juga membawa `pasien_rawat_inap` {nama, n
 persis (dikirim bersama id kunjungan, satu cabang kondisi; tidak ke log/audit; kontrak tetap v0.38.0 karena belum rilis).
 Dialog pindah ruang menampilkan nama, No. RM, dan tanggal lahir sebelum konfirmasi (PRD 5.1 butir 9); kartu peta tetap tanpa
 nama pasien. Asumsi FE #203: izin pemicu kedua field = kode bawaan `rawat_inap.pindah_ruang.input`, bukan izin sel matriks
-rawat_inap → rawat_inap yang bisa diubah RS; bila RS mengganti izin sel, POST pindah ruang tetap diputus server. Pindah ruang 409/404/422 memuat ulang peta dulu; `status_tidak_sesuai`
+rawat_inap → rawat_inap yang bisa diubah RS; bila RS mengganti izin sel, POST pindah ruang tetap diputus server. Kedua field juga mensyaratkan lapis 5 izin itu (SIP/SPK
+berlaku, jalur `AccessEvaluator::periksa` yang sama dengan POST); gagal lapis 5 → kunci tidak dikirim, peta tetap 200. Pindah ruang 409/404/422 memuat ulang peta dulu; `status_tidak_sesuai`
 dan 404 menutup dialog. Tempatkan tampil bagi `rawat_inap.penempatan.input` pada permintaan `dialokasikan`; Batalkan bagi
 `pendaftaran.admisi.input` (izin rute kontrak) pada `menunggu`/`dialokasikan`. 409 permintaan basi
 (`permintaan_kamar_tidak_dialokasikan`, `permintaan_kamar_tidak_aktif`, 404) menutup dialog dan memuat ulang antrean; 409

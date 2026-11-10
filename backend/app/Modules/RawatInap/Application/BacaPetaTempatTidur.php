@@ -98,7 +98,7 @@ final class BacaPetaTempatTidur
             LIMIT ?', $ikatan);
 
         return [
-            'baris' => array_values(array_map(fn (stdClass $b) => $this->bentuk($b, $unitPindahRuang),array_slice($hasil, 0, self::BATAS_BARIS))),
+            'baris' => array_values(array_map(fn (stdClass $b) => $this->bentuk($b, $unitPindahRuang), array_slice($hasil, 0, self::BATAS_BARIS))),
             'terpotong' => count($hasil) > self::BATAS_BARIS,
         ];
     }

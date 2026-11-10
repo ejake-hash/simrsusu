@@ -37,7 +37,9 @@ final class PetaTempatTidurController
         $pengguna = $request->user();
         $akar = $evaluator->unitTerjangkau($pengguna, self::IZIN.'.lihat');
         // v0.38.0: id kunjungan RI hanya untuk bangsal di cakupan izin pindah ruang (null = seluruh RS, [] = tidak dikirim).
-        $akarPindah = $evaluator->unitTerjangkau($pengguna, self::IZIN_PINDAH_RUANG);
+        // Lapis 5 sama dengan POST pindah ruang (SIP/SPK berlaku): gagal → kunci tidak dikirim, peta tetap 200.
+        $akarPindah = $evaluator->periksa($pengguna, self::IZIN_PINDAH_RUANG)->allowed()
+            ? $evaluator->unitTerjangkau($pengguna, self::IZIN_PINDAH_RUANG) : [];
         $isi = $peta->baca([
             'bangsal_id' => $filter['bangsal_id'] ?? null, 'gedung_id' => $filter['gedung_id'] ?? null,
         ], $akar === null ? null : $pohon->subpohon($akar), $akarPindah === null ? null : ($akarPindah === [] ? [] : $pohon->subpohon($akarPindah)));

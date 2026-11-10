@@ -19,6 +19,7 @@ use App\Modules\MasterData\Models\TempatTidur;
 use App\Modules\MasterData\Models\UnitOrganisasi;
 use App\Modules\Pendaftaran\Models\Pasien;
 use App\Modules\RawatInap\Application\PemeriksaPenempatanTempatTidur;
+use App\Modules\Sdm\Models\IzinPraktik;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
@@ -386,6 +387,18 @@ class AdmisiRawatInapTest extends TestCase
         $ruangB = $this->akunDokter($this->dokter());
         $this->tugaskan($ruangB, $this->buatPeran(['rawat_inap.peta_tempat_tidur']));
         $this->tugaskan($ruangB, $this->buatPeran(['rawat_inap.pindah_ruang']), cakupan: new Cakupan('unit', $this->id['UJI29-RB']));
+        // Lapis 5 sama dengan POST pindah ruang: SIP kedaluwarsa → peta tetap 200, id dan identitas tidak dikirim.
+        $pegawaiLewat = $this->dokter();
+        IzinPraktik::query()->where('pegawai_id', $pegawaiLewat->id)->update(['berlaku_sampai' => '2026-10-01']);
+        $sipLewat = $this->akunDokter($pegawaiLewat);
+        $this->tugaskan($sipLewat, $this->buatPeran(['rawat_inap.pindah_ruang', 'rawat_inap.peta_tempat_tidur']));
+        $this->masukSebagai($sipLewat);
+        $lewat = $this->minta('GET', $url)->assertOk();
+        $this->assertArrayNotHasKey('kunjungan_rawat_inap_id', (array) $lewat->json('data.0'));
+        $this->assertArrayNotHasKey('pasien_rawat_inap', (array) $lewat->json('data.0'));
+        $this->assertStringNotContainsString((string) $pasien->nama, (string) $lewat->getContent());
+        $this->pindah($ri, $this->id['UJI29-201-1'])->assertForbidden()->assertJsonPath('error.kode', 'izin_praktik_tidak_berlaku');
+
         $this->masukSebagai($ruangB);
         $lain = $this->minta('GET', $url)->assertOk();
         $this->assertArrayNotHasKey('kunjungan_rawat_inap_id', (array) $lain->json('data.0'));
