@@ -5,7 +5,7 @@ import type { RingkasLokasiPeta, StatusTempatTidur, TempatTidurPeta } from '../t
  * Server tiruan kontrak v0.35.0 (tiket 2.27): GET /peta-tempat-tidur (ETag/If-None-Match → 304, saring gedung_id dan
  * bangsal_id) dan POST /tempat-tidur/{id}/status (dibersihkan → kosong_siap). Gedung CTHG sama dengan
  * `lokal:kunjungan-contoh` (enam status); gedung CTHA menambah TT isolasi, ekstra, aturan jenis kelamin, dan TT ditutup.
- * Semua lokasi SINTETIS berlabel contoh. `hari_rawat` null sesuai kontrak (penempatan pasien menyusul di 2.29).
+ * Semua lokasi SINTETIS berlabel contoh. `hari_rawat` hanya pada TT berpasien (v0.37.0).
  */
 const NO_STORE = { 'Cache-Control': 'no-store' }
 const error = (status: number, kode: string, pesan: string, rincian: Record<string, unknown>[] = []): ResponsTiruan => ({ status, header: NO_STORE, isi: { error: { kode, pesan, rincian } } })
@@ -68,7 +68,27 @@ export function buatServerPetaTempatTidur(opsi: OpsiServerPetaTempatTidur) {
     [L.kamar201, 'CTHG-2-201-1', 'terisi'], [L.kamar201, 'CTHG-2-201-2', 'dibersihkan'], [L.kamar201, 'CTHG-2-201-3', 'dipesan'],
     [L.kamar202, 'CTHG-2-202-1', 'rencana_pulang'], [L.kamar202, 'CTHG-2-202-2', 'tidak_dipakai'], [L.kamar202, 'CTHG-2-202-3', 'kosong_siap'],
   ]
-  for (const [kamar, kode, status] of contoh) tambah(L.gedungRawatInap, L.lantai2, L.melati, kamar, kode, status)
+  // TT berpasien membawa hari rawat (v0.37.0); TT lain null.
+  const hariRawat: Partial<Record<StatusTempatTidur, number>> = { terisi: 3, rencana_pulang: 5 }
+  // v0.38.0: TT berpasien membawa id kunjungan rawat inap (disimpan di sini, dikirim hanya bagi izin pindah ruang).
+  let nomorRi = 500
+  for (const [kamar, kode, status] of contoh) {
+    const berpasien = hariRawat[status] !== undefined
+    const n = nomorRi
+    const pasien = { nama: n === 500 ? 'Pasien Contoh Rawat Inap' : 'Pasien Contoh Rencana Pulang', no_rm: `9000${99 - (n - 500)}`, tanggal_lahir: '1965-05-05' }
+    tambah(L.gedungRawatInap, L.lantai2, L.melati, kamar, kode, status, {
+      hari_rawat: hariRawat[status] ?? null, ...(berpasien ? { kunjungan_rawat_inap_id: id(nomorRi++), pasien_rawat_inap: pasien } : {}),
+    })
+  }
+  /** Bentuk keluar: id kunjungan dan identitas pasien dibuang bila pemanggil tidak memegang rawat_inap.pindah_ruang.input. */
+  const keluar = (tt: TempatTidurPeta, bolehPindah: boolean): TempatTidurPeta => {
+    const salinan = structuredClone(tt)
+    if (!bolehPindah || salinan.ditutup || !salinan.kunjungan_rawat_inap_id) {
+      delete salinan.kunjungan_rawat_inap_id
+      delete salinan.pasien_rawat_inap
+    }
+    return salinan
+  }
 
   function peta(r: PermintaanTiruan): ResponsTiruan {
     if (!opsi.boleh('rawat_inap.peta_tempat_tidur.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak melihat peta tempat tidur.')
@@ -78,7 +98,8 @@ export function buatServerPetaTempatTidur(opsi: OpsiServerPetaTempatTidur) {
       if (nilai && !UUID.test(nilai)) return error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom, pesan: 'Harus UUID.' }])
     }
     const data = daftar.filter((tt) => (!gedung || tt.gedung?.id === gedung) && (!bangsal || tt.bangsal.id === bangsal))
-    const isi = { data, meta: { terpotong: false } }
+    const bolehPindah = opsi.boleh('rawat_inap.pindah_ruang.input')
+    const isi = { data: data.map((tt) => keluar(tt, bolehPindah)), meta: { terpotong: false } }
     const e = sidik(isi)
     if (r.header['if-none-match'] === e) return { status: 304, header: { ...NO_STORE, ETag: e }, isi: null }
     return { status: 200, header: { ...NO_STORE, ETag: e }, isi: structuredClone(isi) }
@@ -97,7 +118,7 @@ export function buatServerPetaTempatTidur(opsi: OpsiServerPetaTempatTidur) {
     tt.status = 'kosong_siap'
     tt.status_sejak = sekarang().toISOString()
     tt.dapat_dipilih = dapatDipilih(tt)
-    return { status: 200, header: NO_STORE, isi: { data: structuredClone(tt) } }
+    return { status: 200, header: NO_STORE, isi: { data: keluar(tt, false) } }
   }
 
   function tangani(r: PermintaanTiruan): ResponsTiruan | null {

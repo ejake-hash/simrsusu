@@ -4,7 +4,8 @@ import { LOKASI_PETA_CONTOH } from './serverPetaTempatTidur'
 
 /**
  * Server tiruan kontrak v0.36.0 (tiket 2.28): GET /permintaan-tempat-tidur (aktif, terlama dulu, kursor), POST
- * /permintaan-tempat-tidur/{id}/alokasi (TT peta tiruan → dipesan), POST /kunjungan/{id}/spri. Pasien dan kunjungan
+ * /permintaan-tempat-tidur/{id}/alokasi (TT peta tiruan → dipesan), POST /kunjungan/{id}/spri; v0.37.0 (2.29) menambah
+ * POST /permintaan-tempat-tidur/{id}/tempatkan (TT → terisi, hari rawat 1) dan /batal (TT → kosong siap). Pasien dan kunjungan
  * SINTETIS berlabel contoh. Lama menunggu dihitung dari `sekarang` seperti server (dibulatkan ke atas, 0 bila belum tiba).
  */
 const NO_STORE = { 'Cache-Control': 'no-store' }
@@ -119,11 +120,116 @@ export function buatServerPermintaanKamar(opsi: OpsiServerPermintaanKamar) {
     return { status: 201, header: NO_STORE, isi: { data: keluar(p) } }
   }
 
+  let nomorRi = 0
+  const ditempatkan = new Set<string>()
+  /** Urutan kontrak v0.37.0: izin, permintaan (404, 409 bukan dialokasikan), pasien sudah di TT lain, lalu TT. */
+  function tempatkan(permintaanId: string, r: PermintaanTiruan): ResponsTiruan {
+    if (!opsi.boleh('rawat_inap.penempatan.input')) return error(403, 'akses_ditolak', 'Anda tidak berhak menempatkan pasien.')
+    const p = UUID.test(permintaanId) ? daftar.find((x) => x.id === permintaanId) : undefined
+    if (!p) return error(404, 'tidak_ditemukan', 'Permintaan kamar tidak ditemukan.')
+    if (p.status !== 'dialokasikan' || !p.tempat_tidur) return error(409, 'permintaan_kamar_tidak_dialokasikan', 'Permintaan kamar belum atau tidak lagi dialokasikan.', [{ status: p.status }])
+    if (ditempatkan.has(p.pasien.id)) return error(409, 'pasien_sudah_ditempatkan', 'Pasien ini sudah menempati TT lain.')
+    const tt = opsi.tempatTidur().find((x) => x.id === p.tempat_tidur!.id)
+    if (!tt || tt.ditutup) return error(409, 'tempat_tidur_ditutup', 'Tempat tidur sudah ditutup.')
+    if (tt.status !== 'dipesan') return error(409, 'tempat_tidur_tidak_tersedia', 'Tempat tidur tidak lagi dipesan.', [{ status_sekarang: tt.status }])
+    const isi = (r.isi ?? {}) as Record<string, unknown>
+    const serah = isi.serah_terima
+    if (serah !== undefined && serah !== null && (typeof serah !== 'string' || serah.trim().length < 5)) {
+      return error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom: 'serah_terima', pesan: 'Serah terima minimal 5 karakter.' }])
+    }
+    const jam = sekarang().toISOString()
+    tt.status = 'terisi'
+    tt.status_sejak = jam
+    tt.hari_rawat = 1
+    tt.kunjungan_rawat_inap_id = id(700 + nomorRi + 1)
+    tt.pasien_rawat_inap = { nama: p.pasien.nama, no_rm: p.pasien.no_rm, tanggal_lahir: p.pasien.tanggal_lahir }
+    p.status = 'ditempatkan'
+    p.revisi++
+    ditempatkan.add(p.pasien.id)
+    const n = ++nomorRi
+    const data = {
+      kunjungan: { id: id(700 + n), nomor: `RI-20261102-${String(n).padStart(4, '0')}`, status: 'dilayani' },
+      pasien: structuredClone(p.pasien), episode: { id: id(800 + n), jenis: 'rawat_inap', mulai_tanggal: p.menunggu_sejak.slice(0, 10) },
+      permintaan_tempat_tidur_id: p.id, asal: p.asal, kelas_dirawat: tt.kelas_rawat, mulai_pada: p.menunggu_sejak,
+      penempatan: { id: id(900 + n), tempat_tidur: structuredClone(p.tempat_tidur), mulai_pada: jam, ditempatkan_oleh: { id: id(401), nama: 'Contoh Petugas Admisi' } },
+      hari_rawat: 1,
+    }
+    rawat.set(data.kunjungan.id, { pasien: data.pasien, nomor: data.kunjungan.nomor, asal: p.asal, permintaan: p.id, mulai: p.menunggu_sejak })
+    return { status: 201, header: NO_STORE, isi: { data } }
+  }
+
+  /** Kunjungan RI tiruan: dari tempatkan, atau pasien sintetis untuk TT berpasien bawaan peta tiruan. */
+  const rawat = new Map<string, { pasien: PermintaanTempatTidur['pasien']; nomor: string; asal: 'igd' | 'poliklinik'; permintaan: string; mulai: string }>()
+  const dataRawat = (kunjunganId: string, identitas: TempatTidurPeta['pasien_rawat_inap']) =>
+    rawat.get(kunjunganId) ?? {
+      pasien: { id: id(600), no_rm: identitas?.no_rm ?? '900099', nama: identitas?.nama ?? 'Pasien Contoh Rawat Inap', jenis_kelamin: 'laki_laki' as const, tanggal_lahir: identitas?.tanggal_lahir ?? null },
+      nomor: 'RI-20261030-0001', asal: 'igd' as const, permintaan: id(601), mulai: '2026-10-30T02:00:00.000Z',
+    }
+
+  /** Urutan kontrak v0.37.0: izin sel matriks (403), kunjungan (404), status (409), lalu isian dan TT tujuan. */
+  function pindah(kunjunganId: string, r: PermintaanTiruan): ResponsTiruan {
+    if (!opsi.boleh('rawat_inap.pindah_ruang.input')) return error(403, 'akses_ditolak', 'Anda tidak berhak memindahkan pasien.')
+    if (!UUID.test(kunjunganId)) return error(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.')
+    const asal = opsi.tempatTidur().find((x) => x.kunjungan_rawat_inap_id === kunjunganId)
+    if (!asal) return error(409, 'status_tidak_sesuai', 'Kunjungan bukan rawat inap yang menempati TT.', [{ jenis_kunjungan: 'rawat_inap', status: 'dilayani' }])
+    const isi = (r.isi ?? {}) as Record<string, unknown>
+    const rincian: Record<string, unknown>[] = []
+    for (const kolom of ['alasan', 'serah_terima'] as const) {
+      if (typeof isi[kolom] !== 'string' || (isi[kolom] as string).trim().length < 5) rincian.push({ kolom, pesan: 'Isi minimal 5 karakter.' })
+    }
+    const ttId = typeof isi.tempat_tidur_id === 'string' ? isi.tempat_tidur_id : ''
+    const ke = UUID.test(ttId) ? opsi.tempatTidur().find((x) => x.id === ttId) : undefined
+    if (!ke || ke.id === asal.id) rincian.push({ kolom: 'tempat_tidur_id', pesan: 'Pilih TT tujuan lain dari peta.' })
+    if (rincian.length || !ke) return error(422, 'validasi_gagal', 'Isian belum benar.', rincian)
+    if (ke.ditutup || (ke.status === 'kosong_siap' && !ke.dapat_dipilih)) return error(409, 'tempat_tidur_ditutup', 'Tempat tidur sudah ditutup.')
+    if (ke.status !== 'kosong_siap') return error(409, 'tempat_tidur_tidak_tersedia', 'Tempat tidur tidak kosong siap.', [{ status_sekarang: ke.status }])
+    const jam = sekarang().toISOString()
+    const hari = asal.hari_rawat
+    const d = dataRawat(kunjunganId, asal.pasien_rawat_inap)
+    Object.assign(ke, { status: 'terisi', status_sejak: jam, dapat_dipilih: false, hari_rawat: hari, kunjungan_rawat_inap_id: kunjunganId, pasien_rawat_inap: asal.pasien_rawat_inap })
+    Object.assign(asal, { status: 'dibersihkan', status_sejak: jam, hari_rawat: null })
+    delete asal.kunjungan_rawat_inap_id
+    delete asal.pasien_rawat_inap
+    const data = {
+      kunjungan: { id: kunjunganId, nomor: d.nomor, status: 'dilayani' }, pasien: structuredClone(d.pasien),
+      episode: { id: id(850), jenis: 'rawat_inap', mulai_tanggal: d.mulai.slice(0, 10) }, permintaan_tempat_tidur_id: d.permintaan, asal: d.asal,
+      kelas_dirawat: ke.kelas_rawat, mulai_pada: d.mulai,
+      penempatan: { id: id(950), tempat_tidur: { id: ke.id, kode: ke.kode, bangsal: ke.bangsal }, mulai_pada: jam, ditempatkan_oleh: { id: id(402), nama: 'Contoh Dokter' } },
+      hari_rawat: hari,
+    }
+    return { status: 200, header: NO_STORE, isi: { data } }
+  }
+
+  /** Batal oleh admisi: izin alokasi; menunggu/dialokasikan saja; TT pesanan kembali kosong siap. */
+  function batal(permintaanId: string, r: PermintaanTiruan): ResponsTiruan {
+    if (!opsi.boleh('pendaftaran.admisi.input')) return error(403, 'akses_ditolak', 'Anda tidak berhak membatalkan permintaan kamar.')
+    const p = UUID.test(permintaanId) ? daftar.find((x) => x.id === permintaanId) : undefined
+    if (!p) return error(404, 'tidak_ditemukan', 'Permintaan kamar tidak ditemukan.')
+    if (p.status !== 'menunggu' && p.status !== 'dialokasikan') return error(409, 'permintaan_kamar_tidak_aktif', 'Permintaan kamar tidak aktif.', [{ status: p.status }])
+    const isi = (r.isi ?? {}) as Record<string, unknown>
+    const alasan = typeof isi.alasan === 'string' ? isi.alasan.trim() : ''
+    if (alasan.length < 5) return error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom: 'alasan', pesan: 'Isi alasan, minimal 5 karakter.' }])
+    if (p.tempat_tidur) {
+      const tt = opsi.tempatTidur().find((x) => x.id === p.tempat_tidur!.id)
+      if (tt && tt.status === 'dipesan') {
+        tt.status = 'kosong_siap'
+        tt.status_sejak = sekarang().toISOString()
+        tt.dapat_dipilih = !tt.ditutup
+      }
+    }
+    p.status = 'batal'
+    p.revisi++
+    return { status: 200, header: NO_STORE, isi: { data: keluar(p) } }
+  }
+
   function tangani(r: PermintaanTiruan): ResponsTiruan | null {
     const bagian = r.jalur.replace(/\/+$/, '').split('/').filter(Boolean)
     const m = r.metode.toUpperCase()
     if (bagian[0] === 'permintaan-tempat-tidur' && bagian.length === 1 && m === 'GET') return antrean(r)
     if (bagian[0] === 'permintaan-tempat-tidur' && bagian[2] === 'alokasi' && bagian.length === 3 && m === 'POST') return alokasi(bagian[1]!, r)
+    if (bagian[0] === 'permintaan-tempat-tidur' && bagian[2] === 'tempatkan' && bagian.length === 3 && m === 'POST') return tempatkan(bagian[1]!, r)
+    if (bagian[0] === 'permintaan-tempat-tidur' && bagian[2] === 'batal' && bagian.length === 3 && m === 'POST') return batal(bagian[1]!, r)
+    if (bagian[0] === 'kunjungan' && bagian[2] === 'pindah-ruang' && bagian.length === 3 && m === 'POST') return pindah(bagian[1]!, r)
     if (bagian[0] === 'kunjungan' && bagian[2] === 'spri' && bagian.length === 3 && m === 'POST') return spri(bagian[1]!, r)
     return null
   }

@@ -51,10 +51,11 @@ export const circuitBreaker = (status: 'terbuka' | 'tertutup') =>
 
 /**
  * Peserta sintetis (No. kartu unik) dipakai ulang antarjalan: kunjungannya dibatalkan agar tidak bentrok pada hari yang sama,
- * berikut nomor antreannya (pembatalan lewat DB tidak memicu event batal kunjungan).
+ * berikut nomor antreannya (pembatalan lewat DB tidak memicu event batal kunjungan). Penempatan TT yang masih aktif (2.29)
+ * diakhiri agar pasien bisa ditempatkan lagi di jalan berikutnya; status TT contoh dipulihkan `lokal:kunjungan-contoh`.
  */
 export function bersihkanPesertaSintetis(): void {
-  php('tinker', '--execute', "$u = DB::table('akses.pengguna')->value('id'); $k = DB::table('kunjungan.kunjungan')->whereIn('pasien_id', DB::table('pasien.pasien')->where('nama', 'Peserta Sintetis BPJS')->pluck('id'))->where('status', '<>', 'batal'); $id = (clone $k)->pluck('id'); $k->update(['status' => 'batal', 'alasan_batal' => 'Bersih uji e2e', 'dibatalkan_oleh' => $u, 'dibatalkan_pada' => now()]); DB::table('kunjungan.antrean')->whereIn('kunjungan_id', $id)->whereIn('status', ['menunggu', 'dipanggil', 'dilewati', 'selesai'])->update(['status' => 'batal', 'alasan_batal' => 'Bersih uji e2e', 'dibatalkan_oleh' => $u, 'dibatalkan_pada' => now()]);")
+  php('tinker', '--execute', "$u = DB::table('akses.pengguna')->value('id'); $k = DB::table('kunjungan.kunjungan')->whereIn('pasien_id', DB::table('pasien.pasien')->where('nama', 'Peserta Sintetis BPJS')->pluck('id'))->where('status', '<>', 'batal'); $id = (clone $k)->pluck('id'); $k->update(['status' => 'batal', 'alasan_batal' => 'Bersih uji e2e', 'dibatalkan_oleh' => $u, 'dibatalkan_pada' => now()]); DB::table('kunjungan.antrean')->whereIn('kunjungan_id', $id)->whereIn('status', ['menunggu', 'dipanggil', 'dilewati', 'selesai'])->update(['status' => 'batal', 'alasan_batal' => 'Bersih uji e2e', 'dibatalkan_oleh' => $u, 'dibatalkan_pada' => now()]); DB::table('kunjungan.penempatan_tempat_tidur')->whereIn('kunjungan_id', $id)->whereNull('selesai_pada')->update(['selesai_pada' => now(), 'alasan_selesai' => 'pulang', 'diakhiri_oleh' => $u]);")
 }
 
 /** Login sebagai admisi di konteks baru 1440 px (tanpa animasi supaya axe memeriksa keadaan akhir). */

@@ -69,7 +69,7 @@ class KunjunganContohTest extends TestCase
 
         $status = fn () => DB::table('inti.tempat_tidur')->where('kode', 'like', 'CTHG-%')->orderBy('kode')->pluck('status_saat_ini', 'kode')->all();
         $harap = ['CTHG-2-201-1' => 'terisi', 'CTHG-2-201-2' => 'dibersihkan', 'CTHG-2-201-3' => 'dipesan',
-            'CTHG-2-202-1' => 'rencana_pulang', 'CTHG-2-202-2' => 'tidak_dipakai', 'CTHG-2-202-3' => 'kosong_siap'];
+            'CTHG-2-202-1' => 'rencana_pulang', 'CTHG-2-202-2' => 'tidak_dipakai', 'CTHG-2-202-3' => 'kosong_siap', 'CTHG-2-202-4' => 'kosong_siap'];
         $this->assertSame($harap, $status());
         // Modul 08 Rawat Inap aktif agar sub-menu Peta tempat tidur berstatus aktif di menu lokal.
         $this->assertSame(1, DB::table('inti.modul_aktif')->whereNull('unit_organisasi_id')->where('modul_no', 8)->count());

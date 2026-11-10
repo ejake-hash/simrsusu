@@ -8,12 +8,21 @@ import Tombol from '@/design-system/components/Tombol.vue'
 import { tampilkanToast } from '@/design-system/components/toast'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import HalamanModul from '@/layouts/HalamanModul.vue'
-import { pesanError } from '@/modules/akses/pengaturan'
+import KolomIsian from '@/design-system/form/KolomIsian.vue'
+import { errorKolom, pesanError } from '@/modules/akses/pengaturan'
 import { useKueriBerPolling } from '@/modules/notifikasi/polling'
+import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
+import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
-import { bacaPetaTempatTidur, tandaiKosongSiap } from '../api'
+import { bacaPetaTempatTidur, pindahRuang, tandaiKosongSiap } from '../api'
 import {
+  bolehPindahRuang,
   bolehTandaiKosongSiap,
+  kunjunganPindahBasi,
+  kurangPindahRuang,
+  pesanGalatPindahRuang,
+  pilihanTtPindah,
+  pindahKelas,
   dijadwalkanTutup,
   gabungPilihanLokasi,
   INTERVAL_PETA,
@@ -114,6 +123,68 @@ async function simpan() {
   }
   tampilkanToast(...pesan)
 }
+// ── Pindah ruang (2.29, v0.38.0): dari TT berpasien yang membawa id kunjungan RI; TT tujuan dari peta yang sama ──
+const izinPindah = computed(() => boleh('rawat_inap.pindah_ruang.input'))
+const asalPindah = ref<TempatTidurPeta | null>(null)
+const bukaPindah = ref(false)
+const tujuanId = ref('')
+const alasanPindah = ref('')
+const serahPindah = ref('')
+const galatPindah = ref<unknown>(null)
+const memindah = ref(false)
+const pilihanTujuan = computed(() => (asalPindah.value ? pilihanTtPindah(data.value, asalPindah.value) : []))
+// TT tujuan yang hilang dari peta terbaru (dipakai pihak lain) tidak boleh tetap terpilih.
+watch(pilihanTujuan, (p) => {
+  if (tujuanId.value && !p.some((tt) => tt.id === tujuanId.value)) tujuanId.value = ''
+})
+const tujuan = computed(() => pilihanTujuan.value.find((tt) => tt.id === tujuanId.value) ?? null)
+const kurangPindah = computed(() => (asalPindah.value && !asalPindah.value.pasien_rawat_inap ? 'Identitas pasien belum ada; muat ulang peta.' : null) ?? kurangPindahRuang({ tempat_tidur_id: tujuanId.value, alasan: alasanPindah.value, serah_terima: serahPindah.value }))
+const errorPindah = computed(() => errorKolom(galatPindah.value, ['alasan', 'serah_terima']))
+// Kode TT tujuan saat gagal: pilihan bisa hilang sesudah peta dimuat ulang, pesan tetap menyebut TT yang dicoba.
+const kodeGagal = ref('')
+const pesanPindah = computed(() => (galatPindah.value ? pesanGalatPindahRuang(galatPindah.value, kodeGagal.value) : null))
+const keteranganTujuan = (tt: TempatTidurPeta) =>
+  [tt.kamar.nama, tt.bangsal.nama, tt.kelas_rawat.nama, ...(asalPindah.value && pindahKelas(asalPindah.value, tt) ? ['pindah kelas'] : []), ...tandaTambahan(tt)].join(' · ')
+// Dua penanda identitas (PRD 5.1 butir 9), hanya di dialog; kartu peta tidak menampilkan nama pasien.
+const identitasPasien = (p: NonNullable<TempatTidurPeta['pasien_rawat_inap']>) => `${p.nama}, No. RM ${formatNoRm(p.no_rm)}, lahir ${formatTanggal(p.tanggal_lahir)}`
+function mintaPindah(tt: TempatTidurPeta) {
+  asalPindah.value = tt
+  tujuanId.value = ''
+  alasanPindah.value = ''
+  serahPindah.value = ''
+  galatPindah.value = null
+  fokusSesudah = null
+  bukaPindah.value = true
+}
+async function pindahkan() {
+  const asal = asalPindah.value
+  const ke = tujuan.value
+  if (!asal?.kunjungan_rawat_inap_id || !ke || kurangPindah.value) return
+  memindah.value = true
+  galatPindah.value = null
+  try {
+    const hasil = await pindahRuang(asal.kunjungan_rawat_inap_id, { tempat_tidur_id: ke.id, alasan: alasanPindah.value.trim(), serah_terima: serahPindah.value.trim() })
+    await segarkan()
+    fokusSesudah = `tt-${ke.id}`
+    bukaPindah.value = false
+    const kelas = pindahKelas(asal, ke) ? ` Kelas dirawat kini ${hasil.kelas_dirawat.nama}.` : ''
+    tampilkanToast(`${hasil.pasien.nama} (No. RM ${formatNoRm(hasil.pasien.no_rm)}) dipindah dari TT ${asal.kode} ke TT ${hasil.penempatan?.tempat_tidur.kode ?? ke.kode}.${kelas}`, 'ok')
+  } catch (e) {
+    // Data basi: peta dimuat ulang dulu, baru pesan tampil.
+    if (e instanceof ApiError && (e.status === 409 || e.status === 404 || e.status === 422)) await segarkan()
+    if (kunjunganPindahBasi(e)) {
+      fokusSesudah = `tt-${asal.id}`
+      bukaPindah.value = false
+      tampilkanToast(pesanGalatPindahRuang(e, ke.kode) ?? pesanError(e), 'error')
+    } else {
+      kodeGagal.value = ke.kode
+      galatPindah.value = e
+    }
+  } finally {
+    memindah.value = false
+  }
+}
+
 // TT bisa hilang dari peta (404, keluar cakupan): fokus ke judul kartu filter, bukan kembali ke tombol yang sudah tiada.
 const fokusSesudahTutup = () => (fokusSesudah ? (document.getElementById(fokusSesudah) ?? document.getElementById('judul-filter-peta')) : null)
 </script>
@@ -213,6 +284,7 @@ const fokusSesudahTutup = () => (fokusSesudah ? (document.getElementById(fokusSe
                   <span class="ket">{{ keteranganTt(tt) }}</span>
                   <span v-if="dijadwalkanTutup(tt)" class="tutup-terjadwal"><Ikon nama="gembok" :ukuran="12" />Dijadwalkan tutup, tidak bisa dialokasikan</span>
                   <Tombol v-if="bolehTandaiKosongSiap(tt, izinPerbaiki)" class="aksi" :aria-label="`Tandai kosong siap ${tt.kode}`" @click="minta(tt)">Tandai kosong siap</Tombol>
+                  <Tombol v-if="bolehPindahRuang(tt, izinPindah)" class="aksi" :aria-label="`Pindah ruang pasien di ${tt.kode}`" @click="mintaPindah(tt)">Pindah ruang</Tombol>
                 </div>
               </li>
             </ul>
@@ -231,6 +303,55 @@ const fokusSesudahTutup = () => (fokusSesudah ? (document.getElementById(fokusSe
       <template #aksi>
         <Tombol :disabled="menyimpan || undefined" @click="bukaDialog = false">Batal</Tombol>
         <Tombol varian="utama" :sibuk="menyimpan" @click="simpan">Tandai kosong siap</Tombol>
+      </template>
+    </Dialog>
+
+    <Dialog
+      v-model:open="bukaPindah"
+      :judul="asalPindah ? `Pindah ruang pasien di ${asalPindah.kode}` : 'Pindah ruang'"
+      uraian="Cocokkan gelang identitas pasien dengan data ini sebelum memindahkan. TT asal menjadi Dibersihkan; jam pindah dicatat server."
+      lebar="lebar"
+      :sibuk="memindah"
+      :fokus-sesudah-tutup="fokusSesudahTutup"
+    >
+      <dl v-if="asalPindah" class="ringkas-pindah">
+        <div>
+          <dt>Pasien</dt>
+          <dd v-if="asalPindah.pasien_rawat_inap">{{ identitasPasien(asalPindah.pasien_rawat_inap) }}</dd>
+          <dd v-else class="tanpa-identitas">Identitas pasien tidak terkirim; muat ulang peta sebelum memindahkan.</dd>
+        </div>
+        <div>
+          <dt>TT asal</dt>
+          <dd>{{ asalPindah.kode }} · {{ asalPindah.bangsal.nama }} · {{ asalPindah.kelas_rawat.nama }}<template v-if="asalPindah.hari_rawat"> · hari rawat ke-{{ asalPindah.hari_rawat }}</template></dd>
+        </div>
+      </dl>
+      <Pesan v-if="!pilihanTujuan.length" jenis="info">Belum ada TT kosong siap lain di cakupan peta Anda. TT yang dibersihkan bisa ditandai kosong siap lebih dulu.</Pesan>
+      <fieldset v-else class="pilihan-tt">
+        <legend class="kolom-label">TT tujuan <span class="kolom-wajib" aria-hidden="true">*</span></legend>
+        <label v-for="t in pilihanTujuan" :key="t.id" class="pilihan" :class="{ dipilih: tujuanId === t.id }">
+          <input v-model="tujuanId" type="radio" name="tt-tujuan-pindah" :value="t.id" />
+          <span>
+            <span class="kode">{{ t.kode }}</span>
+            <span class="ket">{{ keteranganTujuan(t) }}</span>
+          </span>
+        </label>
+      </fieldset>
+      <p v-if="tujuan && asalPindah && pindahKelas(asalPindah, tujuan)" class="tafsir">Pindah kelas: {{ asalPindah.kelas_rawat.nama }} ke {{ tujuan.kelas_rawat.nama }}. Selisih biaya dan titip kelas belum diatur di layar ini.</p>
+      <div class="isian-pindah">
+        <KolomIsian v-slot="a" label="Alasan pindah" wajib petunjuk="Dasar klinis, 5 sampai 1.000 karakter." :error="errorPindah.alasan">
+          <textarea v-bind="a" v-model="alasanPindah" class="isian" rows="2" maxlength="1000"></textarea>
+        </KolomIsian>
+        <KolomIsian v-slot="a" label="Serah terima antar-ruang" wajib petunjuk="RM-15: kondisi pasien, terapi berjalan, hal yang perlu diawasi. 5 sampai 4.000 karakter." :error="errorPindah.serah_terima">
+          <textarea v-bind="a" v-model="serahPindah" class="isian" rows="3" maxlength="4000"></textarea>
+        </KolomIsian>
+      </div>
+      <div v-if="pesanPindah" class="blok">
+        <Pesan jenis="error">{{ pesanPindah }}</Pesan>
+      </div>
+      <p v-if="kurangPindah" class="tafsir kurang">{{ kurangPindah }}</p>
+      <template #aksi>
+        <Tombol :disabled="memindah || undefined" @click="bukaPindah = false">Batal</Tombol>
+        <Tombol varian="utama" :disabled="kurangPindah !== null || undefined" :sibuk="memindah" @click="pindahkan">{{ tujuan ? `Pindahkan ke ${tujuan.kode}` : 'Pindahkan' }}</Tombol>
       </template>
     </Dialog>
   </HalamanModul>
@@ -327,6 +448,10 @@ h4 {
   border-style: dashed;
   background: var(--bg);
 }
+/* Melewati rencana lama rawat (FR-08-01): tepi tebal --danger agar menonjol di deret TT; teks lencana tetap pembeda utama. */
+.tt-melewati_rencana_lama_rawat {
+  border: 2px solid var(--danger);
+}
 .kode {
   font-family: var(--font-mono);
   font-size: 13px;
@@ -363,6 +488,74 @@ h4 {
 }
 .aksi {
   justify-self: start;
+}
+/* Dialog pindah ruang: pilihan TT tujuan sama dengan pola alokasi di Admisi rawat inap. */
+.pilihan-tt {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  border: 0;
+}
+.pilihan {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-input);
+  background: var(--surface);
+  cursor: pointer;
+}
+.pilihan input {
+  margin-top: 3px;
+}
+.pilihan:has(input:focus-visible) {
+  outline: 2px solid var(--brand-600);
+  outline-offset: 2px;
+}
+/* Terpilih: tepi tebal dan kode tebal, bukan hanya warna. */
+.pilihan.dipilih {
+  border-width: 2px;
+  border-color: var(--text);
+}
+.pilihan.dipilih .kode {
+  font-weight: var(--font-weight-bold);
+}
+.pilihan .ket {
+  display: block;
+}
+/* Identitas dua penanda dan TT asal dibaca sebelum memindahkan (pola dialog Tempatkan di Admisi): label kecil, isi tebal. */
+.ringkas-pindah {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+.ringkas-pindah dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ringkas-pindah dd {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+.ringkas-pindah .tanpa-identitas {
+  color: var(--danger);
+}
+.isian-pindah {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.tafsir {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.kurang {
+  margin-top: var(--space-3);
 }
 @media (max-width: 767.98px) {
   .isian-filter {

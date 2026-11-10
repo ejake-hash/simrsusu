@@ -162,6 +162,9 @@ class AkunSintetisSeederTest extends TestCase
             ->join('akses.izin', 'akses.izin.id', '=', 'akses.peran_izin.izin_id')->where('akses.peran.kode', $peran)
             ->where('akses.izin.kode', $izin)->where('akses.peran_izin.status', 'aktif')->exists();
         $this->assertTrue($peranIzin('contoh_dokter_poli', 'rawat_inap.pindah_ruang.input'));
+        // 2.29-fe: pindah ruang dari peta TT, jadi dokter poli contoh juga melihat peta TT (bukan izin sensitif).
+        $this->assertTrue($evaluator->boleh($akun('dokter.poli'), 'rawat_inap.peta_tempat_tidur.lihat'));
+        $this->assertFalse((bool) DB::table('akses.izin')->where('kode', 'rawat_inap.peta_tempat_tidur.lihat')->value('sensitif'));
         $this->assertFalse($peranIzin('contoh_perawat', 'rawat_inap.pindah_ruang.input'));
         $this->assertTrue($peranIzin('contoh_perawat', 'rawat_inap.penempatan.input'));
         $this->assertTrue($evaluator->boleh($akun('admisi'), 'rawat_inap.penempatan.input'));

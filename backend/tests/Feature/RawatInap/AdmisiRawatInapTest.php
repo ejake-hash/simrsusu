@@ -19,6 +19,7 @@ use App\Modules\MasterData\Models\TempatTidur;
 use App\Modules\MasterData\Models\UnitOrganisasi;
 use App\Modules\Pendaftaran\Models\Pasien;
 use App\Modules\RawatInap\Application\PemeriksaPenempatanTempatTidur;
+use App\Modules\Sdm\Models\IzinPraktik;
 use App\Modules\Sdm\Models\Pegawai;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
@@ -353,6 +354,67 @@ class AdmisiRawatInapTest extends TestCase
         $this->tempatkan('bukan-uuid')->assertNotFound();
         $this->masukSebagai($this->admisi);
         $this->assertSesuaiKontrak($this->tempatkan($permintaan, ['serah_terima' => 'abc'])->assertStatus(422), 'POST', '/permintaan-tempat-tidur/{id}/tempatkan');
+    }
+
+    /** v0.38.0 (keputusan pemilik 10 Nov 2026): peta TT membawa id kunjungan RI hanya bagi izin pindah ruang di cakupan bangsal. */
+    public function test_peta_tt_membawa_id_kunjungan_rawat_inap_hanya_bagi_izin_pindah_ruang_di_cakupan_bangsal(): void
+    {
+        [$ri] = $this->rawatInapPoli($this->pasien(), 'UJI29-101-1');
+        $url = '/api/v1/peta-tempat-tidur?bangsal_id='.$this->id['UJI29-BA'];
+
+        // Izin pindah ruang cakupan rs: TT terisi membawa id; TT kosong tanpa kunci.
+        $this->masukSebagai($this->dokterRanap);
+        $peta = $this->minta('GET', $url)->assertOk()->assertJsonPath('data.0.kode', 'UJI29-101-1')->assertJsonPath('data.0.kunjungan_rawat_inap_id', $ri);
+        $this->assertSesuaiKontrak($peta, 'GET', '/peta-tempat-tidur');
+        // Keputusan pemilik 11 Nov 2026: dua penanda identitas ikut dengan syarat yang sama.
+        $pasien = DB::table('kunjungan.kunjungan as k')->join('pasien.pasien as p', 'p.id', '=', 'k.pasien_id')->where('k.id', $ri)->first(['p.nama', 'p.no_rm', 'p.tanggal_lahir']);
+        $this->assertNotNull($pasien);
+        $this->assertSame(['nama' => (string) $pasien->nama, 'no_rm' => (string) $pasien->no_rm,
+            'tanggal_lahir' => $pasien->tanggal_lahir === null ? null : substr((string) $pasien->tanggal_lahir, 0, 10)], $peta->json('data.0.pasien_rawat_inap'));
+        foreach (['kunjungan_rawat_inap_id', 'pasien_rawat_inap'] as $kunci) {
+            $this->assertArrayNotHasKey($kunci, (array) $peta->json('data.1'));
+            $this->assertArrayNotHasKey($kunci, (array) $peta->json('data.2'));
+        }
+
+        // Tanpa izin pindah ruang (admisi): kunci tidak ada (bukan null), nama pasien tidak ada di respons.
+        $this->masukSebagai($this->admisi);
+        $admisi = $this->minta('GET', $url)->assertOk();
+        $this->assertArrayNotHasKey('kunjungan_rawat_inap_id', (array) $admisi->json('data.0'));
+        $this->assertArrayNotHasKey('pasien_rawat_inap', (array) $admisi->json('data.0'));
+        $this->assertStringNotContainsString((string) $pasien->nama, (string) $admisi->getContent());
+
+        // Izin pindah ruang hanya di unit ruang RB: TT di bangsal BA (unit RA) tanpa kunci; di unit RA ada.
+        $ruangB = $this->akunDokter($this->dokter());
+        $this->tugaskan($ruangB, $this->buatPeran(['rawat_inap.peta_tempat_tidur']));
+        $this->tugaskan($ruangB, $this->buatPeran(['rawat_inap.pindah_ruang']), cakupan: new Cakupan('unit', $this->id['UJI29-RB']));
+        // Lapis 5 sama dengan POST pindah ruang: SIP kedaluwarsa → peta tetap 200, id dan identitas tidak dikirim.
+        $pegawaiLewat = $this->dokter();
+        IzinPraktik::query()->where('pegawai_id', $pegawaiLewat->id)->update(['berlaku_sampai' => '2026-10-01']);
+        $sipLewat = $this->akunDokter($pegawaiLewat);
+        $this->tugaskan($sipLewat, $this->buatPeran(['rawat_inap.pindah_ruang', 'rawat_inap.peta_tempat_tidur']));
+        $this->masukSebagai($sipLewat);
+        $lewat = $this->minta('GET', $url)->assertOk();
+        $this->assertArrayNotHasKey('kunjungan_rawat_inap_id', (array) $lewat->json('data.0'));
+        $this->assertArrayNotHasKey('pasien_rawat_inap', (array) $lewat->json('data.0'));
+        $this->assertStringNotContainsString((string) $pasien->nama, (string) $lewat->getContent());
+        $this->pindah($ri, $this->id['UJI29-201-1'])->assertForbidden()->assertJsonPath('error.kode', 'izin_praktik_tidak_berlaku');
+
+        $this->masukSebagai($ruangB);
+        $lain = $this->minta('GET', $url)->assertOk();
+        $this->assertArrayNotHasKey('kunjungan_rawat_inap_id', (array) $lain->json('data.0'));
+        $this->assertArrayNotHasKey('pasien_rawat_inap', (array) $lain->json('data.0'));
+        $ruangA = $this->akunDokter($this->dokter());
+        $this->tugaskan($ruangA, $this->buatPeran(['rawat_inap.peta_tempat_tidur']));
+        $this->tugaskan($ruangA, $this->buatPeran(['rawat_inap.pindah_ruang']), cakupan: new Cakupan('unit', $this->id['UJI29-RA']));
+        $this->masukSebagai($ruangA);
+        $this->minta('GET', $url)->assertOk()->assertJsonPath('data.0.kunjungan_rawat_inap_id', $ri)->assertJsonPath('data.0.pasien_rawat_inap.nama', (string) $pasien->nama);
+
+        // Sesudah pindah ruang: TT lama (dibersihkan) tanpa kunci, TT baru membawa id yang sama.
+        $this->pindah($ri, $this->id['UJI29-201-1'])->assertOk();
+        $this->masukSebagai($this->dokterRanap);
+        $this->assertArrayNotHasKey('kunjungan_rawat_inap_id', (array) $this->minta('GET', $url)->assertOk()->json('data.0'));
+        $this->minta('GET', '/api/v1/peta-tempat-tidur?bangsal_id='.$this->id['UJI29-BB'])->assertOk()
+            ->assertJsonPath('data.0.kode', 'UJI29-201-1')->assertJsonPath('data.0.kunjungan_rawat_inap_id', $ri);
     }
 
     public function test_satu_pasien_satu_tt_dan_tt_terisi_tidak_bisa_ditempati_pasien_lain(): void

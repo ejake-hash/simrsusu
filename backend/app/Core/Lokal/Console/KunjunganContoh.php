@@ -39,7 +39,8 @@ final class KunjunganContoh extends Command
     /** Peta TT contoh (2.27): kode ruang => kode TT => status. Semua status peta kecuali TT ditutup (tampil tidak_dipakai). */
     public const STATUS_CONTOH = [
         '201' => [1 => StatusTempatTidur::TERISI, 2 => StatusTempatTidur::DIBERSIHKAN, 3 => StatusTempatTidur::DIPESAN],
-        '202' => [1 => StatusTempatTidur::RENCANA_PULANG, 2 => StatusTempatTidur::TIDAK_DIPAKAI, 3 => StatusTempatTidur::KOSONG_SIAP],
+        // 202-4 (2.29-fe): TT kosong siap kedua sebagai tujuan pindah ruang di e2e admisi.
+        '202' => [1 => StatusTempatTidur::RENCANA_PULANG, 2 => StatusTempatTidur::TIDAK_DIPAKAI, 3 => StatusTempatTidur::KOSONG_SIAP, 4 => StatusTempatTidur::KOSONG_SIAP],
     ];
 
     protected $signature = 'lokal:kunjungan-contoh {--batal : Kosongkan lagi penanda siap melayani dan nonaktifkan poli contoh}';
