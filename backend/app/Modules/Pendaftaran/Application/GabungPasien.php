@@ -112,9 +112,16 @@ final class GabungPasien
                 $rincian[$kunci] = DB::table($nama)->where('pasien_id', $sumber->id)->pluck('id')->all();
                 DB::table($nama)->where('pasien_id', $sumber->id)->update(['pasien_id' => $tujuan->id, 'diubah_pada' => now(), 'diubah_oleh' => $olehId]);
             }
+            // Salinan pasien_id untuk keunikan per pasien (2.29) ikut kunjungannya.
+            foreach (['kunjungan.permintaan_tempat_tidur', 'kunjungan.penempatan_tempat_tidur'] as $nama) {
+                DB::table($nama)->where('pasien_id', $sumber->id)->update(['pasien_id' => $tujuan->id, 'diubah_pada' => now(), 'diubah_oleh' => $olehId]);
+            }
         } catch (QueryException $e) {
             if ($e->getCode() !== '23505') {
                 throw $e;
+            }
+            if (str_contains($e->getMessage(), 'tempat_tidur_pasien_aktif_unik')) {
+                throw new ApiError(409, 'gabung_bentrok', 'Kedua RM punya permintaan kamar atau penempatan TT aktif; selesaikan atau batalkan salah satu dulu.');
             }
             if (str_contains($e->getMessage(), 'kunjungan_igd_aktif_unik')) {
                 throw new ApiError(409, 'gabung_bentrok', 'Kedua RM masih tercatat di IGD; selesaikan atau batalkan salah satu dulu.');

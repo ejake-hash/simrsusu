@@ -156,6 +156,16 @@ class AkunSintetisSeederTest extends TestCase
             ->where('akses.izin.kode', 'igd.disposisi.input')->where('akses.peran_izin.status', 'aktif')->exists());
         $this->assertFalse((bool) DB::table('akses.izin')->where('kode', 'igd.disposisi.input')->value('sensitif'));
         $this->assertFalse($evaluator->bolehMenu($akun('dokter.poli'), 'igd.triase'));
+        // 2.29: pindah ruang = perintah dokter: dokter poli contoh memegangnya, perawat (seluruh menu rawat_inap) tidak;
+        // penempatan TT oleh admisi.
+        $peranIzin = fn (string $peran, string $izin) => DB::table('akses.peran_izin')->join('akses.peran', 'akses.peran.id', '=', 'akses.peran_izin.peran_id')
+            ->join('akses.izin', 'akses.izin.id', '=', 'akses.peran_izin.izin_id')->where('akses.peran.kode', $peran)
+            ->where('akses.izin.kode', $izin)->where('akses.peran_izin.status', 'aktif')->exists();
+        $this->assertTrue($peranIzin('contoh_dokter_poli', 'rawat_inap.pindah_ruang.input'));
+        $this->assertFalse($peranIzin('contoh_perawat', 'rawat_inap.pindah_ruang.input'));
+        $this->assertTrue($peranIzin('contoh_perawat', 'rawat_inap.penempatan.input'));
+        $this->assertTrue($evaluator->boleh($akun('admisi'), 'rawat_inap.penempatan.input'));
+        $this->assertFalse($evaluator->boleh($akun('perawat'), 'rawat_inap.pindah_ruang.input'));
         $this->assertSame(1, PenggunaPeran::query()->where('pengguna_id', $akun('dokter')->id)->count());
     }
 

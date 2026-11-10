@@ -144,6 +144,26 @@ final class KelolaKunjungan
         });
     }
 
+    /**
+     * Kunjungan bangsal (tiket 2.29, FR-08-06) yang dibuka saat pasien ditempatkan di TT. Dipanggil di dalam transaksi
+     * pemanggil dengan pasien sudah terkunci (KunciKunjungan). Cara bayar dan penjamin dari kunjungan asal permintaan
+     * kamar; `pegawai_id` = DPJP awal; status langsung `dilayani` (pasien sudah di bangsal). Tanpa antrean poli, jadi
+     * KunjunganDibuat tidak dikirim; audit ikut aksi penempatan.
+     */
+    public function bukaRawatInap(Kunjungan $asal, string $episodeId, string $unitId, ?string $dpjpPegawaiId, string $olehId): Kunjungan
+    {
+        $tanggal = SuntinganBerversi::hariIni();
+        $kunjungan = new Kunjungan;
+        $kunjungan->forceFill([
+            'nomor' => $this->nomorBaru($tanggal, 'RI'), 'pasien_id' => $asal->pasien_id, 'episode_id' => $episodeId,
+            'jenis_kunjungan' => Kunjungan::RAWAT_INAP, 'unit_id' => $unitId, 'pegawai_id' => $dpjpPegawaiId, 'tanggal' => $tanggal,
+            'cara_bayar' => $asal->cara_bayar, 'penjamin_id' => $asal->penjamin_id, 'status' => 'dilayani',
+            'dibuat_oleh' => $olehId, 'diubah_oleh' => $olehId,
+        ])->save();
+
+        return $kunjungan;
+    }
+
     /** Pembatalan manual petugas (FR-01-21). */
     public function batal(Pengguna $petugas, string $kunjunganId, string $alasan): Kunjungan
     {
@@ -343,7 +363,7 @@ final class KelolaKunjungan
         return [$baru, true];
     }
 
-    /** Asumsi (2.23): poli dan IGD berbagi satu penghitung per tanggal; awalan membedakan pos (RJ-/IGD-). */
+    /** Asumsi (2.23): poli, IGD, dan rawat inap berbagi satu penghitung per tanggal; awalan membedakan pos (RJ-/IGD-/RI-). */
     private function nomorBaru(string $tanggal, string $awalan = 'RJ'): string
     {
         $urut = DB::selectOne('INSERT INTO kunjungan.nomor_kunjungan (tanggal, terakhir) VALUES (?, 1)

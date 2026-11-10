@@ -61,7 +61,9 @@ final class BacaPapanIgd
             LEFT JOIN LATERAL (SELECT tr.kategori, tr.ditriase_pada, tr.keluhan FROM kunjungan.triase tr WHERE tr.kunjungan_id = k.id
                 ORDER BY tr.ditriase_pada DESC, tr.id DESC LIMIT 1) t ON true
             LEFT JOIN LATERAL (SELECT pp.status, pp.terjadi_pada FROM kunjungan.perpindahan_pos pp WHERE pp.dari_kunjungan_id = k.id
-                AND pp.status IN (\'menunggu_kamar\', \'menunggu_kamar_operasi\') ORDER BY pp.terjadi_pada DESC, pp.id DESC LIMIT 1) d ON true
+                AND pp.status IN (\'menunggu_kamar\', \'menunggu_kamar_operasi\')
+                AND NOT EXISTS (SELECT 1 FROM kunjungan.permintaan_tempat_tidur pt WHERE pt.perpindahan_pos_id = pp.id AND pt.status IN (\'batal\', \'ditempatkan\'))
+                ORDER BY pp.terjadi_pada DESC, pp.id DESC LIMIT 1) d ON true
             LEFT JOIN LATERAL (SELECT ptt.id, ptt.status, tt.id AS tt_id, tt.kode AS tt_kode, b.id AS bangsal_id, b.kode AS bangsal_kode, b.nama AS bangsal_nama
                 FROM kunjungan.permintaan_tempat_tidur ptt
                 LEFT JOIN inti.tempat_tidur tt ON tt.id = ptt.tempat_tidur_id

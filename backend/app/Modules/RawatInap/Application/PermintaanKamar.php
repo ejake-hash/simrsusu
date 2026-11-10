@@ -22,6 +22,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use stdClass;
 
 /**
  * Satu-satunya pembuat permintaan kamar (tiket 2.28; FR-08-03, FR-03-07, PRD 7.00.2 baris "Rawat inap"): SPRI dokter
@@ -31,12 +32,18 @@ use Illuminate\Support\Str;
  * buat(): SPRI internal (kunjungan.surat_kontrol) + permintaan berstatus `menunggu`. Permintaan IGD membuka tugas
  * PERMINTAAN_KAMAR_MENUNGGU (hanya bila jenisnya diaktifkan RS) yang selesai saat alokasi dan batal bersama permintaan.
  * Permintaan aktif ikut batal lewat kejadian, bukan teks (tinjauan #194 butir 1): disposisi IGD yang menutup kunjungan
- * (pulang, APS, rujuk, meninggal, DOA) dan pembatalan kunjungan. Pesanan TT yang batal mengembalikan TT ke kosong siap.
+ * (pulang, APS, rujuk, meninggal, DOA) dan pembatalan kunjungan, serta petugas admisi (POST
+ * /permintaan-tempat-tidur/{id}/batal, 2.29) lewat jalur batalkan() yang sama. Pesanan TT yang batal mengembalikan TT ke
+ * kosong siap. Satu permintaan aktif per pasien (2.29): SPRI poli saat pasien punya permintaan aktif → 409; disposisi IGD
+ * rawat inap menggantikan permintaan aktif dari kunjungan lain (disposisi klinis IGD tidak gagal karena SPRI terencana
+ * poli). Pasien yang sedang menempati TT → 409 `pasien_sedang_dirawat`.
  * Urutan kunci: pasien → kunjungan (KunciKunjungan) → permintaan → TT, sama dengan alokasi (permintaan → TT).
  */
 final class PermintaanKamar
 {
     public const JENIS_TUGAS = 'PERMINTAAN_KAMAR_MENUNGGU';
+
+    public const ALASAN_DIGANTIKAN = 'Digantikan permintaan IGD';
 
     /** Status permintaan yang masih di antrean. */
     public const AKTIF = ['menunggu', 'dialokasikan'];
@@ -92,7 +99,8 @@ final class PermintaanKamar
             }
             $episode = DB::table('kunjungan.episode')->where('id', $k->episode_id)->first(['id', 'jenis', 'status'])
                 ?? throw new ApiError(409, 'status_tidak_sesuai', 'Episode kunjungan tidak ditemukan.');
-            $this->pastikanBelumAda($k->id);
+            $this->pastikanBelumDirawat($k->pasien_id);
+            $this->pastikanBelumAdaUntukPasien($k->pasien_id);
 
             // Perintah perpindahan (7.00.3: pemutus, alasan, asal, tujuan, status episode), pola disposisi IGD 2.26.
             $perpindahan = (string) Str::uuid7();
@@ -134,7 +142,18 @@ final class PermintaanKamar
     /** @return string id permintaan */
     private function buat(Kunjungan $k, string $asal, string $perpindahanId, string $olehId, ?string $kelasId, ?string $bangsalId, string $tanggal): string
     {
+        $this->pastikanBelumDirawat($k->pasien_id);
         $this->pastikanBelumAda($k->id);
+        // Satu permintaan aktif per pasien (2.29). Disposisi IGD menggantikan permintaan dari kunjungan lain (mis. SPRI
+        // terencana poli), TT pesanannya dilepas; SPRI poli ditolak (dicek lebih dulu di spri()).
+        $lain = DB::table('kunjungan.permintaan_tempat_tidur')->where('pasien_id', $k->pasien_id)->whereIn('status', self::AKTIF)
+            ->lockForUpdate()->first(['id', 'status', 'surat_kontrol_id', 'tempat_tidur_id']);
+        if ($lain !== null) {
+            if ($asal !== 'igd') {
+                throw self::sudahAda((string) $lain->id);
+            }
+            $this->batalkan($lain, self::ALASAN_DIGANTIKAN, $olehId);
+        }
         $jam = self::jam();
         // Kolom waktu dari kode, bukan bawaan basis data, agar ikut travel waktu tes (jebakan §9.4).
         $standar = ['dibuat_oleh' => $olehId, 'diubah_oleh' => $olehId, 'dibuat_pada' => $jam, 'diubah_pada' => $jam];
@@ -148,7 +167,7 @@ final class PermintaanKamar
         $sejak = $awalRencana->greaterThan(now()) ? $awalRencana->format('Y-m-d H:i:s.uP') : $jam;
         $id = (string) Str::uuid7();
         DB::table('kunjungan.permintaan_tempat_tidur')->insert([
-            'id' => $id, 'kunjungan_id' => $k->id, 'surat_kontrol_id' => $spri, 'perpindahan_pos_id' => $perpindahanId, 'asal' => $asal,
+            'id' => $id, 'kunjungan_id' => $k->id, 'pasien_id' => $k->pasien_id, 'surat_kontrol_id' => $spri, 'perpindahan_pos_id' => $perpindahanId, 'asal' => $asal,
             'kelas_diminta_id' => $kelasId, 'bangsal_pilihan_id' => $bangsalId, 'diminta_oleh' => $olehId, 'diminta_pada' => $jam,
             'menunggu_sejak' => $sejak, 'status' => 'menunggu', ...$standar,
         ]);
@@ -167,13 +186,39 @@ final class PermintaanKamar
         return $id;
     }
 
+    /**
+     * Pembatalan oleh petugas admisi (POST /permintaan-tempat-tidur/{id}/batal, 2.29): hanya `menunggu`/`dialokasikan`,
+     * lewat batalkan() yang sama dengan pembatalan karena kejadian. Urutan kunci pasien → kunjungan → permintaan → TT.
+     */
+    public function batalOlehPetugas(Pengguna $petugas, string $permintaanId, string $alasan): void
+    {
+        DB::transaction(function () use ($petugas, $permintaanId, $alasan) {
+            $kunjunganId = DB::table('kunjungan.permintaan_tempat_tidur')->where('id', $permintaanId)->value('kunjungan_id')
+                ?? throw new ApiError(404, 'tidak_ditemukan', 'Permintaan kamar tidak ditemukan.');
+            KunciKunjungan::pasienLaluKunjungan((string) $kunjunganId);
+            $p = DB::table('kunjungan.permintaan_tempat_tidur')->where('id', $permintaanId)->lockForUpdate()
+                ->first(['id', 'status', 'surat_kontrol_id', 'tempat_tidur_id'])
+                ?? throw new ApiError(404, 'tidak_ditemukan', 'Permintaan kamar tidak ditemukan.');
+            if (! in_array($p->status, self::AKTIF, true)) {
+                throw new ApiError(409, 'permintaan_kamar_tidak_aktif', 'Permintaan kamar ini sudah ditempatkan atau batal. Muat ulang antrean.',
+                    [['status' => $p->status]]);
+            }
+            $this->batalkan($p, trim($alasan), $petugas->id);
+        });
+    }
+
     private function batalkanAktif(string $kunjunganId, string $alasan, ?string $olehId): void
     {
         $p = DB::table('kunjungan.permintaan_tempat_tidur')->where('kunjungan_id', $kunjunganId)->whereIn('status', self::AKTIF)
             ->lockForUpdate()->first(['id', 'status', 'surat_kontrol_id', 'tempat_tidur_id']);
-        if ($p === null) {
-            return;
+        if ($p !== null) {
+            $this->batalkan($p, $alasan, $olehId);
         }
+    }
+
+    /** $p = baris permintaan aktif yang sudah dikunci (id, status, surat_kontrol_id, tempat_tidur_id). */
+    private function batalkan(stdClass $p, string $alasan, ?string $olehId): void
+    {
         $jam = self::jam();
         $batal = ['status' => 'batal', 'alasan_batal' => $alasan, 'dibatalkan_oleh' => $olehId, 'dibatalkan_pada' => $jam,
             'diubah_oleh' => $olehId, 'diubah_pada' => $jam, 'revisi' => DB::raw('revisi + 1')];
@@ -213,9 +258,31 @@ final class PermintaanKamar
     {
         $ada = DB::table('kunjungan.permintaan_tempat_tidur')->where('kunjungan_id', $kunjunganId)->whereIn('status', self::AKTIF)->value('id');
         if ($ada !== null) {
-            throw new ApiError(409, 'permintaan_kamar_sudah_ada', 'Kunjungan ini sudah punya permintaan kamar yang masih berjalan.',
-                [['permintaan_tempat_tidur_id' => $ada]]);
+            throw self::sudahAda((string) $ada);
         }
+    }
+
+    /** SPRI poli: permintaan aktif pasien ini dari kunjungan mana pun → 409 (2.29). */
+    private function pastikanBelumAdaUntukPasien(string $pasienId): void
+    {
+        $ada = DB::table('kunjungan.permintaan_tempat_tidur')->where('pasien_id', $pasienId)->whereIn('status', self::AKTIF)->value('id');
+        if ($ada !== null) {
+            throw self::sudahAda((string) $ada);
+        }
+    }
+
+    /** Pasien yang sedang menempati TT tidak diberi permintaan kamar baru; pindah ruang lewat alurnya sendiri (2.29). */
+    private function pastikanBelumDirawat(string $pasienId): void
+    {
+        if (DB::table('kunjungan.penempatan_tempat_tidur')->where('pasien_id', $pasienId)->whereNull('selesai_pada')->exists()) {
+            throw new ApiError(409, 'pasien_sedang_dirawat', 'Pasien ini sedang dirawat inap. Pindah ruang lewat kunjungan rawat inapnya.');
+        }
+    }
+
+    private static function sudahAda(string $permintaanId): ApiError
+    {
+        return new ApiError(409, 'permintaan_kamar_sudah_ada', 'Pasien ini sudah punya permintaan kamar yang masih berjalan.',
+            [['permintaan_tempat_tidur_id' => $permintaanId]]);
     }
 
     /**

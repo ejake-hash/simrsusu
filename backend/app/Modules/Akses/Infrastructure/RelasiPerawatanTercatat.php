@@ -23,7 +23,8 @@ final class RelasiPerawatanTercatat implements RelasiPerawatan
 
         return DB::table('akses.relasi_perawatan')
             ->where('pasien_id', $pasienId)->where('pegawai_id', $pengguna->pegawai_id)->where('status', 'aktif')
-            ->where('berlaku_dari', '<=', $sekarang)->where('berlaku_sampai', '>', $sekarang)
+            // berlaku_sampai kosong = sampai diakhiri (DPJP rawat inap, tiket 2.29).
+            ->where('berlaku_dari', '<=', $sekarang)->where(fn ($q) => $q->whereNull('berlaku_sampai')->orWhere('berlaku_sampai', '>', $sekarang))
             ->exists();
     }
 }

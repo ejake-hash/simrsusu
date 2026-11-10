@@ -14,14 +14,18 @@ final class KelolaRelasiPerawatan
 {
     public const PERAN_DOKTER_JADWAL = 'dokter_jadwal';
 
+    /** DPJP kunjungan rawat inap (tiket 2.29): sejak penempatan sampai diakhiri (pulang, 2.40). */
+    public const PERAN_DPJP_RAWAT_INAP = 'dpjp_rawat_inap';
+
+    /** $sampai null = berlaku sampai diakhiri lewat akhiri(). */
     public function berikan(string $pasienId, string $pegawaiId, string $peran, string $sumberJenis, string $sumberId,
-        Carbon $dari, Carbon $sampai, ?string $olehId): string
+        Carbon $dari, ?Carbon $sampai, ?string $olehId): string
     {
         $id = (string) Str::uuid7();
         DB::table('akses.relasi_perawatan')->insert([
             'id' => $id, 'pasien_id' => $pasienId, 'pegawai_id' => $pegawaiId, 'peran' => $peran,
             'sumber_jenis' => $sumberJenis, 'sumber_id' => $sumberId, // Dengan offset: Carbon zona RS tanpa offset akan dibaca sebagai zona sesi DB.
-            'berlaku_dari' => $dari->format('Y-m-d H:i:s.uP'), 'berlaku_sampai' => $sampai->format('Y-m-d H:i:s.uP'),
+            'berlaku_dari' => $dari->format('Y-m-d H:i:s.uP'), 'berlaku_sampai' => $sampai?->format('Y-m-d H:i:s.uP'),
             'dibuat_oleh' => $olehId, 'diubah_oleh' => $olehId,
         ]);
 

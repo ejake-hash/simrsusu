@@ -8,17 +8,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * Kunjungan poli dan IGD (PRD 7.00.2; tiket 2.6, 2.23). Tidak dihapus: batal = status beserta alasan dan pelaku.
- * Jadwal, poli, dan dokter hanya kosong untuk IGD (CHECK kunjungan_jenis_cek).
+ * Kunjungan poli, IGD, dan rawat inap (PRD 7.00.2; tiket 2.6, 2.23, 2.29). Tidak dihapus: batal = status beserta alasan
+ * dan pelaku. Jadwal dan poli hanya kosong untuk IGD dan rawat inap (CHECK kunjungan_jenis_cek); rawat inap wajib unit
+ * bangsal.
  *
  * @property string $id
  * @property string $nomor
  * @property string $pasien_id
  * @property string $episode_id
- * @property string $jenis_kunjungan poliklinik | igd
+ * @property string $jenis_kunjungan poliklinik | igd | rawat_inap
  * @property string|null $jadwal_praktik_id
  * @property string|null $poli_id
- * @property string|null $pegawai_id
+ * @property string|null $pegawai_id dokter jadwal (poli) atau DPJP awal (rawat inap)
+ * @property string|null $unit_id unit organisasi bangsal (rawat inap)
  * @property Carbon $tanggal
  * @property Carbon|null $tiba_pada jam tiba IGD (jam server)
  * @property string $cara_bayar jkn | non_jkn
@@ -48,6 +50,8 @@ final class Kunjungan extends Model
     public const POLIKLINIK = 'poliklinik';
 
     public const IGD = 'igd';
+
+    public const RAWAT_INAP = 'rawat_inap';
 
     /** Masih di IGD: belum selesai (disposisi) dan tidak batal. */
     public const STATUS_AKTIF = ['terdaftar', 'dilayani'];

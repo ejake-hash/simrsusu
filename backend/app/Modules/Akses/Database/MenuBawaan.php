@@ -100,7 +100,9 @@ final class MenuBawaan
         // Tiket 2.26: perintah perpindahan klinis hanya dari dokter atau tenaga berwenang (PRD 7.00.3 butir 1).
         'igd.disposisi.input',
         // Tiket 2.28 (keputusan pemilik 10 Nov 2026): izin sel matriks asal poliklinik, termasuk SPRI dokter poli.
-        'rawat_jalan.pemeriksaan.sahkan'];
+        'rawat_jalan.pemeriksaan.sahkan',
+        // Tiket 2.29: izin sel matriks rawat_inap → rawat_inap (pindah ruang/kelas = perintah dokter, PRD 7.00.3).
+        'rawat_inap.pindah_ruang.input'];
 
     /**
      * Izin data pribadi yang sensitif tanpa penyetuju bawaan: tidak bisa diberikan sampai RS menetapkan pemilik datanya
@@ -162,6 +164,9 @@ final class MenuBawaan
             ]],
             'rawat_inap' => ['Rawat Inap', 2, 8, [
                 'peta_tempat_tidur' => ['Peta tempat tidur', 8],
+                // Tiket 2.29: penempatan pasien di TT (perawat bangsal/admisi, non-klinis) dan pindah ruang/kelas (perintah dokter).
+                'penempatan' => ['Penempatan tempat tidur', 8],
+                'pindah_ruang' => ['Pindah ruang', 8],
                 'pasien' => ['Pasien ruangan', 8],
                 'cppt' => ['CPPT & instruksi', 26],
                 'pemberian_obat' => ['Pemberian obat', 8],

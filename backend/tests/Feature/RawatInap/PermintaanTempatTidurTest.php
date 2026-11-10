@@ -375,7 +375,7 @@ class PermintaanTempatTidurTest extends TestCase
                 $this->assertSame([409, 'tempat_tidur_terisi'], [$e->getStatusCode(), $e->kode]);
             }
         }
-        // Penutupan bertanggal depan juga ditolak selama TT dipesan (PenempatanBelumAda sampai 2.29).
+        // Penutupan bertanggal depan juga ditolak selama TT dipesan (status sekarang; pemeriksa penempatan 2.29 menolak juga).
         DB::table('inti.tempat_tidur')->where('id', $this->id['UJI28-101-1'])->update(['status_saat_ini' => 'dipesan']);
         try {
             $kelola->tutup($penyunting, TempatTidur::query()->findOrFail($this->id['UJI28-101-1']), '0', '2026-11-03', 'Renovasi (uji)', 'SK uji');

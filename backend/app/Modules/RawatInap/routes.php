@@ -2,6 +2,7 @@
 
 use App\Modules\RawatInap\Http\Controllers\PermintaanTempatTidurController;
 use App\Modules\RawatInap\Http\Controllers\PetaTempatTidurController;
+use App\Modules\RawatInap\Http\Controllers\RawatInapController;
 use Illuminate\Support\Facades\Route;
 
 // Peta tempat tidur dan status TT (tiket 2.27). Izin sub-menu di cakupan mana pun; cakupan bangsal diperiksa di controller.
@@ -17,4 +18,11 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::get('permintaan-tempat-tidur', [PermintaanTempatTidurController::class, 'index'])->middleware('can:pendaftaran.admisi.lihat');
     Route::post('permintaan-tempat-tidur/{permintaan}/alokasi', [PermintaanTempatTidurController::class, 'alokasi'])
         ->middleware('can:pendaftaran.admisi.input');
+
+    // Penempatan, batal permintaan, pindah ruang (tiket 2.29). Izin pindah ruang = izin sel matriks, diperiksa di layanan.
+    Route::post('permintaan-tempat-tidur/{permintaan}/tempatkan', [PermintaanTempatTidurController::class, 'tempatkan'])
+        ->middleware('can:rawat_inap.penempatan.input');
+    Route::post('permintaan-tempat-tidur/{permintaan}/batal', [PermintaanTempatTidurController::class, 'batal'])
+        ->middleware('can:pendaftaran.admisi.input');
+    Route::post('kunjungan/{kunjungan}/pindah-ruang', [RawatInapController::class, 'pindahRuang']);
 });

@@ -764,6 +764,23 @@ Uji    :
 - Satu pasien tidak bisa menempati dua TT; TT terisi tidak bisa ditempati pasien lain (409).
 - Relasi perawatan bangsal memakai `KelolaRelasiPerawatan` (2.6), tidak membuat jalur baru.
 Di luar: rawat gabung ibu-bayi dan titip kelas (FR-08-06 bagian lain), asesmen awal RI (FR-08-07, data induk skor belum ada), eMAR.
+Asumsi BE #202: DPJP awal = dokter pemberi SPRI/disposisi (`diminta_oleh`), disimpan di `kunjungan.pegawai_id`, dan mendapat
+relasi perawatan `dpjp_rawat_inap` tanpa akhir (`berlaku_sampai` kosong hanya untuk peran itu) sampai pulang. Kunjungan RI
+(kolom baru `kunjungan.unit_id` = unit bangsal TT) langsung `dilayani`, nomor `RI-YYYYMMDD-NNNN`, cara bayar dan penjamin
+disalin dari kunjungan asal. Awal rawat inap = `menunggu_sejak` permintaan; ditempatkan sebelum tanggal rencana → jam
+penempatan. Episode: episode aktif rawat jalan harian/IGD > 6 jam dengan kunjungan bertanggal awal RI digabung; kunjungan
+IGD asal selalu ikut berapa pun tanggalnya (IGD lewat tengah malam, 7.00.3 "episode rawat inap sejak IGD"). Disposisi IGD
+rawat inap menggantikan permintaan aktif lama pasien (batal "Digantikan permintaan IGD", TT dilepas); SPRI poli saat ada
+permintaan aktif → 409. Perintah `menunggu_kamar` (hanya ditambah) selesai lewat status permintaan (`ditempatkan`/`batal`);
+serah terima saat tiba disimpan di penempatan. Pindah ruang hanya memeriksa cakupan unit bangsal asal (DPJP mengikuti
+pasien) dan tidak mengubah relasi perawatan; perintahnya berstatus baru `dilaksanakan`. Batal permintaan tanpa TT = izin di
+cakupan mana pun, dengan TT = cakupan unit bangsal TT. Pemeriksa penempatan mengabaikan tanggal (penempatan belum punya
+rencana selesai); `tutup()` tetap menolak TT terisi/dipesan. `hari_rawat` = hari ini − tanggal penempatan pertama + 1.
+Menyusul (dari tinjauan #202):
+- `KelolaKunjungan::episodeHarian` hanya mencari episode jenis harian: pasien rawat inap yang didaftarkan ke poli hari yang
+  sama (konsul, 7.00.3 "Rawat inap → Poli lain") mendapat episode RJ baru, bukan episode RI. Untuk tiket konsul/rawat bersama.
+- `BentukEpisodeRawatInap` memanggil `audit->catat()` di tengah transaksi penempatan (pola sama `UbahStatusTempatTidur`,
+  diterima).
 
 ### 2.30 · Lab: daftar kerja dan spesimen
 Tujuan : petugas lab menerima order dari semua pos di satu daftar kerja, cito di atas, lalu mencatat pengambilan dan penerimaan sampel.
@@ -880,6 +897,8 @@ Uji    :
 - Pulang lewat matriks 2.26: menutup penempatan, TT "dibersihkan" otomatis (FR-05-05), episode rawat inap selesai.
 - Daftar periksa pulang (obat pulang, surat kontrol, tagihan/jaminan) dari data induk; item tagihan menunggu kejadian kasir (Tahap D).
 Di luar: kirim resume ke pasien (FR-05-08, kanal menunggu portal 7.48), surat keterangan (FR-05-06), Composition SATUSEHAT (Tahap D).
+Catatan wajib dari 2.29: pemulangan memanggil `KelolaRelasiPerawatan::akhiri('kunjungan', <kunjungan RI>)` (relasi
+dpjp_rawat_inap tanpa akhir) dan menutup penempatan `pulang` (TT → dibersihkan).
 
 ### 2.41 · Konsul / rujukan internal antar-poli
 FR     : FR-04-04, FR-07-25; `kunjungan.rujukan` arah `internal` (11.2)
