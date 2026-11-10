@@ -11,15 +11,16 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Antrean permintaan kamar (tiket 2.28, kontrak v0.36.0; FR-08-03): satu antrean dari IGD dan poli, hanya permintaan
- * aktif (`menunggu`, `dialokasikan`), paling lama menunggu di atas. Lama menunggu dihitung server dari jam SPRI
- * (`diminta_pada`) dengan jam aplikasi, dibulatkan ke atas seperti papan IGD. Data pasien = dua penanda identitas untuk
+ * aktif (`menunggu`, `dialokasikan`), paling lama menunggu di atas. Lama menunggu dihitung server dari `menunggu_sejak`
+ * (jam SPRI, atau awal tanggal rencana bila rawat direncanakan nanti) dengan jam aplikasi, dibulatkan ke atas seperti
+ * papan IGD. Data pasien = dua penanda identitas untuk
  * pemegang izin admisi; tanpa alasan klinis SPRI.
  */
 final class AntreanPermintaanKamar
 {
     public function __construct(private readonly RingkasanPegawai $pegawai) {}
 
-    /** Kueri antrean; kolom kursor `diminta_pada` dan `id` tidak di-alias (Paginasi membaca nama kolom aslinya). */
+    /** Kueri antrean; kolom kursor `menunggu_sejak` dan `id` tidak di-alias (Paginasi membaca nama kolom aslinya). */
     public function kueri(?string $status = null, ?string $id = null): Builder
     {
         return DB::table('kunjungan.permintaan_tempat_tidur as ptt')
@@ -33,7 +34,7 @@ final class AntreanPermintaanKamar
             ->leftJoin('inti.bangsal as bt', 'bt.id', '=', 'km.bangsal_id')
             ->when($id !== null, fn (Builder $q) => $q->where('ptt.id', $id), fn (Builder $q) => $q->whereIn('ptt.status', $status === null ? PermintaanKamar::AKTIF : [$status]))
             ->select([
-                'ptt.id', 'ptt.diminta_pada', 'ptt.asal', 'ptt.status', 'ptt.diminta_oleh', 'ptt.dialokasikan_pada',
+                'ptt.id', 'ptt.menunggu_sejak', 'ptt.diminta_pada', 'ptt.asal', 'ptt.status', 'ptt.diminta_oleh', 'ptt.dialokasikan_pada',
                 'k.id as kunjungan_id', 'k.nomor as kunjungan_nomor', 'k.jenis_kunjungan',
                 'p.id as pasien_id', 'p.no_rm', 'p.nama', 'p.jenis_kelamin', 'p.tanggal_lahir',
                 'sk.id as spri_id', 'sk.tanggal_rencana', 'sk.no_surat_bpjs',
@@ -66,6 +67,7 @@ final class AntreanPermintaanKamar
 
         return $baris->map(function ($b) use ($pelaku, $sekarang, $ringkas) {
             $diminta = Carbon::parse((string) $b->diminta_pada);
+            $sejak = Carbon::parse((string) $b->menunggu_sejak);
 
             return [
                 'id' => (string) $b->id,
@@ -79,8 +81,9 @@ final class AntreanPermintaanKamar
                 'spri' => ['id' => (string) $b->spri_id, 'tanggal_rencana' => substr((string) $b->tanggal_rencana, 0, 10), 'no_surat_bpjs' => $b->no_surat_bpjs],
                 'diminta_oleh' => $pelaku[$b->diminta_oleh] ?? null,
                 'diminta_pada' => $diminta->toIso8601String(),
-                // Menit dibulatkan ke atas (pola papan IGD); tidak negatif.
-                'lama_menunggu_menit' => (int) ceil(max(0, $sekarang->getTimestampMs() - $diminta->getTimestampMs()) / 60000),
+                'menunggu_sejak' => $sejak->toIso8601String(),
+                // Menit dibulatkan ke atas (pola papan IGD); tidak negatif (rencana rawat yang belum tiba = 0).
+                'lama_menunggu_menit' => (int) ceil(max(0, $sekarang->getTimestampMs() - $sejak->getTimestampMs()) / 60000),
                 'tempat_tidur' => $b->tt_id === null ? null : ['id' => (string) $b->tt_id, 'kode' => (string) $b->tt_kode,
                     'bangsal' => $ringkas($b->tt_bangsal_id, $b->tt_bangsal_kode, $b->tt_bangsal_nama)],
                 'dialokasikan_pada' => $b->dialokasikan_pada === null ? null : Carbon::parse((string) $b->dialokasikan_pada)->toIso8601String(),

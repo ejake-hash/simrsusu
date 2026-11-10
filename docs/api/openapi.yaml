@@ -6183,11 +6183,13 @@ paths:
       description: |
         Keputusan rawat inap dari poliklinik (7.00.3 baris "Poliklinik" → "Rawat inap"; 7.00.2 baris "Rawat inap"). Rawat
         inap pasien IGD lewat POST /kunjungan/{id}/disposisi (tujuan `rawat_inap`), yang memakai layanan yang sama.
-        Pemeriksaan sebelum isian dibaca, berurutan: kunjungan tidak ada → 404; kunjungan IGD → 409
-        `spri_igd_lewat_disposisi`; sel matriks poliklinik → rawat_inap nonaktif → 422 `perpindahan_di_luar_matriks`;
-        pemberi perintah tidak memegang `izin_perintah` sel itu di cakupan unit poli kunjungan → 403 (izin bawaan
-        `rawat_jalan.pemeriksaan.sahkan` bersyarat SIP/SPK berlaku, 403 `izin_praktik_tidak_berlaku`).
-        - Kunjungan `selesai`/`batal` → 409 `status_tidak_sesuai`, `rincian` = `[{jenis_kunjungan, status}]`.
+        Pemeriksaan sebelum isian dibaca, berurutan: sel matriks poliklinik → rawat_inap nonaktif → 422
+        `perpindahan_di_luar_matriks`; pemberi perintah tidak memegang `izin_perintah` sel itu di cakupan mana pun → 403
+        (izin bawaan `rawat_jalan.pemeriksaan.sahkan` bersyarat SIP/SPK berlaku, 403 `izin_praktik_tidak_berlaku`); kunjungan
+        tidak ada → 404; kunjungan IGD → 409 `spri_igd_lewat_disposisi` (tanpa rincian); izin sel tidak mencakup unit poli
+        kunjungan → 403.
+        - Hanya kunjungan poli `dilayani` (dokter sudah mulai periksa); `terdaftar` (bisa batal otomatis jam tutup jadwal),
+          `selesai`, atau `batal` → 409 `status_tidak_sesuai`, `rincian` = `[{jenis_kunjungan, status}]`.
         - Sudah ada permintaan kamar aktif untuk kunjungan ini → 409 `permintaan_kamar_sudah_ada`, `rincian` =
           `[{permintaan_tempat_tidur_id}]`.
         - `kelas_rawat_id`/`bangsal_id` bukan data induk aktif, `tanggal_rencana` sebelum hari ini → 422 `validasi_gagal`.
@@ -6228,8 +6230,9 @@ paths:
         Izin: pendaftaran.admisi.lihat di cakupan mana pun (403 sebelum isian dibaca); satu antrean RS (FR-08-03).
         - Hanya permintaan aktif: `menunggu` (belum ada TT) dan `dialokasikan` (TT dipesan, pasien belum ditempatkan, 2.29).
           Permintaan yang batal (disposisi lain, kunjungan batal) tidak tampil. `status` menyaring salah satunya.
-        - Urut `(diminta_pada, id)` terlama dulu, kursor keyset. `lama_menunggu_menit` dihitung server dari jam SPRI,
-          dibulatkan ke atas.
+        - Urut `(menunggu_sejak, id)` terlama dulu, kursor keyset. `menunggu_sejak` = jam SPRI, atau awal tanggal rencana
+          (zona RS) bila rawat direncanakan nanti; `lama_menunggu_menit` dihitung server darinya, dibulatkan ke atas, 0 bila
+          belum tiba. Alokasi tetap boleh sebelum tanggal rencana.
         - Data pasien = dua penanda identitas; alasan klinis SPRI tidak dikirim.
       parameters:
         - { in: query, name: status, schema: { type: string, enum: [menunggu, dialokasikan] } }
@@ -6263,7 +6266,8 @@ paths:
         - Permintaan tidak ada, atau id bukan UUID → 404. Permintaan bukan `menunggu` → 409 `permintaan_kamar_tidak_menunggu`,
           `rincian` = `[{status}]`.
         - `tempat_tidur_id` kosong, bukan UUID, atau TT tidak ada → 422 `validasi_gagal`.
-        - TT ditutup (1.8b) → 409 `tempat_tidur_ditutup`. TT bukan `kosong_siap` atau belum berlaku hari ini → 409
+        - TT ditutup atau penutupannya sudah dijadwalkan (1.8b, `berlaku_sampai` terisi) → 409 `tempat_tidur_ditutup`.
+          TT bukan `kosong_siap` atau belum berlaku hari ini → 409
           `tempat_tidur_tidak_tersedia`, `rincian` = `[{status_sekarang}]`.
         - Kelas TT berbeda dengan kelas diminta → 422 `kelas_tidak_sesuai` (titip/naik kelas di luar tiket ini). Permintaan
           IGD tanpa kelas diminta menerima kelas apa pun.
@@ -10269,7 +10273,7 @@ components:
         bangsal: { $ref: '#/components/schemas/RingkasLokasiPeta' }
     PermintaanTempatTidur:
       type: object
-      required: [id, kunjungan, pasien, asal, status, kelas_diminta, bangsal_pilihan, spri, diminta_oleh, diminta_pada, lama_menunggu_menit, tempat_tidur, dialokasikan_pada]
+      required: [id, kunjungan, pasien, asal, status, kelas_diminta, bangsal_pilihan, spri, diminta_oleh, diminta_pada, menunggu_sejak, lama_menunggu_menit, tempat_tidur, dialokasikan_pada]
       description: "Satu permintaan kamar di antrean (kunjungan.permintaan_tempat_tidur, v0.36.0; FR-08-03)."
       properties:
         id: { type: string, format: uuid }
@@ -10301,7 +10305,8 @@ components:
             no_surat_bpjs: { type: [string, 'null'], description: "Kosong sampai bridging BPJS diputuskan" }
         diminta_oleh: { $ref: '#/components/schemas/Pelaku' }
         diminta_pada: { type: string, format: date-time, description: "Jam server SPRI (awal rawat inap untuk 2.29)" }
-        lama_menunggu_menit: { type: integer, minimum: 0, description: "Menit sejak diminta_pada, dihitung server, dibulatkan ke atas" }
+        menunggu_sejak: { type: string, format: date-time, description: "Awal lama menunggu dan urutan antrean: max(diminta_pada, awal tanggal rencana zona RS)" }
+        lama_menunggu_menit: { type: integer, minimum: 0, description: "Menit sejak menunggu_sejak, dihitung server, dibulatkan ke atas; 0 bila belum tiba" }
         tempat_tidur:
           description: "TT yang dipesan; null = belum dialokasikan"
           oneOf: [{ $ref: '#/components/schemas/RingkasTempatTidurDipesan' }, { type: 'null' }]
@@ -10365,7 +10370,7 @@ components:
           description: "TT ditutup selalu tidak_dipakai"
         status_sejak: { type: string, format: date-time, description: "Jam status tersimpan mulai berlaku" }
         ditutup: { type: boolean, description: "TT ditutup 1.8b (hari terakhir berlaku sudah lewat)" }
-        dapat_dipilih: { type: boolean, description: "Tidak ditutup dan status kosong_siap (pilihan alokasi 2.28)" }
+        dapat_dipilih: { type: boolean, description: "Status kosong_siap dan tidak ditutup maupun dijadwalkan tutup (pilihan alokasi 2.28; sejak v0.36.0 penutupan terjadwal ikut false)" }
         hari_rawat: { type: [integer, 'null'], minimum: 1, description: "Hari rawat pasien di TT terisi; null sampai penempatan (2.29)" }
     RingkasPenjamin:
       type: object

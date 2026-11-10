@@ -18,6 +18,7 @@ use App\Modules\Pendaftaran\Events\DisposisiRawatInap;
 use App\Modules\Pendaftaran\Events\KunjunganDibatalkan;
 use App\Modules\Pendaftaran\Models\Kunjungan;
 use App\Modules\RawatInap\Domain\StatusTempatTidur;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
@@ -46,13 +47,16 @@ final class PermintaanKamar
     ) {}
 
     /**
-     * Izin SPRI sebelum isian dibaca: sel matriks poliklinik → rawat_inap, cakupan unit poli, termasuk lapis 5 (SIP/SPK).
-     * 404 kunjungan tidak ada; 409 kunjungan IGD (rawat inap IGD lewat disposisi); 422 sel matriks nonaktif; 403.
+     * Izin SPRI sebelum isian dibaca, berurutan: sel matriks poliklinik → rawat_inap nonaktif → 422; izin sel itu di
+     * cakupan mana pun termasuk lapis 5 (SIP/SPK) → 403; baru sesudah itu keberadaan kunjungan (404), kunjungan IGD (409),
+     * dan cakupan unit poli (403). Keberadaan dan jenis kunjungan tidak terbaca oleh akun tanpa izin sel.
      */
     public function izinkanSpri(Pengguna $dokter, string $kunjunganId): void
     {
+        $aturan = self::aturanSpri();
+        Gate::forUser($dokter)->authorize($aturan->izin_perintah);
         $k = Kunjungan::query()->find($kunjunganId) ?? throw new ApiError(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.');
-        $this->periksaIzinSpri($dokter, $k);
+        $this->periksaKunjunganSpri($dokter, $k, $aturan);
     }
 
     /**
@@ -76,9 +80,12 @@ final class PermintaanKamar
 
         return DB::transaction(function () use ($dokter, $kunjunganId, $isi, $tanggal, $bangsal) {
             $k = KunciKunjungan::pasienLaluKunjungan($kunjunganId) ?? throw new ApiError(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.');
-            $aturan = $this->periksaIzinSpri($dokter, $k);
-            if (! in_array($k->status, Kunjungan::STATUS_AKTIF, true)) {
-                throw new ApiError(409, 'status_tidak_sesuai', 'SPRI hanya untuk kunjungan yang masih terdaftar atau dilayani.',
+            $aturan = self::aturanSpri();
+            $this->periksaKunjunganSpri($dokter, $k, $aturan);
+            // Hanya kunjungan yang sedang diperiksa: kunjungan `terdaftar` bisa dibatalkan otomatis sesudah jam tutup jadwal
+            // (FR-01-21), yang akan ikut membatalkan permintaan kamarnya diam-diam.
+            if ($k->status !== 'dilayani') {
+                throw new ApiError(409, 'status_tidak_sesuai', 'SPRI hanya untuk kunjungan poli yang sedang diperiksa (mulai periksa dulu).',
                     [['jenis_kunjungan' => $k->jenis_kunjungan, 'status' => $k->status]]);
             }
             $episode = DB::table('kunjungan.episode')->where('id', $k->episode_id)->first(['id', 'jenis', 'status'])
@@ -127,16 +134,21 @@ final class PermintaanKamar
     {
         $this->pastikanBelumAda($k->id);
         $jam = self::jam();
+        // Kolom waktu dari kode, bukan bawaan basis data, agar ikut travel waktu tes (jebakan §9.4).
+        $standar = ['dibuat_oleh' => $olehId, 'diubah_oleh' => $olehId, 'dibuat_pada' => $jam, 'diubah_pada' => $jam];
         $spri = (string) Str::uuid7();
         DB::table('kunjungan.surat_kontrol')->insert([
             'id' => $spri, 'kunjungan_id' => $k->id, 'jenis' => 'spri', 'no_surat_bpjs' => null, 'tanggal_rencana' => $tanggal,
-            'diterbitkan_oleh' => $olehId, 'diterbitkan_pada' => $jam, 'status' => 'aktif', 'dibuat_oleh' => $olehId, 'diubah_oleh' => $olehId,
+            'diterbitkan_oleh' => $olehId, 'diterbitkan_pada' => $jam, 'status' => 'aktif', ...$standar,
         ]);
+        // Lama menunggu dihitung sejak jam SPRI, atau sejak awal tanggal rencana (zona RS) bila rawat direncanakan nanti.
+        $awalRencana = Carbon::parse($tanggal, (string) config('instalasi.zona_waktu'))->startOfDay()->utc();
+        $sejak = $awalRencana->greaterThan(now()) ? $awalRencana->format('Y-m-d H:i:s.uP') : $jam;
         $id = (string) Str::uuid7();
         DB::table('kunjungan.permintaan_tempat_tidur')->insert([
             'id' => $id, 'kunjungan_id' => $k->id, 'surat_kontrol_id' => $spri, 'perpindahan_pos_id' => $perpindahanId, 'asal' => $asal,
             'kelas_diminta_id' => $kelasId, 'bangsal_pilihan_id' => $bangsalId, 'diminta_oleh' => $olehId, 'diminta_pada' => $jam,
-            'status' => 'menunggu', 'dibuat_oleh' => $olehId, 'diubah_oleh' => $olehId,
+            'menunggu_sejak' => $sejak, 'status' => 'menunggu', ...$standar,
         ]);
 
         // FR-03-07: hanya permintaan IGD yang dieskalasi ke Kepala IGD (unit teguran jenis tugas).
@@ -178,20 +190,21 @@ final class PermintaanKamar
             ['status' => 'batal', 'alasan_batal' => $alasan, 'tempat_tidur_id' => $p->tempat_tidur_id], ['status' => $p->status]);
     }
 
-    private function periksaIzinSpri(Pengguna $dokter, Kunjungan $k): AturanPerpindahan
+    private static function aturanSpri(): AturanPerpindahan
     {
-        if ($k->jenis_kunjungan === Kunjungan::IGD) {
-            throw new ApiError(409, 'spri_igd_lewat_disposisi', 'Rawat inap pasien IGD diputuskan lewat Disposisi IGD.',
-                [['jenis_kunjungan' => $k->jenis_kunjungan, 'status' => $k->status]]);
-        }
-        $aturan = AturanPerpindahan::berlaku('poliklinik', 'rawat_inap')
+        return AturanPerpindahan::berlaku('poliklinik', 'rawat_inap')
             ?? throw new ApiError(422, 'perpindahan_di_luar_matriks', 'Rawat inap dari poliklinik tidak ada di matriks perpindahan aktif.',
                 [['kolom' => 'kunjungan_id', 'pos_asal' => 'poliklinik', 'pos_tujuan' => 'rawat_inap', 'pesan' => 'Hubungi pengelola matriks perpindahan.']]);
+    }
+
+    private function periksaKunjunganSpri(Pengguna $dokter, Kunjungan $k, AturanPerpindahan $aturan): void
+    {
+        if ($k->jenis_kunjungan === Kunjungan::IGD) {
+            throw new ApiError(409, 'spri_igd_lewat_disposisi', 'Rawat inap pasien IGD diputuskan lewat Disposisi IGD.');
+        }
         $unit = DB::table('inti.poliklinik')->where('id', $k->poli_id)->value('unit_organisasi_id');
         // Izin sel matriks lewat AccessEvaluator (lapis 1–3 dan 5), cakupan unit poli kunjungan.
         Gate::forUser($dokter)->authorize($aturan->izin_perintah, $unit === null ? Cakupan::rs() : new Cakupan('unit', (string) $unit));
-
-        return $aturan;
     }
 
     private function pastikanBelumAda(string $kunjunganId): void

@@ -61,6 +61,8 @@ class PermintaanTempatTidurTest extends TestCase
         parent::setUp();
         Queue::fake();
         $this->siapkanKunjungan();
+        // Modul rawat jalan aktif: SPRI poli sesudah mulai periksa (2.15).
+        DB::table('inti.modul_aktif')->insertOrIgnore(['id' => (string) Str::uuid7(), 'modul_no' => 7]);
         $this->siapkanTempatTidur();
 
         $this->dokterIgd = $this->akunDokter($this->dokter());
@@ -108,14 +110,20 @@ class PermintaanTempatTidurTest extends TestCase
         $this->assertFalse(JenisTugas::query()->where('kode', 'PERMINTAAN_KAMAR_MENUNGGU')->value('aktif'));
         $this->assertFalse(Tugas::query()->where('objek_id', $idIgd)->exists());
 
+        // SPRI rawat terencana minggu depan: menunggu sejak awal tanggal rencana, jadi tidak mendahului yang menunggu sekarang.
+        $rencana = $this->kunjunganPoli();
+        $idRencana = (string) $this->spri($rencana, ['tanggal_rencana' => '2026-11-09'])->assertCreated()
+            ->assertJsonPath('data.lama_menunggu_menit', 0)->json('data.id');
+
         $this->travel(5)->minutes();
         $this->masukSebagai($this->admisi);
         $antrean = $this->minta('GET', self::URL)->assertOk();
         $this->assertSesuaiKontrak($antrean, 'GET', '/permintaan-tempat-tidur');
-        $baris = collect($antrean->json('data'))->whereIn('id', [$idPoli, $idIgd])->values();
+        $baris = collect($antrean->json('data'))->whereIn('id', [$idPoli, $idIgd, $idRencana])->values();
         // Paling lama menunggu di atas; lama menunggu dihitung server.
-        $this->assertSame([$idPoli, $idIgd], $baris->pluck('id')->all());
-        $this->assertSame([15, 5], $baris->pluck('lama_menunggu_menit')->all());
+        $this->assertSame([$idPoli, $idIgd, $idRencana], $baris->pluck('id')->all());
+        $this->assertSame([15, 5, 0], $baris->pluck('lama_menunggu_menit')->all());
+        $this->assertTrue(Carbon::parse((string) $baris[2]['menunggu_sejak'])->equalTo(Carbon::parse('2026-11-09 00:00', (string) config('instalasi.zona_waktu'))));
         $this->assertSame('UJI28-K3', $baris[0]['kelas_diminta']['kode']);
         $this->assertNull($baris[1]['kelas_diminta']);
         $this->assertSame('igd', $baris[1]['kunjungan']['jenis_kunjungan']);
@@ -211,15 +219,25 @@ class PermintaanTempatTidurTest extends TestCase
         $this->masukSebagai($this->dokterIgd);
         $this->minta('GET', '/api/v1/igd/papan')->assertOk()->assertJsonCount(0, 'data');
 
-        // Kunjungan poli dibatalkan sesudah SPRI: permintaan ikut batal dan hilang dari antrean.
-        $poli = $this->permintaanPoli();
-        $kunjunganPoli = (string) DB::table('kunjungan.permintaan_tempat_tidur')->where('id', $poli)->value('kunjungan_id');
-        $this->masukSebagai($this->petugasPendaftaran());
-        $this->minta('POST', "/api/v1/kunjungan/$kunjunganPoli/batal", ['alasan_batal' => 'Pasien salah jadwal'])->assertOk();
-        $this->assertSame('batal', DB::table('kunjungan.permintaan_tempat_tidur')->where('id', $poli)->value('status'));
+        // Kunjungan IGD (masih terdaftar) dibatalkan sesudah TT dialokasikan: kejadian KunjunganDibatalkan membatalkan
+        // permintaan, TT kembali kosong siap, dan permintaan hilang dari antrean.
+        $kedua = $this->kunjunganIgdMenungguKamar();
+        $idKedua = (string) DB::table('kunjungan.permintaan_tempat_tidur')->where('kunjungan_id', $kedua)->value('id');
         $this->masukSebagai($this->admisi);
-        $this->assertFalse(collect($this->minta('GET', self::URL)->assertOk()->json('data'))->whereIn('id', [$igd, $poli])->isNotEmpty());
-        $this->alokasi($poli, $this->id['UJI28-101-1'])->assertStatus(409)->assertJsonPath('error.rincian.0.status', 'batal');
+        $this->alokasi($idKedua, $this->id['UJI28-101-1'])->assertOk();
+        $petugas = $this->petugasPendaftaran();
+        $this->masukSebagai($petugas);
+        $this->minta('POST', "/api/v1/kunjungan/$kedua/batal", ['alasan_batal' => 'Pasien salah pilih (uji sintetis)'])->assertOk();
+        $this->assertSame(['batal', $petugas->id], [DB::table('kunjungan.permintaan_tempat_tidur')->where('id', $idKedua)->value('status'),
+            DB::table('kunjungan.permintaan_tempat_tidur')->where('id', $idKedua)->value('dibatalkan_oleh')]);
+        $this->assertSame('kosong_siap', DB::table('inti.tempat_tidur')->where('id', $this->id['UJI28-101-1'])->value('status_saat_ini'));
+        $lepas = DB::table('kunjungan.riwayat_status_tempat_tidur')->where('tempat_tidur_id', $this->id['UJI28-101-1'])
+            ->where('sumber_kejadian', 'alokasi_batal')->first();
+        $this->assertNotNull($lepas);
+        $this->assertSame(['dipesan', 'kosong_siap', $petugas->id], [$lepas->status_sebelum, $lepas->status, $lepas->oleh]);
+        $this->masukSebagai($this->admisi);
+        $this->assertFalse(collect($this->minta('GET', self::URL)->assertOk()->json('data'))->whereIn('id', [$igd, $idKedua])->isNotEmpty());
+        $this->alokasi($idKedua, $this->id['UJI28-101-2'])->assertStatus(409)->assertJsonPath('error.rincian.0.status', 'batal');
     }
 
     public function test_izin_spri_sel_matriks_klinis_dan_izin_antrean_alokasi(): void
@@ -259,7 +277,12 @@ class PermintaanTempatTidurTest extends TestCase
         $this->masukSebagai($this->dokterIgd);
         $igd = (string) $this->minta('POST', '/api/v1/kunjungan-igd', ['pasien_id' => $this->pasien()->id, 'cara_bayar' => 'non_jkn'])->assertCreated()->json('data.id');
         $this->masukSebagai($this->dokterPoli);
-        $this->spri($igd)->assertStatus(409)->assertJsonPath('error.kode', 'spri_igd_lewat_disposisi');
+        $this->spri($igd)->assertStatus(409)->assertJsonPath('error.kode', 'spri_igd_lewat_disposisi')->assertJsonPath('error.rincian', []);
+        // Kunjungan poli yang belum mulai diperiksa (terdaftar, bisa batal otomatis jam tutup) → 409.
+        $terdaftar = $this->kunjunganPoli(periksa: false);
+        $this->masukSebagai($this->dokterPoli);
+        $belum = $this->spri($terdaftar)->assertStatus(409)->assertJsonPath('error.kode', 'status_tidak_sesuai')->assertJsonPath('error.rincian.0.status', 'terdaftar');
+        $this->assertSesuaiKontrak($belum, 'POST', '/kunjungan/{id}/spri');
         Kunjungan::query()->whereKey($poli)->update(['status' => 'selesai']);
         $selesai = $this->spri($poli)->assertStatus(409)->assertJsonPath('error.kode', 'status_tidak_sesuai')->assertJsonPath('error.rincian.0.status', 'selesai');
         $this->assertSesuaiKontrak($selesai, 'POST', '/kunjungan/{id}/spri');
@@ -416,12 +439,18 @@ class PermintaanTempatTidurTest extends TestCase
         }
     }
 
-    private function kunjunganPoli(): string
+    /** @param  bool  $periksa  true = dokter poli mulai periksa (status `dilayani`, syarat SPRI) */
+    private function kunjunganPoli(bool $periksa = true): string
     {
         $this->masukSebagai($this->petugasPendaftaran());
-
-        return (string) $this->daftarKunjungan($this->pasien(), JadwalPraktik::query()->findOrFail($this->id['jadwal']))
+        $kunjungan = (string) $this->daftarKunjungan($this->pasien(), JadwalPraktik::query()->findOrFail($this->id['jadwal']))
             ->assertCreated()->json('data.id');
+        if ($periksa) {
+            $this->masukSebagai($this->dokterPoli);
+            $this->minta('POST', "/api/v1/kunjungan/$kunjungan/mulai-periksa")->assertOk()->assertJsonPath('data.status', 'dilayani');
+        }
+
+        return $kunjungan;
     }
 
     /** @return string id permintaan kamar poli (kelas K3) */

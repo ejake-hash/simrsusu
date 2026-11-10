@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * Alokasi TT untuk permintaan kamar (tiket 2.28; FR-08-03, FR-03-06). Kunci baris permintaan, lalu baris TT FOR UPDATE
  * (urutan sama dengan pembatalan permintaan dan penutupan TT): dua alokasi serentak ke TT yang sama → yang kedua menunggu,
- * lalu membaca status `dipesan` → 409. TT harus `kosong_siap`, tidak ditutup (1.8b), sudah berlaku hari ini, dan
+ * lalu membaca status `dipesan` → 409. TT harus `kosong_siap`, tidak ditutup atau dijadwalkan tutup (1.8b), sudah berlaku hari ini, dan
  * kelasnya sama dengan kelas diminta (titip/naik kelas di luar tiket ini). Status TT berubah lewat UbahStatusTempatTidur
  * (sumber `alokasi`); tugas menunggu kamar selesai.
  */
@@ -38,8 +38,9 @@ final class AlokasiTempatTidur
             $tt = DB::table('inti.tempat_tidur')->where('id', $tempatTidurId)->lockForUpdate()
                 ->first(['id', 'kode', 'kelas_rawat_id', 'status_saat_ini', 'berlaku_dari', 'berlaku_sampai'])
                 ?? throw new ApiError(404, 'tidak_ditemukan', 'Tempat tidur tidak ditemukan.');
-            if (UbahStatusTempatTidur::ditutup($tt->berlaku_sampai)) {
-                throw new ApiError(409, 'tempat_tidur_ditutup', 'Tempat tidur ini sudah ditutup dan tidak dipakai lagi.');
+            // Ditutup atau penutupannya sudah dijadwalkan (berlaku_sampai terisi): tidak dipesan (sama dengan `dapat_dipilih` peta).
+            if ($tt->berlaku_sampai !== null) {
+                throw new ApiError(409, 'tempat_tidur_ditutup', 'Tempat tidur ini sudah ditutup atau dijadwalkan tutup.');
             }
             if ($tt->status_saat_ini !== StatusTempatTidur::KOSONG_SIAP || substr((string) $tt->berlaku_dari, 0, 10) > SuntinganBerversi::hariIni()) {
                 throw new ApiError(409, 'tempat_tidur_tidak_tersedia', 'Tempat tidur ini tidak kosong siap. Muat ulang peta lalu pilih TT lain.',

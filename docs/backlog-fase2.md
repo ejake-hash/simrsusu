@@ -719,6 +719,21 @@ Permintaan batal bila disposisi menutup kunjungan IGD (status `selesai`), bukan 
 poli tetap aktif sesudah kunjungan poli selesai (pasien menunggu kamar), batal hanya bila kunjungan dibatalkan. Uji
 serentak memakai urutan kunci + 409 status (repo belum punya pola uji dua koneksi). Usulan yang izinnya berubah tidak klinis
 sesudah diajukan berakhir `gagal_diterapkan` (mesin usulan), bukan respons 422. Nomor SPRI BPJS [Perlu pemilik].
+Perbaikan tinjauan #200: SPRI hanya untuk kunjungan poli `dilayani` (yang `terdaftar` bisa batal otomatis jam tutup jadwal
+dan ikut membatalkan permintaannya); izin sel matriks diperiksa di cakupan mana pun sebelum keberadaan/jenis kunjungan
+dibaca, 409 `spri_igd_lewat_disposisi` tanpa rincian. Asumsi: antrean diurutkan dan lama menunggu dihitung dari
+`menunggu_sejak` = max(jam SPRI, awal tanggal rencana zona RS), jadi SPRI terencana tidak mendahului yang menunggu sekarang;
+alokasi tetap boleh sebelum tanggal rencana. TT yang penutupannya sudah dijadwalkan (`berlaku_sampai` terisi) tidak bisa
+dialokasikan (409 `tempat_tidur_ditutup`) dan `dapat_dipilih` peta false; `tutup()` menolak TT terisi/dipesan hanya untuk
+penutupan mulai hari ini (tanggal depan lewat pemeriksaan per tanggal 1.8b). Asumsi: "eskalasi ke Kepala IGD" (FR-03-07) =
+teguran tingkat 2 ke kepala unit teguran jenis tugas (unit IGD); tingkat 3 mengikuti aturan 1.7. Asumsi: perintah
+`menunggu_kamar` dari 2.26 yang tercatat sebelum migrasi ini tidak diisi-ulang menjadi permintaan kamar (belum ada data
+produksi).
+Menyusul (dari tinjauan #200, tidak dikerjakan di 2.28):
+- Keunikan permintaan aktif masih per kunjungan, bukan per pasien: pasien yang mendapat SPRI poli lalu disposisi IGD rawat
+  inap bisa punya dua permintaan/dua TT dipesan. Endpoint batal permintaan kamar juga belum ada. Untuk 2.29.
+- `UbahStatusTempatTidur` memanggil `audit->catat()` di tengah transaksi alokasi/batal (kunci rantai audit dipegang lebih
+  lama). Pola diterima; ditinjau ulang bila throughput menjadi masalah.
 
 ### 2.29 · Admisi rawat inap: penempatan TT, pindah ruang, episode rawat inap
 Tujuan : pasien tiba di bangsal, menempati TT, dan seluruh kunjungan sebelumnya hari itu tergabung ke episode rawat inap.

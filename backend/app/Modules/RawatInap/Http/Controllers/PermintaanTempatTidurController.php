@@ -32,7 +32,7 @@ final class PermintaanTempatTidurController
     {
         $filter = $request->validate(['status' => ['nullable', Rule::in(PermintaanKamar::AKTIF)]]);
 
-        return Paginasi::respons($this->antrean->kueri($filter['status'] ?? null), $request, 'ptt.diminta_pada', 'ptt.id', 'asc',
+        return Paginasi::respons($this->antrean->kueri($filter['status'] ?? null), $request, 'ptt.menunggu_sejak', 'ptt.id', 'asc',
             fn ($baris) => $this->antrean->bentuk($baris))->header('Cache-Control', 'no-store');
     }
 

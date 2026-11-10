@@ -148,7 +148,8 @@ class PetaTempatTidurTest extends TestCase
         $jam = now()->copy();
         $tt = $this->id['A-2-201-2'];
         $hasil = $this->ubahStatus($tt)->assertOk()->assertJsonPath('data.id', $tt)->assertJsonPath('data.kode', 'A-2-201-2')
-            ->assertJsonPath('data.status', 'kosong_siap')->assertJsonPath('data.dapat_dipilih', true)->assertJsonPath('data.ditutup', false)
+            // Hari terakhir berlaku = hari ini (penutupan terjadwal): masih terbuka, tetapi tidak dapat dipilih alokasi (2.28).
+            ->assertJsonPath('data.status', 'kosong_siap')->assertJsonPath('data.dapat_dipilih', false)->assertJsonPath('data.ditutup', false)
             ->assertJsonPath('data.bangsal.kode', 'UJI-BA')->assertJsonPath('data.lantai.kode', '2');
         $this->assertSesuaiKontrak($hasil, 'POST', '/tempat-tidur/{id}/status');
         $this->assertStringContainsString('no-store', (string) $hasil->headers->get('Cache-Control'));

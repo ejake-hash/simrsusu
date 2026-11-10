@@ -52,7 +52,8 @@ return new class extends Migration
             $table->foreignUuid('kelas_diminta_id')->nullable()->comment('Kosong = belum ditentukan (disposisi IGD)')->constrained('inti.kelas_rawat')->restrictOnDelete();
             $table->foreignUuid('bangsal_pilihan_id')->nullable()->constrained('inti.bangsal')->restrictOnDelete();
             $table->foreignUuid('diminta_oleh')->constrained('akses.pengguna')->restrictOnDelete();
-            $table->timestampTz('diminta_pada', 6)->comment('Jam server SPRI; awal lama menunggu');
+            $table->timestampTz('diminta_pada', 6)->comment('Jam server SPRI (awal rawat inap untuk 2.29)');
+            $table->timestampTz('menunggu_sejak', 6)->comment('Awal lama menunggu dan urutan antrean: max(diminta_pada, awal tanggal rencana zona RS)');
             $table->foreignUuid('tempat_tidur_id')->nullable()->constrained('inti.tempat_tidur')->restrictOnDelete();
             $table->uuid('dialokasikan_oleh')->nullable()->comment('akses.pengguna.id');
             $table->timestampTz('dialokasikan_pada', 6)->nullable();
@@ -62,7 +63,7 @@ return new class extends Migration
             $table->timestampTz('dibatalkan_pada')->nullable();
             $table->kolomStandar();
 
-            $table->index(['status', 'diminta_pada', 'id']);
+            $table->index(['status', 'menunggu_sejak', 'id']);
         });
         DB::statement("ALTER TABLE kunjungan.permintaan_tempat_tidur ADD CONSTRAINT permintaan_tempat_tidur_cek CHECK (
             asal IN ('igd', 'poliklinik') AND status IN ('menunggu', 'dialokasikan', 'ditempatkan', 'batal')

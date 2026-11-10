@@ -124,7 +124,8 @@ final class KelolaTempatTidur
             if ($mulai < $tt->berlaku_dari->toDateString()) {
                 throw $this->tanggalTidakValid('berlaku_dari', 'Penutupan tidak bisa sebelum TT mulai berlaku.');
             }
-            if (in_array($status, [StatusTempatTidur::TERISI, StatusTempatTidur::DIPESAN], true)) {
+            // Status sekarang hanya menentukan penutupan mulai hari ini; tanggal depan lewat pemeriksaan per tanggal di bawah.
+            if ($mulai === SuntinganBerversi::hariIni() && in_array($status, [StatusTempatTidur::TERISI, StatusTempatTidur::DIPESAN], true)) {
                 throw new ApiError(409, 'tempat_tidur_terisi', 'TT sedang terisi atau dipesan; tutup sesudah pasien pindah atau pesanan dibatalkan.',
                     [['status_sekarang' => $status]]);
             }
