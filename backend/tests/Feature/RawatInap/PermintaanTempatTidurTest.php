@@ -290,6 +290,7 @@ class PermintaanTempatTidurTest extends TestCase
 
     public function test_eskalasi_menunggu_kamar_ke_kepala_igd_bila_jenis_tugas_diaktifkan(): void
     {
+        /** @var Pegawai $kepala */
         $kepala = Pegawai::factory()->create(['profesi' => 'dokter']);
         $akunKepala = $this->buatPengguna(['pegawai_id' => $kepala->id]);
         $unitIgd = UnitOrganisasi::query()->create(['kode' => 'UJI28-IGD', 'nama' => 'Instalasi Gawat Darurat (uji)', 'jenis' => 'instalasi',
@@ -401,7 +402,7 @@ class PermintaanTempatTidurTest extends TestCase
         ])->id;
     }
 
-    /** @param  array<string, string>  $kelas  kode TT => kode kelas */
+    /** @param  array<int|string, string>  $kelas  kode TT => kode kelas */
     private function tt(string $gedung, string $kodeRuang, string $bangsal, array $kelas): void
     {
         $ruang = $this->lokasi($gedung, 'ruang', $kodeRuang, "UJI28-$kodeRuang", 'rawat_inap');
