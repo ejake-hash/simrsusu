@@ -664,7 +664,9 @@ Asumsi BE #198: modul baru `RawatInap` (08). `GET /peta-tempat-tidur` tanpa `Pag
 dipilih (status tersimpan tidak diubah); TT yang baru berlaku di tanggal mendatang tidak tampil. `hari_rawat` null sampai
 penempatan (2.29). Cakupan = unit organisasi bangsal (cakupan unit memuat turunannya): GET menyaring, POST di luar cakupan 403.
 Riwayat status hanya ditambah (`simrs_app` tanpa UPDATE, pola triase); layanan `UbahStatusTempatTidur` menerima status asal
-yang sah dari pemanggil (2.28/2.29 menetapkan transisinya sendiri).
+yang sah dari pemanggil (2.28/2.29 menetapkan transisinya sendiri). Bangsal nonaktif / ruang renovasi tetap tampil dengan
+status tersimpan. TT di luar cakupan: 404 diperiksa sebelum 403 (data induk tanpa data pasien, diterima tinjauan). Batas
+1000 baris belum diuji.
 
 ### 2.28 · SPRI, antrean permintaan kamar, alokasi TT
 Tujuan : semua permintaan kamar (IGD, poli, elektif) ada di satu antrean dengan lama menunggu, lalu dialokasikan ke TT yang kosong.
@@ -685,6 +687,11 @@ Catatan tinjauan #194 (wajib di 2.28):
    peringatkan izin tanpa `butuh_kewenangan_klinis` sebelum 2.28 memakai sel SPRI.
 3. Sel poliklinik memakai `rawat_jalan.pemeriksaan.sahkan` yang bukan `IZIN_KLINIS`: putuskan sebelum `poliklinik → rawat_inap`
    dipakai.
+Catatan tinjauan #198 (wajib di 2.28/2.29):
+1. `KelolaTempatTidur::tutup()` belum mengunci baris TT dan belum menolak TT berstatus terisi/dipesan (`PemeriksaPenempatan`
+   masih `PenempatanBelumAda`): kunci baris dan baca `status_saat_ini` sebelum alokasi/penempatan memakai status itu.
+2. Status "melewati rencana lama rawat" (FR-08-01) perlu perluasan CHECK status di `inti.tempat_tidur` dan
+   `kunjungan.riwayat_status_tempat_tidur` lewat migrasi baru di 2.29.
 
 ### 2.29 · Admisi rawat inap: penempatan TT, pindah ruang, episode rawat inap
 Tujuan : pasien tiba di bangsal, menempati TT, dan seluruh kunjungan sebelumnya hari itu tergabung ke episode rawat inap.

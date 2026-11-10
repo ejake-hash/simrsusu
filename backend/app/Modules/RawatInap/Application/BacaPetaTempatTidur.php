@@ -13,7 +13,7 @@ use stdClass;
  * dari ruang kamar lewat inti.lokasi.induk_id (CTE rekursif, leluhur terdekat per jenis), tanpa N+1.
  * - Baris = TT yang sudah mulai berlaku (`berlaku_dari` ≤ hari ini zona RS). TT ditutup (`berlaku_sampai` < hari ini) tetap
  *   tampil sebagai `tidak_dipakai`, `ditutup` true, tidak dapat dipilih; status tersimpannya tidak diubah.
- * - Urut gedung, lantai, bangsal, kode TT. Tanpa data pasien apa pun; `hari_rawat` diisi penempatan (2.29).
+ * - Urut gedung, lantai, bangsal, kode TT; kode urut natural sederhana (panjang dulu, lalu kode: "2" sebelum "10"). Tanpa data pasien apa pun; `hari_rawat` diisi penempatan (2.29).
  * - Bukan daftar berkursor (layar peta memuat seluruh RS sekaligus): paling banyak BATAS_BARIS, lebih → `terpotong`.
  */
 final class BacaPetaTempatTidur
@@ -77,7 +77,8 @@ final class BacaPetaTempatTidur
             LEFT JOIN leluhur lt ON lt.ruang_id = km.lokasi_id AND lt.jenis = \'lantai\'
             LEFT JOIN leluhur gd ON gd.ruang_id = km.lokasi_id AND gd.jenis = \'gedung\'
             WHERE '.$saring.'
-            ORDER BY gd.kode NULLS LAST, gd.id, lt.kode NULLS LAST, lt.id, b.kode, tt.kode
+            ORDER BY length(gd.kode) NULLS LAST, gd.kode, gd.id, length(lt.kode) NULLS LAST, lt.kode, lt.id,
+                length(b.kode), b.kode, length(tt.kode), tt.kode
             LIMIT ?', $ikatan);
 
         return [

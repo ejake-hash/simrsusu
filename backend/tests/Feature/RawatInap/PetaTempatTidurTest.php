@@ -30,8 +30,11 @@ use Tests\TestCase;
  *   Gedung A ─ lantai 1 ─ ruang 101 (bangsal UJI-BA): A-1-101-1 terisi, A-1-101-2 kosong siap
  *            └ lantai 2 ─ ruang 201 (bangsal UJI-BA): A-2-201-1 dibersihkan tetapi ditutup kemarin, A-2-201-2 dibersihkan
  *                                                      (hari terakhir berlaku = hari ini), A-2-201-3 baru berlaku besok
+ *            └ lantai 10 ─ ruang 1001 (bangsal UJI-BA): A-10-1001-1 kosong siap (urut natural: lantai 2 sebelum 10)
  *   Gedung B ─ lantai 1 ─ ruang 101 (bangsal UJI-BB): B-1-101-1 dipesan
  *   Gedung C ─ ruang 1 tanpa lantai (bangsal UJI-BB): C-1-1 rencana pulang
+ *   Gedung D ─ sayap S ─ lantai 3 ─ ruang 301 (bangsal UJI-BB): D-S-3-301-1 kosong siap
+ * Basis data tes bisa memuat TT lain, jadi asersi daftar memakai TT uji saja (kodeUji) atau filter gedung/bangsal uji.
  */
 class PetaTempatTidurTest extends TestCase
 {
@@ -65,12 +68,16 @@ class PetaTempatTidurTest extends TestCase
         $a2 = $this->lokasi($a, 'lantai', '2', 'A-2');
         $b = $this->lokasi(null, 'gedung', 'B', 'B');
         $c = $this->lokasi(null, 'gedung', 'C', 'C');
-        [$this->id['A'], $this->id['B'], $this->id['C']] = [$a, $b, $c];
+        $d = $this->lokasi(null, 'gedung', 'D', 'D');
+        [$this->id['A'], $this->id['B'], $this->id['C'], $this->id['D']] = [$a, $b, $c, $d];
+        $this->id['D-S-3'] = $this->lokasi($this->lokasi($d, 'sayap', 'S', 'D-S'), 'lantai', '3', 'D-S-3');
 
         $this->tt($a1, '101', 'UJI-BA', ['1' => 'terisi', '2' => 'kosong_siap']);
         $this->tt($a2, '201', 'UJI-BA', ['1' => 'dibersihkan', '2' => 'dibersihkan', '3' => 'kosong_siap']);
+        $this->tt($this->lokasi($a, 'lantai', '10', 'A-10'), '1001', 'UJI-BA', ['1' => 'kosong_siap']);
         $this->tt($this->lokasi($b, 'lantai', '1', 'B-1'), '101', 'UJI-BB', ['1' => 'dipesan']);
         $this->tt($c, '1', 'UJI-BB', ['1' => 'rencana_pulang']);
+        $this->tt($this->id['D-S-3'], '301', 'UJI-BB', ['1' => 'kosong_siap']);
         TempatTidur::query()->whereKey($this->id['A-2-201-1'])->update(['berlaku_sampai' => '2026-11-01', 'alasan_tutup' => 'Renovasi (uji)']);
         TempatTidur::query()->whereKey($this->id['A-2-201-2'])->update(['berlaku_sampai' => '2026-11-02']);
         TempatTidur::query()->whereKey($this->id['A-2-201-3'])->update(['berlaku_dari' => '2026-11-03']);
@@ -82,22 +89,24 @@ class PetaTempatTidurTest extends TestCase
     public function test_status_urutan_isi_baris_dan_etag_304(): void
     {
         $this->masukSebagai($this->petugas);
-        $peta = $this->minta('GET', self::URL)->assertOk()
-            // Urut gedung, lantai, bangsal, kode TT; TT yang baru berlaku besok tidak tampil.
-            ->assertJsonPath('data.*.kode', ['A-1-101-1', 'A-1-101-2', 'A-2-201-1', 'A-2-201-2', 'B-1-101-1', 'C-1-1'])
-            // TT ditutup tampil tidak_dipakai (status tersimpan tetap dibersihkan); hari terakhir berlaku = hari ini masih terbuka.
-            ->assertJsonPath('data.*.status', ['terisi', 'kosong_siap', 'tidak_dipakai', 'dibersihkan', 'dipesan', 'rencana_pulang'])
-            ->assertJsonPath('data.*.ditutup', [false, false, true, false, false, false])
-            ->assertJsonPath('data.*.dapat_dipilih', [false, true, false, false, false, false])
-            ->assertJsonPath('data.*.hari_rawat', array_fill(0, 6, null))
-            ->assertJsonPath('data.0.gedung', ['id' => $this->id['A'], 'kode' => 'A', 'nama' => 'Lokasi A'])
-            ->assertJsonPath('data.0.lantai.kode', '1')->assertJsonPath('data.3.lantai.kode', '2')
-            ->assertJsonPath('data.5.lantai', null)->assertJsonPath('data.5.gedung.kode', 'C')
-            ->assertJsonPath('data.0.kamar.kode', '101')->assertJsonPath('data.0.kamar.nama', 'Lokasi A-1-101')
-            ->assertJsonPath('data.0.bangsal', ['id' => $this->id['UJI-BA'], 'kode' => 'UJI-BA', 'nama' => 'Bangsal UJI-BA'])
-            ->assertJsonPath('data.0.kelas_rawat', ['id' => $this->id['UJI-K3'], 'kode' => 'UJI-K3', 'nama' => 'Kelas 3 (uji)'])
-            ->assertJsonPath('data.0.aturan_jenis_kelamin', 'campur')->assertJsonPath('data.0.isolasi', false)->assertJsonPath('data.0.ekstra', false)
-            ->assertJsonPath('meta.terpotong', false);
+        $peta = $this->minta('GET', self::URL)->assertOk()->assertJsonPath('meta.terpotong', false);
+        $baris = $this->barisUji($peta);
+        // Urut gedung, lantai (natural: 2 sebelum 10), bangsal, kode TT; TT yang baru berlaku besok tidak tampil.
+        $this->assertSame(['A-1-101-1', 'A-1-101-2', 'A-2-201-1', 'A-2-201-2', 'A-10-1001-1', 'B-1-101-1', 'C-1-1', 'D-S-3-301-1'], array_keys($baris));
+        // TT ditutup tampil tidak_dipakai (status tersimpan tetap dibersihkan); hari terakhir berlaku = hari ini masih terbuka.
+        $this->assertSame(['terisi', 'kosong_siap', 'tidak_dipakai', 'dibersihkan', 'kosong_siap', 'dipesan', 'rencana_pulang', 'kosong_siap'],
+            array_values(array_column($baris, 'status')));
+        $this->assertSame([false, false, true, false, false, false, false, false], array_values(array_column($baris, 'ditutup')));
+        $this->assertSame([false, true, false, false, true, false, false, true], array_values(array_column($baris, 'dapat_dipilih')));
+        $this->assertSame(array_fill(0, 8, null), array_values(array_map(fn (array $b) => $b['hari_rawat'], $baris)));
+        $a = $baris['A-1-101-1'];
+        $this->assertSame(['id' => $this->id['A'], 'kode' => 'A', 'nama' => 'Lokasi A'], $a['gedung']);
+        $this->assertSame(['1', '2', '10', null], [$a['lantai']['kode'], $baris['A-2-201-2']['lantai']['kode'], $baris['A-10-1001-1']['lantai']['kode'], $baris['C-1-1']['lantai']]);
+        $this->assertSame('C', $baris['C-1-1']['gedung']['kode']);
+        $this->assertSame(['101', 'Lokasi A-1-101'], [$a['kamar']['kode'], $a['kamar']['nama']]);
+        $this->assertSame(['id' => $this->id['UJI-BA'], 'kode' => 'UJI-BA', 'nama' => 'Bangsal UJI-BA'], $a['bangsal']);
+        $this->assertSame(['id' => $this->id['UJI-K3'], 'kode' => 'UJI-K3', 'nama' => 'Kelas 3 (uji)'], $a['kelas_rawat']);
+        $this->assertSame(['campur', false, false], [$a['aturan_jenis_kelamin'], $a['isolasi'], $a['ekstra']]);
         $this->assertSesuaiKontrak($peta, 'GET', '/peta-tempat-tidur');
         $this->assertSame('dibersihkan', TempatTidur::query()->findOrFail($this->id['A-2-201-1'])->status_saat_ini);
         $this->assertStringContainsString('no-store', (string) $peta->headers->get('Cache-Control'));
@@ -110,16 +119,21 @@ class PetaTempatTidurTest extends TestCase
         $this->assertStringContainsString('no-store', (string) $tetap->headers->get('Cache-Control'));
         $this->assertSesuaiKontrak($tetap, 'GET', '/peta-tempat-tidur');
         $this->ubahStatus($this->id['A-2-201-2'])->assertOk();
-        $baru = $this->mintaDenganEtag(self::URL, $etag)->assertOk()->assertJsonPath('data.3.status', 'kosong_siap');
+        $baru = $this->mintaDenganEtag(self::URL, $etag)->assertOk();
+        $this->assertSame('kosong_siap', $this->barisUji($baru)['A-2-201-2']['status']);
         $this->assertNotSame($etag, $baru->headers->get('ETag'));
     }
 
     public function test_filter_bangsal_gedung_dan_bukan_uuid_422(): void
     {
         $this->masukSebagai($this->petugas);
-        $this->minta('GET', self::URL.'?bangsal_id='.$this->id['UJI-BB'])->assertOk()->assertJsonPath('data.*.kode', ['B-1-101-1', 'C-1-1']);
+        $this->minta('GET', self::URL.'?bangsal_id='.$this->id['UJI-BB'])->assertOk()->assertJsonPath('data.*.kode', ['B-1-101-1', 'C-1-1', 'D-S-3-301-1']);
         $this->minta('GET', self::URL.'?gedung_id='.$this->id['A'])->assertOk()
-            ->assertJsonPath('data.*.kode', ['A-1-101-1', 'A-1-101-2', 'A-2-201-1', 'A-2-201-2']);
+            ->assertJsonPath('data.*.kode', ['A-1-101-1', 'A-1-101-2', 'A-2-201-1', 'A-2-201-2', 'A-10-1001-1']);
+        // Gedung → sayap → lantai → ruang: filter gedung menangkap TT di bawah sayap, lantai = lantai terdekat di atas ruang.
+        $this->minta('GET', self::URL.'?gedung_id='.$this->id['D'])->assertOk()->assertJsonPath('data.*.kode', ['D-S-3-301-1'])
+            ->assertJsonPath('data.0.lantai', ['id' => $this->id['D-S-3'], 'kode' => '3', 'nama' => 'Lokasi D-S-3'])
+            ->assertJsonPath('data.0.gedung.kode', 'D');
         $this->minta('GET', self::URL.'?gedung_id='.$this->id['A'].'&bangsal_id='.$this->id['UJI-BB'])->assertOk()->assertJsonCount(0, 'data');
         $this->minta('GET', self::URL.'?gedung_id='.Str::uuid7())->assertOk()->assertJsonCount(0, 'data');
         foreach (['bangsal_id', 'gedung_id'] as $kunci) {
@@ -194,14 +208,14 @@ class PetaTempatTidurTest extends TestCase
         PeranIzin::query()->create(['peran_id' => $peran->id, 'izin_id' => Izin::query()->where('kode', 'rawat_inap.peta_tempat_tidur.lihat')->value('id')]);
         $this->tugaskan($lihat, $peran);
         $this->masukSebagai($lihat);
-        $this->minta('GET', self::URL)->assertOk()->assertJsonCount(6, 'data');
+        $this->assertCount(8, $this->barisUji($this->minta('GET', self::URL)->assertOk()));
         $this->ubahStatus($this->id['A-2-201-2'])->assertForbidden();
 
         // Cakupan unit ruang A: hanya bangsal UJI-BA; ubah TT bangsal lain → 403.
         $ruangA = $this->buatPengguna();
         $this->tugaskan($ruangA, $this->buatPeran(['rawat_inap.peta_tempat_tidur']), cakupan: new Cakupan('unit', $this->id['UJI-RA']));
         $this->masukSebagai($ruangA);
-        $this->minta('GET', self::URL)->assertOk()->assertJsonPath('data.*.kode', ['A-1-101-1', 'A-1-101-2', 'A-2-201-1', 'A-2-201-2']);
+        $this->minta('GET', self::URL)->assertOk()->assertJsonPath('data.*.kode', ['A-1-101-1', 'A-1-101-2', 'A-2-201-1', 'A-2-201-2', 'A-10-1001-1']);
         $this->minta('GET', self::URL.'?bangsal_id='.$this->id['UJI-BB'])->assertOk()->assertJsonCount(0, 'data');
         DB::table('inti.tempat_tidur')->where('id', $this->id['B-1-101-1'])->update(['status_saat_ini' => 'dibersihkan']);
         $this->ubahStatus($this->id['B-1-101-1'])->assertForbidden();
@@ -211,7 +225,7 @@ class PetaTempatTidurTest extends TestCase
         $irna = $this->buatPengguna();
         $this->tugaskan($irna, $this->buatPeran(['rawat_inap.peta_tempat_tidur']), cakupan: new Cakupan('unit', $this->id['UJI-IRNA']));
         $this->masukSebagai($irna);
-        $this->minta('GET', self::URL)->assertOk()->assertJsonCount(6, 'data');
+        $this->assertCount(8, $this->barisUji($this->minta('GET', self::URL)->assertOk()));
         $this->ubahStatus($this->id['B-1-101-1'])->assertOk()->assertJsonPath('data.status', 'kosong_siap');
     }
 
@@ -223,6 +237,23 @@ class PetaTempatTidurTest extends TestCase
         $throttle = collect($router->gatherRouteMiddleware($rute))->filter(fn ($m) => is_string($m) && str_contains($m, 'ThrottleRequests'))->values()->all();
         $this->assertCount(1, $throttle);
         $this->assertStringEndsWith(':api-layar-kerja', $throttle[0]);
+    }
+
+    /**
+     * Baris peta milik TT uji saja (kode => baris), urutan respons dipertahankan.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function barisUji(TestResponse $respons): array
+    {
+        $hasil = [];
+        foreach ((array) $respons->json('data') as $baris) {
+            if (is_array($baris) && isset($this->id[(string) $baris['kode']])) {
+                $hasil[(string) $baris['kode']] = $baris;
+            }
+        }
+
+        return $hasil;
     }
 
     private function lokasi(?string $induk, string $jenis, string $kode, string $kodeLengkap, ?string $fungsi = null, ?string $unit = null): string

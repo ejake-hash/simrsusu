@@ -6097,7 +6097,8 @@ paths:
         - Baris = TT yang sudah mulai berlaku (`berlaku_dari` ≤ hari ini zona RS). TT ditutup (`berlaku_sampai` < hari ini,
           1.8b) tetap tampil dengan `status` tidak_dipakai, `ditutup` true, `dapat_dipilih` false. TT yang baru berlaku
           di tanggal mendatang tidak tampil.
-        - Urut gedung, lantai, bangsal, kode TT. Paling banyak 1000 baris (`meta.terpotong` true bila lebih). Bukan daftar
+        - Urut gedung, lantai, bangsal, kode TT; tiap kode urut natural sederhana (lebih pendek dulu: "2" sebelum "10").
+          Paling banyak 1000 baris (`meta.terpotong` true bila lebih). Bukan daftar
           berkursor: layar memuat seluruh peta sekaligus; pencarian kode TT dan pengelompokan di layar.
         - `bangsal_id`/`gedung_id` menyaring; id tak dikenal → daftar kosong; bukan UUID → 422.
         - Tanpa data pasien. `hari_rawat` null sampai penempatan pasien (tiket 2.29).
@@ -10152,7 +10153,7 @@ components:
       required: [id, kode, nama]
       properties:
         id: { type: string, format: uuid }
-        kode: { type: string, description: "Kode segmen (bukan kode lengkap)" }
+        kode: { type: string, description: "Kode data induk; untuk kamar, lantai, dan gedung = kode segmen lokasi (bukan kode lengkap)" }
         nama: { type: string }
     TempatTidurPeta:
       type: object
