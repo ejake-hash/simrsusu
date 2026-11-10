@@ -19,7 +19,7 @@ export const KUNCI_PETA = {
 
 /** Status tampil: status kontrak, ditambah `ditutup` (TT ditutup 1.8b, status tersimpan tidak_dipakai). */
 export type KunciStatus = StatusTempatTidur | 'ditutup'
-export const URUTAN_STATUS: readonly KunciStatus[] = ['terisi', 'rencana_pulang', 'dipesan', 'dibersihkan', 'kosong_siap', 'tidak_dipakai', 'ditutup']
+export const URUTAN_STATUS: readonly KunciStatus[] = ['terisi', 'melewati_rencana_lama_rawat', 'rencana_pulang', 'dipesan', 'dibersihkan', 'kosong_siap', 'tidak_dipakai', 'ditutup']
 
 export type JenisLencana = 'ok' | 'peringatan' | 'bahaya' | 'info' | 'netral' | 'merek'
 export interface TandaStatus {
@@ -31,6 +31,8 @@ export interface TandaStatus {
 // Warna boleh berulang (terisi dan rencana pulang sama-sama berpasien); pembeda tetap teks dan ikon.
 const TANDA: Record<KunciStatus, TandaStatus> = {
   terisi: { label: 'Terisi', jenis: 'info', ikon: 'pengguna' },
+  // FR-08-01: pasien melewati rencana lama rawat butuh perhatian, jadi satu-satunya status berwarna bahaya.
+  melewati_rencana_lama_rawat: { label: 'Melewati rencana lama rawat', jenis: 'bahaya', ikon: 'peringatan' },
   rencana_pulang: { label: 'Rencana pulang', jenis: 'info', ikon: 'keluar' },
   dipesan: { label: 'Dipesan', jenis: 'merek', ikon: 'penanda' },
   dibersihkan: { label: 'Dibersihkan', jenis: 'peringatan', ikon: 'tetes' },
@@ -46,7 +48,7 @@ export const tandaKunci = (k: string): TandaStatus => TANDA[k as KunciStatus] ??
 export const tandaStatus = (tt: Pick<TempatTidurPeta, 'status' | 'ditutup'>): TandaStatus => tandaKunci(kunciStatus(tt))
 export const labelStatus = (k: KunciStatus) => TANDA[k].label
 
-/** "Hari ke-3" bila server mengirim hari rawat (null sampai penempatan 2.29). */
+/** "Hari ke-3" untuk TT berpasien (FR-08-01 angka = hari rawat, v0.37.0); null = tidak ada penempatan aktif. */
 export const teksHariRawat = (tt: Pick<TempatTidurPeta, 'hari_rawat'>) => (tt.hari_rawat === null ? null : `Hari ke-${tt.hari_rawat}`)
 
 /** Tanda TT selain status: isolasi, ekstra, aturan jenis kelamin (campur tidak ditandai). */

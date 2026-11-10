@@ -5,7 +5,7 @@ import type { RingkasLokasiPeta, StatusTempatTidur, TempatTidurPeta } from '../t
  * Server tiruan kontrak v0.35.0 (tiket 2.27): GET /peta-tempat-tidur (ETag/If-None-Match → 304, saring gedung_id dan
  * bangsal_id) dan POST /tempat-tidur/{id}/status (dibersihkan → kosong_siap). Gedung CTHG sama dengan
  * `lokal:kunjungan-contoh` (enam status); gedung CTHA menambah TT isolasi, ekstra, aturan jenis kelamin, dan TT ditutup.
- * Semua lokasi SINTETIS berlabel contoh. `hari_rawat` null sesuai kontrak (penempatan pasien menyusul di 2.29).
+ * Semua lokasi SINTETIS berlabel contoh. `hari_rawat` hanya pada TT berpasien (v0.37.0).
  */
 const NO_STORE = { 'Cache-Control': 'no-store' }
 const error = (status: number, kode: string, pesan: string, rincian: Record<string, unknown>[] = []): ResponsTiruan => ({ status, header: NO_STORE, isi: { error: { kode, pesan, rincian } } })
@@ -68,7 +68,9 @@ export function buatServerPetaTempatTidur(opsi: OpsiServerPetaTempatTidur) {
     [L.kamar201, 'CTHG-2-201-1', 'terisi'], [L.kamar201, 'CTHG-2-201-2', 'dibersihkan'], [L.kamar201, 'CTHG-2-201-3', 'dipesan'],
     [L.kamar202, 'CTHG-2-202-1', 'rencana_pulang'], [L.kamar202, 'CTHG-2-202-2', 'tidak_dipakai'], [L.kamar202, 'CTHG-2-202-3', 'kosong_siap'],
   ]
-  for (const [kamar, kode, status] of contoh) tambah(L.gedungRawatInap, L.lantai2, L.melati, kamar, kode, status)
+  // TT berpasien membawa hari rawat (v0.37.0); TT lain null.
+  const hariRawat: Partial<Record<StatusTempatTidur, number>> = { terisi: 3, rencana_pulang: 5 }
+  for (const [kamar, kode, status] of contoh) tambah(L.gedungRawatInap, L.lantai2, L.melati, kamar, kode, status, { hari_rawat: hariRawat[status] ?? null })
 
   function peta(r: PermintaanTiruan): ResponsTiruan {
     if (!opsi.boleh('rawat_inap.peta_tempat_tidur.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak melihat peta tempat tidur.')

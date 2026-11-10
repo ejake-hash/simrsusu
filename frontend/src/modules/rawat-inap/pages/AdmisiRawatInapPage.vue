@@ -10,20 +10,28 @@ import Tombol from '@/design-system/components/Tombol.vue'
 import { tampilkanToast } from '@/design-system/components/toast'
 import Ikon from '@/design-system/ikon/Ikon.vue'
 import HalamanModul from '@/layouts/HalamanModul.vue'
-import { pesanError } from '@/modules/akses/pengaturan'
+import KolomIsian from '@/design-system/form/KolomIsian.vue'
+import { errorKolom, pesanError } from '@/modules/akses/pengaturan'
 import { jamWib } from '@/modules/antrean/antrean'
 import { INTERVAL_LAYAR_KERJA } from '@/modules/notifikasi/polling'
 import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
 import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
-import { alokasikanTempatTidur, bacaPetaTempatTidur, daftarPermintaanTempatTidur } from '../api'
+import { alokasikanTempatTidur, bacaPetaTempatTidur, batalkanPermintaanKamar, daftarPermintaanTempatTidur, tempatkanPasien } from '../api'
 import {
   bolehAlokasi,
+  bolehBatalkan,
+  bolehTempatkan,
   formatLamaMenunggu,
   KUNCI_ADMISI,
+  kurangAlasanBatal,
+  kurangSerahTerima,
   labelAsal,
   perluMuatUlang,
+  permintaanBasi,
   pesanGalatAlokasi,
+  pesanGalatBatal,
+  pesanGalatTempatkan,
   pilihanTtAlokasi,
   tandaPermintaan,
   teksTtDipesan,
@@ -35,7 +43,8 @@ import type { PermintaanTempatTidur, TempatTidurPeta } from '../tipe'
  * Pendaftaran → Admisi rawat inap (tiket 2.28, kontrak v0.36.0; FR-08-03). Satu antrean RS untuk semua permintaan kamar
  * (SPRI poli dan disposisi IGD), terlama di atas; urutan dan lama menunggu dari server. Alokasi memilih TT `dapat_dipilih`
  * dari peta TT (sumber yang sama dengan Rawat Inap → Peta tempat tidur) lalu TT menjadi dipesan. Galat 409 memuat ulang
- * antrean dan pilihan TT dulu, baru pesan tampil (pola peta TT, PR 199).
+ * antrean dan pilihan TT dulu, baru pesan tampil (pola peta TT, PR 199). Tiket 2.29 (v0.37.0): permintaan dialokasikan bisa
+ * ditempatkan (pasien tiba, TT terisi, kunjungan rawat inap dibuka) dan permintaan aktif bisa dibatalkan dengan alasan.
  */
 const qc = useQueryClient()
 const route = useRoute()
@@ -53,6 +62,7 @@ const kueri = useInfiniteQuery({
 const antrean = computed<PermintaanTempatTidur[]>(() => kueri.data.value?.pages.flatMap((h) => h.data) ?? [])
 
 const izinInput = computed(() => boleh('pendaftaran.admisi.input'))
+const izinPenempatan = computed(() => boleh('rawat_inap.penempatan.input'))
 const izinPeta = computed(() => boleh('rawat_inap.peta_tempat_tidur.lihat'))
 // Kolom sengaja ramping (teks boleh turun baris) agar tabel muat di 1024 px tanpa gulir samping.
 const kolom = computed<KolomTabel[]>(() => [
@@ -62,7 +72,7 @@ const kolom = computed<KolomTabel[]>(() => [
   { kunci: 'rencana', label: 'Rencana rawat', lebar: '130px', prioritas: 2 },
   { kunci: 'lama', label: 'Lama menunggu', lebar: '140px' },
   { kunci: 'status', label: 'Status' },
-  ...(izinInput.value ? [{ kunci: 'aksi', label: 'Aksi', lebar: '150px' }] : []),
+  ...(izinInput.value || izinPenempatan.value ? [{ kunci: 'aksi', label: 'Aksi', lebar: '160px' }] : []),
 ])
 
 // Tautan tugas menunggu kamar (?permintaan=<id>): baris itu disorot.
@@ -140,6 +150,92 @@ const uraianDialog = computed(() => {
   const kelas = p.kelas_diminta ? `Kelas diminta ${p.kelas_diminta.nama}: hanya TT kelas itu yang tampil.` : 'Kelas belum ditentukan (disposisi IGD): TT kelas apa pun bisa dipilih.'
   return `No. RM ${formatNoRm(p.pasien.no_rm)} · ${p.kunjungan.nomor}. ${kelas}`
 })
+
+// ── Tempatkan (2.29): pasien tiba di bangsal; konfirmasi identitas dua penanda dan TT pesanan, serah terima opsional ──
+const sasaranTempat = ref<PermintaanTempatTidur | null>(null)
+const bukaTempat = ref(false)
+const serahTerima = ref('')
+const galatTempat = ref<unknown>(null)
+const menempatkan = ref(false)
+function mintaTempatkan(p: PermintaanTempatTidur) {
+  sasaranTempat.value = p
+  serahTerima.value = ''
+  galatTempat.value = null
+  fokusSesudah = null
+  bukaTempat.value = true
+}
+const kurangTempat = computed(() => kurangSerahTerima(serahTerima.value))
+const errorSerah = computed(() => errorKolom(galatTempat.value, ['serah_terima']).serah_terima ?? null)
+const pesanTempat = computed(() => (galatTempat.value && sasaranTempat.value?.tempat_tidur ? pesanGalatTempatkan(galatTempat.value, sasaranTempat.value.tempat_tidur.kode) : null))
+async function tempatkan() {
+  const p = sasaranTempat.value
+  if (!p?.tempat_tidur || kurangTempat.value) return
+  const kodeTt = p.tempat_tidur.kode
+  menempatkan.value = true
+  galatTempat.value = null
+  try {
+    const hasil = await tempatkanPasien(p.id, serahTerima.value.trim() || null)
+    await Promise.all([kueri.refetch(), qc.invalidateQueries({ queryKey: KUNCI_PETA.semua })])
+    fokusSesudah = 'judul-antrean-kamar'
+    bukaTempat.value = false
+    const hari = hasil.hari_rawat ? `, hari rawat ke-${hasil.hari_rawat}` : ''
+    tampilkanToast(`${p.pasien.nama} ditempatkan di TT ${hasil.penempatan?.tempat_tidur.kode ?? kodeTt} (${hasil.kunjungan.nomor}${hari}).`, 'ok')
+  } catch (e) {
+    if (perluMuatUlang(e)) await Promise.all([kueri.refetch(), qc.invalidateQueries({ queryKey: KUNCI_PETA.semua })])
+    if (permintaanBasi(e)) {
+      fokusSesudah = `permintaan-${p.id}`
+      bukaTempat.value = false
+      tampilkanToast(pesanGalatTempatkan(e, kodeTt) ?? pesanError(e), 'error')
+    } else {
+      galatTempat.value = e
+    }
+  } finally {
+    menempatkan.value = false
+  }
+}
+
+// ── Batalkan permintaan (2.29): alasan wajib; TT pesanan kembali kosong siap ──
+const sasaranBatal = ref<PermintaanTempatTidur | null>(null)
+const bukaBatal = ref(false)
+const alasanBatal = ref('')
+const galatBatal = ref<unknown>(null)
+const membatalkan = ref(false)
+function mintaBatal(p: PermintaanTempatTidur) {
+  sasaranBatal.value = p
+  alasanBatal.value = ''
+  galatBatal.value = null
+  fokusSesudah = null
+  bukaBatal.value = true
+}
+const kurangBatal = computed(() => kurangAlasanBatal(alasanBatal.value))
+const errorAlasan = computed(() => errorKolom(galatBatal.value, ['alasan']).alasan ?? null)
+const pesanBatal = computed(() => (galatBatal.value ? pesanGalatBatal(galatBatal.value) : null))
+async function batalkan() {
+  const p = sasaranBatal.value
+  if (!p || kurangBatal.value) return
+  membatalkan.value = true
+  galatBatal.value = null
+  try {
+    await batalkanPermintaanKamar(p.id, alasanBatal.value.trim())
+    await Promise.all([kueri.refetch(), qc.invalidateQueries({ queryKey: KUNCI_PETA.semua })])
+    fokusSesudah = 'judul-antrean-kamar'
+    bukaBatal.value = false
+    const tt = p.tempat_tidur ? ` TT ${p.tempat_tidur.kode} kembali kosong siap.` : ''
+    tampilkanToast(`Permintaan kamar ${p.pasien.nama} dibatalkan.${tt}`, 'ok')
+  } catch (e) {
+    if (perluMuatUlang(e)) await kueri.refetch()
+    if (permintaanBasi(e)) {
+      fokusSesudah = `permintaan-${p.id}`
+      bukaBatal.value = false
+      tampilkanToast(pesanGalatBatal(e) ?? pesanError(e), 'error')
+    } else {
+      galatBatal.value = e
+    }
+  } finally {
+    membatalkan.value = false
+  }
+}
+const identitas = (p: PermintaanTempatTidur) => `${p.pasien.nama}, No. RM ${formatNoRm(p.pasien.no_rm)}, lahir ${formatTanggal(p.pasien.tanggal_lahir)}`
 </script>
 
 <template>
@@ -199,7 +295,11 @@ const uraianDialog = computed(() => {
           <span v-if="p.tempat_tidur" class="ket-kuat">{{ teksTtDipesan(p.tempat_tidur) }}</span>
         </template>
         <template #sel-aksi="{ baris: p }">
-          <Tombol v-if="bolehAlokasi(p, izinInput)" varian="utama" :aria-label="`Alokasikan TT untuk ${p.pasien.nama} ${p.kunjungan.nomor}`" @click="minta(p)">Alokasikan TT</Tombol>
+          <div v-if="bolehAlokasi(p, izinInput) || bolehTempatkan(p, izinPenempatan) || bolehBatalkan(p, izinInput)" class="aksi-baris">
+            <Tombol v-if="bolehAlokasi(p, izinInput)" varian="utama" :aria-label="`Alokasikan TT untuk ${p.pasien.nama} ${p.kunjungan.nomor}`" @click="minta(p)">Alokasikan TT</Tombol>
+            <Tombol v-if="bolehTempatkan(p, izinPenempatan)" varian="utama" :aria-label="`Tempatkan ${p.pasien.nama} ${p.kunjungan.nomor}`" @click="mintaTempatkan(p)">Tempatkan</Tombol>
+            <Tombol v-if="bolehBatalkan(p, izinInput)" :aria-label="`Batalkan permintaan kamar ${p.pasien.nama} ${p.kunjungan.nomor}`" @click="mintaBatal(p)">Batalkan</Tombol>
+          </div>
           <span v-else class="ket">Tidak ada aksi</span>
         </template>
       </DataTable>
@@ -233,6 +333,59 @@ const uraianDialog = computed(() => {
       <template #aksi>
         <Tombol :disabled="menyimpan || undefined" @click="buka = false">Batal</Tombol>
         <Tombol varian="utama" :disabled="!ttTerpilih || undefined" :sibuk="menyimpan" @click="simpan">{{ ttTerpilih ? `Alokasikan ${ttTerpilih.kode}` : 'Alokasikan TT' }}</Tombol>
+      </template>
+    </Dialog>
+
+    <Dialog
+      v-model:open="bukaTempat"
+      :judul="sasaranTempat ? `Tempatkan ${sasaranTempat.pasien.nama}?` : 'Tempatkan pasien?'"
+      uraian="Cocokkan identitas pasien yang tiba di bangsal dengan data ini sebelum menempatkan. Jam penempatan dicatat server."
+      lebar="lebar"
+      :sibuk="menempatkan"
+      :fokus-sesudah-tutup="fokusSesudahTutup"
+    >
+      <dl v-if="sasaranTempat" class="ringkas-tempat">
+        <div>
+          <dt>Pasien</dt>
+          <dd>{{ identitas(sasaranTempat) }}</dd>
+        </div>
+        <div>
+          <dt>Kunjungan asal</dt>
+          <dd>{{ labelAsal(sasaranTempat.asal) }} · <code>{{ sasaranTempat.kunjungan.nomor }}</code></dd>
+        </div>
+        <div v-if="sasaranTempat.tempat_tidur">
+          <dt>TT tujuan</dt>
+          <dd class="kode-tujuan">{{ teksTtDipesan(sasaranTempat.tempat_tidur) }}</dd>
+        </div>
+      </dl>
+      <KolomIsian v-slot="a" label="Serah terima saat tiba (opsional)" petunjuk="Bagian RM-15: kondisi pasien, terapi berjalan, hal yang perlu diawasi. Bila diisi, 5 sampai 4.000 karakter." :error="errorSerah ?? kurangTempat ?? undefined">
+        <textarea v-bind="a" v-model="serahTerima" class="isian" rows="3" maxlength="4000"></textarea>
+      </KolomIsian>
+      <div v-if="pesanTempat" class="blok-galat">
+        <Pesan jenis="error">{{ pesanTempat }}</Pesan>
+      </div>
+      <template #aksi>
+        <Tombol :disabled="menempatkan || undefined" @click="bukaTempat = false">Batal</Tombol>
+        <Tombol varian="utama" :disabled="kurangTempat !== null || undefined" :sibuk="menempatkan" @click="tempatkan">{{ sasaranTempat?.tempat_tidur ? `Tempatkan di ${sasaranTempat.tempat_tidur.kode}` : 'Tempatkan' }}</Tombol>
+      </template>
+    </Dialog>
+
+    <Dialog
+      v-model:open="bukaBatal"
+      :judul="sasaranBatal ? `Batalkan permintaan kamar ${sasaranBatal.pasien.nama}?` : 'Batalkan permintaan kamar?'"
+      :uraian="sasaranBatal ? `${identitas(sasaranBatal)} · ${sasaranBatal.kunjungan.nomor}. ${sasaranBatal.tempat_tidur ? `TT ${sasaranBatal.tempat_tidur.kode} yang dipesan kembali kosong siap.` : 'Belum ada TT yang dipesan.'} Permintaan keluar dari antrean.` : undefined"
+      :sibuk="membatalkan"
+      :fokus-sesudah-tutup="fokusSesudahTutup"
+    >
+      <KolomIsian v-slot="a" label="Alasan pembatalan" wajib petunjuk="5 sampai 1.000 karakter, tersimpan bersama pembatalan." :error="errorAlasan ?? undefined">
+        <textarea v-bind="a" v-model="alasanBatal" class="isian" rows="3" maxlength="1000"></textarea>
+      </KolomIsian>
+      <div v-if="pesanBatal" class="blok-galat">
+        <Pesan jenis="error">{{ pesanBatal }}</Pesan>
+      </div>
+      <template #aksi>
+        <Tombol :disabled="membatalkan || undefined" @click="bukaBatal = false">Kembali</Tombol>
+        <Tombol varian="bahaya" :disabled="kurangBatal !== null || undefined" :sibuk="membatalkan" @click="batalkan">Batalkan permintaan</Tombol>
       </template>
     </Dialog>
   </HalamanModul>
@@ -320,6 +473,28 @@ const uraianDialog = computed(() => {
 }
 .blok-peringatan {
   margin-bottom: var(--space-3);
+}
+.aksi-baris {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* Identitas dua penanda dan TT tujuan dibaca sebelum menempatkan (PRD 5.1 butir 9): label kecil, isi tebal. */
+.ringkas-tempat {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+.ringkas-tempat dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ringkas-tempat dd {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+.kode-tujuan {
+  font-family: var(--font-mono);
 }
 .blok-galat {
   margin-top: var(--space-3);

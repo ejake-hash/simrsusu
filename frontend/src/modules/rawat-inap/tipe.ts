@@ -1,8 +1,9 @@
-import type { Pelaku, RingkasPasienKunjungan } from '@/modules/pendaftaran/tipeKunjungan'
+import type { Pelaku, RingkasPasienKunjungan, StatusKunjungan } from '@/modules/pendaftaran/tipeKunjungan'
 
 /** Kontrak peta tempat tidur (docs/api/openapi.yaml v0.35.0, tiket 2.27; skema TempatTidurPeta). Tanpa data pasien. */
 
-export type StatusTempatTidur = 'terisi' | 'kosong_siap' | 'dibersihkan' | 'dipesan' | 'tidak_dipakai' | 'rencana_pulang'
+/** `melewati_rencana_lama_rawat` sejak v0.37.0 (FR-08-01; disetel bersama rencana pulang, 2.40). */
+export type StatusTempatTidur = 'terisi' | 'kosong_siap' | 'dibersihkan' | 'dipesan' | 'tidak_dipakai' | 'rencana_pulang' | 'melewati_rencana_lama_rawat'
 export type AturanJenisKelamin = 'campur' | 'laki_laki' | 'perempuan'
 
 export interface RingkasLokasiPeta {
@@ -29,7 +30,7 @@ export interface TempatTidurPeta {
   status_sejak: string
   ditutup: boolean
   dapat_dipilih: boolean
-  /** Hari rawat pasien di TT terisi; null sampai penempatan (2.29). */
+  /** Hari rawat pasien yang menempati TT (v0.37.0, dari penempatan pertama; pindah ruang tidak mengulang); null = kosong. */
   hari_rawat: number | null
 }
 
@@ -75,6 +76,20 @@ export interface IsianSpri {
   kelas_rawat_id: string
   bangsal_id: string | null
   tanggal_rencana: string | null
+}
+
+/** Kunjungan rawat inap sesudah penempatan (kontrak v0.37.0, tiket 2.29; skema RawatInap). Serah terima tidak dikirim. */
+export interface RawatInap {
+  kunjungan: { id: string; nomor: string; status: StatusKunjungan }
+  pasien: RingkasPasienKunjungan
+  episode: { id: string; jenis: string; mulai_tanggal: string }
+  permintaan_tempat_tidur_id: string
+  asal: AsalPermintaanKamar
+  kelas_dirawat: RingkasLokasiPeta
+  mulai_pada: string
+  /** null = tidak menempati TT (pulang, 2.40). */
+  penempatan: { id: string; tempat_tidur: RingkasTempatTidurDipesan; mulai_pada: string; ditempatkan_oleh: Pelaku | null } | null
+  hari_rawat: number | null
 }
 
 export interface FilterPetaServer {

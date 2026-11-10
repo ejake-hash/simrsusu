@@ -66,7 +66,8 @@ describe('peta TT: server tiruan kontrak v0.35.0', () => {
     expect(semua.meta).toEqual({ terpotong: false })
     expect(semua.data.map((t) => t.kode)).toEqual(['CTHA-1-101-1', 'CTHA-1-101-2', 'CTHA-1-101-3', 'CTHA-1-101-4', 'CTHG-2-201-1', 'CTHG-2-201-2', 'CTHG-2-201-3', 'CTHG-2-202-1', 'CTHG-2-202-2', 'CTHG-2-202-3'])
     expect(semua.data.find((t) => t.kode === 'CTHA-1-101-3')).toMatchObject({ status: 'tidak_dipakai', ditutup: true, dapat_dipilih: false })
-    expect(semua.data.every((t) => t.hari_rawat === null)).toBe(true)
+    // v0.37.0: hari rawat hanya pada TT berpasien.
+    expect(semua.data.filter((t) => t.hari_rawat !== null).map((t) => [t.kode, t.status, t.hari_rawat])).toEqual([['CTHG-2-201-1', 'terisi', 3], ['CTHG-2-202-1', 'rencana_pulang', 5]])
     expect((await peta(L.gedungRawatInap.id)).data).toHaveLength(6)
     expect((await peta(null, L.anggrek.id)).data.map((t) => t.bangsal.kode)).toEqual(Array(4).fill('CONTOH-ANGGREK'))
     await expect(bacaPetaTempatTidur({ gedung_id: 'bukan-uuid', bangsal_id: null })).rejects.toMatchObject({ status: 422 })
@@ -101,6 +102,7 @@ describe('peta TT: aturan tampil', () => {
   it('status selalu berteks dan berikon; TT ditutup tampil "Ditutup"; nilai di luar kontrak netral', () => {
     expect(tandaStatus(tt({ status: 'terisi' }))).toEqual({ label: 'Terisi', jenis: 'info', ikon: 'pengguna' })
     expect(tandaStatus(tt({ status: 'dibersihkan' }))).toEqual({ label: 'Dibersihkan', jenis: 'peringatan', ikon: 'tetes' })
+    expect(tandaStatus(tt({ status: 'melewati_rencana_lama_rawat' }))).toEqual({ label: 'Melewati rencana lama rawat', jenis: 'bahaya', ikon: 'peringatan' })
     expect(tandaStatus(tt({ status: 'tidak_dipakai', ditutup: true }))).toEqual({ label: 'Ditutup', jenis: 'netral', ikon: 'gembok' })
     expect(tandaStatus(tt({ status: 'baru' as 'terisi' }))).toEqual({ label: 'Status tidak dikenal', jenis: 'netral', ikon: 'info' })
     expect(teksHariRawat(tt({ hari_rawat: 3 }))).toBe('Hari ke-3')
@@ -137,7 +139,7 @@ describe('peta TT: aturan tampil', () => {
       { nilai: L.lantai2.id, label: 'Lantai 2 (contoh) · Gedung Rawat Inap (contoh)' },
     ])
     expect(ringkasStatus(data).map((r) => [r.label, r.jumlah])).toEqual([
-      ['Terisi', 1], ['Rencana pulang', 1], ['Dipesan', 1], ['Dibersihkan', 2], ['Kosong siap', 3], ['Tidak dipakai', 1], ['Ditutup', 1],
+      ['Terisi', 1], ['Melewati rencana lama rawat', 0], ['Rencana pulang', 1], ['Dipesan', 1], ['Dibersihkan', 2], ['Kosong siap', 3], ['Tidak dipakai', 1], ['Ditutup', 1],
     ])
     const lokasi = gabungPilihanLokasi(gabungPilihanLokasi({ gedung: [], bangsal: [] }, data.slice(0, 2)), data)
     expect(lokasi.gedung.map((g) => g.kode)).toEqual(['CTHA', 'CTHG'])

@@ -16,16 +16,23 @@ import { ApiError, klien } from '@/shared/api/klien'
 import { aturIzin, vCan } from '@/shared/composables/usePermission'
 import {
   bolehAlokasi,
+  bolehBatalkan,
+  bolehTempatkan,
   formatLamaMenunggu,
   hariIniRs,
+  kurangAlasanBatal,
+  kurangSerahTerima,
   perluMuatUlang,
+  permintaanBasi,
   pesanGalatAlokasi,
+  pesanGalatBatal,
   pesanGalatSpri,
+  pesanGalatTempatkan,
   pilihanTtAlokasi,
   tandaPermintaan,
   teksTtDipesan,
 } from './admisi'
-import { alokasikanTempatTidur, bacaPetaTempatTidur, buatSpri, daftarPermintaanTempatTidur } from './api'
+import { alokasikanTempatTidur, bacaPetaTempatTidur, batalkanPermintaanKamar, buatSpri, daftarPermintaanTempatTidur, tempatkanPasien } from './api'
 import PanelSpri from './components/PanelSpri.vue'
 import AdmisiRawatInapPage from './pages/AdmisiRawatInapPage.vue'
 import { dijadwalkanTutup } from './peta'
@@ -39,7 +46,7 @@ let gabungan: ReturnType<typeof buatServerGabungan>
 let permintaan: PermintaanTiruan[] = []
 let kamar: ReturnType<typeof buatServerPermintaanKamar>
 let izinServer = new Set<string>()
-const IZIN = ['pendaftaran.admisi.lihat', 'pendaftaran.admisi.input', 'rawat_inap.peta_tempat_tidur.lihat', 'rawat_jalan.pemeriksaan.sahkan', 'master_data.organisasi.lihat']
+const IZIN = ['pendaftaran.admisi.lihat', 'pendaftaran.admisi.input', 'rawat_inap.penempatan.input', 'rawat_inap.peta_tempat_tidur.lihat', 'rawat_jalan.pemeriksaan.sahkan', 'master_data.organisasi.lihat']
 const KUNJUNGAN_POLI = '00000000-0000-7000-b228-00000000aaaa'
 
 beforeEach(() => {
@@ -116,6 +123,84 @@ describe('admisi: server tiruan kontrak v0.36.0', () => {
     await expect(daftarPermintaanTempatTidur(null)).rejects.toMatchObject({ status: 403 })
     await expect(alokasikanTempatTidur(kamar.daftar()[0]!.id, tt(await peta(), 'CTHA-1-101-1').id)).rejects.toMatchObject({ status: 403 })
     await expect(buatSpri(KUNJUNGAN_POLI, { alasan: 'Observasi sintetis', kelas_rawat_id: L.kelas.id, bangsal_id: null, tanggal_rencana: null })).rejects.toMatchObject({ status: 403 })
+  })
+})
+
+describe('admisi: server tiruan kontrak v0.37.0 (2.29)', () => {
+  it('tempatkan: hanya dialokasikan; TT dipesan → terisi hari ke-1; keluar antrean; pasien kedua kali 409; serah terima pendek 422', async () => {
+    const d = await antrean()
+    const igd = cari(d, 'Pasien Contoh IGD')
+    const poli = cari(d, 'Pasien Contoh Poli')
+    await expect(tempatkanPasien(igd.id, null)).rejects.toMatchObject({ status: 409, kode: 'permintaan_kamar_tidak_dialokasikan', rincian: [{ status: 'menunggu' }] })
+    await alokasikanTempatTidur(igd.id, tt(await peta(), 'CTHG-2-202-3').id)
+    await expect(tempatkanPasien(igd.id, 'abc')).rejects.toMatchObject({ status: 422, rincian: [{ kolom: 'serah_terima' }] })
+    const ri = await tempatkanPasien(igd.id, 'Kondisi stabil sintetis')
+    expect(ri).toMatchObject({ kunjungan: { nomor: 'RI-20261102-0001', status: 'dilayani' }, pasien: { nama: 'Pasien Contoh IGD' }, penempatan: { tempat_tidur: { kode: 'CTHG-2-202-3' } }, hari_rawat: 1 })
+    expect(tt(await peta(), 'CTHG-2-202-3')).toMatchObject({ status: 'terisi', hari_rawat: 1, dapat_dipilih: false })
+    expect((await antrean()).map((p) => p.pasien.nama)).not.toContain('Pasien Contoh IGD')
+    await expect(tempatkanPasien(igd.id, null)).rejects.toMatchObject({ status: 409, kode: 'permintaan_kamar_tidak_dialokasikan' })
+    // Pasien yang sama dengan permintaan lain (kasus BE: permintaan ganda) ditolak satu pasien satu TT.
+    kamar.daftar().find((p) => p.id === poli.id)!.pasien = structuredClone(igd.pasien)
+    await alokasikanTempatTidur(poli.id, tt(await peta(), 'CTHA-1-101-1').id)
+    await expect(tempatkanPasien(poli.id, null)).rejects.toMatchObject({ status: 409, kode: 'pasien_sudah_ditempatkan' })
+  })
+
+  it('batal: menunggu dan dialokasikan; TT pesanan kembali kosong siap; alasan pendek 422; sudah batal 409', async () => {
+    const d = await antrean()
+    const igd = cari(d, 'Pasien Contoh IGD')
+    const poli = cari(d, 'Pasien Contoh Poli')
+    await alokasikanTempatTidur(igd.id, tt(await peta(), 'CTHG-2-202-3').id)
+    await expect(batalkanPermintaanKamar(igd.id, 'x')).rejects.toMatchObject({ status: 422, rincian: [{ kolom: 'alasan' }] })
+    expect(await batalkanPermintaanKamar(igd.id, 'Keluarga memilih RS lain (sintetis)')).toMatchObject({ status: 'batal' })
+    expect(tt(await peta(), 'CTHG-2-202-3')).toMatchObject({ status: 'kosong_siap', dapat_dipilih: true })
+    expect(await batalkanPermintaanKamar(poli.id, 'Batal rawat sintetis')).toMatchObject({ status: 'batal' })
+    await expect(batalkanPermintaanKamar(poli.id, 'Batal rawat sintetis')).rejects.toMatchObject({ status: 409, kode: 'permintaan_kamar_tidak_aktif' })
+    expect((await antrean()).map((p) => p.pasien.nama)).toEqual(['Pasien Contoh Kelas Lain'])
+  })
+
+  it('tanpa izin: tempatkan dan batal 403', async () => {
+    izinServer = new Set(['pendaftaran.admisi.lihat'])
+    const id = kamar.daftar()[0]!.id
+    await expect(tempatkanPasien(id, null)).rejects.toMatchObject({ status: 403 })
+    await expect(batalkanPermintaanKamar(id, 'Batal rawat sintetis')).rejects.toMatchObject({ status: 403 })
+  })
+})
+
+describe('admisi: aturan tempatkan dan batal (2.29)', () => {
+  const ttPesan = { id: 't', kode: 'A-1', bangsal: L.melati }
+  it('aksi per status dan izin', () => {
+    expect(bolehTempatkan({ status: 'dialokasikan', tempat_tidur: ttPesan }, true)).toBe(true)
+    expect(bolehTempatkan({ status: 'dialokasikan', tempat_tidur: ttPesan }, false)).toBe(false)
+    expect(bolehTempatkan({ status: 'menunggu', tempat_tidur: null }, true)).toBe(false)
+    expect(bolehBatalkan({ status: 'menunggu' }, true)).toBe(true)
+    expect(bolehBatalkan({ status: 'dialokasikan' }, true)).toBe(true)
+    expect(bolehBatalkan({ status: 'ditempatkan' }, true)).toBe(false)
+    expect(bolehBatalkan({ status: 'menunggu' }, false)).toBe(false)
+    expect(kurangSerahTerima('')).toBeNull()
+    expect(kurangSerahTerima('   ')).toBeNull()
+    expect(kurangSerahTerima('abc')).toMatch(/minimal 5 karakter/)
+    expect(kurangSerahTerima('Stabil, infus jalan')).toBeNull()
+    expect(kurangAlasanBatal(' ab ')).toMatch(/minimal 5 karakter/)
+    expect(kurangAlasanBatal('Pasien menolak rawat')).toBeNull()
+  })
+
+  it('pesan galat tempatkan dan batal per kode kontrak; permintaan basi menutup dialog', () => {
+    expect(pesanGalatTempatkan(new ApiError(409, 'permintaan_kamar_tidak_dialokasikan', 'x'), 'A-1')).toMatch(/sudah tidak berstatus TT dipesan/)
+    expect(pesanGalatTempatkan(new ApiError(409, 'pasien_sudah_ditempatkan', 'x'), 'A-1')).toMatch(/sudah menempati TT lain/)
+    expect(pesanGalatTempatkan(new ApiError(409, 'tempat_tidur_tidak_tersedia', 'x'), 'A-1')).toMatch(/^TT A-1 sudah tidak berstatus dipesan/)
+    expect(pesanGalatTempatkan(new ApiError(409, 'tempat_tidur_ditutup', 'x'), 'A-1')).toMatch(/^TT A-1 sudah ditutup/)
+    expect(pesanGalatTempatkan(new ApiError(409, 'pasien_digabung', 'x'), 'A-1')).toMatch(/digabung/)
+    expect(pesanGalatTempatkan(new ApiError(403, 'akses_ditolak', 'x'), 'A-1')).toMatch(/cakupan bangsal/)
+    expect(pesanGalatTempatkan(new ApiError(422, 'validasi_gagal', 'x', [{ kolom: 'serah_terima', pesan: 'y' }]), 'A-1')).toBeNull()
+    expect(pesanGalatTempatkan(new Error('jaringan'), 'A-1')).toBe('Pasien gagal ditempatkan di TT A-1. Coba lagi.')
+    expect(pesanGalatBatal(new ApiError(409, 'permintaan_kamar_tidak_aktif', 'x'))).toMatch(/sudah tidak aktif/)
+    expect(pesanGalatBatal(new ApiError(403, 'akses_ditolak', 'x'))).toMatch(/tidak punya akses/)
+    expect(pesanGalatBatal(new ApiError(422, 'validasi_gagal', 'x', [{ kolom: 'alasan', pesan: 'y' }]))).toBeNull()
+    expect(pesanGalatSpri(new ApiError(409, 'pasien_sedang_dirawat', 'x'))).toMatch(/sedang dirawat inap/)
+    expect(permintaanBasi(new ApiError(409, 'permintaan_kamar_tidak_dialokasikan', 'x'))).toBe(true)
+    expect(permintaanBasi(new ApiError(409, 'permintaan_kamar_tidak_aktif', 'x'))).toBe(true)
+    expect(permintaanBasi(new ApiError(404, 'tidak_ditemukan', 'x'))).toBe(true)
+    expect(permintaanBasi(new ApiError(409, 'pasien_sudah_ditempatkan', 'x'))).toBe(false)
   })
 })
 
@@ -277,6 +362,104 @@ describe('AdmisiRawatInapPage: layar', () => {
       expect(tt(gabungan.petaTempatTidur.daftar(), 'CTHG-2-202-3').status).toBe('kosong_siap')
     })
   }
+
+  const alokasikanPoli = async () => alokasikanTempatTidur(cari(await antrean(), 'Pasien Contoh Poli').id, tt(await peta(), 'CTHG-2-202-3').id)
+  const isiTeks = async (el: HTMLTextAreaElement, nilai: string) => {
+    el.value = nilai
+    el.dispatchEvent(new Event('input'))
+    await tenang()
+  }
+
+  it('tempatkan: dialog menyebut dua penanda identitas dan TT; serah terima opsional; baris keluar antrean; toast hari rawat', async () => {
+    await alokasikanPoli()
+    await pasang()
+    expect(tombol('Tempatkan', baris('Pasien Contoh IGD'))).toBeUndefined()
+    const t = tombol('Tempatkan', baris('Pasien Contoh Poli'))!
+    expect(t.getAttribute('aria-label')).toBe('Tempatkan Pasien Contoh Poli PD-001')
+    t.click()
+    await tenang()
+    const d = dialog()!
+    expect(d.textContent).toContain('Tempatkan Pasien Contoh Poli?')
+    expect(d.textContent).toContain('Pasien Contoh Poli, No. RM')
+    expect(d.textContent).toMatch(/lahir \d/)
+    expect(d.textContent).toContain('CTHG-2-202-3 · Bangsal Melati (contoh)')
+    const kirim = () => tombol('Tempatkan di CTHG-2-202-3', dialog()!)!
+    // Serah terima kosong boleh; terlalu pendek menahan tombol.
+    expect(kirim().disabled).toBe(false)
+    await isiTeks(d.querySelector('textarea')!, 'abc')
+    expect(kirim().disabled).toBe(true)
+    expect(dialog()!.textContent).toContain('Serah terima diisi minimal 5 karakter')
+    await isiTeks(d.querySelector('textarea')!, 'Stabil, infus jalan (sintetis)')
+    kirim().click()
+    await tenang(20)
+    const post = permintaan.find((p) => p.jalur.endsWith('/tempatkan'))!
+    expect(post.isi).toEqual({ serah_terima: 'Stabil, infus jalan (sintetis)' })
+    expect(dialog()).toBeNull()
+    expect(daftarToast.value.map((t) => t.pesan)).toContain('Pasien Contoh Poli ditempatkan di TT CTHG-2-202-3 (RI-20261102-0001, hari rawat ke-1).')
+    expect(baris('Pasien Contoh Poli')).toBeUndefined()
+    expect(tt(gabungan.petaTempatTidur.daftar(), 'CTHG-2-202-3')).toMatchObject({ status: 'terisi', hari_rawat: 1 })
+    expect(document.activeElement?.id).toBe('judul-antrean-kamar')
+  })
+
+  it('tempatkan 409 pasien sudah di TT lain: pesan di dialog, dialog tetap; 409 tidak dialokasikan: dialog tutup, toast', async () => {
+    await alokasikanPoli()
+    await pasang()
+    pasangTiruan(klien, {
+      tangani: (r: PermintaanTiruan) => {
+        permintaan.push(r)
+        if (r.jalur.endsWith('/tempatkan')) return { status: 409, header: {}, isi: { error: { kode: 'pasien_sudah_ditempatkan', pesan: 'x', rincian: [] } } }
+        return kamar.tangani(r) ?? gabungan.tangani(r)
+      },
+    })
+    tombol('Tempatkan', baris('Pasien Contoh Poli'))!.click()
+    await tenang()
+    tombol('Tempatkan di CTHG-2-202-3', dialog()!)!.click()
+    await tenang(20)
+    expect(dialog()!.textContent).toContain('Pasien ini sudah menempati TT lain.')
+    // Pihak lain membatalkan permintaan sebelum pasien tiba.
+    pasangTiruan(klien, { tangani: (r: PermintaanTiruan) => (permintaan.push(r), kamar.tangani(r) ?? gabungan.tangani(r)) })
+    kamar.daftar().find((p) => p.pasien.nama === 'Pasien Contoh Poli')!.status = 'batal'
+    tombol('Tempatkan di CTHG-2-202-3', dialog()!)!.click()
+    await tenang(20)
+    expect(dialog()).toBeNull()
+    expect(daftarToast.value.map((t) => [t.jenis, t.pesan.startsWith('Permintaan ini sudah tidak berstatus TT dipesan')])).toContainEqual(['error', true])
+    expect(baris('Pasien Contoh Poli')).toBeUndefined()
+  })
+
+  it('batal: alasan wajib; TT pesanan kembali kosong siap; baris keluar antrean', async () => {
+    await alokasikanPoli()
+    await pasang()
+    tombol('Batalkan', baris('Pasien Contoh Poli'))!.click()
+    await tenang()
+    const d = dialog()!
+    expect(d.textContent).toContain('Batalkan permintaan kamar Pasien Contoh Poli?')
+    expect(d.textContent).toContain('TT CTHG-2-202-3 yang dipesan kembali kosong siap.')
+    const kirim = () => tombol('Batalkan permintaan', dialog()!)!
+    expect(kirim().disabled).toBe(true)
+    await isiTeks(d.querySelector('textarea')!, 'Pasien menolak rawat (sintetis)')
+    expect(kirim().disabled).toBe(false)
+    kirim().click()
+    await tenang(20)
+    expect(permintaan.find((p) => p.jalur.endsWith('/batal'))!.isi).toEqual({ alasan: 'Pasien menolak rawat (sintetis)' })
+    expect(dialog()).toBeNull()
+    expect(daftarToast.value.map((t) => t.pesan)).toContain('Permintaan kamar Pasien Contoh Poli dibatalkan. TT CTHG-2-202-3 kembali kosong siap.')
+    expect(baris('Pasien Contoh Poli')).toBeUndefined()
+    expect(tt(gabungan.petaTempatTidur.daftar(), 'CTHG-2-202-3').status).toBe('kosong_siap')
+  })
+
+  it('izin: tanpa penempatan.input tidak ada Tempatkan; hanya penempatan.input tidak ada Alokasikan/Batalkan', async () => {
+    await alokasikanPoli()
+    aturIzin(['pendaftaran.admisi.lihat', 'pendaftaran.admisi.input', 'rawat_inap.peta_tempat_tidur.lihat'])
+    await pasang()
+    expect(tombol('Tempatkan', baris('Pasien Contoh Poli'))).toBeUndefined()
+    expect(tombol('Batalkan', baris('Pasien Contoh Poli'))).toBeDefined()
+    document.body.innerHTML = ''
+    aturIzin(['pendaftaran.admisi.lihat', 'rawat_inap.penempatan.input'])
+    await pasang()
+    expect(tombol('Tempatkan', baris('Pasien Contoh Poli'))).toBeDefined()
+    expect(tombol('Batalkan')).toBeUndefined()
+    expect(tombol('Alokasikan TT')).toBeUndefined()
+  })
 
   it('tanpa izin lihat: tidak ada permintaan ke /permintaan-tempat-tidur', async () => {
     aturIzin([])

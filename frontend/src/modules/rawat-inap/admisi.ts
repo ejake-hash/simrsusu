@@ -70,6 +70,21 @@ export function pilihanTtAlokasi(peta: readonly TempatTidurPeta[], p: Pick<Permi
 /** Alokasi hanya untuk permintaan menunggu dan pemegang pendaftaran.admisi.input. */
 export const bolehAlokasi = (p: Pick<PermintaanTempatTidur, 'status'>, izinInput: boolean) => izinInput && p.status === 'menunggu'
 
+/** Tempatkan (2.29) hanya untuk permintaan dialokasikan (TT sudah dipesan) dan pemegang rawat_inap.penempatan.input. */
+export const bolehTempatkan = (p: Pick<PermintaanTempatTidur, 'status' | 'tempat_tidur'>, izinPenempatan: boolean) => izinPenempatan && p.status === 'dialokasikan' && p.tempat_tidur !== null
+
+/** Batal permintaan (2.29): izin sama dengan alokasi (pendaftaran.admisi.input), untuk permintaan menunggu atau dialokasikan. */
+export const bolehBatalkan = (p: Pick<PermintaanTempatTidur, 'status'>, izinInput: boolean) => izinInput && (p.status === 'menunggu' || p.status === 'dialokasikan')
+
+/** Serah terima RM-15 saat tiba opsional; bila diisi minimal 5 karakter (kontrak). null = isian siap dikirim. */
+export function kurangSerahTerima(teks: string): string | null {
+  const t = teks.trim()
+  return t.length > 0 && t.length < 5 ? 'Serah terima diisi minimal 5 karakter, atau kosongkan.' : null
+}
+
+/** Alasan batal wajib, 5 sampai 1.000 karakter. */
+export const kurangAlasanBatal = (teks: string): string | null => (teks.trim().length < 5 ? 'Isi alasan pembatalan, minimal 5 karakter.' : null)
+
 /** Galat yang membuat pilihan TT atau antrean basi: muat ulang dulu, baru pesan tampil. */
 export const perluMuatUlang = (e: unknown) => e instanceof ApiError && (e.status === 409 || e.status === 404)
 
@@ -92,6 +107,43 @@ export function pesanGalatAlokasi(e: unknown, kodeTt: string): string {
   return e.message
 }
 
+/** Galat tempatkan/batal yang berarti permintaan itu sendiri sudah basi: dialog ditutup, antrean dimuat ulang, pesan di toast. */
+export const permintaanBasi = (e: unknown) =>
+  e instanceof ApiError && (e.status === 404 || e.kode === 'permintaan_kamar_tidak_dialokasikan' || e.kode === 'permintaan_kamar_tidak_aktif')
+
+/** Pesan galat POST tempatkan per kode kontrak v0.37.0. null = galat kolom serah terima (tampil di kolomnya). */
+export function pesanGalatTempatkan(e: unknown, kodeTt: string): string | null {
+  if (!(e instanceof ApiError)) return `Pasien gagal ditempatkan di TT ${kodeTt}. Coba lagi.`
+  switch (e.kode) {
+    case 'permintaan_kamar_tidak_dialokasikan':
+      return 'Permintaan ini sudah tidak berstatus TT dipesan (sudah ditempatkan atau dibatalkan). Antrean sudah dimuat ulang.'
+    case 'pasien_sudah_ditempatkan':
+      return 'Pasien ini sudah menempati TT lain. Satu pasien hanya menempati satu TT; perpindahan lewat pindah ruang.'
+    case 'tempat_tidur_tidak_tersedia':
+      return `TT ${kodeTt} sudah tidak berstatus dipesan untuk pasien ini. Antrean sudah dimuat ulang; periksa peta TT.`
+    case 'tempat_tidur_ditutup':
+      return `TT ${kodeTt} sudah ditutup. Batalkan permintaan ini lalu alokasikan TT lain.`
+    case 'pasien_digabung':
+      return 'Rekam medis pasien ini sudah digabung ke RM lain. Muat ulang antrean dan pakai RM tujuan.'
+    case 'instalasi_belum_siap':
+      return 'Instalasi belum siap melayani. Hubungi pengelola sistem.'
+  }
+  if (e.status === 403) return `Anda tidak punya akses menempatkan pasien di TT ${kodeTt} (izin atau cakupan bangsal).`
+  if (e.status === 404) return 'Permintaan kamar tidak ditemukan. Antrean sudah dimuat ulang.'
+  if (e.status === 422 && e.rincian.some((r) => r.kolom === 'serah_terima')) return null
+  return e.message
+}
+
+/** Pesan galat POST batal per kode kontrak v0.37.0. null = galat kolom alasan. */
+export function pesanGalatBatal(e: unknown): string | null {
+  if (!(e instanceof ApiError)) return 'Permintaan kamar gagal dibatalkan. Coba lagi.'
+  if (e.kode === 'permintaan_kamar_tidak_aktif') return 'Permintaan ini sudah tidak aktif (sudah ditempatkan atau dibatalkan). Antrean sudah dimuat ulang.'
+  if (e.status === 403) return 'Anda tidak punya akses membatalkan permintaan ini (izin atau cakupan bangsal TT pesanan).'
+  if (e.status === 404) return 'Permintaan kamar tidak ditemukan. Antrean sudah dimuat ulang.'
+  if (e.status === 422 && e.rincian.some((r) => r.kolom === 'alasan')) return null
+  return e.message
+}
+
 /** Pesan galat POST SPRI per kode kontrak. null = galat kolom (tampil di kolomnya). */
 export function pesanGalatSpri(e: unknown): string | null {
   if (!(e instanceof ApiError)) return 'SPRI gagal disimpan. Coba lagi.'
@@ -106,6 +158,8 @@ export function pesanGalatSpri(e: unknown): string | null {
       return 'SPRI hanya untuk kunjungan yang sedang diperiksa. Kunjungan ini sudah selesai, dibatalkan, atau belum dimulai.'
     case 'spri_igd_lewat_disposisi':
       return 'Rawat inap pasien IGD diputuskan lewat IGD → Disposisi.'
+    case 'pasien_sedang_dirawat':
+      return 'Pasien ini sedang dirawat inap dan menempati TT. SPRI baru tidak diperlukan; perpindahan lewat pindah ruang.'
   }
   if (e.status === 403) return 'Akun Anda tidak memegang izin memberi SPRI untuk poli ini. SPRI hanya dari dokter yang diizinkan matriks perpindahan.'
   if (e.status === 404) return 'Kunjungan tidak ditemukan.'

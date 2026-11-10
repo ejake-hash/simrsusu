@@ -327,6 +327,10 @@ h4 {
   border-style: dashed;
   background: var(--bg);
 }
+/* Melewati rencana lama rawat (FR-08-01): tepi tebal --danger agar menonjol di deret TT; teks lencana tetap pembeda utama. */
+.tt-melewati_rencana_lama_rawat {
+  border: 2px solid var(--danger);
+}
 .kode {
   font-family: var(--font-mono);
   font-size: 13px;
