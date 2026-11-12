@@ -59,14 +59,14 @@ export function buatServerPasien(opsi: OpsiServerPasien) {
   const ref = (kelompok: string, kode: string | null | undefined): KodeLabelReferensi | null =>
     kode ? { kode, label: REF[kelompok]?.[kode] ?? kode } : null
 
-  /** NIK termasking "1271 •••• •••• 0042" (4 depan + 4 belakang terlihat). */
+  /** NIK termasking "•••• •••• •••• 0042" (4 belakang saja); paspor 4 depan + 4 belakang. */
   const samaran = (nilai: string | null, pisah: boolean): string | null => {
     if (!nilai) return null
+    if (pisah) return `•••• •••• •••• ${nilai.slice(-4)}`
     if (nilai.length <= 4) return `${nilai[0] ?? ''}${'•'.repeat(Math.max(0, nilai.length - 1))}`
     const depan = nilai.slice(0, 4)
     const belakang = nilai.slice(-4)
     const tengah = nilai.length - 8
-    if (pisah) return `${depan} ${'•'.repeat(4)} ${'•'.repeat(4)} ${belakang}`
     return `${depan}${'•'.repeat(Math.max(0, tengah))}${belakang}`
   }
 

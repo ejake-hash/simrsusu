@@ -100,7 +100,7 @@ describe('Daftar pegawai', () => {
 describe('Rincian pegawai', () => {
   it('NIK tersamar; tanpa izin identitas tidak ada tombol Tampilkan NIK; izin praktik terbaru per jenis', async () => {
     await pasang(RincianPegawai, { pegawaiId: server.sdm.contoh.perawat })
-    expect(rincian().textContent).toContain('1271 •••• •••• 0043')
+    expect(rincian().textContent).toContain('•••• •••• •••• 0043')
     expect(tombol('Tampilkan NIK', rincian())).toBeUndefined()
     // SIP lama habis tetapi SIP baru berlaku: riwayat tetap tampil.
     expect(rincian().textContent).toContain('SIP-SINT-0102-LAMA')
@@ -118,7 +118,7 @@ describe('Rincian pegawai', () => {
       vi.advanceTimersByTime(31_000)
       await tenang()
       expect(rincian().textContent).not.toContain('1271000000000042')
-      expect(rincian().textContent).toContain('1271 •••• •••• 0042')
+      expect(rincian().textContent).toContain('•••• •••• •••• 0042')
     } finally {
       vi.useRealTimers()
     }

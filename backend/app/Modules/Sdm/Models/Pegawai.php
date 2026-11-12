@@ -64,12 +64,12 @@ final class Pegawai extends Model
         return $this->nik_enkripsi;
     }
 
-    /** "1271 •••• •••• 0042" (PRD 11.1); null bila NIK belum diisi. Tidak butuh dekripsi di daftar bila sidik kosong. */
+    /** "•••• •••• •••• 0042" (hanya 4 digit akhir: digit 5–12 = kecamatan + tanggal lahir, bisa direkonstruksi); null bila NIK belum diisi. Tidak butuh dekripsi di daftar bila sidik kosong. */
     public function nikSamaran(): ?string
     {
         $nik = ($this->getAttributes()['nik_enkripsi'] ?? null) === null ? null : $this->nik_enkripsi;
 
-        return $nik === null ? null : substr($nik, 0, 4).' •••• •••• '.substr($nik, -4);
+        return $nik === null ? null : '•••• •••• •••• '.substr($nik, -4);
     }
 
     /** Sidik NIK untuk keunikan: HMAC dengan kunci turunan APP_KEY (rotasi APP_KEY = hitung ulang sidik). */

@@ -57,7 +57,7 @@ class PasienTest extends TestCase
             'alamat' => ['jalan' => 'Jl. Contoh No. 1', 'rt' => '001', 'rw' => '002', 'kode_pos' => '99111', 'wilayah_kode' => self::KELURAHAN],
             'kontak_darurat' => [['nama' => 'Kerabat Contoh', 'hubungan' => 'saudara', 'telepon' => '081200000002']],
         ])->assertCreated()
-            ->assertJsonPath('data.nik_samaran', '9901 •••• •••• 0042')->assertJsonMissingPath('data.nik')
+            ->assertJsonPath('data.nik_samaran', '•••• •••• •••• 0042')->assertJsonMissingPath('data.nik')
             ->assertJsonPath('data.agama', ['kode' => 'uji_1', 'label' => 'Agama Uji'])
             ->assertJsonPath('data.alamat.wilayah.kabupaten_kota', 'Kota Contoh')->assertJsonPath('data.kewarganegaraan', 'wni')
             ->assertJsonPath('data.kontak_darurat.0.telepon', '081200000002')->assertJsonPath('data.jumlah_kunjungan', 0);
@@ -131,7 +131,7 @@ class PasienTest extends TestCase
         $this->masukSebagai($this->petugas());
         $hasil = $this->cari('9901 0155 0190 0042')->assertOk()->assertJsonPath('meta.jenis_cari', 'nik')
             ->assertJsonMissingPath('data.0.nik')->assertJsonMissingPath('data.0.no_paspor')
-            ->assertJsonPath('data.0.nik_samaran', '9901 •••• •••• 0042')->assertJsonPath('data.0.no_paspor_samaran', 'A12••••89');
+            ->assertJsonPath('data.0.nik_samaran', '•••• •••• •••• 0042')->assertJsonPath('data.0.no_paspor_samaran', 'A12••••89');
         $this->assertSesuaiKontrak($hasil, 'GET', '/pasien');
         $this->assertStringNotContainsString(self::NIK, (string) $hasil->getContent());
 

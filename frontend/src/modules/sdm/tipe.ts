@@ -18,7 +18,7 @@ export interface PegawaiRingkas {
   id: string
   nip: string | null
   nama: string
-  /** `1271 •••• •••• 0042`; null = NIK belum diisi. */
+  /** `•••• •••• •••• 0042`; null = NIK belum diisi. */
   nik_samaran: string | null
   profesi: Profesi | null
   jabatan: string | null
