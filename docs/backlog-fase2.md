@@ -915,6 +915,31 @@ Uji    :
 Di luar: kirim resume ke pasien (FR-05-08, kanal menunggu portal 7.48), surat keterangan (FR-05-06), Composition SATUSEHAT (Tahap D).
 Catatan wajib dari 2.29: pemulangan memanggil `KelolaRelasiPerawatan::akhiri('kunjungan', <kunjungan RI>)` (relasi
 dpjp_rawat_inap tanpa akhir) dan menutup penempatan `pulang` (TT → dibersihkan).
+Keputusan pemilik 13 Nov 2026: kontrak v0.39.0 (GET|PUT rencana-pulang, POST pulang, GET|POST resume-medis, POST
+resume-medis/{id}/sahkan, data induk daftar-periksa-pulang); tujuan keluar pulang/aps/rujuk_keluar/meninggal lewat sel
+matriks baru (izin `rawat_inap.pemulangan.input`, klinis); butir wajib belum selesai boleh dengan alasan per butir; peta TT
+membuka id kunjungan + identitas juga bagi `rawat_inap.pemulangan.lihat`; status TT rencana pulang/melewati dihitung saat
+peta dibaca; rencana pulang non-klinis; resume = potret sumber yang ada + isian DPJP, disahkan DPJP dengan PIN T1.
+Asumsi BE #204: (1) `pemulangan.input` = izin sel matriks (IZIN_KLINIS, syarat matriks `izin_bukan_klinis`) sekaligus izin
+membuat rencana pulang yang non-klinis: rencana memakai `AccessEvaluator::periksa(..., tanpaSyaratKlinis: true)`, jadi
+syarat SIP/SPK dilewati khusus di situ, lapis 1–3 dan MFA tetap. (2) Peta: tiap izin pembuka (pindah ruang, lihat
+pemulangan) lewat `periksa()` miliknya sendiri; `pemulangan.lihat` non-klinis, jadi perawat tanpa SIP menerima kunci, dan
+MFA berlaku bila RS menandai izin itu `butuh_mfa`. (3) Pulang tanpa rencana: rencana dibuat otomatis (tanggal = hari
+pulang) dengan butir data induk aktif, aturan alasan sama. (4) Kunjungan lain dalam episode (poli asal SPRI) tidak ditutup
+dan tidak menahan pulang; episode rawat inap selesai. (5) Tugas `RESUME_BELUM_TTE_48J` objek `kunjungan`, `tenggat_dari`
+= `dibuat` (tugas dibuat saat pulang, jadi tenggat = jam pulang + `batas_menit` 2880; `objek` di KotakKerja memakai
+tanggal objek apa adanya), pengingat −240, teguran 0, eskalasi 1440 (preseden USULAN_DATA_INDUK); pelaksana akun aktif
+DPJP (`kunjungan.pegawai_id`), tanpa akun → unit bangsal. (6) Resume: CPPT berlabel sensitivitas tidak dipotret (hanya
+dihitung, `cppt_berlabel`); POST susun ulang memotret ulang sumber, isian yang tidak dikirim tetap; sahkan wajib If-Match
+`versi` agar yang disahkan = yang dibaca. GET resume belum disusun → `data` null. Siapa pun pemegang `pemulangan.input`
+ber-SIP boleh menyusun; hanya DPJP mengesahkan. (7) Item sumber `kejadian` tidak bisa dicentang (422) sampai kasir Tahap D.
+(8) Sub-menu `master_data.daftar_periksa_pulang` dan `rawat_inap.pemulangan` BELUM masuk TERSEDIA (menyimpang dari brief):
+e2e `fase1.spec.ts` mewajibkan setiap halaman TERSEDIA punya layar dan uji di LAYAR, jadi PR FE 2.40 menambahkannya ke
+TERSEDIA lewat migrasi yang memanggil `MenuBawaan::pasang()` bersama halamannya. Peran contoh perawat tanpa
+`pemulangan.sahkan`; modul 05 aktif di data lokal. (9) TT contoh `CTHG-2-202-1` jadi `terisi` (spec peta e2e disesuaikan).
+Menyusul (2.40): CPPT, diagnosis, dan resep yang ditulis di kunjungan rawat inap (tatanan `ri`) belum punya layar/endpoint,
+jadi resume hanya memotret yang ditulis di kunjungan IGD/poli dalam episode; alur B-05/B-06 rinci untuk APS, melarikan diri,
+meninggal (FR-05-07); adendum resume sah; tindakan (modul tindakan); kirim resume ke pasien (FR-05-08).
 
 ### 2.41 · Konsul / rujukan internal antar-poli
 FR     : FR-04-04, FR-07-25; `kunjungan.rujukan` arah `internal` (11.2)

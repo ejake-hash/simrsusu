@@ -512,7 +512,8 @@ class PemulanganTest extends TestCase
     }
 
     /**
-     * Pasien dirawat inap dari SPRI dokter poli (DPJP) di TT itu; sesudahnya masuk sebagai DPJP.
+     * Pasien dirawat inap dari SPRI dokter poli (DPJP) di TT itu; sesudahnya sesi admisi (masuk per nama pengguna dibatasi
+     * 10 per menit, jadi pemanggil masuk sendiri bila perlu).
      *
      * @return array{0: string, 1: string, 2: string} id kunjungan rawat inap, id TT, id kunjungan poli asal
      */
@@ -528,7 +529,6 @@ class PemulanganTest extends TestCase
         $this->masukSebagai($this->admisi);
         $this->minta('POST', "/api/v1/permintaan-tempat-tidur/$permintaan/alokasi", ['tempat_tidur_id' => $this->id[$kodeTt]])->assertOk();
         $ri = (string) $this->minta('POST', "/api/v1/permintaan-tempat-tidur/$permintaan/tempatkan", [])->assertCreated()->json('data.kunjungan.id');
-        $this->masukSebagai($this->dpjp);
 
         return [$ri, $this->id[$kodeTt], $poli];
     }

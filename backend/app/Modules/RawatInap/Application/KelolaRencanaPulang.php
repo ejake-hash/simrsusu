@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use stdClass;
 
 /**
  * Rencana pulang rawat inap (tiket 2.40, kontrak v0.39.0; FR-05-01, FR-05-03, keputusan pemilik 13 Nov 2026).
@@ -149,7 +150,7 @@ final class KelolaRencanaPulang
             'id' => $rencana === null ? null : (string) $rencana->id,
             'status' => $rencana === null ? null : (string) $rencana->status,
             'rencana_pulang_pada' => $rencana === null ? null : substr((string) $rencana->rencana_pulang_pada, 0, 10),
-            'rencana_lama_rawat' => $rencana?->rencana_lama_rawat === null ? null : (int) $rencana->rencana_lama_rawat,
+            'rencana_lama_rawat' => $rencana === null || $rencana->rencana_lama_rawat === null ? null : (int) $rencana->rencana_lama_rawat,
             'daftar_periksa' => array_map(fn (array $x) => [
                 'kode' => $x['kode'], 'nama' => $x['nama'], 'sumber' => $x['sumber'], 'wajib' => $x['wajib'],
                 'status' => $x['sumber'] === DaftarPeriksaPulang::SUMBER_KEJADIAN ? 'menunggu_kasir' : ($x['selesai_pada'] === null ? 'belum' : 'selesai'),
@@ -208,7 +209,7 @@ final class KelolaRencanaPulang
     }
 
     /** @return array{id: string, no_rm: string, nama: string, jenis_kelamin: mixed, tanggal_lahir: string|null} */
-    public static function pasien(object $b): array
+    public static function pasien(stdClass $b): array
     {
         return ['id' => (string) $b->pasien_id, 'no_rm' => (string) $b->no_rm, 'nama' => (string) $b->nama, 'jenis_kelamin' => $b->jenis_kelamin,
             'tanggal_lahir' => $b->tanggal_lahir === null ? null : substr((string) $b->tanggal_lahir, 0, 10)];
