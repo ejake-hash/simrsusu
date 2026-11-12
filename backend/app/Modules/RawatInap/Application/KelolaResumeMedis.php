@@ -29,6 +29,11 @@ use Illuminate\Support\Str;
  */
 final class KelolaResumeMedis
 {
+    public const IZIN_LIHAT = 'rawat_inap.pemulangan.lihat';
+
+    /** Klinis (SIP/SPK): menyusun resume; kode yang sama = izin sel matriks pulang (PulangkanPasien). */
+    public const IZIN_INPUT = 'rawat_inap.pemulangan.input';
+
     public const IZIN_SAHKAN = 'rawat_inap.pemulangan.sahkan';
 
     /** Batas potret per sumber (bukan daftar berkursor); lebih → `terpotong`. */
@@ -46,9 +51,9 @@ final class KelolaResumeMedis
     /** POST susun: izin input di cakupan mana pun (403) → kunjungan ada (404) → cakupan unit bangsal (403). */
     public function izinkanSusun(Pengguna $pengguna, string $kunjunganId): void
     {
-        Gate::forUser($pengguna)->authorize(KelolaRencanaPulang::IZIN_INPUT);
+        Gate::forUser($pengguna)->authorize(self::IZIN_INPUT);
         $k = KelolaRencanaPulang::kunjungan($kunjunganId);
-        Gate::forUser($pengguna)->authorize(KelolaRencanaPulang::IZIN_INPUT, KelolaRencanaPulang::cakupan($k->unit_id));
+        Gate::forUser($pengguna)->authorize(self::IZIN_INPUT, KelolaRencanaPulang::cakupan($k->unit_id));
     }
 
     /**
@@ -59,7 +64,7 @@ final class KelolaResumeMedis
     {
         return DB::transaction(function () use ($pengguna, $kunjunganId, $isian) {
             $k = KunciKunjungan::pasienLaluKunjungan($kunjunganId) ?? throw new ApiError(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.');
-            Gate::forUser($pengguna)->authorize(KelolaRencanaPulang::IZIN_INPUT, KelolaRencanaPulang::cakupan($k->unit_id));
+            Gate::forUser($pengguna)->authorize(self::IZIN_INPUT, KelolaRencanaPulang::cakupan($k->unit_id));
             if ($k->jenis_kunjungan !== Kunjungan::RAWAT_INAP || $k->status === 'batal') {
                 throw new ApiError(409, 'status_tidak_sesuai', 'Resume medis hanya untuk kunjungan rawat inap.',
                     [['jenis_kunjungan' => $k->jenis_kunjungan, 'status' => $k->status]]);

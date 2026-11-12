@@ -70,7 +70,7 @@ final class PemulanganController
     {
         /** @var Pengguna $pengguna */
         $pengguna = $request->user();
-        $rencana->izinkanLihat($pengguna, $kunjungan);
+        $rencana->izinkanLihat($pengguna, $kunjungan, KelolaResumeMedis::IZIN_LIHAT);
 
         return $this->resumeRespons($kelola->baca($kunjungan));
     }

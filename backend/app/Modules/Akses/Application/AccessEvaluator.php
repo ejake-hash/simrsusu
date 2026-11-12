@@ -82,16 +82,14 @@ final class AccessEvaluator
      * Lapis 1–3 lalu lapis 5 (PRD 9.2.2: lapis 5 mengalahkan semua pemberian). Penolakan lapis 5 membawa kode:
      * `izin_praktik_tidak_berlaku`, `kewenangan_klinis_tidak_mencakup` (bila $tindakan diberikan), `mfa_belum_terdaftar`,
      * `mfa_ulang_diperlukan`. Syarat yang tidak bisa diperbaiki pengguna sendiri diperiksa lebih dulu.
-     * $tanpaSyaratKlinis: hanya untuk aksi non-klinis yang memakai kode izin klinis (keputusan pemilik 13 Nov 2026: rencana
-     * pulang dibuat pemegang rawat_inap.pemulangan.input tanpa syarat SIP); syarat MFA tetap diperiksa.
      */
-    public function periksa(Pengguna $pengguna, string $izin, ?Cakupan $data = null, ?TindakanKlinis $tindakan = null, bool $tanpaSyaratKlinis = false): Response
+    public function periksa(Pengguna $pengguna, string $izin, ?Cakupan $data = null, ?TindakanKlinis $tindakan = null): Response
     {
         if (! $this->boleh($pengguna, $izin, $data)) {
             return Response::deny();
         }
         $syarat = $this->hak($pengguna)->syarat($izin);
-        if ($syarat['klinis'] && ! $tanpaSyaratKlinis) {
+        if ($syarat['klinis']) {
             if (! $this->kewenangan->izinPraktikBerlaku($pengguna->pegawai_id)) {
                 return Response::deny('Izin praktik (SIP/SPK) Anda tidak berlaku hari ini. Hubungi bagian SDM.', 'izin_praktik_tidak_berlaku');
             }

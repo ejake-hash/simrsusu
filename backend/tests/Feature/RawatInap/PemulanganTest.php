@@ -66,13 +66,13 @@ class PemulanganTest extends TestCase
         $this->pegawaiDpjp = $this->dokter();
         $this->id['jadwal'] = $this->jadwal($this->pegawaiDpjp)->id;
         $this->dpjp = $this->akunDokter($this->pegawaiDpjp);
-        $this->tugaskan($this->dpjp, $this->buatPeran(['rawat_jalan.pemeriksaan', 'rawat_inap.pemulangan', 'rawat_inap.peta_tempat_tidur']));
+        $this->tugaskan($this->dpjp, $this->buatPeran(['rawat_jalan.pemeriksaan', 'rawat_inap.pemulangan', 'rawat_inap.rencana_pulang', 'rawat_inap.peta_tempat_tidur']));
         $this->admisi = $this->buatPengguna();
         $this->tugaskan($this->admisi, $this->buatPeran(['pendaftaran.admisi', 'rawat_inap.peta_tempat_tidur', 'rawat_inap.penempatan']));
         /** @var Pegawai $pegawaiPerawat */
         $pegawaiPerawat = Pegawai::factory()->create(['profesi' => 'perawat']);
         $this->perawat = $this->buatPengguna(['pegawai_id' => $pegawaiPerawat->id]);
-        $this->tugaskan($this->perawat, $this->buatPeran(['rawat_inap.pemulangan', 'rawat_inap.peta_tempat_tidur']));
+        $this->tugaskan($this->perawat, $this->buatPeran(['rawat_inap.rencana_pulang', 'rawat_inap.pemulangan', 'rawat_inap.peta_tempat_tidur']));
     }
 
     public function test_pulang_menutup_penempatan_tt_dibersihkan_episode_selesai_relasi_diakhiri_dan_tugas_resume(): void
@@ -165,6 +165,19 @@ class PemulanganTest extends TestCase
         $this->assertTrue((bool) DB::table('akses.izin')->where('kode', 'rawat_inap.pemulangan.sahkan')->value('butuh_kewenangan_klinis'));
         $this->assertFalse((bool) DB::table('akses.izin')->where('kode', 'rawat_inap.pemulangan.lihat')->value('butuh_kewenangan_klinis'));
         $this->assertSame(0, DB::table('akses.izin')->where('kode', 'like', 'rawat_inap.pemulangan.%')->where('sensitif', true)->count());
+        // Keputusan pemilik 13 Nov 2026 (pisah izin): rencana pulang sub-menu sendiri, non-klinis, aksi dasar saja.
+        $this->assertSame(['rawat_inap.rencana_pulang.input', 'rawat_inap.rencana_pulang.lihat', 'rawat_inap.rencana_pulang.perbaiki'],
+            DB::table('akses.izin')->where('kode', 'like', 'rawat_inap.rencana\_pulang.%')->where('butuh_kewenangan_klinis', false)
+                ->where('sensitif', false)->orderBy('kode')->pluck('kode')->all());
+
+        // Izin rencana pulang saja (dokter ber-SIP) tidak cukup untuk pulang maupun resume.
+        $rencanaSaja = $this->akunDokter($this->dokter());
+        $this->tugaskan($rencanaSaja, $this->buatPeran(['rawat_inap.rencana_pulang']));
+        $this->masukSebagai($rencanaSaja);
+        $this->pulang($ri)->assertForbidden();
+        $this->minta('GET', "/api/v1/kunjungan/$ri/resume-medis")->assertForbidden();
+        $this->minta('POST', "/api/v1/kunjungan/$ri/resume-medis", [])->assertForbidden();
+        $this->minta('GET', "/api/v1/kunjungan/$ri/rencana-pulang")->assertOk();
 
         // Tanpa izin sel → 403 sebelum kunjungan dibaca.
         $this->masukSebagai($this->buatPengguna());
@@ -231,8 +244,14 @@ class PemulanganTest extends TestCase
         [$ri, , $poli] = $this->rawatInap($this->pasien(), 'UJI40-101-1');
         $url = "/api/v1/kunjungan/$ri/rencana-pulang";
 
+        // Perawat tanpa SIP yang hanya memegang rawat_inap.rencana_pulang (non-klinis) cukup untuk rencana.
+        /** @var Pegawai $pegawaiRencana */
+        $pegawaiRencana = Pegawai::factory()->create(['profesi' => 'perawat']);
+        $perawatRencana = $this->buatPengguna(['pegawai_id' => $pegawaiRencana->id]);
+        $this->tugaskan($perawatRencana, $this->buatPeran(['rawat_inap.rencana_pulang']));
+
         // Belum ada rencana: id null, pratinjau butir data induk, dua penanda identitas.
-        $this->masukSebagai($this->perawat);
+        $this->masukSebagai($perawatRencana);
         $kosong = $this->minta('GET', $url)->assertOk()->assertJsonPath('data.id', null)->assertJsonPath('data.versi', null)
             ->assertJsonPath('data.hari_rawat', 1)->assertJsonCount(5, 'data.daftar_periksa');
         $this->assertSesuaiKontrak($kosong, 'GET', '/kunjungan/{id}/rencana-pulang');
@@ -261,12 +280,12 @@ class PemulanganTest extends TestCase
         $this->assertAuditTerakhir('rawat_inap.rencana_pulang_diubah', (string) $buat->json('data.id'));
 
         // Izin: hanya lihat → PUT 403, GET boleh; cakupan unit lain → 403 (GET dan PUT); id tidak ada → 404.
-        $lihat = $this->akunIzin(['rawat_inap.pemulangan.lihat']);
+        $lihat = $this->akunIzin(['rawat_inap.rencana_pulang.lihat']);
         $this->masukSebagai($lihat);
         $this->minta('GET', $url)->assertOk();
         $this->assertSesuaiKontrak($this->rencanaVersi($ri, '1', ['rencana_pulang_pada' => '2026-11-06'])->assertForbidden(), 'PUT', '/kunjungan/{id}/rencana-pulang');
         $ruangB = $this->buatPengguna();
-        $this->tugaskan($ruangB, $this->buatPeran(['rawat_inap.pemulangan']), cakupan: new Cakupan('unit', $this->id['UJI40-RB']));
+        $this->tugaskan($ruangB, $this->buatPeran(['rawat_inap.rencana_pulang']), cakupan: new Cakupan('unit', $this->id['UJI40-RB']));
         $this->masukSebagai($ruangB);
         $this->assertSesuaiKontrak($this->minta('GET', $url)->assertForbidden(), 'GET', '/kunjungan/{id}/rencana-pulang');
         $this->rencanaVersi($ri, '1', ['rencana_pulang_pada' => '2026-11-06'])->assertForbidden();

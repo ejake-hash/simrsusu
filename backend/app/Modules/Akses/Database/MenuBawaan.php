@@ -176,6 +176,8 @@ final class MenuBawaan
                 'pemberian_obat' => ['Pemberian obat', 8],
                 'asesmen' => ['Asesmen & EWS', 8],
                 'pemulangan' => ['Pemulangan', 5],
+                // Tiket 2.40 (keputusan pemilik 13 Nov 2026): rencana pulang dan daftar periksa, non-klinis (tanpa syarat SIP/SPK).
+                'rencana_pulang' => ['Rencana pulang', 5],
             ]],
             'kamar_operasi' => ['Kamar Operasi', 3, 10, [
                 'jadwal' => ['Jadwal kamar operasi', 10],

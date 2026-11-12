@@ -214,7 +214,8 @@ info:
     memuat unit bangsal TT; tanpa izin itu kunci tidak dikirim. Sumber id untuk POST /kunjungan/{id}/pindah-ruang dari peta.
     Bersama id itu (syarat sama, keputusan pemilik 11 Nov 2026): `pasien_rawat_inap` {nama, no_rm, tanggal_lahir}.
     v0.39.0: Pemulangan rawat inap (tiket 2.40; FR-05-01..05, keputusan pemilik 13 Nov 2026): GET|PUT
-    /kunjungan/{id}/rencana-pulang (rencana pulang + daftar periksa, If-Match saat mengubah), POST /kunjungan/{id}/pulang
+    /kunjungan/{id}/rencana-pulang (rencana pulang + daftar periksa, If-Match saat mengubah; sub-menu baru
+    `rawat_inap.rencana_pulang` lihat/input/perbaiki, non-klinis), POST /kunjungan/{id}/pulang
     (sel matriks baru rawat_inap → pulang | aps | rujuk_keluar | meninggal, izin `rawat_inap.pemulangan.input` bersyarat
     SIP/SPK; butir wajib belum selesai butuh alasan per butir, 422 `daftar_periksa_belum_lengkap`), GET|POST
     /kunjungan/{id}/resume-medis (susun/susun ulang draf), POST /resume-medis/{id}/sahkan (PIN T1 DPJP, aksi baru
@@ -6537,7 +6538,7 @@ paths:
       operationId: bacaRencanaPulang
       summary: Rencana pulang dan daftar periksa pulang kunjungan rawat inap
       description: |
-        Izin: rawat_inap.pemulangan.lihat di cakupan mana pun (403 sebelum kunjungan dibaca); kunjungan tidak ada atau id
+        Izin: rawat_inap.rencana_pulang.lihat (non-klinis) di cakupan mana pun (403 sebelum kunjungan dibaca); kunjungan tidak ada atau id
         bukan UUID → 404; cakupan tidak memuat unit bangsal kunjungan → 403. Membawa dua penanda identitas pasien untuk
         konfirmasi (PRD 5.1 butir 9). Belum ada rencana → `id` null, `daftar_periksa` = pratinjau butir data induk aktif.
         ETag = `versi` bila rencana ada. Selalu `no-store`.
@@ -6557,9 +6558,9 @@ paths:
       operationId: simpanRencanaPulang
       summary: Buat atau ubah rencana pulang, centang butir daftar periksa
       description: |
-        Non-klinis (keputusan pemilik 13 Nov 2026). Membuat: rawat_inap.pemulangan.input (tanpa syarat SIP/SPK walau kode
-        ini juga izin sel matriks pulang; syarat MFA izin tetap berlaku); mengubah: rawat_inap.pemulangan.perbaiki dengan
-        If-Match wajib (428 `if_match_wajib`, 412 `versi_berubah`). Keduanya di cakupan yang memuat unit bangsal kunjungan.
+        Non-klinis, sub-menu sendiri (keputusan pemilik 13 Nov 2026, pisah izin). Membuat: rawat_inap.rencana_pulang.input;
+        mengubah: rawat_inap.rencana_pulang.perbaiki dengan If-Match wajib (428 `if_match_wajib`, 412 `versi_berubah`).
+        Keduanya tanpa syarat SIP/SPK, di cakupan yang memuat unit bangsal kunjungan. Izin pemulangan tidak dipakai di sini.
         Tanpa izin input maupun perbaiki di cakupan mana pun → 403 sebelum isian dibaca; kunjungan tidak ada atau id bukan
         UUID → 404.
         - Bukan kunjungan rawat inap yang berjalan → 409 `status_tidak_sesuai`, `rincian` = `[{jenis_kunjungan, status}]`.
@@ -6686,8 +6687,8 @@ paths:
       operationId: bacaResumeMedis
       summary: Resume medis kunjungan rawat inap (null bila belum disusun)
       description: |
-        Izin dan cakupan sama dengan GET /kunjungan/{id}/rencana-pulang (rawat_inap.pemulangan.lihat di cakupan unit bangsal
-        kunjungan). ETag = `versi`. Selalu `no-store`. Isi klinis tidak masuk log/audit.
+        Izin: rawat_inap.pemulangan.lihat di cakupan mana pun (403), kunjungan tidak ada → 404, cakupan unit bangsal
+        kunjungan → 403. Izin rencana pulang tidak cukup. ETag = `versi`. Selalu `no-store`. Isi klinis tidak masuk log/audit.
       responses:
         '200':
           description: Resume medis, atau `data` null

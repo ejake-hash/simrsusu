@@ -54,6 +54,6 @@ final class IsiResumeMedis implements PenyediaIsiTtd
         $cakupan = KelolaRencanaPulang::cakupan($unit->unit_id === null ? null : (string) $unit->unit_id);
         $gate = Gate::forUser($pengguna);
 
-        return $gate->allows(KelolaRencanaPulang::IZIN_LIHAT, $cakupan) || $gate->allows(KelolaResumeMedis::IZIN_SAHKAN, $cakupan);
+        return $gate->allows(KelolaResumeMedis::IZIN_LIHAT, $cakupan) || $gate->allows(KelolaResumeMedis::IZIN_SAHKAN, $cakupan);
     }
 }

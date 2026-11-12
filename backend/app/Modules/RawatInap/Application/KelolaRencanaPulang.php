@@ -6,13 +6,11 @@ use App\Core\Audit\CatatAktivitas;
 use App\Core\Http\ApiError;
 use App\Core\Http\IfMatch;
 use App\Core\Http\SuntinganBerversi;
-use App\Modules\Akses\Application\AccessEvaluator;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\MasterData\Models\DaftarPeriksaPulang;
 use App\Modules\Pendaftaran\Application\KunciKunjungan;
 use App\Modules\Pendaftaran\Models\Kunjungan;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -22,42 +20,44 @@ use stdClass;
 
 /**
  * Rencana pulang rawat inap (tiket 2.40, kontrak v0.39.0; FR-05-01, FR-05-03, keputusan pemilik 13 Nov 2026).
- * - Dibuat pemegang rawat_inap.pemulangan.input, diubah pemegang rawat_inap.pemulangan.perbaiki (If-Match), keduanya di
- *   cakupan yang memuat unit bangsal kunjungan. Non-klinis: kode `input` juga izin sel matriks pulang (IZIN_KLINIS), jadi
- *   syarat SIP/SPK-nya dilewati khusus untuk rencana (AccessEvaluator::periksa $tanpaSyaratKlinis), syarat MFA tetap.
+ * - Sub-menu sendiri rawat_inap.rencana_pulang (non-klinis, tanpa syarat SIP/SPK; keputusan pemilik 13 Nov 2026 "pisah
+ *   izin"): dibuat pemegang `.input`, diubah pemegang `.perbaiki` (If-Match), dibaca pemegang `.lihat`, semuanya di cakupan
+ *   yang memuat unit bangsal kunjungan. Izin pemulangan (pulang, resume) tidak dipakai di sini.
  * - Butir daftar periksa disalin (kode, nama, sumber, wajib) dari data induk aktif saat rencana dibuat; butir sumber
  *   `kejadian` (tagihan/jaminan) tidak bisa dicentang di sini (menunggu kasir, Tahap D).
  * - Status TT `rencana_pulang`/`melewati_rencana_lama_rawat` dihitung peta saat dibaca (BacaPetaTempatTidur).
  */
 final class KelolaRencanaPulang
 {
-    public const IZIN_LIHAT = 'rawat_inap.pemulangan.lihat';
+    public const IZIN_LIHAT = 'rawat_inap.rencana_pulang.lihat';
 
-    public const IZIN_INPUT = 'rawat_inap.pemulangan.input';
+    public const IZIN_INPUT = 'rawat_inap.rencana_pulang.input';
 
-    public const IZIN_PERBAIKI = 'rawat_inap.pemulangan.perbaiki';
+    public const IZIN_PERBAIKI = 'rawat_inap.rencana_pulang.perbaiki';
 
     public function __construct(
         private readonly CatatAktivitas $audit,
-        private readonly AccessEvaluator $evaluator,
         private readonly NamaPelaku $pelaku,
     ) {}
 
-    /** GET: izin lihat di cakupan mana pun (403) → kunjungan ada (404) → cakupan unit bangsal kunjungan (403). */
-    public function izinkanLihat(Pengguna $pengguna, string $kunjunganId): void
+    /**
+     * GET: izin di cakupan mana pun (403) → kunjungan ada (404) → cakupan unit bangsal kunjungan (403). Dipakai juga GET
+     * resume dengan izin rawat_inap.pemulangan.lihat.
+     */
+    public function izinkanLihat(Pengguna $pengguna, string $kunjunganId, string $izin = self::IZIN_LIHAT): void
     {
-        Gate::forUser($pengguna)->authorize(self::IZIN_LIHAT);
+        Gate::forUser($pengguna)->authorize($izin);
         $k = self::kunjungan($kunjunganId);
-        Gate::forUser($pengguna)->authorize(self::IZIN_LIHAT, self::cakupan($k->unit_id));
+        Gate::forUser($pengguna)->authorize($izin, self::cakupan($k->unit_id));
     }
 
-    /** PUT, sebelum isian dibaca: izin input (tanpa syarat klinis) atau perbaiki di cakupan mana pun (403) → kunjungan ada (404). */
+    /** PUT, sebelum isian dibaca: izin input atau perbaiki di cakupan mana pun (403) → kunjungan ada (404). */
     public function izinkanSimpan(Pengguna $pengguna, string $kunjunganId): void
     {
-        if (! $this->bolehInput($pengguna, null) && ! Gate::forUser($pengguna)->allows(self::IZIN_PERBAIKI)) {
-            // Kode lapis 5 (mis. mfa_ulang_diperlukan) diteruskan dari izin input.
-            $this->evaluator->periksa($pengguna, self::IZIN_INPUT, null, null, true)->authorize();
-            throw new AuthorizationException;
+        $gate = Gate::forUser($pengguna);
+        if (! $gate->allows(self::IZIN_INPUT) && ! $gate->allows(self::IZIN_PERBAIKI)) {
+            // Kode penolakan lapis 5 (mis. mfa_ulang_diperlukan) diteruskan dari izin input.
+            $gate->authorize(self::IZIN_INPUT);
         }
         self::kunjungan($kunjunganId);
     }
@@ -72,14 +72,7 @@ final class KelolaRencanaPulang
             $k = KunciKunjungan::pasienLaluKunjungan($kunjunganId) ?? throw new ApiError(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.');
             $rencana = DB::table('kunjungan.rencana_pulang')->where('kunjungan_id', $k->id)->lockForUpdate()->first();
             $cakupan = self::cakupan($k->unit_id);
-            if ($rencana === null) {
-                if (! $this->bolehInput($pengguna, $cakupan)) {
-                    $this->evaluator->periksa($pengguna, self::IZIN_INPUT, $cakupan, null, true)->authorize();
-                    throw new AuthorizationException;
-                }
-            } else {
-                Gate::forUser($pengguna)->authorize(self::IZIN_PERBAIKI, $cakupan);
-            }
+            Gate::forUser($pengguna)->authorize($rencana === null ? self::IZIN_INPUT : self::IZIN_PERBAIKI, $cakupan);
             self::pastikanRawatInapAktif($k);
             if ($rencana !== null) {
                 if ($versi === null) {
@@ -213,11 +206,6 @@ final class KelolaRencanaPulang
     {
         return ['id' => (string) $b->pasien_id, 'no_rm' => (string) $b->no_rm, 'nama' => (string) $b->nama, 'jenis_kelamin' => $b->jenis_kelamin,
             'tanggal_lahir' => $b->tanggal_lahir === null ? null : substr((string) $b->tanggal_lahir, 0, 10)];
-    }
-
-    private function bolehInput(Pengguna $pengguna, ?Cakupan $cakupan): bool
-    {
-        return $this->evaluator->periksa($pengguna, self::IZIN_INPUT, $cakupan, null, true)->allowed();
     }
 
     /**
