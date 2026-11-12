@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.38.0
+  version: 0.39.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -213,6 +213,17 @@ info:
     (id kunjungan rawat inap TT berpenempatan aktif) hanya bagi pemegang rawat_inap.pindah_ruang.input di cakupan yang
     memuat unit bangsal TT; tanpa izin itu kunci tidak dikirim. Sumber id untuk POST /kunjungan/{id}/pindah-ruang dari peta.
     Bersama id itu (syarat sama, keputusan pemilik 11 Nov 2026): `pasien_rawat_inap` {nama, no_rm, tanggal_lahir}.
+    v0.39.0: Pemulangan rawat inap (tiket 2.40; FR-05-01..05, keputusan pemilik 13 Nov 2026): GET|PUT
+    /kunjungan/{id}/rencana-pulang (rencana pulang + daftar periksa, If-Match saat mengubah), POST /kunjungan/{id}/pulang
+    (sel matriks baru rawat_inap → pulang | aps | rujuk_keluar | meninggal, izin `rawat_inap.pemulangan.input` bersyarat
+    SIP/SPK; butir wajib belum selesai butuh alasan per butir, 422 `daftar_periksa_belum_lengkap`), GET|POST
+    /kunjungan/{id}/resume-medis (susun/susun ulang draf), POST /resume-medis/{id}/sahkan (PIN T1 DPJP, aksi baru
+    `rawat_inap.pemulangan.sahkan` bersyarat SIP/SPK; 403 `bukan_pemutus`), objek TTE `resume_medis`. Data induk baru
+    GET /data-induk/daftar-periksa-pulang, PATCH /data-induk/daftar-periksa-pulang/{id} (sub-menu
+    `master_data.daftar_periksa_pulang`, pola area IGD). Peta TT: `kunjungan_rawat_inap_id` + `pasien_rawat_inap` juga bagi
+    rawat_inap.pemulangan.lihat di cakupan unit bangsal TT (lapis 5 izin itu); status `rencana_pulang` /
+    `melewati_rencana_lama_rawat` dihitung saat peta dibaca dari rencana pulang (tidak disimpan). Kontrak disposisi IGD
+    tidak berubah.
 servers:
   - url: /api/v1
 security:
@@ -3487,7 +3498,7 @@ paths:
         '503': { $ref: '#/components/responses/Error' }
   /ttd/verifikasi/{objek_jenis}/{objek_id}:
     parameters:
-      - { in: path, name: objek_jenis, required: true, schema: { type: string, enum: [persetujuan_akses, usulan_data_induk, catatan_klinis, catatan_klinis_adendum, resep] } }
+      - { in: path, name: objek_jenis, required: true, schema: { type: string, enum: [persetujuan_akses, usulan_data_induk, catatan_klinis, catatan_klinis_adendum, resep, resume_medis] } }
       - { in: path, name: objek_id, required: true, schema: { type: string, format: uuid } }
     get:
       operationId: verifikasiTtd
@@ -4789,6 +4800,74 @@ paths:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AturanPapanIgd' } } }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  # Daftar periksa pulang rawat inap (tiket 2.40, v0.39.0; FR-05-03). Izin master_data.daftar_periksa_pulang.* cakupan `rs`,
+  # diperiksa sebelum isian; edit langsung + dasar perubahan + audit (pola area IGD). Tidak dihapus: butir dinonaktifkan.
+  /data-induk/daftar-periksa-pulang:
+    get:
+      operationId: daftarDaftarPeriksaPulang
+      summary: Butir daftar periksa pulang (paginasi kursor, urut kode)
+      description: |
+        Izin: master_data.daftar_periksa_pulang.lihat. Isi awal instalasi = 5 butir FR-05-03 (obat pulang dan edukasi, surat
+        kontrol, rujuk balik, tagihan lunas/jaminan [sumber kejadian], lepas infus/gelang), semuanya wajib. Butir aktif
+        disalin ke rencana pulang saat rencana dibuat.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+        - { in: query, name: status, schema: { type: string, enum: [aktif, nonaktif] } }
+      responses:
+        '200':
+          description: Satu halaman butir
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/DaftarPeriksaPulangDataInduk' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /data-induk/daftar-periksa-pulang/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      operationId: ubahDaftarPeriksaPulang
+      summary: Ubah nama/wajib/urutan, atau nonaktifkan butir daftar periksa pulang
+      description: |
+        Izin: master_data.daftar_periksa_pulang.perbaiki (403 sebelum id dibaca). Butir tidak ada atau id bukan UUID → 404.
+        Wajib If-Match (412 `versi_berubah`, 428 `if_match_wajib`). Kode dan sumber tetap. Berlaku untuk rencana pulang yang
+        dibuat sesudahnya. Audit `master_data.daftar_periksa_pulang_diubah` (sebelum/sesudah).
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dasar_perubahan]
+              minProperties: 2
+              additionalProperties: false
+              properties:
+                nama: { type: string, minLength: 2, maxLength: 150 }
+                wajib: { type: boolean }
+                urutan: { type: integer, minimum: 0, maximum: 999 }
+                status: { type: string, enum: [aktif, nonaktif] }
+                dasar_perubahan: { $ref: '#/components/schemas/Dasar' }
+      responses:
+        '200':
+          description: Butir sesudah diubah
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/DaftarPeriksaPulangDataInduk' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
         '412': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
         '428': { $ref: '#/components/responses/Error' }
@@ -6128,8 +6207,12 @@ paths:
           berkursor: layar memuat seluruh peta sekaligus; pencarian kode TT dan pengelompokan di layar.
         - `bangsal_id`/`gedung_id` menyaring; id tak dikenal → daftar kosong; bukan UUID → 422.
         - Tanpa data pasien, kecuali `kunjungan_rawat_inap_id` dan `pasien_rawat_inap` bagi pemegang
-          rawat_inap.pindah_ruang.input di cakupan unit bangsal TT (v0.38.0). `hari_rawat` diisi untuk TT dengan penempatan aktif (v0.37.0), dihitung dari penempatan pertama
+          rawat_inap.pindah_ruang.input (v0.38.0) atau rawat_inap.pemulangan.lihat (v0.39.0) di cakupan unit bangsal TT,
+          masing-masing dengan lapis 5 izinnya. `hari_rawat` diisi untuk TT dengan penempatan aktif (v0.37.0), dihitung dari penempatan pertama
           kunjungan rawat inapnya.
+        - TT yang ditempati (v0.39.0): `status` dihitung saat dibaca, tidak disimpan. Rencana pulang aktif bertanggal hari ini
+          (zona RS) → `rencana_pulang`; selain itu `hari_rawat` > rencana lama rawat → `melewati_rencana_lama_rawat`; selain
+          itu `terisi`. ETag ikut berubah saat tanggal berganti.
       parameters:
         - { in: query, name: bangsal_id, schema: { type: string, format: uuid } }
         - { in: query, name: gedung_id, schema: { type: string, format: uuid }, description: "Lokasi jenis gedung" }
@@ -6446,6 +6529,264 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  # Pemulangan rawat inap (tiket 2.40, v0.39.0; FR-05-01..05, keputusan pemilik 13 Nov 2026).
+  /kunjungan/{id}/rencana-pulang:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: bacaRencanaPulang
+      summary: Rencana pulang dan daftar periksa pulang kunjungan rawat inap
+      description: |
+        Izin: rawat_inap.pemulangan.lihat di cakupan mana pun (403 sebelum kunjungan dibaca); kunjungan tidak ada atau id
+        bukan UUID → 404; cakupan tidak memuat unit bangsal kunjungan → 403. Membawa dua penanda identitas pasien untuk
+        konfirmasi (PRD 5.1 butir 9). Belum ada rencana → `id` null, `daftar_periksa` = pratinjau butir data induk aktif.
+        ETag = `versi` bila rencana ada. Selalu `no-store`.
+      responses:
+        '200':
+          description: Rencana pulang
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/RencanaPulang' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    put:
+      operationId: simpanRencanaPulang
+      summary: Buat atau ubah rencana pulang, centang butir daftar periksa
+      description: |
+        Non-klinis (keputusan pemilik 13 Nov 2026). Membuat: rawat_inap.pemulangan.input (tanpa syarat SIP/SPK walau kode
+        ini juga izin sel matriks pulang; syarat MFA izin tetap berlaku); mengubah: rawat_inap.pemulangan.perbaiki dengan
+        If-Match wajib (428 `if_match_wajib`, 412 `versi_berubah`). Keduanya di cakupan yang memuat unit bangsal kunjungan.
+        Tanpa izin input maupun perbaiki di cakupan mana pun → 403 sebelum isian dibaca; kunjungan tidak ada atau id bukan
+        UUID → 404.
+        - Bukan kunjungan rawat inap yang berjalan → 409 `status_tidak_sesuai`, `rincian` = `[{jenis_kunjungan, status}]`.
+        - `rencana_pulang_pada` sebelum tanggal penempatan TT pertama (zona RS) → 422 `validasi_gagal`. `rencana_lama_rawat`
+          tidak dikirim saat mengubah = tetap; null = kosongkan.
+        - Butir daftar periksa disalin (kode, nama, sumber, wajib) dari data induk aktif saat rencana dibuat; perubahan data
+          induk sesudahnya tidak mengubah rencana ini. `daftar_periksa` menyentang butir manual (`selesai` true mencatat jam
+          server dan pelaku sekali; false mengosongkan). Kode tidak ada di rencana, atau butir sumber `kejadian`
+          (tagihan/jaminan, menunggu kasir Tahap D) → 422 `validasi_gagal`.
+        Audit `rawat_inap.rencana_pulang_dibuat` / `_diubah` (tanggal, lama rawat, kode butir selesai; tanpa data pasien).
+      parameters:
+        - { in: header, name: If-Match, schema: { type: string }, description: "Wajib bila rencana sudah ada (`versi`)" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rencana_pulang_pada]
+              additionalProperties: false
+              properties:
+                rencana_pulang_pada: { type: string, format: date, description: "Tanggal rencana pulang, zona RS" }
+                rencana_lama_rawat: { type: [integer, 'null'], minimum: 1, maximum: 365, description: "Rencana lama rawat (hari)" }
+                daftar_periksa:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [kode, selesai]
+                    additionalProperties: false
+                    properties:
+                      kode: { type: string, maxLength: 30 }
+                      selesai: { type: boolean }
+      responses:
+        '200':
+          description: Rencana sesudah diubah
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/RencanaPulang' } } }
+        '201':
+          description: Rencana dibuat
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/RencanaPulang' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/pulang:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: pulangkanPasien
+      summary: Pasien rawat inap keluar lewat matriks (pulang, APS, rujuk keluar, meninggal)
+      description: |
+        FR-05-03, FR-05-04, FR-05-05; PRD 7.00.3 baris "Rawat inap". Keempat tujuan ditutup sama (rincian B-05/B-06 FR-05-07
+        di luar tiket). Pemeriksaan berurutan: `tujuan` bukan salah satu nilai di bawah → 422 `validasi_gagal`; sel matriks
+        rawat_inap → tujuan nonaktif → 422 `perpindahan_di_luar_matriks`; pemberi perintah tidak memegang `izin_perintah`
+        sel itu di cakupan mana pun → 403 (izin bawaan `rawat_inap.pemulangan.input` bersyarat SIP/SPK berlaku, 403
+        `izin_praktik_tidak_berlaku`); kunjungan tidak ada atau id bukan UUID → 404; izin sel tidak mencakup unit bangsal
+        kunjungan → 403.
+        - Bukan kunjungan rawat inap yang berjalan (termasuk sudah pulang), atau tanpa penempatan aktif → 409
+          `status_tidak_sesuai`, `rincian` = `[{jenis_kunjungan, status}]`.
+        - Butir daftar periksa wajib sumber manual yang belum selesai harus diberi alasan di `tanggapan` (pola tanggapan
+          peringatan resep, PRD 5.1 butir 12); kurang → 422 `daftar_periksa_belum_lengkap`, `rincian` =
+          `[{kolom: tanggapan, kode, nama, pesan}]` per butir. Butir sumber `kejadian` (tagihan/jaminan) tampil menunggu
+          kasir (Tahap D), tidak menahan dan tidak butuh alasan. Tanggapan untuk butir lain diabaikan.
+        - Tanpa rencana pulang: rencana dibuat otomatis (tanggal = hari pulang) dengan butir data induk aktif, aturan
+          daftar periksa sama.
+        - 409 `pasien_digabung`, 409 `instalasi_belum_siap`: seperti triase.
+        Akibat (satu transaksi): perintah baru (riwayat GET /kunjungan/{id}/disposisi, status `selesai`, alasan tidak ke
+        log/audit), penempatan selesai (alasan `pulang`), TT `terisi → dibersihkan` (riwayat status sumber `pulang`,
+        FR-05-05), kunjungan rawat inap `selesai`, episode rawat inap `selesai`, rencana pulang `pulang`, relasi perawatan
+        DPJP rawat inap diakhiri, tugas `RESUME_BELUM_TTE_48J` untuk DPJP bila resume belum sah (tenggat dari jenis tugas,
+        bawaan 2 × 24 jam; eskalasi lewat mesin tugas 1.7). Audit `rawat_inap.pasien_pulang` (kode TT, kode butir beralasan;
+        tanpa data pasien maupun alasan).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tujuan, alasan]
+              additionalProperties: false
+              properties:
+                tujuan: { type: string, enum: [pulang, aps, rujuk_keluar, meninggal] }
+                alasan: { type: string, minLength: 5, maxLength: 1000, description: "Alasan/catatan keluar (klinis; tidak masuk log/audit)" }
+                tanggapan:
+                  type: array
+                  maxItems: 100
+                  description: "Alasan per butir wajib yang belum selesai"
+                  items:
+                    type: object
+                    required: [kode, alasan]
+                    additionalProperties: false
+                    properties:
+                      kode: { type: string, maxLength: 30 }
+                      alasan: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '200':
+          description: Kunjungan rawat inap sesudah pulang (`kunjungan.status` selesai, `penempatan` null)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/RawatInap' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /kunjungan/{id}/resume-medis:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: bacaResumeMedis
+      summary: Resume medis kunjungan rawat inap (null bila belum disusun)
+      description: |
+        Izin dan cakupan sama dengan GET /kunjungan/{id}/rencana-pulang (rawat_inap.pemulangan.lihat di cakupan unit bangsal
+        kunjungan). ETag = `versi`. Selalu `no-store`. Isi klinis tidak masuk log/audit.
+      responses:
+        '200':
+          description: Resume medis, atau `data` null
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    oneOf: [{ $ref: '#/components/schemas/ResumeMedis' }, { type: 'null' }]
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: susunResumeMedis
+      summary: Susun atau susun ulang draf resume medis dari sumber yang ada + isian DPJP
+      description: |
+        FR-05-02. Izin: rawat_inap.pemulangan.input (bersyarat SIP/SPK) di cakupan mana pun (403 sebelum isian dibaca);
+        kunjungan tidak ada atau id bukan UUID → 404; cakupan unit bangsal kunjungan → 403. Boleh sebelum maupun sesudah
+        pasien pulang. Bukan kunjungan rawat inap atau kunjungan batal → 409 `status_tidak_sesuai`; resume sudah sah → 409
+        `sudah_disahkan` (adendum menyusul). Setiap POST memotret ulang sumber: CPPT SOAP sah episode tanpa label
+        sensitivitas (yang berlabel hanya dihitung), diagnosis aktif dan resep sah semua kunjungan dalam episode, alergi aktif
+        pasien; tindakan belum tersedia. Isian DPJP yang dikirim mengganti nilai lama, yang tidak dikirim tetap; string
+        kosong = kosongkan. 201 saat pertama disusun, 200 sesudahnya (`versi` naik). Audit `klinis.resume_medis_disusun` /
+        `_disusun_ulang` (tanpa isi).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IsianResumeMedis' }
+      responses:
+        '200':
+          description: Draf disusun ulang
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/ResumeMedis' } } }
+        '201':
+          description: Draf pertama disusun
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/ResumeMedis' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /resume-medis/{id}/sahkan:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: sahkanResumeMedis
+      summary: DPJP mengesahkan resume medis dengan PIN T1 (final)
+      description: |
+        FR-05-02, FR-05-04. Izin: rawat_inap.pemulangan.sahkan (bersyarat SIP/SPK) di cakupan mana pun (403 sebelum isian
+        dibaca); resume tidak ada atau id bukan UUID → 404; cakupan unit bangsal kunjungan → 403. Hanya DPJP kunjungan (DPJP
+        awal rawat inap) → selain itu 403 `bukan_pemutus`. Sudah sah → 409 `sudah_disahkan`. Wajib If-Match = `versi`
+        (412 `versi_berubah` bila disusun ulang sejak dibuka). TTE pola /cppt/{id}/sahkan (objek `resume_medis`, isi kanonik =
+        id + kunjungan + pasien + ringkasan, hanya di-hash; tanda tangan hanya pemilik akun): 422 `pin_wajib`/`pin_salah`
+        (status tetap draf), 403 `ttd_terkunci`, 409 `ttd_belum_aktif`, 422 `validasi_gagal` bila `pernyataan_disetujui`
+        bukan true. Boleh sesudah pasien pulang. Berhasil: `status` sah, `disahkan_pada` = jam server, tugas
+        `RESUME_BELUM_TTE_48J` selesai. Audit `klinis.resume_medis_disahkan` + id tanda tangan.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pernyataan_disetujui]
+              properties:
+                pin: { type: [string, 'null'], maxLength: 20, description: "Boleh null selama sesi tanda tangan berlaku (aturan /ttd/tandatangani)" }
+                pernyataan_disetujui: { type: boolean, const: true }
+      responses:
+        '200':
+          description: Resume sah
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/ResumeMedis' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
   /instrumen-triase:
     get:
       operationId: daftarInstrumenTriase
@@ -9004,7 +9345,7 @@ components:
       required: [id, objek_jenis, objek_id, penanda_tangan, tingkat, metode, hash_isi, sidik_kunci, kredensial_dicabut, ditandatangani_pada, verifikasi]
       properties:
         id: { type: string, format: uuid }
-        objek_jenis: { type: string, enum: [persetujuan_akses, usulan_data_induk, catatan_klinis, catatan_klinis_adendum, resep] }
+        objek_jenis: { type: string, enum: [persetujuan_akses, usulan_data_induk, catatan_klinis, catatan_klinis_adendum, resep, resume_medis] }
         objek_id: { type: string, format: uuid }
         penanda_tangan:
           type: object
@@ -10497,9 +10838,9 @@ components:
       required: [id, kode, kamar, bangsal, lantai, gedung, kelas_rawat, aturan_jenis_kelamin, isolasi, ekstra, status, status_sejak, ditutup, dapat_dipilih, hari_rawat]
       description: |
         Satu TT di peta (v0.35.0; FR-08-01, FR-08-20). Tanpa data pasien kecuali dua field opsional berizin pindah ruang
-        (v0.38.0). Layar menampilkan status dengan teks/ikon, bukan
-        hanya warna (5.1 butir 4). Status `melewati_rencana_lama_rawat` (FR-08-01) dikenal sejak v0.37.0; disetel bersama
-        rencana pulang (2.40).
+        (v0.38.0) atau lihat pemulangan (v0.39.0). Layar menampilkan status dengan teks/ikon, bukan
+        hanya warna (5.1 butir 4). Status `rencana_pulang` dan `melewati_rencana_lama_rawat` (FR-08-01) untuk TT yang
+        ditempati dihitung dari rencana pulang saat peta dibaca (v0.39.0).
       properties:
         id: { type: string, format: uuid }
         kode: { type: string, description: "Kode TT (kode lengkap lokasi, tetap sejak dibuat)" }
@@ -10520,16 +10861,16 @@ components:
         status:
           type: string
           enum: [terisi, kosong_siap, dibersihkan, dipesan, tidak_dipakai, rencana_pulang, melewati_rencana_lama_rawat]
-          description: "TT ditutup selalu tidak_dipakai. `melewati_rencana_lama_rawat` sejak v0.37.0 (FR-08-01; disetel rencana pulang, 2.40)"
+          description: "TT ditutup selalu tidak_dipakai. TT yang ditempati: rencana_pulang (rencana pulang hari ini) > melewati_rencana_lama_rawat (hari rawat > rencana lama rawat) > terisi, dihitung saat dibaca (v0.39.0)"
         status_sejak: { type: string, format: date-time, description: "Jam status tersimpan mulai berlaku" }
         ditutup: { type: boolean, description: "TT ditutup 1.8b (hari terakhir berlaku sudah lewat)" }
         dapat_dipilih: { type: boolean, description: "Status kosong_siap dan tidak ditutup maupun dijadwalkan tutup (pilihan alokasi 2.28; sejak v0.36.0 penutupan terjadwal ikut false)" }
         hari_rawat: { type: [integer, 'null'], minimum: 1, description: "Hari rawat pasien yang menempati TT ini (v0.37.0): tanggal hari ini zona RS − tanggal penempatan pertama kunjungan rawat inapnya + 1 (pindah ruang tidak mengulang hitungan); null = tidak ada penempatan aktif" }
-        kunjungan_rawat_inap_id: { type: string, format: uuid, description: "Opsional (v0.38.0): kunjungan rawat inap yang menempati TT ini (id untuk POST /kunjungan/{id}/pindah-ruang). Hanya dikirim untuk TT berpenempatan aktif yang tidak ditutup, dan hanya bila pemanggil memegang rawat_inap.pindah_ruang.input di cakupan yang memuat unit bangsal TT; selain itu kunci tidak ada (bukan null)." }
+        kunjungan_rawat_inap_id: { type: string, format: uuid, description: "Opsional (v0.38.0): kunjungan rawat inap yang menempati TT ini (id untuk POST /kunjungan/{id}/pindah-ruang dan, sejak v0.39.0, endpoint pemulangan). Hanya dikirim untuk TT berpenempatan aktif yang tidak ditutup, dan hanya bila pemanggil memegang rawat_inap.pindah_ruang.input atau rawat_inap.pemulangan.lihat (v0.39.0) di cakupan yang memuat unit bangsal TT dengan lapis 5 izin itu terpenuhi; selain itu kunci tidak ada (bukan null)." }
         pasien_rawat_inap:
           type: object
           required: [nama, no_rm, tanggal_lahir]
-          description: "Opsional (v0.38.0, keputusan pemilik 11 Nov 2026): dua penanda identitas pasien yang menempati TT, untuk konfirmasi pindah ruang (PRD 5.1 butir 9). Syarat sama persis dengan `kunjungan_rawat_inap_id` (dikirim bersama, hanya bagi rawat_inap.pindah_ruang.input di cakupan yang memuat unit bangsal TT); selain itu kunci tidak ada. Tidak masuk log/audit."
+          description: "Opsional (v0.38.0, keputusan pemilik 11 Nov 2026): dua penanda identitas pasien yang menempati TT, untuk konfirmasi pindah ruang dan pulang (PRD 5.1 butir 9). Syarat sama persis dengan `kunjungan_rawat_inap_id` (dikirim bersama, bagi rawat_inap.pindah_ruang.input atau rawat_inap.pemulangan.lihat di cakupan yang memuat unit bangsal TT); selain itu kunci tidak ada. Tidak masuk log/audit."
           properties:
             nama: { type: string }
             no_rm: { type: string }
@@ -10564,6 +10905,170 @@ components:
             mulai_pada: { type: string, format: date-time, description: "Jam server" }
             ditempatkan_oleh: { $ref: '#/components/schemas/Pelaku' }
         hari_rawat: { type: [integer, 'null'], minimum: 1, description: "Sama dengan TempatTidurPeta.hari_rawat" }
+    DaftarPeriksaPulangDataInduk:
+      type: object
+      required: [id, kode, nama, sumber, wajib, urutan, status, versi, diubah_pada]
+      description: "Butir daftar periksa pulang di layar data induk (inti.daftar_periksa_pulang, v0.39.0), termasuk yang nonaktif."
+      properties:
+        id: { type: string, format: uuid }
+        kode: { type: string }
+        nama: { type: string }
+        sumber: { type: string, enum: [manual, kejadian], description: "manual = dicentang petugas; kejadian = diselesaikan kejadian modul lain (kasir, Tahap D)" }
+        wajib: { type: boolean, description: "Wajib selesai sebelum pulang, atau diberi alasan per butir" }
+        urutan: { type: integer }
+        status: { type: string, enum: [aktif, nonaktif] }
+        versi: { type: string }
+        diubah_pada: { type: string, format: date-time }
+    ButirDaftarPeriksaPulang:
+      type: object
+      required: [kode, nama, sumber, wajib, status, selesai_pada, selesai_oleh, alasan_tidak_selesai]
+      description: "Satu butir daftar periksa di rencana pulang (salinan data induk saat rencana dibuat, v0.39.0)."
+      properties:
+        kode: { type: string }
+        nama: { type: string }
+        sumber: { type: string, enum: [manual, kejadian] }
+        wajib: { type: boolean }
+        status:
+          type: string
+          enum: [belum, selesai, menunggu_kasir]
+          description: "menunggu_kasir = butir sumber kejadian (tagihan/jaminan) sampai kasir Tahap D; tidak menahan pulang"
+        selesai_pada: { type: [string, 'null'], format: date-time, description: "Jam server dicentang" }
+        selesai_oleh: { $ref: '#/components/schemas/Pelaku' }
+        alasan_tidak_selesai: { type: [string, 'null'], description: "Alasan butir wajib belum selesai saat pulang (POST /kunjungan/{id}/pulang)" }
+    RencanaPulang:
+      type: object
+      required: [kunjungan_id, kunjungan_status, pasien, hari_rawat, id, status, rencana_pulang_pada, rencana_lama_rawat, daftar_periksa, versi]
+      description: |
+        Rencana pulang kunjungan rawat inap (kunjungan.rencana_pulang, v0.39.0; FR-05-01, FR-05-03). `id` null = belum ada
+        rencana (daftar periksa = pratinjau butir data induk aktif). Data pasien = dua penanda identitas (PRD 5.1 butir 9).
+      properties:
+        kunjungan_id: { type: string, format: uuid }
+        kunjungan_status: { $ref: '#/components/schemas/StatusKunjungan' }
+        pasien: { $ref: '#/components/schemas/RingkasPasienKunjungan' }
+        hari_rawat: { type: [integer, 'null'], minimum: 1, description: "Sama dengan TempatTidurPeta.hari_rawat; null = tidak menempati TT" }
+        id: { type: [string, 'null'], format: uuid }
+        status: { type: [string, 'null'], enum: [direncanakan, pulang, batal, null] }
+        rencana_pulang_pada: { type: [string, 'null'], format: date, description: "Zona RS" }
+        rencana_lama_rawat: { type: [integer, 'null'], minimum: 1, description: "Hari; null = belum ditetapkan" }
+        daftar_periksa: { type: array, items: { $ref: '#/components/schemas/ButirDaftarPeriksaPulang' } }
+        versi: { type: [string, 'null'], description: "If-Match untuk PUT; null = belum ada rencana" }
+    IsianResumeMedis:
+      type: object
+      additionalProperties: false
+      description: "Bagian isian DPJP resume medis (klinis; tidak masuk log/audit). Null atau string kosong = kosong."
+      properties:
+        ringkasan_perjalanan: { type: [string, 'null'], maxLength: 4000, description: "Ringkasan perjalanan penyakit selama dirawat" }
+        kondisi_pulang: { type: [string, 'null'], maxLength: 4000 }
+        instruksi_pulang: { type: [string, 'null'], maxLength: 4000 }
+        obat_pulang: { type: [string, 'null'], maxLength: 4000 }
+        kontrol: { type: [string, 'null'], maxLength: 4000, description: "Rencana kontrol" }
+    ResumeMedis:
+      type: object
+      required: [id, kunjungan_id, status, pasien, dpjp, sumber, isian_dpjp, disusun_oleh, disusun_pada, disahkan_oleh, disahkan_pada, tanda_tangan_id, versi]
+      description: |
+        Resume medis pulang rawat inap (klinis.resume_medis, v0.39.0; FR-05-02). `sumber` = potret saat terakhir disusun;
+        sah = final (adendum menyusul). Data pasien = dua penanda identitas untuk konfirmasi dan TtdModal (PRD 5.1 butir 9).
+      properties:
+        id: { type: string, format: uuid, description: "Id untuk POST /resume-medis/{id}/sahkan" }
+        kunjungan_id: { type: string, format: uuid }
+        status: { type: string, enum: [draf, sah] }
+        pasien: { $ref: '#/components/schemas/RingkasPasienKunjungan' }
+        dpjp:
+          type: [object, 'null']
+          required: [id, nama]
+          description: "DPJP kunjungan (pegawai; satu-satunya pengesah)"
+          properties:
+            id: { type: string, format: uuid }
+            nama: { type: string }
+        sumber:
+          type: object
+          required: [cppt, cppt_berlabel, diagnosis, resep, alergi, tindakan, terpotong, dipotret_pada]
+          properties:
+            cppt:
+              type: array
+              description: "CPPT SOAP sah dalam episode tanpa label sensitivitas, urut jam sah"
+              items:
+                type: object
+                required: [id, kunjungan_id, profesi, penulis, disahkan_pada, subjektif, objektif, asesmen, plan]
+                properties:
+                  id: { type: string, format: uuid }
+                  kunjungan_id: { type: string, format: uuid }
+                  profesi: { type: string }
+                  penulis: { type: string }
+                  disahkan_pada: { type: [string, 'null'], format: date-time }
+                  subjektif: { type: [string, 'null'] }
+                  objektif: { type: [string, 'null'] }
+                  asesmen: { type: [string, 'null'] }
+                  plan: { type: [string, 'null'] }
+            cppt_berlabel: { type: integer, minimum: 0, description: "Jumlah CPPT sah berlabel sensitivitas yang tidak dipotret" }
+            diagnosis:
+              type: array
+              items:
+                type: object
+                required: [kunjungan_id, sistem, kode, tampilan, jenis]
+                properties:
+                  kunjungan_id: { type: string, format: uuid }
+                  sistem: { type: string }
+                  kode: { type: string }
+                  tampilan: { type: [string, 'null'] }
+                  jenis: { type: string, enum: [utama, sekunder, komplikasi, komorbid] }
+            resep:
+              type: array
+              items:
+                type: object
+                required: [id, kunjungan_id, no_resep, disahkan_pada, butir]
+                properties:
+                  id: { type: string, format: uuid }
+                  kunjungan_id: { type: string, format: uuid }
+                  no_resep: { type: string }
+                  disahkan_pada: { type: [string, 'null'], format: date-time }
+                  butir:
+                    type: array
+                    items:
+                      type: object
+                      required: [barang, dosis, frekuensi_per_hari, jumlah_per_pakai, hari, jumlah, rute, aturan_pakai]
+                      properties:
+                        barang: { $ref: '#/components/schemas/RingkasLokasiPeta' }
+                        dosis: { type: [string, 'null'] }
+                        frekuensi_per_hari: { type: integer }
+                        jumlah_per_pakai: { type: number }
+                        hari: { type: integer }
+                        jumlah: { type: number }
+                        rute: { type: [string, 'null'] }
+                        aturan_pakai: { type: [string, 'null'] }
+            alergi:
+              type: array
+              items:
+                type: object
+                required: [zat, jenis, reaksi, tingkat]
+                properties:
+                  zat: { type: string }
+                  jenis: { type: string }
+                  reaksi: { type: [string, 'null'] }
+                  tingkat: { type: [string, 'null'] }
+            tindakan:
+              type: object
+              required: [tersedia]
+              description: "Tindakan belum tersedia (modul tindakan menyusul)"
+              properties:
+                tersedia: { type: boolean, const: false }
+            terpotong: { type: boolean, description: "true bila salah satu sumber lebih dari 500 butir (hanya 500 pertama)" }
+            dipotret_pada: { type: string, format: date-time }
+        isian_dpjp:
+          type: object
+          required: [ringkasan_perjalanan, kondisi_pulang, instruksi_pulang, obat_pulang, kontrol]
+          properties:
+            ringkasan_perjalanan: { type: [string, 'null'] }
+            kondisi_pulang: { type: [string, 'null'] }
+            instruksi_pulang: { type: [string, 'null'] }
+            obat_pulang: { type: [string, 'null'] }
+            kontrol: { type: [string, 'null'] }
+        disusun_oleh: { $ref: '#/components/schemas/Pelaku' }
+        disusun_pada: { type: string, format: date-time }
+        disahkan_oleh: { $ref: '#/components/schemas/Pelaku' }
+        disahkan_pada: { type: [string, 'null'], format: date-time }
+        tanda_tangan_id: { type: [string, 'null'], format: uuid, description: "Verifikasi: GET /ttd/verifikasi/resume_medis/{id}" }
+        versi: { type: string, description: "If-Match untuk POST /resume-medis/{id}/sahkan" }
     RingkasPenjamin:
       type: object
       required: [id, kode, nama, jenis]

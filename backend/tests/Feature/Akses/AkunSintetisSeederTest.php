@@ -166,6 +166,9 @@ class AkunSintetisSeederTest extends TestCase
         $this->assertTrue($evaluator->boleh($akun('dokter.poli'), 'rawat_inap.peta_tempat_tidur.lihat'));
         $this->assertFalse((bool) DB::table('akses.izin')->where('kode', 'rawat_inap.peta_tempat_tidur.lihat')->value('sensitif'));
         $this->assertFalse($peranIzin('contoh_perawat', 'rawat_inap.pindah_ruang.input'));
+        // 2.40: resume medis disahkan DPJP; perawat tetap boleh membuat rencana pulang (pemulangan.input).
+        $this->assertFalse($peranIzin('contoh_perawat', 'rawat_inap.pemulangan.sahkan'));
+        $this->assertTrue($peranIzin('contoh_perawat', 'rawat_inap.pemulangan.input'));
         $this->assertTrue($peranIzin('contoh_perawat', 'rawat_inap.penempatan.input'));
         $this->assertTrue($evaluator->boleh($akun('admisi'), 'rawat_inap.penempatan.input'));
         $this->assertFalse($evaluator->boleh($akun('perawat'), 'rawat_inap.pindah_ruang.input'));
