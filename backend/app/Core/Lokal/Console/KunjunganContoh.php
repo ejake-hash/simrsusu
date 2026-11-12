@@ -40,7 +40,9 @@ final class KunjunganContoh extends Command
     public const STATUS_CONTOH = [
         '201' => [1 => StatusTempatTidur::TERISI, 2 => StatusTempatTidur::DIBERSIHKAN, 3 => StatusTempatTidur::DIPESAN],
         // 202-4 (2.29-fe): TT kosong siap kedua sebagai tujuan pindah ruang di e2e admisi.
-        '202' => [1 => StatusTempatTidur::RENCANA_PULANG, 2 => StatusTempatTidur::TIDAK_DIPAKAI, 3 => StatusTempatTidur::KOSONG_SIAP, 4 => StatusTempatTidur::KOSONG_SIAP],
+        // 202-1 (2.40): `rencana_pulang` kini dihitung peta dari rencana pulang pasien yang menempati TT, jadi contoh statisnya
+        // (tanpa pasien) menjadi terisi.
+        '202' => [1 => StatusTempatTidur::TERISI, 2 => StatusTempatTidur::TIDAK_DIPAKAI, 3 => StatusTempatTidur::KOSONG_SIAP, 4 => StatusTempatTidur::KOSONG_SIAP],
     ];
 
     protected $signature = 'lokal:kunjungan-contoh {--batal : Kosongkan lagi penanda siap melayani dan nonaktifkan poli contoh}';
@@ -115,9 +117,9 @@ final class KunjunganContoh extends Command
                     ['cons_id' => '1234', 'secret_key' => 'rahasia-sintetis', 'user_key' => 'kunci-sintetis'], true, false, $oleh);
             }
 
-            // Modul 07 Rawat Jalan (worklist, asesmen perawat; 2.13), 08 Rawat Inap (peta TT; 2.27), dan 26 RME (CPPT; 2.14)
-            // dinyalakan RS lewat penyiapan; di lokal langsung aktif.
-            foreach ([7, 8, 26] as $modul) {
+            // Modul 07 Rawat Jalan (worklist, asesmen perawat; 2.13), 08 Rawat Inap (peta TT; 2.27), 26 RME (CPPT; 2.14), dan
+            // 05 Pemulangan (2.40) dinyalakan RS lewat penyiapan; di lokal langsung aktif.
+            foreach ([5, 7, 8, 26] as $modul) {
                 DB::table('inti.modul_aktif')->insertOrIgnore(['id' => (string) Str::uuid7(), 'modul_no' => $modul]);
             }
 

@@ -1,12 +1,13 @@
 <?php
 
+use App\Modules\RawatInap\Http\Controllers\PemulanganController;
 use App\Modules\RawatInap\Http\Controllers\PermintaanTempatTidurController;
 use App\Modules\RawatInap\Http\Controllers\PetaTempatTidurController;
 use App\Modules\RawatInap\Http\Controllers\RawatInapController;
 use Illuminate\Support\Facades\Route;
 
 // Peta tempat tidur dan status TT (tiket 2.27). Izin sub-menu di cakupan mana pun; cakupan bangsal diperiksa di controller.
-Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->whereUuid(['tempatTidur', 'permintaan', 'kunjungan'])->group(function () {
+Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->whereUuid(['tempatTidur', 'permintaan', 'kunjungan', 'resume'])->group(function () {
     // Layar kerja admisi dan kepala ruang yang dipolling (ETag): batas laju layar kerja.
     Route::get('peta-tempat-tidur', [PetaTempatTidurController::class, 'index'])->middleware('can:rawat_inap.peta_tempat_tidur.lihat')
         ->withoutMiddleware('throttle:api')->middleware('throttle:api-layar-kerja');
@@ -25,4 +26,12 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::post('permintaan-tempat-tidur/{permintaan}/batal', [PermintaanTempatTidurController::class, 'batal'])
         ->middleware('can:pendaftaran.admisi.input');
     Route::post('kunjungan/{kunjungan}/pindah-ruang', [RawatInapController::class, 'pindahRuang']);
+
+    // Pemulangan (tiket 2.40): rencana pulang, pulang lewat matriks, resume medis ber-TTE. Izin diperiksa di layanan.
+    Route::get('kunjungan/{kunjungan}/rencana-pulang', [PemulanganController::class, 'rencana']);
+    Route::put('kunjungan/{kunjungan}/rencana-pulang', [PemulanganController::class, 'simpanRencana']);
+    Route::post('kunjungan/{kunjungan}/pulang', [PemulanganController::class, 'pulang']);
+    Route::get('kunjungan/{kunjungan}/resume-medis', [PemulanganController::class, 'resume']);
+    Route::post('kunjungan/{kunjungan}/resume-medis', [PemulanganController::class, 'susunResume']);
+    Route::post('resume-medis/{resume}/sahkan', [PemulanganController::class, 'sahkanResume']);
 });

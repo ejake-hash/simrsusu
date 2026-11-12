@@ -102,7 +102,8 @@ final class AkunSintetisSeeder extends Seeder
     /** Izin menu peran contoh di atas yang sengaja tidak diberikan (dicabut lagi saat seeding ulang). */
     private const IZIN_DIKECUALIKAN_CONTOH = [
         // Tiket 2.29: pindah ruang = perintah dokter (sel matriks rawat_inap → rawat_inap), bukan izin perawat.
-        'contoh_perawat' => ['rawat_inap.pindah_ruang.input'],
+        // Tiket 2.40: resume medis disahkan DPJP, bukan perawat.
+        'contoh_perawat' => ['rawat_inap.pindah_ruang.input', 'rawat_inap.pemulangan.sahkan'],
     ];
 
     /**

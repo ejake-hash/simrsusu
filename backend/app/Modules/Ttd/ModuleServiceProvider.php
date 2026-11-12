@@ -4,6 +4,7 @@ namespace App\Modules\Ttd;
 
 use App\Modules\Akses\Application\PencabutTtd;
 use App\Modules\Akses\Application\StatusTtdSaya;
+use App\Modules\RawatInap\Infrastructure\IsiResumeMedis;
 use App\Modules\RekamMedis\Infrastructure\IsiAdendumCatatan;
 use App\Modules\RekamMedis\Infrastructure\IsiCatatanKlinis;
 use App\Modules\RekamMedis\Infrastructure\IsiResep;
@@ -25,6 +26,7 @@ class ModuleServiceProvider extends ServiceProvider
         $this->app->bind(DaftarPenyediaIsi::class, fn ($app) => new DaftarPenyediaIsi([
             $app->make(IsiPersetujuanAkses::class), $app->make(IsiUsulanDataInduk::class),
             $app->make(IsiCatatanKlinis::class), $app->make(IsiAdendumCatatan::class), $app->make(IsiResep::class),
+            $app->make(IsiResumeMedis::class),
         ]));
         $this->app->bind(StatusTtdSaya::class, KelolaTtd::class);
         $this->app->bind(PencabutTtd::class, PencabutKredensial::class);

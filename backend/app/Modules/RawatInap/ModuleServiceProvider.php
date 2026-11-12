@@ -13,7 +13,7 @@ use Illuminate\Support\ServiceProvider;
 
 /**
  * Modul 08 Rawat Inap (PRD 10.3): peta dan status tempat tidur (tiket 2.27); SPRI, antrean permintaan kamar, alokasi TT
- * (2.28); penempatan, pindah ruang, episode rawat inap (2.29); pulang menyusul.
+ * (2.28); penempatan, pindah ruang, episode rawat inap (2.29); rencana pulang, pulang, resume medis ber-TTE (2.40).
  */
 class ModuleServiceProvider extends ServiceProvider
 {

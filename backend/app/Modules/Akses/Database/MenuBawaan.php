@@ -29,7 +29,7 @@ final class MenuBawaan
     public const IZIN_PENYIAP = ['pengaturan.penyiapan.lihat', 'pengaturan.penyiapan.perbaiki', 'master_data.katalog.lihat', 'master_data.katalog.input'];
 
     /** Halaman yang sudah dibangun; menu lain tampil sebagai Segera hadir atau disembunyikan. */
-    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.usulan', 'master_data.penjamin', 'master_data.tarif', 'master_data.jadwal_praktik', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'pendaftaran.pasien', 'pendaftaran.master_pasien', 'pendaftaran.antrean', 'rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat', 'rawat_jalan.cppt', 'rawat_jalan.pemeriksaan', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'sdm.pegawai', 'farmasi.formularium', 'farmasi.resep', 'rekam_medis.akses_darurat', 'igd.pendaftaran', 'igd.triase', 'master_data.instrumen_triase', 'igd.disposisi', 'master_data.matriks_perpindahan', 'igd.papan', 'master_data.papan_igd', 'rawat_inap.peta_tempat_tidur', 'pendaftaran.admisi'];
+    public const TERSEDIA = ['beranda', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.usulan', 'master_data.penjamin', 'master_data.tarif', 'master_data.jadwal_praktik', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'pendaftaran.pasien', 'pendaftaran.master_pasien', 'pendaftaran.antrean', 'rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat', 'rawat_jalan.cppt', 'rawat_jalan.pemeriksaan', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'sdm.pegawai', 'farmasi.formularium', 'farmasi.resep', 'rekam_medis.akses_darurat', 'igd.pendaftaran', 'igd.triase', 'master_data.instrumen_triase', 'igd.disposisi', 'master_data.matriks_perpindahan', 'igd.papan', 'master_data.papan_igd', 'rawat_inap.peta_tempat_tidur', 'pendaftaran.admisi', 'rawat_inap.pemulangan', 'master_data.daftar_periksa_pulang'];
 
     /** Aksi dasar Permenkes 24/2022 Ps. 30 ayat 3 untuk setiap sub-menu (FR-09-03). */
     public const AKSI_DASAR = ['lihat', 'input', 'perbaiki'];
@@ -50,6 +50,8 @@ final class MenuBawaan
         'rawat_jalan.pemeriksaan' => ['sahkan'],
         // Tiket 2.21: tinjauan pasca-akses darurat oleh Kepala RM/DPO.
         'rekam_medis.akses_darurat' => ['tinjau'],
+        // Tiket 2.40: DPJP mengesahkan resume medis dengan PIN T1 (FR-05-02).
+        'rawat_inap.pemulangan' => ['sahkan'],
     ];
 
     /** Superadmin mengelola peran, akun, dan profil RS (wizard langkah 2); tidak membuka rekam medis, rupiah, atau data induk milik unit (PRD 9.2.4, FR-54-01). */
@@ -102,7 +104,9 @@ final class MenuBawaan
         // Tiket 2.28 (keputusan pemilik 10 Nov 2026): izin sel matriks asal poliklinik, termasuk SPRI dokter poli.
         'rawat_jalan.pemeriksaan.sahkan',
         // Tiket 2.29: izin sel matriks rawat_inap → rawat_inap (pindah ruang/kelas = perintah dokter, PRD 7.00.3).
-        'rawat_inap.pindah_ruang.input'];
+        'rawat_inap.pindah_ruang.input',
+        // Tiket 2.40: izin sel matriks rawat_inap → pulang/aps/rujuk_keluar/meninggal dan pengesahan resume medis oleh DPJP.
+        'rawat_inap.pemulangan.input', 'rawat_inap.pemulangan.sahkan'];
 
     /**
      * Izin data pribadi yang sensitif tanpa penyetuju bawaan: tidak bisa diberikan sampai RS menetapkan pemilik datanya
@@ -280,6 +284,8 @@ final class MenuBawaan
                 'matriks_perpindahan' => ['Matriks perpindahan', 54],
                 // Tiket 2.25: area IGD dan batas waktu papan IGD (FR-03-03, FR-03-04, FR-00-06); edit langsung berizin.
                 'papan_igd' => ['Area & batas papan IGD', 54],
+                // Tiket 2.40: daftar periksa pulang rawat inap (FR-05-03); edit langsung berizin + dasar + audit.
+                'daftar_periksa_pulang' => ['Daftar periksa pulang', 54],
             ]],
             'pengaturan' => ['Pengaturan Sistem', 1, 54, [
                 'akun' => ['Akun & akses', 54],
