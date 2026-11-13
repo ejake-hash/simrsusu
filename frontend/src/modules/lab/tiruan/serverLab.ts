@@ -1,11 +1,55 @@
 import type { PermintaanTiruan, ResponsTiruan } from '../../akses/tiruan/serverTiruan'
-import type { BarisDaftarKerjaLab, LokasiPengambilanSpesimen, Spesimen } from '../tipe'
+import type { StatusPermintaanItem } from '@/shared/api/permintaanPemeriksaan'
+import type { BarisDaftarKerjaLab, HasilLab, LokasiPengambilanSpesimen, NilaiHasilLab, PenandaHasilLab, Spesimen, TahapDaftarKerjaLab } from '../tipe'
 
 /**
  * Server tiruan kontrak v0.40.0 (tiket 2.30): GET /lab/daftar-kerja (prioritas wajib, terlama dulu, kursor; order keluar
  * sesudah tidak ada butir dipesan/sampel_diambil), POST /permintaan-item/{id}/spesimen (barcode LAB-YYYYMMDD-NNNNN), POST
- * /spesimen/{id}/terima. Pasien dan order SINTETIS berlabel contoh. `dapat` per butir dari izin, seperti server.
+ * /spesimen/{id}/terima. v0.41.0 (tiket 2.31): parameter `tahap`, POST /permintaan-item/{id}/hasil, POST
+ * /hasil-lab/{id}/validasi, POST /hasil-lab/{id}/adendum, GET /episode/{id}/hasil-lab. Pasien, order, dan data induk
+ * SINTETIS berlabel contoh (meniru seeder `lokal:kunjungan-contoh`, bukan nilai klinis). `dapat` dari izin, seperti server.
  */
+const TAHAP: Record<TahapDaftarKerjaLab, StatusPermintaanItem[]> = {
+  spesimen: ['dipesan', 'sampel_diambil'],
+  hasil: ['diterima_lab', 'menunggu_validasi'],
+  otorisasi: ['menunggu_otorisasi'],
+}
+interface DataInduk {
+  jenis: 'numerik' | 'teks'
+  satuan: string | null
+  spk: boolean
+  rujukan: [min: number | null, maks: number | null, kritisMin: number | null, kritisMaks: number | null] | null
+  kritisTeks?: string[]
+}
+/** Data induk sintetis: 01 numerik + rujukan, 02 teks + nilai kritis teks, 03 butuh otorisasi Sp.PK, 04 tanpa rujukan. */
+const DATA_INDUK: Record<string, DataInduk> = {
+  'CONTOH-LAB-01': { jenis: 'numerik', satuan: '{contoh}', spk: false, rujukan: [10, 20, 5, 30] },
+  'CONTOH-LAB-02': { jenis: 'teks', satuan: null, spk: false, rujukan: null, kritisTeks: ['Contoh kritis'] },
+  'CONTOH-LAB-03': { jenis: 'numerik', satuan: '{contoh}', spk: true, rujukan: [1, 2, null, 5] },
+  'CONTOH-LAB-04': { jenis: 'numerik', satuan: '{contoh}', spk: false, rujukan: null },
+}
+
+/** Penanda seperti server (pembanding tegas, batas kritis didahulukan); hanya di server tiruan, layar tidak menghitung. */
+function nilaiDanPenanda(d: DataInduk, nilai: number | null, nilaiTeks: string | null): NilaiHasilLab {
+  const [rujukanMin, rujukanMaks, kritisMin, kritisMaks] = d.rujukan ?? [null, null, null, null]
+  let penanda: PenandaHasilLab = null
+  let peringatan: NilaiHasilLab['peringatan'] = null
+  if (d.jenis === 'teks') {
+    if (!d.kritisTeks?.length) peringatan = 'nilai_rujukan_tidak_ada'
+    else if (d.kritisTeks.some((k) => k.toLowerCase() === nilaiTeks?.toLowerCase())) penanda = 'kritis'
+  } else if (!d.rujukan) {
+    peringatan = 'nilai_rujukan_tidak_ada'
+  } else if (nilai !== null) {
+    if (kritisMin !== null && nilai < kritisMin) penanda = 'll'
+    else if (kritisMaks !== null && nilai > kritisMaks) penanda = 'hh'
+    else if (rujukanMin !== null && nilai < rujukanMin) penanda = 'l'
+    else if (rujukanMaks !== null && nilai > rujukanMaks) penanda = 'h'
+  }
+  return {
+    nilai, nilai_teks: nilaiTeks, satuan: d.satuan, rujukan_min: rujukanMin, rujukan_maks: rujukanMaks, kritis_min: kritisMin, kritis_maks: kritisMaks,
+    penanda, kritis: penanda === 'll' || penanda === 'hh' || penanda === 'kritis', peringatan,
+  }
+}
 const NO_STORE = { 'Cache-Control': 'no-store' }
 const error = (status: number, kode: string, pesan: string, rincian: Record<string, unknown>[] = []): ResponsTiruan => ({ status, header: NO_STORE, isi: { error: { kode, pesan, rincian } } })
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -52,7 +96,19 @@ export function buatServerLab(opsi: OpsiServerLab) {
   ]
   let nomor = 0
 
-  const aktif = (o: Simpanan) => o.status === 'dipesan' && o.item.some((i) => i.status === 'dipesan' || i.status === 'sampel_diambil')
+  /** Episode tiap order (BarisDaftarKerjaLab tidak membawanya; HasilLab membawanya). */
+  const episodeOrder = (orderId: string) => id(300 + order.findIndex((o) => o.id === orderId) + 1)
+  const hasil = new Map<string, Omit<HasilLab, 'dapat'>>()
+  let nomorHasil = 0
+
+  const aktif = (o: Simpanan, tahap: TahapDaftarKerjaLab) => o.status === 'dipesan' && o.item.some((i) => TAHAP[tahap].includes(i.status))
+  const dapatHasil = (h: Omit<HasilLab, 'dapat'>): HasilLab['dapat'] => ({
+    input: h.status === 'menunggu_validasi' && opsi.boleh('penunjang.laboratorium.input'),
+    validasi: (h.status === 'menunggu_validasi' && opsi.boleh('penunjang.laboratorium.sahkan'))
+      || (h.status === 'menunggu_otorisasi' && opsi.boleh('penunjang.laboratorium.setujui') && h.divalidasi_oleh?.id !== pelaku().id),
+    adendum: h.status === 'divalidasi' && opsi.boleh(h.butuh_otorisasi_spk ? 'penunjang.laboratorium.setujui' : 'penunjang.laboratorium.sahkan'),
+  })
+  const keluarHasil = (h: Omit<HasilLab, 'dapat'>): HasilLab => ({ ...structuredClone(h), dapat: dapatHasil(h) })
   const keluar = (o: Simpanan): BarisDaftarKerjaLab => {
     const ambil = opsi.boleh('penunjang.laboratorium.input')
     const terima = opsi.boleh('penunjang.laboratorium.verifikasi')
@@ -60,7 +116,18 @@ export function buatServerLab(opsi: OpsiServerLab) {
       ...structuredClone(o),
       item: o.item
         .filter((i) => i.status !== 'batal')
-        .map((i) => ({ ...structuredClone(i), spesimen: i.spesimen ? { ...structuredClone(i.spesimen), item_status: i.status } : null, dapat: { ambil: i.status === 'dipesan' && ambil, terima: i.status === 'sampel_diambil' && terima } })),
+        .map((i) => {
+          const h = hasil.get(i.id)
+          return {
+            ...structuredClone(i),
+            spesimen: i.spesimen ? { ...structuredClone(i.spesimen), item_status: i.status } : null,
+            hasil: h ? keluarHasil(h) : null,
+            dapat: {
+              ambil: i.status === 'dipesan' && ambil, terima: i.status === 'sampel_diambil' && terima,
+              input: (i.status === 'diterima_lab' || i.status === 'menunggu_validasi') && ambil, validasi: h ? dapatHasil(h).validasi : false,
+            },
+          }
+        }),
     }
   }
 
@@ -68,9 +135,11 @@ export function buatServerLab(opsi: OpsiServerLab) {
     if (!opsi.boleh('penunjang.laboratorium.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak melihat daftar kerja lab.')
     const prioritas = r.kueri.get('prioritas')
     if (prioritas !== 'cito' && prioritas !== 'rutin') return error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom: 'prioritas', pesan: 'Pilih cito atau rutin.' }])
+    const tahap = (r.kueri.get('tahap') ?? 'spesimen') as TahapDaftarKerjaLab
+    if (!(tahap in TAHAP)) return error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom: 'tahap', pesan: 'Tahap tidak dikenal.' }])
     const batas = Number(r.kueri.get('batas') ?? 50)
     if (batas > 200) return error(422, 'ukuran_halaman_melebihi_batas', 'Batas maksimal 200.')
-    const semua = order.filter((o) => o.prioritas === prioritas && aktif(o)).sort((a, b) => a.dipesan_pada.localeCompare(b.dipesan_pada) || a.id.localeCompare(b.id))
+    const semua = order.filter((o) => o.prioritas === prioritas && aktif(o, tahap)).sort((a, b) => a.dipesan_pada.localeCompare(b.dipesan_pada) || a.id.localeCompare(b.id))
     const mulai = Number(r.kueri.get('kursor') ?? 0)
     const lanjut = mulai + batas < semua.length ? String(mulai + batas) : null
     return { status: 200, header: NO_STORE, isi: { data: semua.slice(mulai, mulai + batas).map(keluar), meta: { kursor_berikutnya: lanjut, batas } } }
@@ -116,6 +185,90 @@ export function buatServerLab(opsi: OpsiServerLab) {
     return { status: 200, header: NO_STORE, isi: { data: structuredClone(t.i.spesimen) } }
   }
 
+  /** Isian sesuai jenis hasil data induk; null = benar (kontrak: 422 validasi_gagal per kolom). */
+  function cekIsian(d: DataInduk, isi: Record<string, unknown>): ResponsTiruan | null {
+    const angka = typeof isi.nilai === 'number'
+    const teks = typeof isi.nilai_teks === 'string' && isi.nilai_teks.trim().length > 0
+    if (d.jenis === 'numerik' && (!angka || teks)) return error(422, 'validasi_gagal', 'Hasil pemeriksaan ini berupa angka: isi nilai, tanpa nilai teks.', [{ kolom: 'nilai', pesan: 'Nilai angka wajib untuk pemeriksaan ini.' }])
+    if (d.jenis === 'teks' && (angka || !teks)) return error(422, 'validasi_gagal', 'Hasil pemeriksaan ini berupa teks: isi nilai teks, tanpa nilai angka.', [{ kolom: 'nilai_teks', pesan: 'Nilai teks wajib untuk pemeriksaan ini.' }])
+    return null
+  }
+
+  function inputHasil(itemId: string, r: PermintaanTiruan): ResponsTiruan {
+    if (!opsi.boleh('penunjang.laboratorium.input')) return error(403, 'akses_ditolak', 'Anda tidak berhak menginput hasil lab.')
+    const t = UUID.test(itemId) ? cariButir(itemId) : null
+    if (!t) return error(404, 'tidak_ditemukan', 'Butir order lab tidak ditemukan.')
+    if (t.i.status === 'divalidasi') return error(409, 'hasil_sudah_divalidasi', 'Hasil sudah divalidasi.')
+    if (t.o.status === 'batal' || (t.i.status !== 'diterima_lab' && t.i.status !== 'menunggu_validasi')) return error(409, 'status_tidak_sesuai', 'Butir ini tidak bisa diinput hasilnya sekarang.')
+    const d = DATA_INDUK[t.i.kode_item]
+    if (!d) return error(422, 'pemeriksaan_lab_belum_diatur', 'Data induk pemeriksaan lab belum diatur.')
+    const isi = (r.isi ?? {}) as Record<string, unknown>
+    const salah = cekIsian(d, isi)
+    if (salah) return salah
+    const nilai = d.jenis === 'numerik' ? (isi.nilai as number) : null
+    const nilaiTeks = d.jenis === 'teks' ? (isi.nilai_teks as string).trim() : null
+    const ada = hasil.get(t.i.id)
+    const h: Omit<HasilLab, 'dapat'> = {
+      id: ada?.id ?? id(700 + ++nomorHasil), permintaan_item_id: t.i.id, permintaan_pemeriksaan_id: t.o.id, episode_id: episodeOrder(t.o.id),
+      kode_item: t.i.kode_item, nama: t.i.nama, status: 'menunggu_validasi', jenis_hasil: d.jenis, kode_loinc: null,
+      catatan: typeof isi.catatan === 'string' ? isi.catatan : null, butuh_otorisasi_spk: d.spk, pasien: structuredClone(t.o.pasien),
+      diinput_oleh: pelaku(), diinput_pada: sekarang().toISOString(), divalidasi_oleh: null, divalidasi_pada: null,
+      diotorisasi_oleh: null, diotorisasi_pada: null, dikeluarkan_pada: null, adendum: [], ...nilaiDanPenanda(d, nilai, nilaiTeks),
+    }
+    hasil.set(t.i.id, h)
+    t.i.status = 'menunggu_validasi'
+    return { status: ada ? 200 : 201, header: NO_STORE, isi: { data: keluarHasil(h) } }
+  }
+
+  const cariHasil = (hasilId: string) => [...hasil.values()].find((h) => h.id === hasilId)
+
+  function validasi(hasilId: string): ResponsTiruan {
+    const h = UUID.test(hasilId) ? cariHasil(hasilId) : undefined
+    if (!h) return error(404, 'tidak_ditemukan', 'Hasil lab tidak ditemukan.')
+    const t = cariButir(h.permintaan_item_id)!
+    if (h.status === 'divalidasi') return error(409, 'hasil_sudah_divalidasi', 'Hasil sudah divalidasi.')
+    if (t.o.status === 'batal') return error(409, 'status_tidak_sesuai', 'Order sudah dibatalkan.')
+    const jam = sekarang().toISOString()
+    if (h.status === 'menunggu_validasi') {
+      if (!opsi.boleh('penunjang.laboratorium.sahkan')) return error(403, 'akses_ditolak', 'Anda tidak berhak memvalidasi hasil lab.')
+      Object.assign(h, { divalidasi_oleh: pelaku(), divalidasi_pada: jam, status: h.butuh_otorisasi_spk ? 'menunggu_otorisasi' : 'divalidasi', dikeluarkan_pada: h.butuh_otorisasi_spk ? null : jam })
+    } else {
+      if (!opsi.boleh('penunjang.laboratorium.setujui')) return error(403, 'akses_ditolak', 'Anda tidak berhak mengotorisasi hasil lab.')
+      if (h.divalidasi_oleh?.id === pelaku().id) return error(409, 'sudah_memvalidasi', 'Anda sudah memvalidasi hasil ini.')
+      Object.assign(h, { diotorisasi_oleh: pelaku(), diotorisasi_pada: jam, status: 'divalidasi', dikeluarkan_pada: jam })
+    }
+    t.i.status = h.status
+    return { status: 200, header: NO_STORE, isi: { data: keluarHasil(h) } }
+  }
+
+  function adendum(hasilId: string, r: PermintaanTiruan): ResponsTiruan {
+    const h = UUID.test(hasilId) ? cariHasil(hasilId) : undefined
+    if (!h) return error(404, 'tidak_ditemukan', 'Hasil lab tidak ditemukan.')
+    if (!opsi.boleh(h.butuh_otorisasi_spk ? 'penunjang.laboratorium.setujui' : 'penunjang.laboratorium.sahkan')) return error(403, 'akses_ditolak', 'Anda tidak berhak membuat adendum hasil ini.')
+    if (h.status !== 'divalidasi') return error(409, 'status_tidak_sesuai', 'Hasil belum divalidasi.')
+    const isi = (r.isi ?? {}) as Record<string, unknown>
+    const alasan = typeof isi.alasan === 'string' ? isi.alasan.trim() : ''
+    if (alasan.length < 5 || alasan.length > 500) return error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom: 'alasan', pesan: 'Alasan 5 sampai 500 karakter.' }])
+    const d = DATA_INDUK[h.kode_item]!
+    const salah = cekIsian(d, isi)
+    if (salah) return salah
+    h.adendum.push({
+      id: id(750 + h.adendum.length + 10 * nomorHasil), hasil_id: h.id, alasan, dibuat_oleh: pelaku(), dibuat_pada: sekarang().toISOString(),
+      ...nilaiDanPenanda(d, d.jenis === 'numerik' ? (isi.nilai as number) : null, d.jenis === 'teks' ? (isi.nilai_teks as string).trim() : null),
+    })
+    return { status: 201, header: NO_STORE, isi: { data: keluarHasil(h) } }
+  }
+
+  function linimasa(episodeId: string, r: PermintaanTiruan): ResponsTiruan {
+    if (!opsi.boleh('rawat_jalan.pemeriksaan.lihat')) return error(403, 'akses_ditolak', 'Anda tidak berhak membuka hasil lab episode ini.')
+    if (!order.some((o) => episodeOrder(o.id) === episodeId)) return error(404, 'tidak_ditemukan', 'Episode tidak ditemukan.')
+    const semua = [...hasil.values()].filter((h) => h.episode_id === episodeId && h.status === 'divalidasi').sort((a, b) => b.dikeluarkan_pada!.localeCompare(a.dikeluarkan_pada!) || b.id.localeCompare(a.id))
+    const batas = Number(r.kueri.get('batas') ?? 50)
+    const mulai = Number(r.kueri.get('kursor') ?? 0)
+    const lanjut = mulai + batas < semua.length ? String(mulai + batas) : null
+    return { status: 200, header: NO_STORE, isi: { data: semua.slice(mulai, mulai + batas).map(keluarHasil), meta: { kursor_berikutnya: lanjut, batas } } }
+  }
+
   return {
     order,
     /** Uji: batalkan order dari pos pemesan (2.16) agar aksi lab berikutnya 409. */
@@ -132,6 +285,10 @@ export function buatServerLab(opsi: OpsiServerLab) {
       if (bagian[0] === 'lab' && bagian[1] === 'daftar-kerja' && bagian.length === 2 && m === 'GET') return daftar(r)
       if (bagian[0] === 'permintaan-item' && bagian[2] === 'spesimen' && bagian.length === 3 && m === 'POST') return ambil(bagian[1]!, r)
       if (bagian[0] === 'spesimen' && bagian[2] === 'terima' && bagian.length === 3 && m === 'POST') return terima(bagian[1]!)
+      if (bagian[0] === 'permintaan-item' && bagian[2] === 'hasil' && bagian.length === 3 && m === 'POST') return inputHasil(bagian[1]!, r)
+      if (bagian[0] === 'hasil-lab' && bagian[2] === 'validasi' && bagian.length === 3 && m === 'POST') return validasi(bagian[1]!)
+      if (bagian[0] === 'hasil-lab' && bagian[2] === 'adendum' && bagian.length === 3 && m === 'POST') return adendum(bagian[1]!, r)
+      if (bagian[0] === 'episode' && bagian[2] === 'hasil-lab' && bagian.length === 3 && m === 'GET') return linimasa(bagian[1]!, r)
       return null
     },
   }
