@@ -30,9 +30,9 @@ final class PetaTempatTidurController
 
     /**
      * Izin yang membuka id kunjungan RI dan identitas pasien di peta: pindah ruang (v0.38.0) dan, sejak v0.39.0 (keputusan
-     * pemilik 13 Nov 2026), lihat pemulangan.
+     * pemilik 13 Nov 2026), lihat pemulangan dan lihat rencana pulang.
      */
-    private const IZIN_PASIEN = ['rawat_inap.pindah_ruang.input', 'rawat_inap.pemulangan.lihat'];
+    private const IZIN_PASIEN = ['rawat_inap.pindah_ruang.input', 'rawat_inap.pemulangan.lihat', 'rawat_inap.rencana_pulang.lihat'];
 
     public function index(Request $request, BacaPetaTempatTidur $peta, AccessEvaluator $evaluator, PohonUnit $pohon): Response
     {

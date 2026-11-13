@@ -299,6 +299,11 @@ class PemulanganTest extends TestCase
         $this->masukSebagai($this->perawat);
         $this->assertSesuaiKontrak($this->rencana($poli, ['rencana_pulang_pada' => '2026-11-06'])->assertStatus(409)
             ->assertJsonPath('error.kode', 'status_tidak_sesuai'), 'PUT', '/kunjungan/{id}/rencana-pulang');
+        $getPoli = $this->minta('GET', "/api/v1/kunjungan/$poli/rencana-pulang")->assertStatus(409)->assertJsonPath('error.kode', 'status_tidak_sesuai')
+            ->assertJsonPath('error.rincian.0.jenis_kunjungan', 'poliklinik');
+        $this->assertSesuaiKontrak($getPoli, 'GET', '/kunjungan/{id}/rencana-pulang');
+        $this->assertStringNotContainsString((string) $pasien->nama, (string) $getPoli->getContent());
+        $this->assertStringNotContainsString((string) $pasien->no_rm, (string) $getPoli->getContent());
     }
 
     public function test_status_tt_turunan_dihitung_saat_peta_dibaca(): void
@@ -362,14 +367,32 @@ class PemulanganTest extends TestCase
             $this->assertSame($ada, array_key_exists('pasien_rawat_inap', $baris), $unit);
         }
 
+        // Keputusan pemilik 13 Nov 2026 (lanjutan): pemegang rawat_inap.rencana_pulang.lihat saja menerima kunci di bangsalnya.
+        foreach (['UJI40-RB' => false, 'UJI40-RA' => true] as $unit => $ada) {
+            $akun = $this->buatPengguna();
+            $this->tugaskan($akun, $this->buatPeran(['rawat_inap.peta_tempat_tidur']));
+            $peran = $this->buatPeran([]);
+            $izin = Izin::query()->where('kode', 'rawat_inap.rencana_pulang.lihat')->firstOrFail(['id', 'menu_id']);
+            PeranMenu::query()->create(['peran_id' => $peran->id, 'menu_id' => $izin->menu_id]);
+            PeranIzin::query()->create(['peran_id' => $peran->id, 'izin_id' => $izin->id]);
+            $this->tugaskan($akun, $peran, cakupan: new Cakupan('unit', $this->id[$unit]));
+            $this->masukSebagai($akun);
+            $respons = $this->minta('GET', $url)->assertOk();
+            $baris = (array) $respons->json('data.0');
+            $this->assertSame($ada, array_key_exists('kunjungan_rawat_inap_id', $baris), "rencana $unit");
+            $this->assertSame($ada, array_key_exists('pasien_rawat_inap', $baris), "rencana $unit");
+            $this->assertSame($ada, str_contains((string) $respons->getContent(), $nama), "rencana $unit");
+        }
+
         // Tanpa izin pemulangan (admisi): tidak dikirim, nama tidak ada di respons.
         $this->masukSebagai($this->admisi);
         $admisi = $this->minta('GET', $url)->assertOk();
         $this->assertArrayNotHasKey('kunjungan_rawat_inap_id', (array) $admisi->json('data.0'));
         $this->assertStringNotContainsString($nama, (string) $admisi->getContent());
 
-        // Lapis 5 izin lihat pemulangan (RS menandainya butuh MFA): akun tanpa MFA → kunci tidak dikirim, peta tetap 200.
-        DB::table('akses.izin')->where('kode', 'rawat_inap.pemulangan.lihat')->update(['butuh_mfa' => true]);
+        // Lapis 5 tiap izin pembuka (RS menandai lihat pemulangan dan lihat rencana pulang butuh MFA): akun tanpa MFA → kunci
+        // tidak dikirim, peta tetap 200.
+        DB::table('akses.izin')->whereIn('kode', ['rawat_inap.pemulangan.lihat', 'rawat_inap.rencana_pulang.lihat'])->update(['butuh_mfa' => true]);
         app(CacheHakAkses::class)->lupakanSemua();
         $this->masukSebagai($this->perawat);
         $mfa = $this->minta('GET', $url)->assertOk();
@@ -406,6 +429,12 @@ class PemulanganTest extends TestCase
             ->assertJsonPath('data.isian_dpjp.kondisi_pulang', 'Stabil (uji sintetis)');
         $this->assertSesuaiKontrak($ulang, 'POST', '/kunjungan/{id}/resume-medis');
         $this->assertSesuaiKontrak($this->minta('GET', "/api/v1/kunjungan/$ri/resume-medis")->assertOk(), 'GET', '/kunjungan/{id}/resume-medis');
+
+        // Resume tidak bisa ditandatangani lewat POST /ttd/tandatangani (jenis objek tidak diterima), hanya lewat sahkan.
+        $ttd = $this->minta('POST', '/api/v1/ttd/tandatangani', ['objek' => [['jenis' => 'resume_medis', 'id' => $id]], 'pin' => self::PIN,
+            'pernyataan_disetujui' => true])->assertStatus(422)->assertJsonPath('error.kode', 'validasi_gagal')->assertJsonPath('error.rincian.0.kolom', 'objek.0.jenis');
+        $this->assertSesuaiKontrak($ttd, 'POST', '/ttd/tandatangani');
+        $this->assertFalse(DB::table('ttd.tanda_tangan')->where('objek_jenis', 'resume_medis')->exists());
 
         // Dokter lain ber-SIP dengan izin sahkan → 403 bukan_pemutus; perawat tanpa SIP → 403 izin_praktik_tidak_berlaku.
         $lain = $this->akunDokter($this->dokter());

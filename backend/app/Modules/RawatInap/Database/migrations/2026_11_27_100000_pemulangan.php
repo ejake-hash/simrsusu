@@ -60,11 +60,11 @@ return new class extends Migration
             $table->text('status')->default('draf');
             $table->foreignUuid('disusun_oleh')->comment('akses.pengguna.id penyusun terakhir')->constrained('akses.pengguna')->restrictOnDelete();
             $table->timestampTz('disusun_pada', 6);
-            $table->uuid('disahkan_oleh')->nullable()->comment('akses.pengguna.id DPJP');
+            $table->foreignUuid('disahkan_oleh')->nullable()->comment('akses.pengguna.id DPJP')->constrained('akses.pengguna')->restrictOnDelete();
             $table->timestampTz('disahkan_pada', 6)->nullable();
             $table->foreignUuid('tanda_tangan_id')->nullable()->constrained('ttd.tanda_tangan')->restrictOnDelete();
             $table->text('satusehat_composition_id')->nullable()->comment('Tahap D');
-            $table->timestampTz('dikirim_ke_pasien_pada')->nullable()->comment('FR-05-08, menunggu portal 7.48');
+            $table->timestampTz('dikirim_ke_pasien_pada', 6)->nullable()->comment('FR-05-08, menunggu portal 7.48');
             $table->text('kanal_kirim')->nullable()->comment('FR-05-08, menunggu portal 7.48');
             $table->kolomStandar();
         });

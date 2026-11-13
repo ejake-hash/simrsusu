@@ -222,7 +222,8 @@ info:
     `rawat_inap.pemulangan.sahkan` bersyarat SIP/SPK; 403 `bukan_pemutus`), objek TTE `resume_medis`. Data induk baru
     GET /data-induk/daftar-periksa-pulang, PATCH /data-induk/daftar-periksa-pulang/{id} (sub-menu
     `master_data.daftar_periksa_pulang`, pola area IGD). Peta TT: `kunjungan_rawat_inap_id` + `pasien_rawat_inap` juga bagi
-    rawat_inap.pemulangan.lihat di cakupan unit bangsal TT (lapis 5 izin itu); status `rencana_pulang` /
+    rawat_inap.pemulangan.lihat atau rawat_inap.rencana_pulang.lihat di cakupan unit bangsal TT (lapis 5 tiap izin; keputusan
+    pemilik 13 Nov 2026); status `rencana_pulang` /
     `melewati_rencana_lama_rawat` dihitung saat peta dibaca dari rencana pulang (tidak disimpan). Kontrak disposisi IGD
     tidak berubah.
 servers:
@@ -6208,7 +6209,7 @@ paths:
           berkursor: layar memuat seluruh peta sekaligus; pencarian kode TT dan pengelompokan di layar.
         - `bangsal_id`/`gedung_id` menyaring; id tak dikenal → daftar kosong; bukan UUID → 422.
         - Tanpa data pasien, kecuali `kunjungan_rawat_inap_id` dan `pasien_rawat_inap` bagi pemegang
-          rawat_inap.pindah_ruang.input (v0.38.0) atau rawat_inap.pemulangan.lihat (v0.39.0) di cakupan unit bangsal TT,
+          rawat_inap.pindah_ruang.input (v0.38.0), rawat_inap.pemulangan.lihat, atau rawat_inap.rencana_pulang.lihat (v0.39.0) di cakupan unit bangsal TT,
           masing-masing dengan lapis 5 izinnya. `hari_rawat` diisi untuk TT dengan penempatan aktif (v0.37.0), dihitung dari penempatan pertama
           kunjungan rawat inapnya.
         - TT yang ditempati (v0.39.0): `status` dihitung saat dibaca, tidak disimpan. Rencana pulang aktif bertanggal hari ini
@@ -6539,7 +6540,8 @@ paths:
       summary: Rencana pulang dan daftar periksa pulang kunjungan rawat inap
       description: |
         Izin: rawat_inap.rencana_pulang.lihat (non-klinis) di cakupan mana pun (403 sebelum kunjungan dibaca); kunjungan tidak ada atau id
-        bukan UUID → 404; cakupan tidak memuat unit bangsal kunjungan → 403. Membawa dua penanda identitas pasien untuk
+        bukan UUID → 404; cakupan tidak memuat unit bangsal kunjungan → 403; bukan kunjungan rawat inap → 409
+        `status_tidak_sesuai`, `rincian` = `[{jenis_kunjungan, status}]`, tanpa data pasien. Membawa dua penanda identitas pasien untuk
         konfirmasi (PRD 5.1 butir 9). Belum ada rencana → `id` null, `daftar_periksa` = pratinjau butir data induk aktif.
         ETag = `versi` bila rencana ada. Selalu `no-store`.
       responses:
@@ -6554,6 +6556,7 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
     put:
       operationId: simpanRencanaPulang
       summary: Buat atau ubah rencana pulang, centang butir daftar periksa
@@ -10867,11 +10870,11 @@ components:
         ditutup: { type: boolean, description: "TT ditutup 1.8b (hari terakhir berlaku sudah lewat)" }
         dapat_dipilih: { type: boolean, description: "Status kosong_siap dan tidak ditutup maupun dijadwalkan tutup (pilihan alokasi 2.28; sejak v0.36.0 penutupan terjadwal ikut false)" }
         hari_rawat: { type: [integer, 'null'], minimum: 1, description: "Hari rawat pasien yang menempati TT ini (v0.37.0): tanggal hari ini zona RS − tanggal penempatan pertama kunjungan rawat inapnya + 1 (pindah ruang tidak mengulang hitungan); null = tidak ada penempatan aktif" }
-        kunjungan_rawat_inap_id: { type: string, format: uuid, description: "Opsional (v0.38.0): kunjungan rawat inap yang menempati TT ini (id untuk POST /kunjungan/{id}/pindah-ruang dan, sejak v0.39.0, endpoint pemulangan). Hanya dikirim untuk TT berpenempatan aktif yang tidak ditutup, dan hanya bila pemanggil memegang rawat_inap.pindah_ruang.input atau rawat_inap.pemulangan.lihat (v0.39.0) di cakupan yang memuat unit bangsal TT dengan lapis 5 izin itu terpenuhi; selain itu kunci tidak ada (bukan null)." }
+        kunjungan_rawat_inap_id: { type: string, format: uuid, description: "Opsional (v0.38.0): kunjungan rawat inap yang menempati TT ini (id untuk POST /kunjungan/{id}/pindah-ruang dan, sejak v0.39.0, endpoint pemulangan). Hanya dikirim untuk TT berpenempatan aktif yang tidak ditutup, dan hanya bila pemanggil memegang rawat_inap.pindah_ruang.input, rawat_inap.pemulangan.lihat, atau rawat_inap.rencana_pulang.lihat (v0.39.0) di cakupan yang memuat unit bangsal TT dengan lapis 5 izin itu terpenuhi; selain itu kunci tidak ada (bukan null)." }
         pasien_rawat_inap:
           type: object
           required: [nama, no_rm, tanggal_lahir]
-          description: "Opsional (v0.38.0, keputusan pemilik 11 Nov 2026): dua penanda identitas pasien yang menempati TT, untuk konfirmasi pindah ruang dan pulang (PRD 5.1 butir 9). Syarat sama persis dengan `kunjungan_rawat_inap_id` (dikirim bersama, bagi rawat_inap.pindah_ruang.input atau rawat_inap.pemulangan.lihat di cakupan yang memuat unit bangsal TT); selain itu kunci tidak ada. Tidak masuk log/audit."
+          description: "Opsional (v0.38.0, keputusan pemilik 11 Nov 2026): dua penanda identitas pasien yang menempati TT, untuk konfirmasi pindah ruang dan pulang (PRD 5.1 butir 9). Syarat sama persis dengan `kunjungan_rawat_inap_id` (dikirim bersama, bagi rawat_inap.pindah_ruang.input, rawat_inap.pemulangan.lihat, atau rawat_inap.rencana_pulang.lihat di cakupan yang memuat unit bangsal TT); selain itu kunci tidak ada. Tidak masuk log/audit."
           properties:
             nama: { type: string }
             no_rm: { type: string }

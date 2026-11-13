@@ -16,8 +16,8 @@ use stdClass;
  * - Urut gedung, lantai, bangsal, kode TT; kode urut natural sederhana (panjang dulu, lalu kode: "2" sebelum "10"). Tanpa data pasien kecuali bagian berizin pindah ruang di bawah; `hari_rawat` dari penempatan aktif (2.29).
  * - Bukan daftar berkursor (layar peta memuat seluruh RS sekaligus): paling banyak BATAS_BARIS, lebih → `terpotong`.
  * - `kunjungan_rawat_inap_id` (v0.38.0, keputusan pemilik 10 Nov 2026) hanya untuk TT berpenempatan aktif di unit bangsal
- *   yang ada di `$unitPasien` (gabungan cakupan rawat_inap.pindah_ruang.input dan, sejak 2.40, rawat_inap.pemulangan.lihat
- *   pemanggil); di luar itu kunci tidak dikirim. Diambil di kueri yang sama dengan hari rawat (tanpa N+1).
+ *   yang ada di `$unitPasien` (gabungan cakupan rawat_inap.pindah_ruang.input dan, sejak 2.40, rawat_inap.pemulangan.lihat /
+ *   rawat_inap.rencana_pulang.lihat pemanggil); di luar itu kunci tidak dikirim. Diambil di kueri yang sama dengan hari rawat (tanpa N+1).
  *   `pasien_rawat_inap` (nama, No. RM, tanggal lahir; keputusan pemilik 11 Nov 2026) ikut di cabang yang sama, tidak pernah
  *   ditulis ke log/audit.
  * - Status `rencana_pulang` / `melewati_rencana_lama_rawat` (keputusan pemilik 13 Nov 2026, 2.40) dihitung saat dibaca untuk

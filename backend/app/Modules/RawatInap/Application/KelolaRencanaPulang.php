@@ -129,6 +129,11 @@ final class KelolaRencanaPulang
         $b = DB::table('kunjungan.kunjungan as k')->join('pasien.pasien as p', 'p.id', '=', 'k.pasien_id')->where('k.id', $kunjunganId)
             ->first(['k.id', 'k.status', 'k.jenis_kunjungan', 'p.id as pasien_id', 'p.no_rm', 'p.nama', 'p.jenis_kelamin', 'p.tanggal_lahir'])
             ?? throw new ApiError(404, 'tidak_ditemukan', 'Kunjungan tidak ditemukan.');
+        // Bukan rawat inap: 409 tanpa identitas pasien (tinjauan #204).
+        if ($b->jenis_kunjungan !== Kunjungan::RAWAT_INAP) {
+            throw new ApiError(409, 'status_tidak_sesuai', 'Rencana pulang hanya untuk kunjungan rawat inap.',
+                [['jenis_kunjungan' => (string) $b->jenis_kunjungan, 'status' => (string) $b->status]]);
+        }
         $rencana = DB::table('kunjungan.rencana_pulang')->where('kunjungan_id', $kunjunganId)->first();
         $butir = $rencana === null ? self::salinDataInduk() : self::butirTersimpan($rencana->daftar_periksa);
         $pelaku = $this->pelaku->untuk(array_map(fn (array $x) => $x['selesai_oleh'], $butir));

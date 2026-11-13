@@ -924,7 +924,10 @@ Asumsi BE #204: (1) Keputusan pemilik 13 Nov 2026 "pisah izin": sub-menu baru `r
 (lihat/input/perbaiki, non-klinis, modul 05, aksi dasar saja) untuk GET/PUT rencana pulang; `rawat_inap.pemulangan.input`
 tetap klinis (sel matriks pulang + susun resume), `.sahkan` untuk sahkan, `.lihat` untuk GET resume + kunci pasien peta.
 AccessEvaluator tidak diubah. GET rencana pulang tetap membawa identitas pasien (dua penanda) bagi pemegang
-`rencana_pulang.lihat`, karena konfirmasi identitas dilakukan di layar rencana/daftar periksa. (2) Peta: tiap izin pembuka (pindah ruang, lihat
+`rencana_pulang.lihat`, karena konfirmasi identitas dilakukan di layar rencana/daftar periksa; kunjungan bukan rawat inap →
+409 `status_tidak_sesuai` tanpa identitas (tinjauan #204). Keputusan pemilik 13 Nov 2026 (lanjutan): peta TT juga membuka
+id kunjungan + identitas bagi `rawat_inap.rencana_pulang.lihat` di cakupan unit bangsal TT, syarat sama. Kejadian
+`PasienPulang` diteruskan sesudah commit (`ShouldDispatchAfterCommit`). (2) Peta: tiap izin pembuka (pindah ruang, lihat
 pemulangan) lewat `periksa()` miliknya sendiri; `pemulangan.lihat` non-klinis, jadi perawat tanpa SIP menerima kunci, dan
 MFA berlaku bila RS menandai izin itu `butuh_mfa`. (3) Pulang tanpa rencana: rencana dibuat otomatis (tanggal = hari
 pulang) dengan butir data induk aktif, aturan alasan sama. (4) Kunjungan lain dalam episode (poli asal SPRI) tidak ditutup
@@ -942,6 +945,9 @@ TERSEDIA lewat migrasi yang memanggil `MenuBawaan::pasang()` bersama halamannya.
 Menyusul (2.40): CPPT, diagnosis, dan resep yang ditulis di kunjungan rawat inap (tatanan `ri`) belum punya layar/endpoint,
 jadi resume hanya memotret yang ditulis di kunjungan IGD/poli dalam episode; alur B-05/B-06 rinci untuk APS, melarikan diri,
 meninggal (FR-05-07); adendum resume sah; tindakan (modul tindakan); kirim resume ke pasien (FR-05-08).
+- (tinjauan #204) Episode rawat inap ditutup saat pulang walau kunjungan poli asal SPRI di episode itu masih `dilayani`
+  (tidak diblokir); penutupan/penyelesaian kunjungan poli asal perlu aturan sendiri.
+- (tinjauan #204) Data induk daftar periksa pulang baru bisa diubah/dinonaktifkan; menambah butir baru (POST) belum ada.
 
 ### 2.41 · Konsul / rujukan internal antar-poli
 FR     : FR-04-04, FR-07-25; `kunjungan.rujukan` arah `internal` (11.2)
