@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.39.0
+  version: 0.40.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -226,6 +226,12 @@ info:
     pemilik 13 Nov 2026); status `rencana_pulang` /
     `melewati_rencana_lama_rawat` dihitung saat peta dibaca dari rencana pulang (tidak disimpan). Kontrak disposisi IGD
     tidak berubah.
+    v0.40.0: Lab daftar kerja dan spesimen (tiket 2.30; FR-19-01..03, 7.00.5 butir 4, keputusan pemilik 13 Nov 2026): GET
+    /lab/daftar-kerja (izin `penunjang.laboratorium.lihat`), POST /permintaan-item/{id}/spesimen (ambil sampel,
+    `penunjang.laboratorium.input`), POST /spesimen/{id}/terima (aksi baru `penunjang.laboratorium.verifikasi`); ketiganya
+    cakupan RS. Barcode `LAB-YYYYMMDD-00001`. Skema baru `BarisDaftarKerjaLab`, `Spesimen`; `StatusPermintaanItem` +
+    `sampel_diambil`, `diterima_lab`. Batal order (2.16) → 409 `status_tidak_sesuai` bila ada butir `diterima_lab`;
+    `dapat.batal` ikut false.
 servers:
   - url: /api/v1
 security:
@@ -7948,7 +7954,8 @@ paths:
       summary: Batalkan order penunjang sebelum diterima penunjang (tidak dihapus)
       description: |
         Izin: rawat_jalan.pemeriksaan.order.batal, cakupan unit kunjungan permintaan. Hanya status `dipesan` (belum diterima
-        penunjang; selain itu 409 `status_tidak_sesuai`). Permintaan dan semua butirnya → `batal`, `alasan_batal`,
+        penunjang; selain itu 409 `status_tidak_sesuai`). v0.40.0: ada butir `diterima_lab` → 409 `status_tidak_sesuai`;
+        butir `sampel_diambil` masih boleh dibatalkan. Permintaan dan semua butirnya → `batal`, `alasan_batal`,
         `dibatalkan_oleh`, `dibatalkan_pada`; baris tetap tersimpan. Boleh sesudah kunjungan selesai selama masih
         `dipesan`. Audit `permintaan.pemeriksaan_dibatalkan` + id.
       requestBody:
@@ -7967,6 +7974,90 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /lab/daftar-kerja:
+    get:
+      operationId: daftarKerjaLab
+      summary: Daftar kerja lab — order lab aktif dari semua pos, satu prioritas per panggilan
+      description: |
+        Izin: penunjang.laboratorium.lihat cakupan RS (cakupan unit saja → 403). Order `jenis=lab` tidak batal yang masih
+        punya butir `dipesan` atau `sampel_diambil`, dari pos mana pun. `prioritas` wajib; layar memanggil `cito` dulu lalu
+        `rutin` (cito di atas). Urut `(dipesan_pada, id)` paling lama dulu. Butir batal tidak dikirim; butir `diterima_lab`
+        tetap dikirim selama order masih aktif. Data pasien = nama, No. RM, tanggal lahir (tanpa NIK, alamat, diagnosis).
+        Batas laju layar kerja.
+      parameters:
+        - { in: query, name: prioritas, required: true, schema: { $ref: '#/components/schemas/PrioritasPermintaan' } }
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman daftar kerja (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/BarisDaftarKerjaLab' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /permintaan-item/{id}/spesimen:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: ambilSpesimen
+      summary: Catat pengambilan sampel satu butir order lab (barcode dibuat server)
+      description: |
+        Izin: penunjang.laboratorium.input cakupan RS (pengambil sampel di mana pun diatur RS lewat peran). Butir tidak ada
+        atau bukan order lab → 404. Order atau butir batal → 409 `status_tidak_sesuai`. Butir bukan `dipesan` (sampel
+        sudah diambil) → 409 `status_tidak_sesuai`; satu spesimen per butir. Barcode unik `LAB-YYYYMMDD-NNNNN` dari
+        penghitung harian (tanggal zona RS). `diambil_pada` = jam server, `diambil_oleh` = akun sesi. Butir →
+        `sampel_diambil`. Audit `lab.spesimen_diambil` (id butir, barcode; tanpa data pasien).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [jenis, lokasi_pengambilan]
+              additionalProperties: false
+              properties:
+                jenis: { type: string, minLength: 2, maxLength: 100, description: "Jenis spesimen, teks bebas (data induk menyusul)" }
+                lokasi_pengambilan: { $ref: '#/components/schemas/LokasiPengambilanSpesimen' }
+      responses:
+        '201':
+          description: Spesimen tercatat
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Spesimen' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /spesimen/{id}/terima:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: terimaSpesimen
+      summary: Terima spesimen di lab
+      description: |
+        Izin: penunjang.laboratorium.verifikasi cakupan RS. Spesimen tidak ada → 404. Order atau butir batal, spesimen
+        sudah diterima, atau butir bukan `sampel_diambil` → 409 `status_tidak_sesuai`. `diterima_pada` = jam server,
+        `diterima_oleh` = akun sesi, `kondisi` = `baik` (penolakan spesimen menyusul). Butir → `diterima_lab`; sejak itu
+        order tidak bisa dibatalkan pemesan. Audit `lab.spesimen_diterima` (id butir).
+      responses:
+        '200':
+          description: Spesimen sesudah diterima
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Spesimen' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
   /depo:
     get:
       operationId: daftarDepo
@@ -11779,8 +11870,8 @@ components:
       description: "Tahap penerimaan, sampling, dan hasil (Tahap C) menambah nilai tanpa memecah klien"
     StatusPermintaanItem:
       type: string
-      enum: [dipesan, batal]
-      description: "Status per butir; tahap penunjang (Tahap C) menambah nilai tanpa memecah klien"
+      enum: [dipesan, sampel_diambil, diterima_lab, batal]
+      description: "Status per butir; tahap penunjang (Tahap C) menambah nilai tanpa memecah klien. v0.40.0 (2.30): sampel_diambil, diterima_lab (lab)"
     PermintaanPemeriksaan:
       type: object
       required: [id, kunjungan_id, episode_id, jenis, prioritas, diagnosis_kerja, catatan, alasan_ganda, status, pemesan,
@@ -11814,9 +11905,91 @@ components:
         dapat:
           type: object
           required: [batal]
-          description: "true bila akun punya rawat_jalan.pemeriksaan.order.batal dalam cakupan unit kunjungan dan status `dipesan`"
+          description: "true bila akun punya rawat_jalan.pemeriksaan.order.batal dalam cakupan unit kunjungan, status `dipesan`, dan belum ada butir `diterima_lab` (v0.40.0)"
           properties:
             batal: { type: boolean }
+    LokasiPengambilanSpesimen:
+      type: string
+      enum: [instalasi, samping_tt, kamar_operasi]
+      description: "Tempat sampel diambil (7.00.5 butir 4)"
+    Spesimen:
+      type: object
+      required: [id, permintaan_item_id, permintaan_pemeriksaan_id, item_status, barcode, jenis, lokasi_pengambilan, diambil_pada,
+        diambil_oleh, diterima_pada, diterima_oleh, kondisi]
+      description: "Spesimen lab satu butir order (tiket 2.30, PRD 11.2 `lab.spesimen`)"
+      properties:
+        id: { type: string, format: uuid }
+        permintaan_item_id: { type: string, format: uuid }
+        permintaan_pemeriksaan_id: { type: string, format: uuid }
+        item_status: { $ref: '#/components/schemas/StatusPermintaanItem' }
+        barcode: { type: string, pattern: '^LAB-[0-9]{8}-[0-9]{5,}$', examples: ['LAB-20261102-00001'] }
+        jenis: { type: string, description: "Jenis spesimen, teks bebas" }
+        lokasi_pengambilan: { $ref: '#/components/schemas/LokasiPengambilanSpesimen' }
+        diambil_pada: { type: string, format: date-time, description: "Jam server" }
+        diambil_oleh: { $ref: '#/components/schemas/Pelaku' }
+        diterima_pada: { type: [string, 'null'], format: date-time, description: "Jam server penerimaan di lab" }
+        diterima_oleh: { $ref: '#/components/schemas/Pelaku' }
+        kondisi: { type: [string, 'null'], enum: [baik, null], description: "Diisi saat diterima; penolakan spesimen menyusul" }
+    BarisDaftarKerjaLab:
+      type: object
+      required: [id, prioritas, status, dipesan_pada, diagnosis_kerja, pemesan, pasien, asal, lokasi_saat_ini, item]
+      description: "Satu order lab aktif di daftar kerja lab (tiket 2.30). `id` = id permintaan pemeriksaan."
+      properties:
+        id: { type: string, format: uuid }
+        prioritas: { $ref: '#/components/schemas/PrioritasPermintaan' }
+        status: { $ref: '#/components/schemas/StatusPermintaanPemeriksaan' }
+        dipesan_pada: { type: string, format: date-time }
+        diagnosis_kerja: { type: string, description: "Indikasi klinis order" }
+        pemesan: { $ref: '#/components/schemas/Pelaku' }
+        pasien:
+          type: object
+          required: [id, no_rm, nama, tanggal_lahir]
+          description: "Dua penanda identitas (5.1 butir 9); tanpa NIK, alamat, diagnosis"
+          properties:
+            id: { type: string, format: uuid }
+            no_rm: { type: string, pattern: '^[0-9]{1,12}$' }
+            nama: { type: string }
+            tanggal_lahir: { type: [string, 'null'], format: date }
+        asal:
+          type: object
+          required: [kunjungan_id, jenis_kunjungan, nama]
+          description: "Pos asal order: jenis kunjungan pemesan + nama poli (nama netral bila poli sensitif); nama null bila bukan poli"
+          properties:
+            kunjungan_id: { type: string, format: uuid }
+            jenis_kunjungan: { type: [string, 'null'], enum: [poliklinik, igd, rawat_inap, null] }
+            nama: { type: [string, 'null'] }
+        lokasi_saat_ini:
+          type: [object, 'null']
+          required: [jenis, nama, tempat_tidur]
+          description: |
+            Lokasi pasien saat ini: penempatan TT aktif (bangsal + kode TT) → kunjungan IGD aktif (area IGD bila sudah
+            ditempatkan) → poli kunjungan order. null bila tidak diketahui.
+          properties:
+            jenis: { type: string, enum: [rawat_inap, igd, poli] }
+            nama: { type: [string, 'null'], description: "Nama bangsal, area IGD, atau poli (nama netral bila sensitif)" }
+            tempat_tidur: { type: [string, 'null'], description: "Kode TT bila rawat inap" }
+        item:
+          type: array
+          description: "Butir tidak batal, urut kode"
+          items:
+            type: object
+            required: [id, kode_item, nama, status, spesimen]
+            properties:
+              id: { type: string, format: uuid, description: "id untuk POST /permintaan-item/{id}/spesimen" }
+              kode_item: { type: string }
+              nama: { type: string }
+              status: { $ref: '#/components/schemas/StatusPermintaanItem' }
+              spesimen:
+                oneOf:
+                  - { type: 'null' }
+                  - { $ref: '#/components/schemas/Spesimen' }
+              dapat:
+                type: object
+                required: [ambil, terima]
+                description: "Opsional. ambil = butir `dipesan` dan izin input; terima = butir `sampel_diambil` dan izin verifikasi"
+                properties:
+                  ambil: { type: boolean }
+                  terima: { type: boolean }
     RingkasDepo:
       type: object
       required: [id, kode, nama]
