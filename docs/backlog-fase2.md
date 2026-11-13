@@ -838,6 +838,14 @@ Uji    :
 - Hasil tervalidasi tidak bisa diubah; koreksi = adendum bertanda; tampil di linimasa episode.
 Di luar: mikrobiologi (FR-19-09), QC (FR-19-10), rujukan lab luar (FR-19-11).
 
+Utang 2.31-be (kontrak v0.41.0):
+- Layar/usulan data induk `lab.pemeriksaan` dan `lab.nilai_rujukan` belum ada; produksi kosong sampai RS mengisi (lokal/CI
+  dari seeder sintetis `lokal:kunjungan-contoh`). Butir tanpa data induk → 422 `pemeriksaan_lab_belum_diatur`.
+- Panel (satu order banyak parameter) belum ada: satu butir order = satu `lab.hasil`.
+- Tautan jenis tugas `HASIL_LAB_TINDAK_LANJUT` (`/penunjang/laboratorium/hasil/{hasil_id}`) menunggu layar PR FE 2.31.
+- Perawat ruang/unit bangsal belum menerima tugas hasil lab (perlu keputusan akses rawat inap): tugas hanya ke akun yang
+  bisa membuka linimasa hasil (DPJP lewat relasi perawatan, keputusan pemilik 13 Nov 2026); selain itu jatuh ke pemesan.
+
 ### 2.32 · Lab: pelaporan nilai kritis
 Tujuan : nilai kritis dilaporkan ke penanggung jawab saat itu dengan baca ulang dan jam lapor, lalu masuk CPPT.
 FR     : FR-19-07

@@ -72,6 +72,8 @@ final class AkunSintetisSeeder extends Seeder
         'dokter.darurat' => 'Contoh Dokter Akses Darurat',
         // Tiket 2.30: analis lab (ATLM): daftar kerja lab, ambil sampel, terima spesimen.
         'analis' => 'Contoh Analis Lab',
+        // Tiket 2.31: dokter Sp.PK sintetis untuk otorisasi hasil lab (SIP berlaku dari lokal:kunjungan-contoh).
+        'dokter.pk' => 'Contoh Spesialis Patologi Klinik',
     ];
 
     /**
@@ -89,7 +91,7 @@ final class AkunSintetisSeeder extends Seeder
 
     /** Profesi pegawai sintetis (selain ini non_kesehatan). */
     private const PROFESI = ['perawat' => 'perawat', 'dokter' => 'dokter', 'dokter.poli' => 'dokter', 'dokter.darurat' => 'dokter', 'apoteker' => 'apoteker',
-        'analis' => 'tenaga_kesehatan_lain'];
+        'analis' => 'tenaga_kesehatan_lain', 'dokter.pk' => 'dokter'];
 
     /**
      * Peran contoh (tiket 1.2a) agar menu tiap akun sintetis berbeda: kode peran => [nama, akun, menu].
@@ -183,7 +185,11 @@ final class AkunSintetisSeeder extends Seeder
         ]],
         'contoh_apoteker' => ['Contoh Apoteker Depo', 'apoteker', ['farmasi.resep.lihat']],
         // Tiket 2.30: izin lab cakupan RS (bukan izin sensitif, tanpa MFA).
-        'contoh_analis' => ['Contoh Analis Lab', 'analis', ['penunjang.laboratorium.lihat', 'penunjang.laboratorium.input', 'penunjang.laboratorium.verifikasi']],
+        // Tiket 2.31: + sahkan (validasi analis, adendum hasil).
+        'contoh_analis' => ['Contoh Analis Lab', 'analis', ['penunjang.laboratorium.lihat', 'penunjang.laboratorium.input', 'penunjang.laboratorium.verifikasi',
+            'penunjang.laboratorium.sahkan']],
+        // Tiket 2.31: otorisasi Sp.PK (IZIN_KLINIS, bukan sensitif, tanpa MFA); lihat = daftar kerja tahap otorisasi.
+        'contoh_dokter_pk' => ['Contoh Spesialis Patologi Klinik', 'dokter.pk', ['penunjang.laboratorium.lihat', 'penunjang.laboratorium.setujui']],
     ];
 
     /** Semua aksi usulan data induk + lihat organisasi (pemilih objek); pemisahan tugas dijaga server (1.8c). */

@@ -154,7 +154,7 @@ const ringkasItem = (p: PermintaanPemeriksaan) => p.item.map((i) => i.nama).join
               {{ i.nama }}<Lencana v-if="p.status !== 'batal' && i.status !== 'dipesan'" :jenis="NADA_STATUS_ITEM[i.status]" class="status-butir">{{ LABEL_STATUS_ITEM[i.status] }}</Lencana>{{ n < p.item.length - 1 ? ', ' : '' }}
             </span>
           </p>
-          <span v-if="p.status === 'dipesan' && !p.dapat.batal && p.item.some((i) => i.status === 'diterima_lab')" class="ket">Sudah diterima lab, tidak bisa dibatalkan.</span>
+          <span v-if="p.status === 'dipesan' && !p.dapat.batal && p.item.some((i) => !['dipesan', 'sampel_diambil', 'batal'].includes(i.status))" class="ket">Sudah diterima lab, tidak bisa dibatalkan.</span>
           <span class="ket">Indikasi: {{ p.diagnosis_kerja }}</span>
           <span class="ket">{{ p.pemesan?.nama ?? 'Sistem' }} · {{ formatTanggalWaktu(p.dipesan_pada) }}</span>
           <span v-if="p.alasan_ganda" class="ket">Dipesan walau sudah ada order sama hari ini: {{ p.alasan_ganda }}</span>

@@ -53,7 +53,8 @@ final class MenuBawaan
         // Tiket 2.40: DPJP mengesahkan resume medis dengan PIN T1 (FR-05-02).
         'rawat_inap.pemulangan' => ['sahkan'],
         // Tiket 2.30: terima spesimen di lab (lihat = daftar kerja, input = ambil sampel).
-        'penunjang.laboratorium' => ['verifikasi'],
+        // Tiket 2.31: sahkan = validasi analis dan adendum hasil (input = juga input hasil); setujui = otorisasi Sp.PK (FR-19-05).
+        'penunjang.laboratorium' => ['verifikasi', 'sahkan', 'setujui'],
     ];
 
     /** Superadmin mengelola peran, akun, dan profil RS (wizard langkah 2); tidak membuka rekam medis, rupiah, atau data induk milik unit (PRD 9.2.4, FR-54-01). */
@@ -108,7 +109,9 @@ final class MenuBawaan
         // Tiket 2.29: izin sel matriks rawat_inap → rawat_inap (pindah ruang/kelas = perintah dokter, PRD 7.00.3).
         'rawat_inap.pindah_ruang.input',
         // Tiket 2.40: izin sel matriks rawat_inap → pulang/aps/rujuk_keluar/meninggal dan pengesahan resume medis oleh DPJP.
-        'rawat_inap.pemulangan.input', 'rawat_inap.pemulangan.sahkan'];
+        'rawat_inap.pemulangan.input', 'rawat_inap.pemulangan.sahkan',
+        // Tiket 2.31: otorisasi hasil lab oleh dokter Sp.PK (FR-19-05).
+        'penunjang.laboratorium.setujui'];
 
     /**
      * Izin data pribadi yang sensitif tanpa penyetuju bawaan: tidak bisa diberikan sampai RS menetapkan pemilik datanya
