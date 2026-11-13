@@ -844,14 +844,14 @@ Utang 2.31-be (kontrak v0.41.0):
 - Panel (satu order banyak parameter) belum ada: satu butir order = satu `lab.hasil`.
 - Tautan jenis tugas `HASIL_LAB_TINDAK_LANJUT` (`/penunjang/laboratorium/hasil/{hasil_id}`) belum punya layar: kontrak belum
   punya GET hasil per id, jadi PR FE 2.31 tidak menambah rute itu (hasil dibaca lewat linimasa episode di Pemeriksaan).
+- Perawat ruang/unit bangsal belum menerima tugas hasil lab (perlu keputusan akses rawat inap): tugas hanya ke akun yang
+  bisa membuka linimasa hasil (DPJP lewat relasi perawatan, keputusan pemilik 13 Nov 2026); selain itu jatuh ke pemesan.
 
 Utang 2.31-fe:
 - Validasi hasil lab tanpa revisi/If-Match: input ulang di antara baca dan validasi tidak terdeteksi server (perlu kontrak
   `revisi` + 409 `hasil_berubah`). Layar memuat ulang hasil saat dialog validasi/otorisasi dibuka dan memberi tahu bila
   nilainya berubah, tetapi jarak antara muat ulang dan kirim masih terbuka.
 - `BarisDaftarKerjaLab` belum membawa `jenis_hasil`/`satuan` sebelum input pertama; layar menebak lewat 422.
-- Perawat ruang/unit bangsal belum menerima tugas hasil lab (perlu keputusan akses rawat inap): tugas hanya ke akun yang
-  bisa membuka linimasa hasil (DPJP lewat relasi perawatan, keputusan pemilik 13 Nov 2026); selain itu jatuh ke pemesan.
 
 ### 2.32 · Lab: pelaporan nilai kritis
 Tujuan : nilai kritis dilaporkan ke penanggung jawab saat itu dengan baca ulang dan jam lapor, lalu masuk CPPT.

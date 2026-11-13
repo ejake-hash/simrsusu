@@ -288,6 +288,38 @@ describe('DaftarKerjaLabPage: tahap Hasil dan Otorisasi', () => {
     expect(document.body.textContent).toContain('divalidasi. Hasil keluar')
   })
 
+  it('dialog validasi: muat ulang gagal → konfirmasi nonaktif, Coba lagi memulihkan', async () => {
+    const cito = await siapkanCito()
+    await inputHasilLab(cito.item[0]!.id, { nilai: 5 })
+    await pasang()
+    await pilihTab('Hasil')
+    let gagal = true
+    pasangTiruan(klien, {
+      tangani: (r: PermintaanTiruan) => {
+        permintaan.push(r)
+        if (gagal && r.jalur === '/lab/daftar-kerja') return { status: 500, isi: { error: { kode: 'kesalahan_server', pesan: 'Server sedang bermasalah.', rincian: [] } } }
+        return lab.tangani(r) ?? gabungan.tangani(r)
+      },
+    })
+    tombolLabel('Validasi Pemeriksaan lab contoh satu Pasien Contoh Cito')!.click()
+    await tenang()
+    const d = dialog()!
+    expect(d.textContent).toContain('Hasil terbaru belum bisa diperiksa: Server sedang bermasalah.')
+    expect(tombol('Validasi hasil', d)!.disabled).toBe(true)
+    tombol('Validasi hasil', d)!.click()
+    await tenang()
+    expect(permintaan.some((p) => p.jalur.endsWith('/validasi'))).toBe(false)
+    gagal = false
+    tombol('Coba lagi', d)!.click()
+    await tenang()
+    expect(d.textContent).not.toContain('Hasil terbaru belum bisa diperiksa')
+    expect(tombol('Coba lagi', d)).toBeUndefined()
+    expect(tombol('Validasi hasil', d)!.disabled).toBe(false)
+    tombol('Validasi hasil', d)!.click()
+    await tenang()
+    expect(permintaan.some((p) => p.jalur.endsWith('/validasi'))).toBe(true)
+  })
+
   it('dialog validasi: hasil sudah diproses orang lain → tanpa tombol konfirmasi, daftar dimuat ulang', async () => {
     const cito = await siapkanCito()
     const h = await inputHasilLab(cito.item[0]!.id, { nilai: 5 })

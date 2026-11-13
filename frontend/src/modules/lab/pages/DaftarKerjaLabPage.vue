@@ -213,16 +213,25 @@ const otorisasi = computed(() => sasaranValidasi.value?.hasil.status === 'menung
 const memuatValidasi = ref(false)
 const hasilBerubahPesan = ref<string | null>(null)
 const tidakBisaValidasi = ref<string | null>(null)
+/** Muat ulang gagal (jaringan, 5xx): konfirmasi ditahan sampai "Coba lagi" berhasil. */
+const galatMuatValidasi = ref<unknown>(null)
 let nomorMuat = 0
-async function mintaValidasi(baris: BarisDaftarKerjaLab, butir: ButirDaftarKerjaLab) {
+function mintaValidasi(baris: BarisDaftarKerjaLab, butir: ButirDaftarKerjaLab) {
   if (!butir.hasil) return
-  const tampil = butir.hasil
-  sasaranValidasi.value = { baris, butir, hasil: tampil }
+  sasaranValidasi.value = { baris, butir, hasil: butir.hasil }
   galatValidasi.value = null
-  hasilBerubahPesan.value = null
-  tidakBisaValidasi.value = null
   fokusHasil = false
   bukaValidasi.value = true
+  void muatUlangValidasi(baris, butir, butir.hasil)
+}
+function cobaMuatValidasi() {
+  const s = sasaranValidasi.value
+  if (s) void muatUlangValidasi(s.baris, s.butir, s.hasil)
+}
+async function muatUlangValidasi(baris: BarisDaftarKerjaLab, butir: ButirDaftarKerjaLab, tampil: HasilLab) {
+  hasilBerubahPesan.value = null
+  tidakBisaValidasi.value = null
+  galatMuatValidasi.value = null
   memuatValidasi.value = true
   const nomor = ++nomorMuat
   try {
@@ -240,7 +249,7 @@ async function mintaValidasi(baris: BarisDaftarKerjaLab, butir: ButirDaftarKerja
       void segarkan()
     }
   } catch (e) {
-    if (nomor === nomorMuat) galatValidasi.value = e
+    if (nomor === nomorMuat) galatMuatValidasi.value = e
   } finally {
     if (nomor === nomorMuat) memuatValidasi.value = false
   }
@@ -254,7 +263,7 @@ const uraianValidasi = computed(() => {
 })
 async function validasi() {
   const s = sasaranValidasi.value
-  if (!s || memuatValidasi.value || tidakBisaValidasi.value) return
+  if (!s || memuatValidasi.value || tidakBisaValidasi.value || galatMuatValidasi.value) return
   memvalidasi.value = true
   galatValidasi.value = null
   try {
@@ -485,13 +494,17 @@ async function adendumSelesai(h: HasilLab) {
         <div v-if="tidakBisaValidasi" class="blok-galat">
           <Pesan jenis="error">{{ tidakBisaValidasi }}</Pesan>
         </div>
+        <div v-if="galatMuatValidasi" class="blok-galat muat-gagal">
+          <Pesan jenis="error">Hasil terbaru belum bisa diperiksa: {{ pesanGalatLab(galatMuatValidasi) }} Konfirmasi ditahan sampai pemeriksaan berhasil.</Pesan>
+          <Tombol :sibuk="memuatValidasi" @click="cobaMuatValidasi">Coba lagi</Tombol>
+        </div>
         <div v-if="galatValidasi" class="blok-galat">
           <Pesan jenis="error">{{ pesanGalatLab(galatValidasi) }}</Pesan>
         </div>
       </div>
       <template #aksi>
         <Tombol :disabled="memvalidasi || undefined" @click="bukaValidasi = false">Batal</Tombol>
-        <Tombol v-if="!tidakBisaValidasi" varian="utama" :sibuk="memvalidasi" :disabled="memuatValidasi || undefined" @click="validasi">{{ otorisasi ? 'Otorisasi hasil' : 'Validasi hasil' }}</Tombol>
+        <Tombol v-if="!tidakBisaValidasi" varian="utama" :sibuk="memvalidasi" :disabled="memuatValidasi || !!galatMuatValidasi || undefined" @click="validasi">{{ otorisasi ? 'Otorisasi hasil' : 'Validasi hasil' }}</Tombol>
       </template>
     </Dialog>
 
@@ -566,6 +579,11 @@ async function adendumSelesai(h: HasilLab) {
 }
 .blok-galat {
   margin-top: var(--space-3);
+}
+.muat-gagal {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
 }
 .ket-muat {
   margin: 0;
