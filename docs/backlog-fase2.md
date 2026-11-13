@@ -810,6 +810,11 @@ Uji    :
 - Daftar kerja lewat `Paginasi::respons`, `throttle:api-layar-kerja`.
 Di luar: antarmuka alat (FR-19-04, [Perlu pemilik]), cetak label fisik, FHIR Specimen (Tahap D).
 
+Utang 2.30-be (kontrak v0.40.0): `lab.spesimen.jenis` masih teks bebas (data induk jenis spesimen menyusul); penolakan
+spesimen belum ada (`kondisi` hanya `baik` saat diterima); order dari IGD/rawat inap belum bisa dibuat karena 2.16 memesan
+lewat kunjungan poli (inner join poliklinik di cek akses order), jadi daftar kerja baru memuat order poli walau query dan
+lokasi pasien sudah menangani semua pos. Sub-menu `penunjang.laboratorium` masuk `TERSEDIA` di PR FE 2.30.
+
 ### 2.31 · Lab: hasil, nilai rujukan data induk, validasi, hasil mengikuti pasien
 Tujuan : hasil lab diinput, ditandai rendah/tinggi/kritis menurut nilai rujukan RS, divalidasi, lalu sampai ke pemesan dan DPJP saat ini.
 FR     : FR-19-02 (diperiksa → divalidasi), FR-19-05, FR-19-06, FR-00-09; 7.00.5 butir 2–3

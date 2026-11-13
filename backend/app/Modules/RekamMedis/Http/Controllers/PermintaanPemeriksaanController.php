@@ -109,7 +109,8 @@ final class PermintaanPemeriksaanController
                 'nama' => $i->nama, 'status' => $i->status])->values()->all(),
             'alasan_batal' => $p->alasan_batal, 'dibatalkan_oleh' => $p->dibatalkan_oleh === null ? null : ($pelaku[$p->dibatalkan_oleh] ?? null),
             'dibatalkan_pada' => $p->dibatalkan_pada?->toIso8601String(),
-            'dapat' => ['batal' => $p->status === 'dipesan' && ($bolehBatal[$unit[$p->kunjungan_id] ?? ''] ?? false)],
+            'dapat' => ['batal' => $p->status === 'dipesan' && ! ($item[$p->id] ?? collect())->contains('status', 'diterima_lab')
+                && ($bolehBatal[$unit[$p->kunjungan_id] ?? ''] ?? false)],
         ])->values()->all();
     }
 

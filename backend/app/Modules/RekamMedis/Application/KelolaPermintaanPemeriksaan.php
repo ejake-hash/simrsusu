@@ -72,9 +72,13 @@ final class KelolaPermintaanPemeriksaan
             if ($p->status !== 'dipesan') {
                 throw new ApiError(409, 'status_tidak_sesuai', 'Order sudah dibatalkan atau sudah diterima penunjang.', [['status' => $p->status]]);
             }
+            // Tiket 2.30: batal hanya sebelum diterima lab. Ambil/terima spesimen mengunci baris permintaan yang sama dulu.
+            if (DB::table('permintaan.permintaan_item')->where('permintaan_pemeriksaan_id', $p->id)->where('status', 'diterima_lab')->exists()) {
+                throw new ApiError(409, 'status_tidak_sesuai', 'Order sudah diterima penunjang.', [['status' => 'diterima_lab']]);
+            }
             $p->forceFill(['status' => 'batal', 'alasan_batal' => $alasan, 'dibatalkan_oleh' => $oleh->id, 'dibatalkan_pada' => now(),
                 'diubah_oleh' => $oleh->id, 'revisi' => $p->revisi + 1])->save();
-            DB::table('permintaan.permintaan_item')->where('permintaan_pemeriksaan_id', $p->id)->where('status', 'dipesan')
+            DB::table('permintaan.permintaan_item')->where('permintaan_pemeriksaan_id', $p->id)->whereIn('status', ['dipesan', 'sampel_diambil'])
                 ->update(['status' => 'batal', 'diubah_oleh' => $oleh->id, 'diubah_pada' => now()]);
             $this->audit->catat('permintaan.pemeriksaan_dibatalkan', $oleh->id, $p->getTable(), $p->id, ['kunjungan_id' => $p->kunjungan_id]);
 

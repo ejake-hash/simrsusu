@@ -52,6 +52,8 @@ final class MenuBawaan
         'rekam_medis.akses_darurat' => ['tinjau'],
         // Tiket 2.40: DPJP mengesahkan resume medis dengan PIN T1 (FR-05-02).
         'rawat_inap.pemulangan' => ['sahkan'],
+        // Tiket 2.30: terima spesimen di lab (lihat = daftar kerja, input = ambil sampel).
+        'penunjang.laboratorium' => ['verifikasi'],
     ];
 
     /** Superadmin mengelola peran, akun, dan profil RS (wizard langkah 2); tidak membuka rekam medis, rupiah, atau data induk milik unit (PRD 9.2.4, FR-54-01). */

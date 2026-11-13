@@ -70,6 +70,8 @@ final class AkunSintetisSeeder extends Seeder
         'apoteker' => 'Contoh Apoteker Depo',
         // Tiket 2.21: dokter tanpa relasi pasien yang membuka CPPT berlabel lewat akses darurat (MFA aktif, SIP dari lokal:kunjungan-contoh).
         'dokter.darurat' => 'Contoh Dokter Akses Darurat',
+        // Tiket 2.30: analis lab (ATLM): daftar kerja lab, ambil sampel, terima spesimen.
+        'analis' => 'Contoh Analis Lab',
     ];
 
     /**
@@ -86,7 +88,8 @@ final class AkunSintetisSeeder extends Seeder
     ];
 
     /** Profesi pegawai sintetis (selain ini non_kesehatan). */
-    private const PROFESI = ['perawat' => 'perawat', 'dokter' => 'dokter', 'dokter.poli' => 'dokter', 'dokter.darurat' => 'dokter', 'apoteker' => 'apoteker'];
+    private const PROFESI = ['perawat' => 'perawat', 'dokter' => 'dokter', 'dokter.poli' => 'dokter', 'dokter.darurat' => 'dokter', 'apoteker' => 'apoteker',
+        'analis' => 'tenaga_kesehatan_lain'];
 
     /**
      * Peran contoh (tiket 1.2a) agar menu tiap akun sintetis berbeda: kode peran => [nama, akun, menu].
@@ -179,6 +182,8 @@ final class AkunSintetisSeeder extends Seeder
             'rawat_jalan.worklist.lihat', 'rawat_jalan.cppt.lihat', 'rawat_jalan.cppt.darurat', 'master_data.organisasi.lihat',
         ]],
         'contoh_apoteker' => ['Contoh Apoteker Depo', 'apoteker', ['farmasi.resep.lihat']],
+        // Tiket 2.30: izin lab cakupan RS (bukan izin sensitif, tanpa MFA).
+        'contoh_analis' => ['Contoh Analis Lab', 'analis', ['penunjang.laboratorium.lihat', 'penunjang.laboratorium.input', 'penunjang.laboratorium.verifikasi']],
     ];
 
     /** Semua aksi usulan data induk + lihat organisasi (pemilih objek); pemisahan tugas dijaga server (1.8c). */
