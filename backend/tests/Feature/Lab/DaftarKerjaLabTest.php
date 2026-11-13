@@ -145,6 +145,8 @@ class DaftarKerjaLabTest extends TestCase
             ->assertJsonPath('data.diterima_oleh.id', $this->analis->id);
         $this->assertTrue(Carbon::parse((string) $terima->json('data.diterima_pada'))->equalTo(now()), 'Jam terima = jam server.');
         $this->assertSesuaiKontrak($terima, 'POST', '/spesimen/{id}/terima');
+        $this->assertStringContainsString('no-store', (string) $terima->headers->get('Cache-Control'));
+        $this->assertStringContainsString('no-store', (string) $ambil->headers->get('Cache-Control'));
         $this->assertAuditTerakhir('lab.spesimen_diterima', $spesimen);
         $this->assertSesuaiKontrak($this->minta('POST', "/api/v1/spesimen/$spesimen/terima")->assertStatus(409), 'POST', '/spesimen/{id}/terima');
         $this->minta('POST', '/api/v1/spesimen/'.Str::uuid7().'/terima')->assertNotFound();

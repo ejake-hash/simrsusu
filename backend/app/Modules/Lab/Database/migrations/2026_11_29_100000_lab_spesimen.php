@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Schema;
  * - Status butir order diperluas: `dipesan` → `sampel_diambil` → `diterima_lab` (atau `batal`). Status permintaan tetap.
  * - lab.spesimen: satu spesimen per butir order; barcode `LAB-YYYYMMDD-00001` dari penghitung harian (tanggal zona RS).
  *   `diterima_oleh` tambahan di luar 11.2 (uji tiket meminta petugas penerimaan). Tanpa DELETE.
- * - Indeks daftar kerja: order lab aktif per prioritas, paling lama dulu.
+ * - Indeks daftar kerja: indeks parsial butir aktif (alasan di up()).
  * - Aksi `verifikasi` (terima spesimen di lab) untuk penunjang.laboratorium lewat AKSI_TAMBAHAN; jenis aksi sudah dikenal
  *   izin_jenis_aksi_cek (usulan data induk), jadi cek itu tidak berubah.
  */
@@ -22,7 +22,13 @@ return new class extends Migration
     {
         DB::statement('ALTER TABLE permintaan.permintaan_item DROP CONSTRAINT permintaan_item_cek');
         DB::statement("ALTER TABLE permintaan.permintaan_item ADD CONSTRAINT permintaan_item_cek CHECK (status IN ('dipesan', 'sampel_diambil', 'diterima_lab', 'batal'))");
-        DB::statement('CREATE INDEX permintaan_pemeriksaan_daftar_kerja ON permintaan.permintaan_pemeriksaan (jenis, status, prioritas, dibuat_pada, id)');
+        // Daftar kerja (tinjauan #206): status permintaan tetap `dipesan` sesudah semua butir diterima lab, jadi indeks di
+        // permintaan_pemeriksaan ikut memuat seluruh riwayat order lab dan polling makin lambat. Indeks parsial butir aktif
+        // hanya berisi butir yang sedang dikerjakan (dipesan/sampel_diambil); query mulai dari himpunan kecil ini
+        // (p.id IN subkueri) lalu mengambil permintaannya lewat kunci utama dan mengurutkan keyset (dibuat_pada, id).
+        // Dipilih ketimbang penanda `lab_aktif` di permintaan: tidak ada kolom turunan yang harus dijaga sinkron oleh pesan,
+        // ambil, terima, dan batal (dua modul), dan ukuran indeks mengikuti beban kerja aktif, bukan umur data.
+        DB::statement("CREATE INDEX permintaan_item_aktif ON permintaan.permintaan_item (permintaan_pemeriksaan_id) WHERE status IN ('dipesan', 'sampel_diambil')");
 
         Schema::create('lab.nomor_spesimen', function (Blueprint $table) {
             $table->comment('Penghitung barcode spesimen per tanggal zona RS (LAB-YYYYMMDD-NNNNN). Dinaikkan di transaksi ambil sampel.');
@@ -63,7 +69,7 @@ return new class extends Migration
     {
         Schema::dropIfExists('lab.spesimen');
         Schema::dropIfExists('lab.nomor_spesimen');
-        DB::statement('DROP INDEX IF EXISTS permintaan.permintaan_pemeriksaan_daftar_kerja');
+        DB::statement('DROP INDEX IF EXISTS permintaan.permintaan_item_aktif');
         DB::statement("UPDATE permintaan.permintaan_item SET status = 'dipesan' WHERE status IN ('sampel_diambil', 'diterima_lab')");
         DB::statement('ALTER TABLE permintaan.permintaan_item DROP CONSTRAINT permintaan_item_cek');
         DB::statement("ALTER TABLE permintaan.permintaan_item ADD CONSTRAINT permintaan_item_cek CHECK (status IN ('dipesan', 'batal'))");

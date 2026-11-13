@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Gate;
 
 /**
  * Bentuk kontrak daftar kerja lab dan `Spesimen` (tiket 2.30). Data pasien = dua penanda identitas (nama, No. RM, tanggal
- * lahir); tanpa NIK, alamat, atau diagnosis. Lokasi pasien saat ini: TT aktif (2.29) → area IGD kunjungan IGD aktif → poli
+ * lahir); tanpa NIK, alamat, atau diagnosis medis; `diagnosis_kerja` = indikasi klinis order (2.16). Lokasi pasien saat ini: TT aktif (2.29) → area IGD kunjungan IGD aktif → poli
  * kunjungan order.
  */
 final class BacaDaftarKerjaLab
@@ -26,13 +26,16 @@ final class BacaDaftarKerjaLab
 
     public function __construct(private readonly NamaPelaku $pelaku) {}
 
-    /** Order lab aktif (tidak batal, masih ada butir dipesan atau sampel_diambil) dengan prioritas itu. */
+    /**
+     * Order lab aktif (tidak batal, masih ada butir dipesan atau sampel_diambil) dengan prioritas itu. Mulai dari himpunan
+     * butir aktif (indeks parsial permintaan_item_aktif), bukan dari seluruh riwayat order lab.
+     */
     public static function query(string $prioritas): Builder
     {
         return DB::table('permintaan.permintaan_pemeriksaan AS p')
+            ->whereIn('p.id', fn ($q) => $q->from('permintaan.permintaan_item')->select('permintaan_pemeriksaan_id')
+                ->whereIn('status', ['dipesan', 'sampel_diambil']))
             ->where('p.jenis', 'lab')->where('p.status', 'dipesan')->where('p.prioritas', $prioritas)
-            ->whereExists(fn ($q) => $q->from('permintaan.permintaan_item AS i')->whereColumn('i.permintaan_pemeriksaan_id', 'p.id')
-                ->whereIn('i.status', ['dipesan', 'sampel_diambil']))
             ->select(['p.id', 'p.dibuat_pada', 'p.kunjungan_id', 'p.pasien_id', 'p.prioritas', 'p.status', 'p.diagnosis_kerja', 'p.pemesan_id']);
     }
 

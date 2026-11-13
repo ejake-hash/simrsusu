@@ -7982,7 +7982,8 @@ paths:
         Izin: penunjang.laboratorium.lihat cakupan RS (cakupan unit saja → 403). Order `jenis=lab` tidak batal yang masih
         punya butir `dipesan` atau `sampel_diambil`, dari pos mana pun. `prioritas` wajib; layar memanggil `cito` dulu lalu
         `rutin` (cito di atas). Urut `(dipesan_pada, id)` paling lama dulu. Butir batal tidak dikirim; butir `diterima_lab`
-        tetap dikirim selama order masih aktif. Data pasien = nama, No. RM, tanggal lahir (tanpa NIK, alamat, diagnosis).
+        tetap dikirim selama order masih aktif. Data pasien = nama, No. RM, tanggal lahir (tanpa NIK, alamat, diagnosis
+        medis; `diagnosis_kerja` = indikasi klinis order (2.16)).
         Batas laju layar kerja.
       parameters:
         - { in: query, name: prioritas, required: true, schema: { $ref: '#/components/schemas/PrioritasPermintaan' } }
@@ -8029,6 +8030,7 @@ paths:
       responses:
         '201':
           description: Spesimen tercatat
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Spesimen' } } }
@@ -8051,6 +8053,7 @@ paths:
       responses:
         '200':
           description: Spesimen sesudah diterima
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
           content:
             application/json:
               schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/Spesimen' } } }
@@ -11944,7 +11947,7 @@ components:
         pasien:
           type: object
           required: [id, no_rm, nama, tanggal_lahir]
-          description: "Dua penanda identitas (5.1 butir 9); tanpa NIK, alamat, diagnosis"
+          description: "Dua penanda identitas (5.1 butir 9); tanpa NIK, alamat, diagnosis medis; `diagnosis_kerja` = indikasi klinis order (2.16)"
           properties:
             id: { type: string, format: uuid }
             no_rm: { type: string, pattern: '^[0-9]{1,12}$' }
@@ -11956,7 +11959,10 @@ components:
           description: "Pos asal order: jenis kunjungan pemesan + nama poli (nama netral bila poli sensitif); nama null bila bukan poli"
           properties:
             kunjungan_id: { type: string, format: uuid }
-            jenis_kunjungan: { type: [string, 'null'], enum: [poliklinik, igd, rawat_inap, null] }
+            jenis_kunjungan:
+              type: [string, 'null']
+              enum: [poliklinik, igd, rawat_inap, null]
+              description: "Kini selalu poliklinik (2.16 memesan dari kunjungan poli); igd dan rawat_inap disiapkan untuk order dari pos itu nanti"
             nama: { type: [string, 'null'] }
         lokasi_saat_ini:
           type: [object, 'null']
