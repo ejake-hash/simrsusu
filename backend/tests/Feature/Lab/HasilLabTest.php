@@ -158,7 +158,7 @@ class HasilLabTest extends TestCase
         $laki = $this->pasien();
         $laki->forceFill(['jenis_kelamin' => 'laki_laki', 'tanggal_lahir' => $lahir])->save();
         $this->input($this->siapHasil($laki, 'UJI31-UMUR'), ['nilai' => 50])->assertCreated()
-            ->assertJsonPath('data.rujukan_min', 1)->assertJsonPath('data.penanda', 'l');
+            ->assertJsonPath('data.rujukan_min', 100)->assertJsonPath('data.penanda', 'l');
         // Sehari lebih muda: baris [0, umur).
         $muda = $this->pasien();
         $muda->forceFill(['jenis_kelamin' => 'laki_laki', 'tanggal_lahir' => Carbon::parse($lahir)->addDay()->toDateString()])->save();
