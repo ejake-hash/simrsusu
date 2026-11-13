@@ -2,6 +2,7 @@
 
 use App\Modules\MasterData\Http\Controllers\BangsalController;
 use App\Modules\MasterData\Http\Controllers\BarangController;
+use App\Modules\MasterData\Http\Controllers\DaftarPeriksaPulangController;
 use App\Modules\MasterData\Http\Controllers\FormulariumController;
 use App\Modules\MasterData\Http\Controllers\ImporLokasiController;
 use App\Modules\MasterData\Http\Controllers\InstrumenTriaseController;
@@ -26,7 +27,7 @@ use Illuminate\Support\Facades\Route;
 
 // Organisasi, unit & KSM (tiket 1.8a). Izin dan lapis 3 diperiksa di controller lewat Gate → AccessEvaluator:
 // daftar unit boleh untuk dua izin (data induk ATAU pengelola akun), dan cakupan `unit` = subpohon.
-Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->whereUuid(['unit', 'ksm', 'lokasi', 'bangsal', 'kamar', 'tempatTidur', 'kelasRawat', 'penjamin', 'tarif', 'jadwal', 'pengecualian', 'poliklinik', 'usulan', 'objekId', 'barang', 'formularium', 'item', 'instrumen', 'area'])->group(function () {
+Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->whereUuid(['unit', 'ksm', 'lokasi', 'bangsal', 'kamar', 'tempatTidur', 'kelasRawat', 'penjamin', 'tarif', 'jadwal', 'pengecualian', 'poliklinik', 'usulan', 'objekId', 'barang', 'formularium', 'item', 'instrumen', 'area', 'butir'])->group(function () {
     Route::get('unit-organisasi', [UnitOrganisasiController::class, 'index']);
     Route::post('unit-organisasi', [UnitOrganisasiController::class, 'store'])->middleware('can:master_data.organisasi.input');
     Route::get('unit-organisasi/{unit}', [UnitOrganisasiController::class, 'show']);
@@ -94,6 +95,10 @@ Route::prefix('api/v1')->middleware(['api', 'auth:web', 'sesi.pengguna'])->where
     Route::patch('data-induk/area-igd/{area}', [PapanIgdDataIndukController::class, 'updateArea']);
     Route::get('data-induk/aturan-papan-igd', [PapanIgdDataIndukController::class, 'showAturan']);
     Route::patch('data-induk/aturan-papan-igd', [PapanIgdDataIndukController::class, 'updateAturan']);
+
+    // Daftar periksa pulang rawat inap (tiket 2.40, FR-05-03): edit langsung berizin + dasar + audit (pola area IGD).
+    Route::get('data-induk/daftar-periksa-pulang', [DaftarPeriksaPulangController::class, 'index']);
+    Route::patch('data-induk/daftar-periksa-pulang/{butir}', [DaftarPeriksaPulangController::class, 'update']);
 
     // Matriks perpindahan antar-pos (tiket 2.26): hanya baca; perubahan lewat usulan data induk `matriks_perpindahan`.
     Route::get('data-induk/matriks-perpindahan', [MatriksPerpindahanController::class, 'index']);

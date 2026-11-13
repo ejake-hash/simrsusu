@@ -556,13 +556,14 @@ class AdmisiRawatInapTest extends TestCase
         }
         $this->assertNull(TempatTidur::query()->findOrFail($tt)->berlaku_sampai);
 
-        // Status baru FR-08-01 diterima CHECK TT dan riwayat; nilai lain ditolak; peta menampilkannya.
+        // Status baru FR-08-01 diterima CHECK TT dan riwayat; nilai lain ditolak. Sejak 2.40 (keputusan pemilik 13 Nov 2026)
+        // status TT yang ditempati dihitung peta dari rencana pulang: tanpa rencana → terisi walau tersimpan lain.
         DB::table('inti.tempat_tidur')->where('id', $tt)->update(['status_saat_ini' => 'melewati_rencana_lama_rawat']);
         DB::table('kunjungan.riwayat_status_tempat_tidur')->insert(['id' => (string) Str::uuid7(), 'tempat_tidur_id' => $tt, 'status_sebelum' => 'terisi',
             'status' => 'melewati_rencana_lama_rawat', 'terjadi_pada' => now(), 'oleh' => null, 'sumber_kejadian' => 'petugas']);
         $this->assertDitolakBasisData('23514', fn () => DB::table('inti.tempat_tidur')->where('id', $tt)->update(['status_saat_ini' => 'ngawur']));
         $peta = $this->minta('GET', '/api/v1/peta-tempat-tidur?bangsal_id='.$this->id['UJI29-BA'])->assertOk()
-            ->assertJsonPath('data.0.status', 'melewati_rencana_lama_rawat')->assertJsonPath('data.0.hari_rawat', 1);
+            ->assertJsonPath('data.0.status', 'terisi')->assertJsonPath('data.0.hari_rawat', 1);
         $this->assertSesuaiKontrak($peta, 'GET', '/peta-tempat-tidur');
     }
 

@@ -32,7 +32,8 @@ test('peta TT berkelompok dengan status berteks; cari kode TT; tandai TT dibersi
 
   const harap: [string, string][] = [
     ['CTHG-2-201-1', 'Terisi'], ['CTHG-2-201-2', 'Dibersihkan'], ['CTHG-2-201-3', 'Dipesan'],
-    ['CTHG-2-202-1', 'Rencana pulang'], ['CTHG-2-202-2', 'Tidak dipakai'], ['CTHG-2-202-3', 'Kosong siap'], ['CTHG-2-202-4', 'Kosong siap'],
+    // 2.40: status rencana pulang dihitung dari rencana pulang pasien; contoh 202-1 tanpa pasien kini terisi.
+    ['CTHG-2-202-1', 'Terisi'], ['CTHG-2-202-2', 'Tidak dipakai'], ['CTHG-2-202-3', 'Kosong siap'], ['CTHG-2-202-4', 'Kosong siap'],
   ]
   for (const [kode, label] of harap) await expect(tt(page, kode)).toContainText(label)
   // Aksi hanya di TT dibersihkan; TT tidak dipakai dan status lain tanpa aksi.

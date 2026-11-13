@@ -28,7 +28,11 @@ final class PetaTempatTidurController
 {
     private const IZIN = 'rawat_inap.peta_tempat_tidur';
 
-    private const IZIN_PINDAH_RUANG = 'rawat_inap.pindah_ruang.input';
+    /**
+     * Izin yang membuka id kunjungan RI dan identitas pasien di peta: pindah ruang (v0.38.0) dan, sejak v0.39.0 (keputusan
+     * pemilik 13 Nov 2026), lihat pemulangan dan lihat rencana pulang.
+     */
+    private const IZIN_PASIEN = ['rawat_inap.pindah_ruang.input', 'rawat_inap.pemulangan.lihat', 'rawat_inap.rencana_pulang.lihat'];
 
     public function index(Request $request, BacaPetaTempatTidur $peta, AccessEvaluator $evaluator, PohonUnit $pohon): Response
     {
@@ -36,13 +40,24 @@ final class PetaTempatTidurController
         /** @var Pengguna $pengguna */
         $pengguna = $request->user();
         $akar = $evaluator->unitTerjangkau($pengguna, self::IZIN.'.lihat');
-        // v0.38.0: id kunjungan RI hanya untuk bangsal di cakupan izin pindah ruang (null = seluruh RS, [] = tidak dikirim).
-        // Lapis 5 sama dengan POST pindah ruang (SIP/SPK berlaku): gagal → kunci tidak dikirim, peta tetap 200.
-        $akarPindah = $evaluator->periksa($pengguna, self::IZIN_PINDAH_RUANG)->allowed()
-            ? $evaluator->unitTerjangkau($pengguna, self::IZIN_PINDAH_RUANG) : [];
+        // Id kunjungan RI dan identitas pasien hanya untuk bangsal di cakupan salah satu izin pasien (null = seluruh RS, [] =
+        // tidak dikirim). Lapis 5 tiap izin lewat periksa() yang sama dengan endpoint-nya (SIP/SPK bila izinnya klinis, MFA
+        // bila butuh_mfa): gagal → izin itu tidak membuka apa pun, peta tetap 200.
+        $akarPasien = [];
+        foreach (self::IZIN_PASIEN as $izin) {
+            if (! $evaluator->periksa($pengguna, $izin)->allowed()) {
+                continue;
+            }
+            $unit = $evaluator->unitTerjangkau($pengguna, $izin);
+            if ($unit === null) {
+                $akarPasien = null;
+                break;
+            }
+            $akarPasien = array_values(array_unique([...$akarPasien, ...$unit]));
+        }
         $isi = $peta->baca([
             'bangsal_id' => $filter['bangsal_id'] ?? null, 'gedung_id' => $filter['gedung_id'] ?? null,
-        ], $akar === null ? null : $pohon->subpohon($akar), $akarPindah === null ? null : ($akarPindah === [] ? [] : $pohon->subpohon($akarPindah)));
+        ], $akar === null ? null : $pohon->subpohon($akar), $akarPasien === null ? null : ($akarPasien === [] ? [] : $pohon->subpohon($akarPasien)));
 
         $hasil = EtagIsi::terapkan($request, new JsonResponse(['data' => $isi['baris'], 'meta' => ['terpotong' => $isi['terpotong']]]));
         $hasil->headers->set('Cache-Control', 'no-store');

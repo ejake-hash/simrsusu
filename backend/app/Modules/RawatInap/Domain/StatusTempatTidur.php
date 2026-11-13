@@ -20,7 +20,10 @@ final class StatusTempatTidur
 
     public const RENCANA_PULANG = 'rencana_pulang';
 
-    /** FR-08-01 (tinjauan #198 butir 2): disetel rencana pulang (2.40); sampai itu hanya dikenal CHECK dan peta. */
+    /**
+     * FR-08-01 (tinjauan #198 butir 2). Keputusan pemilik 13 Nov 2026 (2.40): `rencana_pulang` dan status ini dihitung saat
+     * peta dibaca dari rencana pulang, tidak disimpan ke status TT maupun riwayatnya.
+     */
     public const MELEWATI_RENCANA_LAMA_RAWAT = 'melewati_rencana_lama_rawat';
 
     public const SEMUA = [self::TERISI, self::KOSONG_SIAP, self::DIBERSIHKAN, self::DIPESAN, self::TIDAK_DIPAKAI, self::RENCANA_PULANG,
@@ -44,8 +47,11 @@ final class StatusTempatTidur
     /** Pindah ruang (2.29): TT lama terisi → dibersihkan, TT baru kosong siap → terisi. */
     public const SUMBER_PINDAH_RUANG = 'pindah_ruang';
 
+    /** Pasien pulang (2.40): TT terisi → dibersihkan (FR-05-05). */
+    public const SUMBER_PULANG = 'pulang';
+
     /** `alokasi`, `alokasi_batal` (2.28), `penempatan`, `pindah_ruang` (2.29), `pulang` (2.40). */
-    public const SUMBER = [self::SUMBER_PETUGAS, self::SUMBER_ALOKASI, self::SUMBER_ALOKASI_BATAL, self::SUMBER_PENEMPATAN, self::SUMBER_PINDAH_RUANG, 'pulang'];
+    public const SUMBER = [self::SUMBER_PETUGAS, self::SUMBER_ALOKASI, self::SUMBER_ALOKASI_BATAL, self::SUMBER_PENEMPATAN, self::SUMBER_PINDAH_RUANG, self::SUMBER_PULANG];
 
     /**
      * Transisi yang boleh diminta petugas lewat POST /tempat-tidur/{id}/status: status tujuan => status asal yang sah.
