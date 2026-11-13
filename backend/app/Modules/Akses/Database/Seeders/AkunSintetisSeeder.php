@@ -73,7 +73,7 @@ final class AkunSintetisSeeder extends Seeder
         // Tiket 2.30: analis lab (ATLM): daftar kerja lab, ambil sampel, terima spesimen.
         'analis' => 'Contoh Analis Lab',
         // Tiket 2.31: dokter Sp.PK sintetis untuk otorisasi hasil lab (SIP berlaku dari lokal:kunjungan-contoh).
-        'dokter.pk' => 'Contoh Dokter Sp.PK',
+        'dokter.pk' => 'Contoh Spesialis Patologi Klinik',
     ];
 
     /**
@@ -189,7 +189,7 @@ final class AkunSintetisSeeder extends Seeder
         'contoh_analis' => ['Contoh Analis Lab', 'analis', ['penunjang.laboratorium.lihat', 'penunjang.laboratorium.input', 'penunjang.laboratorium.verifikasi',
             'penunjang.laboratorium.sahkan']],
         // Tiket 2.31: otorisasi Sp.PK (IZIN_KLINIS, bukan sensitif, tanpa MFA); lihat = daftar kerja tahap otorisasi.
-        'contoh_dokter_pk' => ['Contoh Dokter Sp.PK', 'dokter.pk', ['penunjang.laboratorium.lihat', 'penunjang.laboratorium.setujui']],
+        'contoh_dokter_pk' => ['Contoh Spesialis Patologi Klinik', 'dokter.pk', ['penunjang.laboratorium.lihat', 'penunjang.laboratorium.setujui']],
     ];
 
     /** Semua aksi usulan data induk + lihat organisasi (pemilih objek); pemisahan tugas dijaga server (1.8c). */

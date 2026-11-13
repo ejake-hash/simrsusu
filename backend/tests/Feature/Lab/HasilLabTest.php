@@ -289,6 +289,7 @@ class HasilLabTest extends TestCase
         $this->assertSame(1, DB::table('notifikasi.notifikasi')->where('pengguna_id', $dpjp->id)->where('jenis', 'HASIL_LAB_TINDAK_LANJUT')->count());
 
         // DPJP tanpa akun aktif → tugas ke unit bangsal TT saat ini.
+        /** @var Pegawai $tanpaAkun */
         $tanpaAkun = Pegawai::factory()->create(['profesi' => 'dokter']);
         DB::table('kunjungan.kunjungan')->where('id', $ri)->update(['pegawai_id' => $tanpaAkun->id]);
         $item2 = $this->siapHasil($pasien, 'UJI31-TEKS');
