@@ -25,6 +25,9 @@ final class KelolaPermintaanPemeriksaan
 {
     public const IZIN_LIHAT = 'rawat_jalan.pemeriksaan.lihat';
 
+    /** Status butir yang masih boleh dibatalkan pemesan (sebelum diterima penunjang; 2.30, 2.31). */
+    public const STATUS_BOLEH_BATAL = ['dipesan', 'sampel_diambil', 'batal'];
+
     public function __construct(private readonly CatatAktivitas $audit) {}
 
     /**
@@ -72,9 +75,12 @@ final class KelolaPermintaanPemeriksaan
             if ($p->status !== 'dipesan') {
                 throw new ApiError(409, 'status_tidak_sesuai', 'Order sudah dibatalkan atau sudah diterima penunjang.', [['status' => $p->status]]);
             }
-            // Tiket 2.30: batal hanya sebelum diterima lab. Ambil/terima spesimen mengunci baris permintaan yang sama dulu.
-            if (DB::table('permintaan.permintaan_item')->where('permintaan_pemeriksaan_id', $p->id)->where('status', 'diterima_lab')->exists()) {
-                throw new ApiError(409, 'status_tidak_sesuai', 'Order sudah diterima penunjang.', [['status' => 'diterima_lab']]);
+            // Tiket 2.30/2.31: batal hanya sebelum diterima lab (status sesudahnya: hasil, validasi). Ambil/terima spesimen dan
+            // hasil lab mengunci baris permintaan yang sama dulu.
+            $lewat = DB::table('permintaan.permintaan_item')->where('permintaan_pemeriksaan_id', $p->id)
+                ->whereNotIn('status', self::STATUS_BOLEH_BATAL)->value('status');
+            if ($lewat !== null) {
+                throw new ApiError(409, 'status_tidak_sesuai', 'Order sudah diterima penunjang.', [['status' => $lewat]]);
             }
             $p->forceFill(['status' => 'batal', 'alasan_batal' => $alasan, 'dibatalkan_oleh' => $oleh->id, 'dibatalkan_pada' => now(),
                 'diubah_oleh' => $oleh->id, 'revisi' => $p->revisi + 1])->save();

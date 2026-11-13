@@ -4,11 +4,16 @@ import { klien } from '@/shared/api/klien'
 export type JenisPermintaan = 'lab' | 'rad'
 export type PrioritasPermintaan = 'rutin' | 'cito'
 type Pelaku = { id: string; nama: string } | null
-/** Status per butir (v0.40.0, tiket 2.30): lab menambah sampel_diambil dan diterima_lab; tahap penunjang lain menyusul. */
-export type StatusPermintaanItem = 'dipesan' | 'sampel_diambil' | 'diterima_lab' | 'batal'
-export const LABEL_STATUS_ITEM: Record<StatusPermintaanItem, string> = { dipesan: 'Dipesan', sampel_diambil: 'Sampel diambil', diterima_lab: 'Diterima lab', batal: 'Dibatalkan' }
+/** Status per butir (v0.40.0 tiket 2.30: sampel_diambil, diterima_lab; v0.41.0 tiket 2.31: menunggu_validasi, menunggu_otorisasi, divalidasi). */
+export type StatusPermintaanItem = 'dipesan' | 'sampel_diambil' | 'diterima_lab' | 'menunggu_validasi' | 'menunggu_otorisasi' | 'divalidasi' | 'batal'
+export const LABEL_STATUS_ITEM: Record<StatusPermintaanItem, string> = {
+  dipesan: 'Dipesan', sampel_diambil: 'Sampel diambil', diterima_lab: 'Diterima lab', menunggu_validasi: 'Menunggu validasi',
+  menunggu_otorisasi: 'Menunggu otorisasi Sp.PK', divalidasi: 'Divalidasi', batal: 'Dibatalkan',
+}
 /** Nada lencana status butir (lab dan Order penunjang): status tidak hanya warna, Lencana memberi ikon dan teks. */
-export const NADA_STATUS_ITEM: Record<StatusPermintaanItem, 'netral' | 'info' | 'ok'> = { dipesan: 'netral', sampel_diambil: 'info', diterima_lab: 'ok', batal: 'netral' }
+export const NADA_STATUS_ITEM: Record<StatusPermintaanItem, 'netral' | 'info' | 'ok'> = {
+  dipesan: 'netral', sampel_diambil: 'info', diterima_lab: 'ok', menunggu_validasi: 'info', menunggu_otorisasi: 'info', divalidasi: 'ok', batal: 'netral',
+}
 
 export interface PermintaanPemeriksaan {
   id: string

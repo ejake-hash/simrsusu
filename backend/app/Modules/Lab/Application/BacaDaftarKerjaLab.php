@@ -24,17 +24,30 @@ final class BacaDaftarKerjaLab
 
     public const IZIN_TERIMA = 'penunjang.laboratorium.verifikasi';
 
-    public function __construct(private readonly NamaPelaku $pelaku) {}
+    /**
+     * Status butir yang membuat order masuk tiap tahap daftar kerja (2.31). Himpunan `spesimen` sama dengan indeks parsial
+     * permintaan_item_aktif (2.30); `hasil` dan `otorisasi` di dalam indeks parsial permintaan_item_hasil_aktif.
+     */
+    public const TAHAP = [
+        'spesimen' => ['dipesan', 'sampel_diambil'],
+        'hasil' => ['diterima_lab', 'menunggu_validasi'],
+        'otorisasi' => ['menunggu_otorisasi'],
+    ];
+
+    public function __construct(
+        private readonly NamaPelaku $pelaku,
+        private readonly BacaHasilLab $hasil,
+    ) {}
 
     /**
-     * Order lab aktif (tidak batal, masih ada butir dipesan atau sampel_diambil) dengan prioritas itu. Mulai dari himpunan
-     * butir aktif (indeks parsial permintaan_item_aktif), bukan dari seluruh riwayat order lab.
+     * Order lab aktif (tidak batal, masih ada butir di tahap itu) dengan prioritas itu. Mulai dari himpunan butir aktif
+     * (indeks parsial), bukan dari seluruh riwayat order lab.
      */
-    public static function query(string $prioritas): Builder
+    public static function query(string $prioritas, string $tahap = 'spesimen'): Builder
     {
         return DB::table('permintaan.permintaan_pemeriksaan AS p')
             ->whereIn('p.id', fn ($q) => $q->from('permintaan.permintaan_item')->select('permintaan_pemeriksaan_id')
-                ->whereIn('status', ['dipesan', 'sampel_diambil']))
+                ->whereIn('status', self::TAHAP[$tahap]))
             ->where('p.jenis', 'lab')->where('p.status', 'dipesan')->where('p.prioritas', $prioritas)
             ->select(['p.id', 'p.dibuat_pada', 'p.kunjungan_id', 'p.pasien_id', 'p.prioritas', 'p.status', 'p.diagnosis_kerja', 'p.pemesan_id']);
     }
@@ -51,7 +64,9 @@ final class BacaDaftarKerjaLab
         $id = $baris->pluck('id')->all();
         $item = DB::table('permintaan.permintaan_item')->whereIn('permintaan_pemeriksaan_id', $id)->where('status', '<>', 'batal')
             ->orderBy('kode_item')->get(['id', 'permintaan_pemeriksaan_id', 'kode_item', 'nama', 'status'])->groupBy('permintaan_pemeriksaan_id');
-        $spesimen = $this->spesimenItem($item->flatten(1)->pluck('id')->map(fn ($v) => (string) $v)->values()->all());
+        $itemId = $item->flatten(1)->pluck('id')->map(fn ($v) => (string) $v)->values()->all();
+        $spesimen = $this->spesimenItem($itemId);
+        $hasil = $this->hasil->perItem($itemId, $pengguna);
         $kunjungan = DB::table('kunjungan.kunjungan AS k')->leftJoin('inti.poliklinik AS pl', 'pl.id', '=', 'k.poli_id')
             ->whereIn('k.id', $baris->pluck('kunjungan_id')->unique()->values())
             ->get(['k.id', 'k.jenis_kunjungan', 'pl.nama', 'pl.nama_netral'])->keyBy('id');
@@ -72,7 +87,7 @@ final class BacaDaftarKerjaLab
         $bolehAmbil = $gate->allows(self::IZIN_AMBIL, Cakupan::rs());
         $bolehTerima = $gate->allows(self::IZIN_TERIMA, Cakupan::rs());
 
-        return $baris->map(function ($p) use ($item, $spesimen, $kunjungan, $pasien, $rawatInap, $igd, $pelaku, $bolehAmbil, $bolehTerima) {
+        return $baris->map(function ($p) use ($item, $spesimen, $hasil, $kunjungan, $pasien, $rawatInap, $igd, $pelaku, $bolehAmbil, $bolehTerima) {
             $k = $kunjungan[$p->kunjungan_id] ?? null;
             $ps = $pasien[$p->pasien_id];
             $namaPoli = $k === null ? null : ($k->nama_netral ?? $k->nama);
@@ -98,7 +113,10 @@ final class BacaDaftarKerjaLab
                 'item' => ($item[$p->id] ?? collect())->map(fn ($i) => [
                     'id' => (string) $i->id, 'kode_item' => (string) $i->kode_item, 'nama' => (string) $i->nama, 'status' => (string) $i->status,
                     'spesimen' => $spesimen[(string) $i->id] ?? null,
-                    'dapat' => ['ambil' => $i->status === 'dipesan' && $bolehAmbil, 'terima' => $i->status === 'sampel_diambil' && $bolehTerima],
+                    'hasil' => $hasil[(string) $i->id] ?? null,
+                    'dapat' => ['ambil' => $i->status === 'dipesan' && $bolehAmbil, 'terima' => $i->status === 'sampel_diambil' && $bolehTerima,
+                        'input' => in_array($i->status, ['diterima_lab', 'menunggu_validasi'], true) && $bolehAmbil,
+                        'validasi' => (bool) ($hasil[(string) $i->id]['dapat']['validasi'] ?? false)],
                 ])->values()->all(),
             ];
         })->values()->all();

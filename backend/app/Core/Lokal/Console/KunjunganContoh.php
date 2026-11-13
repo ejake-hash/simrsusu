@@ -108,6 +108,15 @@ final class KunjunganContoh extends Command
                 );
             }
 
+            // Otorisasi hasil lab (2.31): `dokter.pk` (Sp.PK sintetis) butuh SIP berlaku (penunjang.laboratorium.setujui, lapis 5).
+            $dokterPk = Pengguna::query()->where('nama_pengguna', 'dokter.pk')->first()?->pegawai_id;
+            if ($dokterPk) {
+                IzinPraktik::query()->updateOrCreate(
+                    ['pegawai_id' => $dokterPk, 'jenis' => 'sip', 'nomor' => 'SIP/CONTOH/SPPK'],
+                    ['terbit' => '2020-01-01', 'berlaku_sampai' => '2040-01-01', 'status' => 'aktif'],
+                );
+            }
+
             // SEP (2.7): pemetaan BPJS, kode PPK sintetis, penjamin BPJS, dan kredensial VClaim sintetis (dijawab simulator).
             $poli->forceFill(['kode_poli_bpjs' => 'INT'])->save();
             Penjamin::query()->updateOrCreate(['kode' => 'CONTOH-BPJS'], ['nama' => 'BPJS Kesehatan (contoh)', 'jenis' => 'bpjs', 'status' => 'aktif']);
@@ -135,6 +144,7 @@ final class KunjunganContoh extends Command
 
             // Order penunjang (2.16): butir tarif SINTETIS ber-kategori lab/rad (tanpa harga; bukan tarif RS), hanya bila kodenya belum ada.
             foreach (['CONTOH-LAB-01' => ['Pemeriksaan lab contoh satu', 'lab'], 'CONTOH-LAB-02' => ['Pemeriksaan lab contoh dua', 'lab'],
+                'CONTOH-LAB-03' => ['Pemeriksaan lab contoh tiga', 'lab'], 'CONTOH-LAB-04' => ['Pemeriksaan lab contoh empat', 'lab'],
                 'CONTOH-RAD-01' => ['Pemeriksaan radiologi contoh', 'rad']] as $kode => [$nama, $kategori]) {
                 if (! DB::table('keuangan.tarif')->where('kode', $kode)->exists()) {
                     $tarifId = (string) Str::uuid7();
@@ -143,6 +153,8 @@ final class KunjunganContoh extends Command
                         'kelompok' => 'Contoh penunjang', 'kategori' => $kategori, 'status' => 'aktif', 'berlaku_dari' => '2026-01-01', 'dasar' => 'Data sintetis lokal']);
                 }
             }
+
+            $this->dataIndukLab();
 
             // E-resep (2.17): obat SINTETIS (bukan katalog RS) di formularium RS contoh, hanya bila kodenya belum ada.
             foreach (['CONTOH-OBAT-01' => ['Obat contoh satu', 'Zat contoh satu'], 'CONTOH-OBAT-02' => ['Obat contoh dua', 'Zat contoh dua']] as $kode => [$nama, $zat]) {
@@ -187,6 +199,43 @@ final class KunjunganContoh extends Command
         $this->info('Poli, dokter, dan jadwal contoh siap; instalasi ditandai siap melayani.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Data induk lab (2.31) untuk butir tarif CONTOH-LAB-*, hanya bila butirnya belum punya data induk. Contoh sintetis,
+     * bukan nilai klinis: angka, satuan, dan teks di bawah tidak boleh dipakai sebagai nilai rujukan RS.
+     * 01 numerik + nilai rujukan per JK; 02 teks + nilai kritis teks; 03 numerik butuh otorisasi Sp.PK; 04 numerik tanpa
+     * nilai rujukan (hasil tanpa penanda + peringatan).
+     */
+    private function dataIndukLab(): void
+    {
+        $contoh = [
+            'CONTOH-LAB-01' => ['numerik', '{contoh}', false, null, null],
+            'CONTOH-LAB-02' => ['teks', null, false, ['Contoh normal'], ['Contoh kritis']],
+            'CONTOH-LAB-03' => ['numerik', '{contoh}', true, null, null],
+            'CONTOH-LAB-04' => ['numerik', '{contoh}', false, null, null],
+        ];
+        foreach ($contoh as $kode => [$jenis, $satuan, $spk, $normal, $kritis]) {
+            $tarif = DB::table('keuangan.tarif')->where('kode', $kode)->value('id');
+            if ($tarif === null || DB::table('lab.pemeriksaan')->where('tarif_id', $tarif)->exists()) {
+                continue;
+            }
+            $id = (string) Str::uuid7();
+            DB::table('lab.pemeriksaan')->insert(['id' => $id, 'tarif_id' => $tarif, 'satuan' => $satuan, 'jenis_hasil' => $jenis,
+                'butuh_otorisasi_spk' => $spk, 'nilai_normal_teks' => $normal === null ? null : json_encode($normal),
+                'nilai_kritis_teks' => $kritis === null ? null : json_encode($kritis)]);
+            // Contoh sintetis, bukan nilai klinis.
+            $rujukan = match ($kode) {
+                'CONTOH-LAB-01' => [['laki_laki', 10, 20, 5, 30], ['perempuan', 8, 18, 4, 28]],
+                'CONTOH-LAB-03' => [[null, 1, 2, null, 5]],
+                default => [],
+            };
+            foreach ($rujukan as [$jk, $min, $maks, $kritisMin, $kritisMaks]) {
+                DB::table('lab.nilai_rujukan')->insert(['id' => (string) Str::uuid7(), 'pemeriksaan_id' => $id, 'jenis_kelamin' => $jk,
+                    'umur_min_hari' => 0, 'umur_maks_hari' => null, 'rujukan_min' => $min, 'rujukan_maks' => $maks,
+                    'kritis_min' => $kritisMin, 'kritis_maks' => $kritisMaks]);
+            }
+        }
     }
 
     /**
