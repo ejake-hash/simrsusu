@@ -13,20 +13,23 @@ import { LABEL_STATUS_ITEM, NADA_STATUS_ITEM, type PrioritasPermintaan } from '@
 import { boleh } from '@/shared/composables/usePermission'
 import { formatTanggalWaktu } from '@/shared/utils/waktu'
 import { daftarKerjaLab } from '../api'
-import { bolehAmbil, bolehTerima, KUNCI_LAB, teksAsal, teksLokasi } from '../lab'
-import type { BarisDaftarKerjaLab, ButirDaftarKerjaLab } from '../tipe'
+import { bolehAdendum, bolehAmbil, bolehInput, bolehTerima, bolehValidasi, KUNCI_LAB, labelValidasi, teksAsal, teksLokasi } from '../lab'
+import type { BarisDaftarKerjaLab, ButirDaftarKerjaLab, TahapDaftarKerjaLab } from '../tipe'
+import TampilanHasilLab from './TampilanHasilLab.vue'
 
 /**
- * Satu seksi daftar kerja lab per prioritas (kueri sendiri, kursor "Muat lagi", polling 15 detik yang berhenti saat tab
- * tersembunyi karena refetchIntervalInBackground bawaan false). Aksi per butir hanya menurut `dapat` dari server.
+ * Satu seksi daftar kerja lab per prioritas dan tahap (kueri sendiri, kursor "Muat lagi", polling 15 detik yang berhenti
+ * saat tab tersembunyi karena refetchIntervalInBackground bawaan false). Aksi per butir hanya menurut `dapat` dari server.
  */
-const props = defineProps<{ prioritas: PrioritasPermintaan; judul: string; uraian: string; teksKosong: string }>()
-const emit = defineEmits<{ ambil: [baris: BarisDaftarKerjaLab, butir: ButirDaftarKerjaLab]; terima: [baris: BarisDaftarKerjaLab, butir: ButirDaftarKerjaLab] }>()
+type Aksi = [baris: BarisDaftarKerjaLab, butir: ButirDaftarKerjaLab]
+const props = withDefaults(defineProps<{ prioritas: PrioritasPermintaan; judul: string; uraian: string; teksKosong: string; tahap?: TahapDaftarKerjaLab }>(), { tahap: 'spesimen' })
+const emit = defineEmits<{ ambil: Aksi; terima: Aksi; input: Aksi; validasi: Aksi; adendum: Aksi }>()
 const idJudul = useId()
+const adaAksi = (i: ButirDaftarKerjaLab) => bolehAmbil(i) || bolehTerima(i) || bolehInput(i) || bolehValidasi(i) || bolehAdendum(i.hasil)
 
 const kueri = useInfiniteQuery({
-  queryKey: computed(() => KUNCI_LAB.daftar(props.prioritas)),
-  queryFn: ({ pageParam }) => daftarKerjaLab(props.prioritas, pageParam),
+  queryKey: computed(() => KUNCI_LAB.daftar(props.prioritas, props.tahap)),
+  queryFn: ({ pageParam }) => daftarKerjaLab(props.prioritas, pageParam, 50, props.tahap),
   initialPageParam: null as string | null,
   getNextPageParam: (h) => h.meta.kursor_berikutnya,
   refetchInterval: INTERVAL_LAYAR_KERJA,
@@ -37,12 +40,12 @@ const baris = computed<BarisDaftarKerjaLab[]>(() => kueri.data.value?.pages.flat
 // Izin unit saja (bukan cakupan RS) → 403 dari server: tampil sebagai akses ditolak, bukan galat umum.
 const ditolak = computed(() => kueri.error.value instanceof ApiError && kueri.error.value.status === 403)
 
-const kolom: KolomTabel[] = [
+const kolom = computed<KolomTabel[]>(() => [
   { kunci: 'pasien', label: 'Pasien' },
   { kunci: 'asal', label: 'Asal dan lokasi', lebar: '200px' },
   { kunci: 'order', label: 'Order', prioritas: 2 },
-  { kunci: 'butir', label: 'Pemeriksaan dan spesimen', lebar: '40%' },
-]
+  { kunci: 'butir', label: props.tahap === 'spesimen' ? 'Pemeriksaan dan spesimen' : 'Pemeriksaan dan hasil', lebar: '40%' },
+])
 </script>
 
 <template>
@@ -96,10 +99,14 @@ const kolom: KolomTabel[] = [
                 <span v-if="i.spesimen" class="barcode"><span class="ket-inline">Barcode</span> <code>{{ i.spesimen.barcode }}</code></span>
               </span>
               <span v-if="i.spesimen" class="ket">{{ i.spesimen.jenis }}</span>
+              <TampilanHasilLab v-if="i.hasil" :hasil="i.hasil" />
             </div>
-            <div v-if="bolehAmbil(i) || bolehTerima(i)" class="aksi">
+            <div v-if="adaAksi(i)" class="aksi">
               <Tombol v-if="bolehAmbil(i)" varian="utama" :aria-label="`Ambil sampel ${i.nama} ${b.pasien.nama}`" @click="emit('ambil', b, i)">Ambil sampel</Tombol>
               <Tombol v-if="bolehTerima(i)" varian="utama" :aria-label="`Terima di lab ${i.nama} ${b.pasien.nama}`" @click="emit('terima', b, i)">Terima di lab</Tombol>
+              <Tombol v-if="bolehInput(i)" :varian="i.hasil ? 'kedua' : 'utama'" :aria-label="`${i.hasil ? 'Input ulang hasil' : 'Input hasil'} ${i.nama} ${b.pasien.nama}`" @click="emit('input', b, i)">{{ i.hasil ? 'Input ulang' : 'Input hasil' }}</Tombol>
+              <Tombol v-if="bolehValidasi(i)" varian="utama" :aria-label="`${labelValidasi(i)} ${i.nama} ${b.pasien.nama}`" @click="emit('validasi', b, i)">{{ labelValidasi(i) }}</Tombol>
+              <Tombol v-if="bolehAdendum(i.hasil)" varian="kedua" :aria-label="`Adendum ${i.nama} ${b.pasien.nama}`" @click="emit('adendum', b, i)">Adendum</Tombol>
             </div>
           </li>
         </ul>

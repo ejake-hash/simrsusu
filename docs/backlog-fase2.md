@@ -842,7 +842,8 @@ Utang 2.31-be (kontrak v0.41.0):
 - Layar/usulan data induk `lab.pemeriksaan` dan `lab.nilai_rujukan` belum ada; produksi kosong sampai RS mengisi (lokal/CI
   dari seeder sintetis `lokal:kunjungan-contoh`). Butir tanpa data induk → 422 `pemeriksaan_lab_belum_diatur`.
 - Panel (satu order banyak parameter) belum ada: satu butir order = satu `lab.hasil`.
-- Tautan jenis tugas `HASIL_LAB_TINDAK_LANJUT` (`/penunjang/laboratorium/hasil/{hasil_id}`) menunggu layar PR FE 2.31.
+- Tautan jenis tugas `HASIL_LAB_TINDAK_LANJUT` (`/penunjang/laboratorium/hasil/{hasil_id}`) belum punya layar: kontrak belum
+  punya GET hasil per id, jadi PR FE 2.31 tidak menambah rute itu (hasil dibaca lewat linimasa episode di Pemeriksaan).
 - Perawat ruang/unit bangsal belum menerima tugas hasil lab (perlu keputusan akses rawat inap): tugas hanya ke akun yang
   bisa membuka linimasa hasil (DPJP lewat relasi perawatan, keputusan pemilik 13 Nov 2026); selain itu jatuh ke pemesan.
 

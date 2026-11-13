@@ -62,7 +62,7 @@ describe('lab: server tiruan kontrak v0.40.0', () => {
   it('ambil → barcode LAB-YYYYMMDD-NNNNN, butir sampel_diambil; ambil kedua 409; terima → diterima_lab; order keluar sesudah semua diterima', async () => {
     const cito = cari((await daftarKerjaLab('cito')).data, 'Pasien Contoh Cito')
     const [satu, dua] = cito.item
-    expect(satu!.dapat).toEqual({ ambil: true, terima: false })
+    expect(satu!.dapat).toMatchObject({ ambil: true, terima: false })
     const sp = await ambilSpesimen(satu!.id, { jenis: 'Darah vena', lokasi_pengambilan: 'instalasi' })
     expect(sp).toMatchObject({ barcode: 'LAB-20261102-00001', item_status: 'sampel_diambil', jenis: 'Darah vena', kondisi: null })
     await expect(ambilSpesimen(satu!.id, { jenis: 'Darah vena', lokasi_pengambilan: 'instalasi' })).rejects.toMatchObject({ status: 409, kode: 'status_tidak_sesuai' })
@@ -83,7 +83,7 @@ describe('lab: server tiruan kontrak v0.40.0', () => {
   it('izin: tanpa lihat 403; tanpa input/verifikasi dapat false dan aksi 403; order batal 409', async () => {
     izinServer = new Set(['penunjang.laboratorium.lihat'])
     const cito = (await daftarKerjaLab('cito')).data[0]!
-    expect(cito.item[0]!.dapat).toEqual({ ambil: false, terima: false })
+    expect(cito.item[0]!.dapat).toEqual({ ambil: false, terima: false, input: false, validasi: false })
     await expect(ambilSpesimen(cito.item[0]!.id, { jenis: 'Darah', lokasi_pengambilan: 'instalasi' })).rejects.toMatchObject({ status: 403 })
     izinServer = new Set()
     await expect(daftarKerjaLab('cito')).rejects.toMatchObject({ status: 403 })

@@ -7,6 +7,7 @@ import Pesan from '@/design-system/components/Pesan.vue'
 import Tombol from '@/design-system/components/Tombol.vue'
 import { tampilkanToast } from '@/design-system/components/toast'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
+import LinimasaHasilLab from '@/modules/lab/components/LinimasaHasilLab.vue'
 import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
 import PanelSpri from '@/modules/rawat-inap/components/PanelSpri.vue'
 import OrderPenunjang from '@/shared/components/OrderPenunjang.vue'
@@ -200,6 +201,7 @@ const tutup = useMutation({
       </section>
 
       <OrderPenunjang v-if="episodeId" :kunjungan-id="kunjunganId" :episode-id="episodeId" :bisa-pesan="dilayani && boleh('rawat_jalan.pemeriksaan.order.input')" />
+      <LinimasaHasilLab v-if="episodeId" :episode-id="episodeId" />
       <PanelResep v-if="boleh('rawat_jalan.pemeriksaan.resep.lihat')" :kunjungan-id="kunjunganId" :identitas="identitas" :bisa-tulis="dilayani && boleh('rawat_jalan.pemeriksaan.resep.input')" />
 
       <!-- SPRI (2.28): izin sel bawaan poliklinik → rawat inap = rawat_jalan.pemeriksaan.sahkan; server tetap penentu. -->

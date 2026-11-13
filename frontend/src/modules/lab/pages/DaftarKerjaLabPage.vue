@@ -3,29 +3,77 @@ import { useQueryClient } from '@tanstack/vue-query'
 import { computed, nextTick, ref } from 'vue'
 import Dialog from '@/design-system/components/Dialog.vue'
 import Pesan from '@/design-system/components/Pesan.vue'
+import Tabs from '@/design-system/components/Tabs.vue'
 import Tombol from '@/design-system/components/Tombol.vue'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import HalamanModul from '@/layouts/HalamanModul.vue'
 import { errorKolom } from '@/modules/akses/pengaturan'
 import { INTERVAL_LAYAR_KERJA } from '@/modules/notifikasi/polling'
-import { ambilSpesimen, terimaSpesimen } from '../api'
+import { ApiError } from '@/shared/api/klien'
+import { boleh } from '@/shared/composables/usePermission'
+import { ambilSpesimen, inputHasilLab, terimaSpesimen, validasiHasilLab } from '../api'
+import DialogAdendumHasilLab from '../components/DialogAdendumHasilLab.vue'
 import SeksiDaftarKerja from '../components/SeksiDaftarKerja.vue'
-import { identitasPasien, KUNCI_LAB, kurangJenisSpesimen, LABEL_LOKASI_PENGAMBILAN, perluMuatUlang, pesanGalatLab, teksLokasi } from '../lab'
-import type { BarisDaftarKerjaLab, ButirDaftarKerjaLab, LokasiPengambilanSpesimen } from '../tipe'
+import TampilanHasilLab from '../components/TampilanHasilLab.vue'
+import {
+  bacaIsianHasil,
+  identitasPasien,
+  KUNCI_LAB,
+  kurangJenisSpesimen,
+  LABEL_LOKASI_PENGAMBILAN,
+  LABEL_PENANDA,
+  LABEL_TAHAP,
+  perluMuatUlang,
+  pesanGalatLab,
+  tahapTersedia,
+  teksLokasi,
+  teksNilai,
+} from '../lab'
+import type { BarisDaftarKerjaLab, ButirDaftarKerjaLab, HasilLab, IsianHasilLab, LokasiPengambilanSpesimen, TahapDaftarKerjaLab } from '../tipe'
 
 /**
- * Penunjang → Laboratorium: daftar kerja lab (tiket 2.30, kontrak v0.40.0; FR-19-01..03, 7.00.5 butir 4). Order lab aktif
- * dari semua pos, cito di atas lalu rutin, terlama dulu. Ambil sampel (jenis + lokasi pengambilan) membuat barcode di server;
- * terima di lab mengunci order dari pembatalan pemesan. Kedua aksi dikonfirmasi dengan identitas dua penanda (5.1 butir 9).
+ * Penunjang → Laboratorium: daftar kerja lab (tiket 2.30 spesimen, 2.31 hasil; FR-19-01..06, 7.00.5 butir 2–4). Tahap
+ * Spesimen (ambil sampel, terima di lab), Hasil (input, input ulang, validasi analis), Otorisasi (Sp.PK); tab tampil
+ * menurut izin sesi, tombol hanya menurut `dapat` dari server. Validasi, otorisasi, dan adendum dikonfirmasi dengan
+ * identitas dua penanda (5.1 butir 9). Penanda hasil dihitung server.
  */
 const qc = useQueryClient()
 const segarkan = () => qc.invalidateQueries({ queryKey: KUNCI_LAB.semua })
 
-/** Hasil aksi terakhir (barcode): tetap tampil sampai aksi berikutnya, jadi petugas bisa menyalinnya ke label. */
+const daftarTahap = computed(() => tahapTersedia(boleh).map((t) => ({ nilai: t, label: LABEL_TAHAP[t] })))
+const tahap = ref<string>(daftarTahap.value[0]!.nilai)
+const TEKS_TAHAP: Record<TahapDaftarKerjaLab, { cito: string; rutin: string; kosongCito: string; kosongRutin: string }> = {
+  spesimen: {
+    cito: 'Kerjakan lebih dulu. Order keluar dari tahap ini sesudah semua pemeriksaannya diterima di lab.',
+    rutin: 'Order rutin, terlama di atas.',
+    kosongCito: 'Tidak ada order cito yang menunggu.',
+    kosongRutin: 'Tidak ada order rutin yang menunggu. Order muncul sesudah dokter mengirim order laboratorium.',
+  },
+  hasil: {
+    cito: 'Spesimen sudah diterima. Input hasil lalu validasi; hasil bisa diinput ulang selama belum divalidasi.',
+    rutin: 'Order rutin dengan spesimen yang sudah diterima, terlama di atas.',
+    kosongCito: 'Tidak ada hasil cito yang menunggu input atau validasi.',
+    kosongRutin: 'Tidak ada hasil rutin yang menunggu input atau validasi.',
+  },
+  otorisasi: {
+    cito: 'Hasil yang sudah divalidasi analis dan butuh otorisasi Sp.PK sebelum keluar.',
+    rutin: 'Hasil rutin yang menunggu otorisasi Sp.PK, terlama di atas.',
+    kosongCito: 'Tidak ada hasil cito yang menunggu otorisasi.',
+    kosongRutin: 'Tidak ada hasil rutin yang menunggu otorisasi.',
+  },
+}
+
+/** Hasil aksi terakhir (barcode, hasil tersimpan): tetap tampil sampai aksi berikutnya. */
 const hasil = ref<string | null>(null)
 const elHasil = ref<HTMLElement | null>(null)
 let fokusHasil = false
 const fokusSesudahTutup = () => (fokusHasil ? elHasil.value : null)
+async function berhasil(pesan: string) {
+  hasil.value = pesan
+  fokusHasil = true
+  await nextTick()
+  await segarkan()
+}
 
 // ── Ambil sampel ──
 const sasaranAmbil = ref<{ baris: BarisDaftarKerjaLab; butir: ButirDaftarKerjaLab } | null>(null)
@@ -56,11 +104,8 @@ async function ambil() {
   galatAmbil.value = null
   try {
     const sp = await ambilSpesimen(s.butir.id, { jenis: jenis.value.trim(), lokasi_pengambilan: lokasi.value })
-    hasil.value = `Sampel ${s.butir.nama} untuk ${s.baris.pasien.nama} tercatat. Barcode ${sp.barcode}.`
-    fokusHasil = true
     bukaAmbil.value = false
-    await nextTick()
-    await segarkan()
+    await berhasil(`Sampel ${s.butir.nama} untuk ${s.baris.pasien.nama} tercatat. Barcode ${sp.barcode}.`)
   } catch (e) {
     // Data basi (butir batal, sampel sudah diambil petugas lain): daftar dimuat ulang dulu, pesan server tetap di dialog.
     if (perluMuatUlang(e)) await segarkan()
@@ -88,17 +133,124 @@ async function terima() {
   galatTerima.value = null
   try {
     const sp = await terimaSpesimen(s.butir.spesimen.id)
-    hasil.value = `Spesimen ${sp.barcode} (${s.butir.nama}, ${s.baris.pasien.nama}) diterima di lab. Order ini tidak bisa lagi dibatalkan pemesan.`
-    fokusHasil = true
     bukaTerima.value = false
-    await nextTick()
-    await segarkan()
+    await berhasil(`Spesimen ${sp.barcode} (${s.butir.nama}, ${s.baris.pasien.nama}) diterima di lab. Order ini tidak bisa lagi dibatalkan pemesan.`)
   } catch (e) {
     if (perluMuatUlang(e)) await segarkan()
     galatTerima.value = e
   } finally {
     menerima.value = false
   }
+}
+
+const ringkasHasil = (h: HasilLab) => (h.penanda ? `${teksNilai(h)}, ${LABEL_PENANDA[h.penanda]}` : teksNilai(h))
+
+// ── Input hasil (dan input ulang sebelum validasi) ──
+const sasaranInput = ref<{ baris: BarisDaftarKerjaLab; butir: ButirDaftarKerjaLab } | null>(null)
+const bukaInput = ref(false)
+const nilaiInput = ref('')
+const catatanInput = ref('')
+const galatInput = ref<unknown>(null)
+const galatIsian = ref<string | null>(null)
+const menyimpan = ref(false)
+const jenisInput = computed(() => sasaranInput.value?.butir.hasil?.jenis_hasil ?? null)
+function mintaInput(baris: BarisDaftarKerjaLab, butir: ButirDaftarKerjaLab) {
+  sasaranInput.value = { baris, butir }
+  nilaiInput.value = ''
+  catatanInput.value = butir.hasil?.catatan ?? ''
+  galatInput.value = null
+  galatIsian.value = null
+  fokusHasil = false
+  bukaInput.value = true
+}
+const petunjukInput = computed(() => {
+  const h = sasaranInput.value?.butir.hasil
+  if (h?.jenis_hasil === 'teks') return 'Teks hasil, paling banyak 500 karakter.'
+  if (h?.jenis_hasil === 'numerik') return `Angka, koma untuk desimal${h.satuan ? `. Satuan ${h.satuan}` : ''}.`
+  return 'Angka (koma untuk desimal) atau teks, sesuai jenis pemeriksaan. Satuan dan penanda diisi server dari data induk RS.'
+})
+const kolomInput = computed(() => errorKolom(galatInput.value, ['nilai', 'nilai_teks', 'catatan']))
+const errorNilaiInput = computed(() => galatIsian.value ?? kolomInput.value.nilai ?? kolomInput.value.nilai_teks ?? null)
+const pesanInput = computed(() => (galatInput.value && !errorNilaiInput.value && !kolomInput.value.catatan ? pesanGalatLab(galatInput.value) : null))
+/** Jenis hasil belum diketahui dan server menjawab "berupa teks": kirim ulang sekali sebagai teks. */
+const mintaTeks = (e: unknown) => e instanceof ApiError && e.kode === 'validasi_gagal' && e.rincian.some((r) => r.kolom === 'nilai_teks')
+async function simpanInput() {
+  const s = sasaranInput.value
+  galatInput.value = null
+  const baca = bacaIsianHasil(nilaiInput.value, jenisInput.value)
+  galatIsian.value = 'galat' in baca ? baca.galat : null
+  if (!s || 'galat' in baca) return
+  menyimpan.value = true
+  const catatan = catatanInput.value.trim() || null
+  try {
+    let h: HasilLab
+    try {
+      h = await inputHasilLab(s.butir.id, { ...baca.isian, catatan })
+    } catch (e) {
+      if (jenisInput.value !== null || baca.isian.nilai === undefined || !mintaTeks(e)) throw e
+      const ulang: IsianHasilLab = { nilai_teks: nilaiInput.value.trim(), catatan }
+      h = await inputHasilLab(s.butir.id, ulang)
+    }
+    bukaInput.value = false
+    await berhasil(`Hasil ${s.butir.nama} untuk ${s.baris.pasien.nama} tersimpan: ${ringkasHasil(h)}. Menunggu validasi.`)
+  } catch (e) {
+    if (perluMuatUlang(e)) await segarkan()
+    galatInput.value = e
+  } finally {
+    menyimpan.value = false
+  }
+}
+
+// ── Validasi analis / otorisasi Sp.PK ──
+const sasaranValidasi = ref<{ baris: BarisDaftarKerjaLab; butir: ButirDaftarKerjaLab; hasil: HasilLab } | null>(null)
+const bukaValidasi = ref(false)
+const galatValidasi = ref<unknown>(null)
+const memvalidasi = ref(false)
+const otorisasi = computed(() => sasaranValidasi.value?.hasil.status === 'menunggu_otorisasi')
+function mintaValidasi(baris: BarisDaftarKerjaLab, butir: ButirDaftarKerjaLab) {
+  if (!butir.hasil) return
+  sasaranValidasi.value = { baris, butir, hasil: butir.hasil }
+  galatValidasi.value = null
+  fokusHasil = false
+  bukaValidasi.value = true
+}
+const uraianValidasi = computed(() => {
+  const h = sasaranValidasi.value?.hasil
+  if (!h) return ''
+  if (h.status === 'menunggu_otorisasi') return 'Sesudah diotorisasi, hasil keluar ke pemesan dan penanggung jawab pasien dan tidak bisa diubah lagi. Koreksi lewat adendum.'
+  if (h.butuh_otorisasi_spk) return 'Pemeriksaan ini butuh otorisasi Sp.PK. Sesudah divalidasi, hasil menunggu otorisasi oleh Sp.PK lain.'
+  return 'Sesudah divalidasi, hasil keluar ke pemesan dan penanggung jawab pasien dan tidak bisa diubah lagi. Koreksi lewat adendum.'
+})
+async function validasi() {
+  const s = sasaranValidasi.value
+  if (!s) return
+  memvalidasi.value = true
+  galatValidasi.value = null
+  try {
+    const h = await validasiHasilLab(s.hasil.id)
+    bukaValidasi.value = false
+    const akhir = h.status === 'divalidasi' ? 'Hasil keluar ke pemesan dan penanggung jawab pasien.' : 'Menunggu otorisasi Sp.PK.'
+    await berhasil(`Hasil ${s.butir.nama} untuk ${s.baris.pasien.nama} ${otorisasi.value ? 'diotorisasi' : 'divalidasi'}. ${akhir}`)
+  } catch (e) {
+    if (perluMuatUlang(e)) await segarkan()
+    galatValidasi.value = e
+  } finally {
+    memvalidasi.value = false
+  }
+}
+
+// ── Adendum ──
+const sasaranAdendum = ref<HasilLab | null>(null)
+const bukaAdendum = ref(false)
+function mintaAdendum(_baris: BarisDaftarKerjaLab, butir: ButirDaftarKerjaLab) {
+  if (!butir.hasil) return
+  sasaranAdendum.value = butir.hasil
+  fokusHasil = false
+  bukaAdendum.value = true
+}
+async function adendumSelesai(h: HasilLab) {
+  const a = h.adendum[h.adendum.length - 1]
+  await berhasil(`Adendum ${h.nama} untuk ${h.pasien.nama} tercatat${a ? `: ${ringkasHasil({ ...h, ...a })}` : ''}. Hasil asli tetap tersimpan.`)
 }
 </script>
 
@@ -112,22 +264,36 @@ async function terima() {
       <div v-if="hasil" ref="elHasil" class="hasil" tabindex="-1">
         <Pesan jenis="ok" role="status">{{ hasil }}</Pesan>
       </div>
-      <SeksiDaftarKerja
-        prioritas="cito"
-        judul="Cito"
-        uraian="Kerjakan lebih dulu. Order keluar dari daftar sesudah semua pemeriksaannya diterima di lab."
-        teks-kosong="Tidak ada order cito yang menunggu."
-        @ambil="mintaAmbil"
-        @terima="mintaTerima"
-      />
-      <SeksiDaftarKerja
-        prioritas="rutin"
-        judul="Rutin"
-        uraian="Order rutin, terlama di atas."
-        teks-kosong="Tidak ada order rutin yang menunggu. Order muncul sesudah dokter mengirim order laboratorium."
-        @ambil="mintaAmbil"
-        @terima="mintaTerima"
-      />
+      <Tabs v-model="tahap" label="Tahap" :daftar="daftarTahap">
+        <template v-for="t in daftarTahap" :key="t.nilai" #[t.nilai]>
+          <div class="tumpukan">
+            <SeksiDaftarKerja
+              prioritas="cito"
+              judul="Cito"
+              :tahap="t.nilai"
+              :uraian="TEKS_TAHAP[t.nilai].cito"
+              :teks-kosong="TEKS_TAHAP[t.nilai].kosongCito"
+              @ambil="mintaAmbil"
+              @terima="mintaTerima"
+              @input="mintaInput"
+              @validasi="mintaValidasi"
+              @adendum="mintaAdendum"
+            />
+            <SeksiDaftarKerja
+              prioritas="rutin"
+              judul="Rutin"
+              :tahap="t.nilai"
+              :uraian="TEKS_TAHAP[t.nilai].rutin"
+              :teks-kosong="TEKS_TAHAP[t.nilai].kosongRutin"
+              @ambil="mintaAmbil"
+              @terima="mintaTerima"
+              @input="mintaInput"
+              @validasi="mintaValidasi"
+              @adendum="mintaAdendum"
+            />
+          </div>
+        </template>
+      </Tabs>
     </div>
 
     <Dialog
@@ -208,6 +374,90 @@ async function terima() {
         <Tombol varian="utama" :sibuk="menerima" @click="terima">Terima di lab</Tombol>
       </template>
     </Dialog>
+
+    <Dialog
+      v-model:open="bukaInput"
+      :judul="sasaranInput ? `${sasaranInput.butir.hasil ? 'Input ulang hasil' : 'Input hasil'} ${sasaranInput.butir.nama}` : 'Input hasil'"
+      uraian="Penanda rendah, tinggi, atau kritis dihitung server dari nilai rujukan RS. Hasil bisa diinput ulang selama belum divalidasi."
+      lebar="lebar"
+      :sibuk="menyimpan"
+      :fokus-sesudah-tutup="fokusSesudahTutup"
+    >
+      <dl v-if="sasaranInput" class="ringkas">
+        <div>
+          <dt>Pasien</dt>
+          <dd>{{ identitasPasien(sasaranInput.baris) }}</dd>
+        </div>
+        <div>
+          <dt>Pemeriksaan</dt>
+          <dd><code>{{ sasaranInput.butir.kode_item }}</code> {{ sasaranInput.butir.nama }}</dd>
+        </div>
+        <div v-if="sasaranInput.butir.spesimen">
+          <dt>Spesimen</dt>
+          <dd><code>{{ sasaranInput.butir.spesimen.barcode }}</code> · {{ sasaranInput.butir.spesimen.jenis }}</dd>
+        </div>
+        <div v-if="sasaranInput.butir.hasil">
+          <dt>Hasil sebelumnya</dt>
+          <dd class="biasa"><TampilanHasilLab :hasil="sasaranInput.butir.hasil" /></dd>
+        </div>
+      </dl>
+      <form id="form-input-hasil" class="form" novalidate @submit.prevent="simpanInput">
+        <KolomIsian v-slot="a" label="Hasil" wajib :petunjuk="petunjukInput" :error="errorNilaiInput ?? undefined">
+          <input v-bind="a" v-model="nilaiInput" type="text" class="isian" maxlength="500" autocomplete="off" :inputmode="jenisInput === 'numerik' ? 'decimal' : 'text'" />
+        </KolomIsian>
+        <KolomIsian v-slot="a" label="Catatan" petunjuk="Opsional, paling banyak 1.000 karakter." :error="kolomInput.catatan">
+          <textarea v-bind="a" v-model="catatanInput" class="isian" rows="2" maxlength="1000"></textarea>
+        </KolomIsian>
+      </form>
+      <div role="alert">
+        <div v-if="pesanInput" class="blok-galat">
+          <Pesan jenis="error">{{ pesanInput }}</Pesan>
+        </div>
+      </div>
+      <template #aksi>
+        <Tombol :disabled="menyimpan || undefined" @click="bukaInput = false">Batal</Tombol>
+        <Tombol type="submit" form="form-input-hasil" varian="utama" :sibuk="menyimpan">Simpan hasil</Tombol>
+      </template>
+    </Dialog>
+
+    <Dialog
+      v-model:open="bukaValidasi"
+      :judul="sasaranValidasi ? `${otorisasi ? 'Otorisasi' : 'Validasi'} hasil ${sasaranValidasi.butir.nama}` : 'Validasi hasil'"
+      :uraian="uraianValidasi"
+      lebar="lebar"
+      :sibuk="memvalidasi"
+      :fokus-sesudah-tutup="fokusSesudahTutup"
+    >
+      <dl v-if="sasaranValidasi" class="ringkas">
+        <div>
+          <dt>Pasien</dt>
+          <dd>{{ identitasPasien(sasaranValidasi.baris) }}</dd>
+        </div>
+        <div>
+          <dt>Pemeriksaan</dt>
+          <dd><code>{{ sasaranValidasi.butir.kode_item }}</code> {{ sasaranValidasi.butir.nama }}</dd>
+        </div>
+        <div>
+          <dt>Hasil</dt>
+          <dd class="biasa"><TampilanHasilLab :hasil="sasaranValidasi.hasil" /></dd>
+        </div>
+        <div v-if="otorisasi">
+          <dt>Divalidasi analis</dt>
+          <dd>{{ sasaranValidasi.hasil.divalidasi_oleh?.nama ?? 'Tidak tercatat' }}</dd>
+        </div>
+      </dl>
+      <div role="alert">
+        <div v-if="galatValidasi" class="blok-galat">
+          <Pesan jenis="error">{{ pesanGalatLab(galatValidasi) }}</Pesan>
+        </div>
+      </div>
+      <template #aksi>
+        <Tombol :disabled="memvalidasi || undefined" @click="bukaValidasi = false">Batal</Tombol>
+        <Tombol varian="utama" :sibuk="memvalidasi" @click="validasi">{{ otorisasi ? 'Otorisasi hasil' : 'Validasi hasil' }}</Tombol>
+      </template>
+    </Dialog>
+
+    <DialogAdendumHasilLab v-model:open="bukaAdendum" :hasil="sasaranAdendum" :fokus-sesudah-tutup="fokusSesudahTutup" @selesai="adendumSelesai" @muat-ulang="segarkan" />
   </HalamanModul>
 </template>
 
@@ -234,6 +484,9 @@ async function terima() {
 .ringkas dd {
   margin: 0;
   font-weight: var(--font-weight-semibold);
+}
+.ringkas dd.biasa {
+  font-weight: inherit;
 }
 .form {
   display: grid;
