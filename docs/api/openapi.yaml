@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Karsitara SIMRS API
-  version: 0.40.0
+  version: 0.41.0
   description: |
     Kontrak API untuk alur kerja per halaman (PRD D.5). Kebutuhan dan aturan tetap di docs/prd.md;
     berkas ini hanya bentuk permintaan/respons. Frontend membuat data tiruan dari berkas ini,
@@ -232,6 +232,15 @@ info:
     cakupan RS. Barcode `LAB-YYYYMMDD-00001`. Skema baru `BarisDaftarKerjaLab`, `Spesimen`; `StatusPermintaanItem` +
     `sampel_diambil`, `diterima_lab`. Batal order (2.16) → 409 `status_tidak_sesuai` bila ada butir `diterima_lab`;
     `dapat.batal` ikut false.
+    v0.41.0: Lab hasil, nilai rujukan data induk, validasi, hasil mengikuti pasien (tiket 2.31; FR-19-02, FR-19-05,
+    FR-19-06, FR-00-09, 7.00.5 butir 2–3): POST /permintaan-item/{id}/hasil (`penunjang.laboratorium.input`), POST
+    /hasil-lab/{id}/validasi (validasi analis `penunjang.laboratorium.sahkan` atau otorisasi Sp.PK
+    `penunjang.laboratorium.setujui`, ditentukan server dari status), POST /hasil-lab/{id}/adendum
+    (`penunjang.laboratorium.sahkan`), GET /episode/{id}/hasil-lab (linimasa hasil tervalidasi). Skema baru `HasilLab`,
+    `AdendumHasilLab`, `PenandaHasilLab`; `StatusPermintaanItem` + `menunggu_validasi`, `menunggu_otorisasi`,
+    `divalidasi`. GET /lab/daftar-kerja + parameter opsional `tahap` (`spesimen` bawaan | `hasil` | `otorisasi`); baris
+    butir + `hasil` dan `dapat.input`/`dapat.validasi` (opsional). Batal order → 409 bila ada butir sesudah
+    `sampel_diambil`.
 servers:
   - url: /api/v1
 security:
@@ -7955,7 +7964,8 @@ paths:
       description: |
         Izin: rawat_jalan.pemeriksaan.order.batal, cakupan unit kunjungan permintaan. Hanya status `dipesan` (belum diterima
         penunjang; selain itu 409 `status_tidak_sesuai`). v0.40.0: ada butir `diterima_lab` → 409 `status_tidak_sesuai`;
-        butir `sampel_diambil` masih boleh dibatalkan. Permintaan dan semua butirnya → `batal`, `alasan_batal`,
+        butir `sampel_diambil` masih boleh dibatalkan. v0.41.0: ada butir berstatus selain `dipesan`, `sampel_diambil`,
+        atau `batal` (diterima lab, menunggu validasi/otorisasi, divalidasi) → 409 `status_tidak_sesuai`. Permintaan dan semua butirnya → `batal`, `alasan_batal`,
         `dibatalkan_oleh`, `dibatalkan_pada`; baris tetap tersimpan. Boleh sesudah kunjungan selesai selama masih
         `dipesan`. Audit `permintaan.pemeriksaan_dibatalkan` + id.
       requestBody:
@@ -7985,8 +7995,12 @@ paths:
         tetap dikirim selama order masih aktif. Data pasien = nama, No. RM, tanggal lahir (tanpa NIK, alamat, diagnosis
         medis; `diagnosis_kerja` = indikasi klinis order (2.16)).
         Batas laju layar kerja.
+        v0.41.0 `tahap` (opsional): `spesimen` (bawaan, perilaku di atas), `hasil` (order yang punya butir `diterima_lab`
+        atau `menunggu_validasi`: input hasil dan validasi analis), `otorisasi` (order yang punya butir
+        `menunggu_otorisasi`: otorisasi Sp.PK). Butir `divalidasi` tidak membuat order masuk tahap mana pun.
       parameters:
         - { in: query, name: prioritas, required: true, schema: { $ref: '#/components/schemas/PrioritasPermintaan' } }
+        - { in: query, name: tahap, required: false, schema: { type: string, enum: [spesimen, hasil, otorisasi], default: spesimen } }
         - $ref: '#/components/parameters/Kursor'
         - $ref: '#/components/parameters/Batas'
       responses:
@@ -8061,6 +8075,150 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
+  /permintaan-item/{id}/hasil:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: inputHasilLab
+      summary: Input (atau input ulang sebelum validasi) hasil satu butir order lab
+      description: |
+        Izin: penunjang.laboratorium.input cakupan RS. Butir tidak ada atau bukan order lab → 404. Order atau butir batal,
+        atau butir bukan `diterima_lab`/`menunggu_validasi` → 409 `status_tidak_sesuai`; butir `divalidasi` → 409
+        `hasil_sudah_divalidasi` (koreksi lewat adendum). Butir tanpa data induk pemeriksaan lab aktif (`lab.pemeriksaan`
+        untuk tarif butir) → 422 `pemeriksaan_lab_belum_diatur`. Satu butir = satu hasil (panel menyusul).
+        Isian sesuai jenis hasil data induk: `numerik` → `nilai` wajib, `nilai_teks` dilarang; `teks` → sebaliknya
+        (selain itu 422 `validasi_gagal`). Penanda dihitung server dari data induk aktif (FR-19-06): nilai rujukan per
+        pemeriksaan × umur (hari, tanggal lahir → tanggal spesimen diambil, zona RS, rentang [min, maks)) × jenis kelamin
+        (baris JK pasien didahulukan, lalu baris semua JK). Numerik: `ll`/`hh` di luar batas kritis, `l`/`h` di luar
+        rujukan, selain itu null. Teks: `kritis` bila cocok salah satu nilai kritis teks (tanpa beda huruf besar/kecil),
+        selain itu null. Tanpa nilai rujukan yang cocok → `penanda` null dan `peringatan` `nilai_rujukan_tidak_ada`
+        (tersimpan), tanpa nilai karangan. Input pertama → 201, butir → `menunggu_validasi`; input ulang sebelum
+        validasi menimpa nilai (200, revisi naik). Penginput boleh sama dengan validator. Audit `lab.hasil_diinput`
+        (id butir; tanpa nilai).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                nilai: { type: [number, 'null'], description: "Wajib untuk jenis hasil numerik" }
+                nilai_teks: { type: [string, 'null'], minLength: 1, maxLength: 500, description: "Wajib untuk jenis hasil teks" }
+                catatan: { type: [string, 'null'], maxLength: 1000 }
+      responses:
+        '200':
+          description: Hasil sesudah input ulang
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/HasilLab' } } }
+        '201':
+          description: Hasil tercatat, menunggu validasi
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/HasilLab' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /hasil-lab/{id}/validasi:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: validasiHasilLab
+      summary: Validasi analis atau otorisasi Sp.PK satu hasil lab (tahap ditentukan server)
+      description: |
+        Hasil tidak ada → 404. Status `menunggu_validasi`: izin penunjang.laboratorium.sahkan cakupan RS (validasi analis);
+        pemeriksaan bertanda `butuh_otorisasi_spk` → `menunggu_otorisasi`, selain itu → `divalidasi`. Status
+        `menunggu_otorisasi`: izin penunjang.laboratorium.setujui cakupan RS (bersyarat SIP/SPK berlaku, lapis 5);
+        akun yang memvalidasi → 409 `sudah_memvalidasi` (empat mata, FR-19-05); berhasil → `divalidasi`. Status
+        `divalidasi` → 409 `hasil_sudah_divalidasi`; order atau butir batal → 409 `status_tidak_sesuai`.
+        Saat `divalidasi` (hasil keluar), di transaksi yang sama (FR-00-09, 7.00.5 butir 2): tugas kotak kerja
+        `HASIL_LAB_TINDAK_LANJUT` ke penanggung jawab pasien saat itu (TT aktif → DPJP kunjungan rawat inap, tanpa akun →
+        unit bangsal; kunjungan IGD aktif → dokter kunjungan IGD; selain itu → pemesan), dan notifikasi informasi ke
+        pemesan bila pemesan bukan penanggung jawab itu. Judul tanpa data pasien dan tanpa nilai. Audit
+        `lab.hasil_divalidasi` / `lab.hasil_diotorisasi` (id hasil; tanpa nilai).
+      responses:
+        '200':
+          description: Hasil sesudah divalidasi atau diotorisasi
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/HasilLab' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /hasil-lab/{id}/adendum:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      operationId: adendumHasilLab
+      summary: Koreksi hasil lab tervalidasi lewat adendum bertanda (hasil asli tidak diubah)
+      description: |
+        Izin: penunjang.laboratorium.sahkan cakupan RS. Hasil tidak ada → 404; hasil belum `divalidasi` → 409
+        `status_tidak_sesuai`. Isian sesuai jenis hasil seperti input hasil, `alasan` wajib. Penanda dan peringatan
+        dihitung ulang dari data induk aktif (umur pada tanggal spesimen). Baris adendum baru; nilai hasil asli tetap.
+        Tanpa TTE. Tugas `HASIL_LAB_TINDAK_LANJUT` dan notifikasi pemesan dibuat lagi seperti validasi, bertanda adendum.
+        Audit `lab.hasil_adendum` (id hasil; tanpa nilai). Respons = hasil beserta semua adendumnya.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alasan]
+              additionalProperties: false
+              properties:
+                nilai: { type: [number, 'null'] }
+                nilai_teks: { type: [string, 'null'], minLength: 1, maxLength: 500 }
+                alasan: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        '201':
+          description: Adendum tercatat
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema: { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/HasilLab' } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /episode/{id}/hasil-lab:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      operationId: linimasaHasilLabEpisode
+      summary: Linimasa hasil lab tervalidasi satu episode (terbaru dulu), adendum di dalam tiap hasil
+      description: |
+        Izin: rawat_jalan.pemeriksaan.lihat, cakupan unit salah satu kunjungan episode ini (pola daftar order episode;
+        akses darurat aktif dicatat sebagai baca). Episode tidak ada → 404; di luar cakupan → 403. Hanya hasil
+        `divalidasi`; urut `(dikeluarkan_pada, id)` terbaru dulu. Hasil order dari poli bertanda sensitif hanya dikirim
+        bila unitnya dalam cakupan akun (9.2.5). Membuka linimasa menyelesaikan tugas `HASIL_LAB_TINDAK_LANJUT` terbuka
+        milik akun ini (langsung, lewat peran, atau unit cakupannya) untuk hasil di halaman itu.
+      parameters:
+        - $ref: '#/components/parameters/Kursor'
+        - $ref: '#/components/parameters/Batas'
+      responses:
+        '200':
+          description: Satu halaman hasil (bisa kosong)
+          headers: { Cache-Control: { schema: { type: string, const: no-store } } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/HasilLab' } }
+                  meta: { $ref: '#/components/schemas/MetaKursor' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /depo:
     get:
       operationId: daftarDepo
@@ -11873,8 +12031,8 @@ components:
       description: "Tahap penerimaan, sampling, dan hasil (Tahap C) menambah nilai tanpa memecah klien"
     StatusPermintaanItem:
       type: string
-      enum: [dipesan, sampel_diambil, diterima_lab, batal]
-      description: "Status per butir; tahap penunjang (Tahap C) menambah nilai tanpa memecah klien. v0.40.0 (2.30): sampel_diambil, diterima_lab (lab)"
+      enum: [dipesan, sampel_diambil, diterima_lab, menunggu_validasi, menunggu_otorisasi, divalidasi, batal]
+      description: "Status per butir; tahap penunjang (Tahap C) menambah nilai tanpa memecah klien. v0.40.0 (2.30): sampel_diambil, diterima_lab (lab). v0.41.0 (2.31): menunggu_validasi, menunggu_otorisasi (Sp.PK), divalidasi (lab)"
     PermintaanPemeriksaan:
       type: object
       required: [id, kunjungan_id, episode_id, jenis, prioritas, diagnosis_kerja, catatan, alasan_ganda, status, pemesan,
@@ -11908,7 +12066,7 @@ components:
         dapat:
           type: object
           required: [batal]
-          description: "true bila akun punya rawat_jalan.pemeriksaan.order.batal dalam cakupan unit kunjungan, status `dipesan`, dan belum ada butir `diterima_lab` (v0.40.0)"
+          description: "true bila akun punya rawat_jalan.pemeriksaan.order.batal dalam cakupan unit kunjungan, status `dipesan`, dan semua butir masih `dipesan`, `sampel_diambil`, atau `batal` (v0.40.0, v0.41.0)"
           properties:
             batal: { type: boolean }
     LokasiPengambilanSpesimen:
@@ -11989,13 +12147,104 @@ components:
                 oneOf:
                   - { type: 'null' }
                   - { $ref: '#/components/schemas/Spesimen' }
+              hasil:
+                description: "Opsional (v0.41.0). Hasil butir ini bila sudah diinput (status apa pun), selain itu null"
+                oneOf:
+                  - { type: 'null' }
+                  - { $ref: '#/components/schemas/HasilLab' }
               dapat:
                 type: object
                 required: [ambil, terima]
-                description: "Opsional. ambil = butir `dipesan` dan izin input; terima = butir `sampel_diambil` dan izin verifikasi"
+                description: |
+                  Opsional. ambil = butir `dipesan` dan izin input; terima = butir `sampel_diambil` dan izin verifikasi.
+                  v0.41.0 (opsional): input = butir `diterima_lab`/`menunggu_validasi` dan izin input; validasi = butir
+                  `menunggu_validasi` dan izin sahkan, atau `menunggu_otorisasi`, izin setujui, dan akun bukan validatornya
                 properties:
                   ambil: { type: boolean }
                   terima: { type: boolean }
+                  input: { type: boolean }
+                  validasi: { type: boolean }
+    PenandaHasilLab:
+      type: [string, 'null']
+      enum: [l, h, ll, hh, kritis, null]
+      description: |
+        Dihitung server dari data induk aktif (FR-19-06): l/h = di luar nilai rujukan, ll/hh = di luar batas kritis
+        (numerik), kritis = cocok nilai kritis teks. null = dalam rujukan, atau tanpa nilai rujukan (lihat `peringatan`).
+    AdendumHasilLab:
+      type: object
+      required: [id, hasil_id, nilai, nilai_teks, satuan, rujukan_min, rujukan_maks, kritis_min, kritis_maks, penanda, kritis,
+        peringatan, alasan, dibuat_oleh, dibuat_pada]
+      description: "Koreksi hasil tervalidasi (FR-26-06, 7.00.5 butir 3). Hasil asli tidak berubah."
+      properties:
+        id: { type: string, format: uuid }
+        hasil_id: { type: string, format: uuid }
+        nilai: { type: [number, 'null'] }
+        nilai_teks: { type: [string, 'null'] }
+        satuan: { type: [string, 'null'] }
+        rujukan_min: { type: [number, 'null'] }
+        rujukan_maks: { type: [number, 'null'] }
+        kritis_min: { type: [number, 'null'] }
+        kritis_maks: { type: [number, 'null'] }
+        penanda: { $ref: '#/components/schemas/PenandaHasilLab' }
+        kritis: { type: boolean, description: "penanda ll, hh, atau kritis" }
+        peringatan: { type: [string, 'null'], enum: [nilai_rujukan_tidak_ada, null] }
+        alasan: { type: string }
+        dibuat_oleh: { $ref: '#/components/schemas/Pelaku' }
+        dibuat_pada: { type: string, format: date-time }
+    HasilLab:
+      type: object
+      required: [id, permintaan_item_id, permintaan_pemeriksaan_id, episode_id, kode_item, nama, status, jenis_hasil, nilai,
+        nilai_teks, satuan, kode_loinc, rujukan_min, rujukan_maks, kritis_min, kritis_maks, penanda, kritis, peringatan, catatan,
+        butuh_otorisasi_spk, pasien, diinput_oleh, diinput_pada, divalidasi_oleh, divalidasi_pada, diotorisasi_oleh,
+        diotorisasi_pada, dikeluarkan_pada, adendum, dapat]
+      description: |
+        Hasil lab satu butir order (tiket 2.31, PRD 11.2 `lab.hasil`). Batas rujukan/kritis = salinan baris nilai rujukan
+        yang dipakai saat dihitung (null bila tidak ada). Data pasien = penanda identitas yang sama dengan daftar kerja lab.
+      properties:
+        id: { type: string, format: uuid }
+        permintaan_item_id: { type: string, format: uuid }
+        permintaan_pemeriksaan_id: { type: string, format: uuid }
+        episode_id: { type: string, format: uuid }
+        kode_item: { type: string }
+        nama: { type: string }
+        status: { type: string, enum: [menunggu_validasi, menunggu_otorisasi, divalidasi] }
+        jenis_hasil: { type: string, enum: [numerik, teks] }
+        nilai: { type: [number, 'null'] }
+        nilai_teks: { type: [string, 'null'] }
+        satuan: { type: [string, 'null'], description: "UCUM, dari data induk" }
+        kode_loinc: { type: [string, 'null'] }
+        rujukan_min: { type: [number, 'null'] }
+        rujukan_maks: { type: [number, 'null'] }
+        kritis_min: { type: [number, 'null'] }
+        kritis_maks: { type: [number, 'null'] }
+        penanda: { $ref: '#/components/schemas/PenandaHasilLab' }
+        kritis: { type: boolean, description: "penanda ll, hh, atau kritis (dipakai pelaporan nilai kritis 2.32)" }
+        peringatan: { type: [string, 'null'], enum: [nilai_rujukan_tidak_ada, null] }
+        catatan: { type: [string, 'null'] }
+        butuh_otorisasi_spk: { type: boolean }
+        pasien:
+          type: object
+          required: [id, no_rm, nama, tanggal_lahir]
+          properties:
+            id: { type: string, format: uuid }
+            no_rm: { type: string, pattern: '^[0-9]{1,12}$' }
+            nama: { type: string }
+            tanggal_lahir: { type: [string, 'null'], format: date }
+        diinput_oleh: { $ref: '#/components/schemas/Pelaku' }
+        diinput_pada: { type: string, format: date-time }
+        divalidasi_oleh: { $ref: '#/components/schemas/Pelaku' }
+        divalidasi_pada: { type: [string, 'null'], format: date-time, description: "Validasi analis" }
+        diotorisasi_oleh: { $ref: '#/components/schemas/Pelaku' }
+        diotorisasi_pada: { type: [string, 'null'], format: date-time, description: "Otorisasi Sp.PK" }
+        dikeluarkan_pada: { type: [string, 'null'], format: date-time, description: "Jam hasil final (status divalidasi)" }
+        adendum: { type: array, items: { $ref: '#/components/schemas/AdendumHasilLab' }, description: "Urut dibuat_pada naik" }
+        dapat:
+          type: object
+          required: [input, validasi, adendum]
+          properties:
+            input: { type: boolean }
+            validasi: { type: boolean }
+            adendum: { type: boolean }
     RingkasDepo:
       type: object
       required: [id, kode, nama]
