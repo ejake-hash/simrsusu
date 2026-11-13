@@ -178,6 +178,8 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
   ])
   tambahPeran(uid(104), 'contoh_dokter', 'Contoh Dokter', izinMenu(pohon, ['igd', 'rawat_jalan', 'rekam_medis']))
   // 2.40-fe: DPJP rawat inap (seeder: dokter.poli) menyusun, memulangkan, dan mengesahkan resume medis; membaca rencana pulang.
+  // 2.30-fe: analis lab (seeder: analis) melihat daftar kerja lab, mengambil sampel, dan menerima spesimen.
+  tambahPeran(uid(115), 'contoh_analis', 'Contoh Analis Lab', ['lihat', 'input', 'verifikasi'].map((a) => `penunjang.laboratorium.${a}`))
   tambahPeran(uid(114), 'contoh_dpjp_rawat_inap', 'Contoh DPJP Rawat Inap', [
     ...['lihat', 'input', 'sahkan'].map((a) => `rawat_inap.pemulangan.${a}`), 'rawat_inap.rencana_pulang.lihat', 'rawat_inap.peta_tempat_tidur.lihat',
   ])

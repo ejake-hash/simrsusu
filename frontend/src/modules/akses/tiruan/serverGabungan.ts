@@ -9,6 +9,7 @@ import { buatServerRawatJalan } from '../../rawat-jalan/tiruan/serverRawatJalan'
 import { buatServerPermintaanKamar } from '../../rawat-inap/tiruan/serverPermintaanKamar'
 import { buatServerPetaTempatTidur } from '../../rawat-inap/tiruan/serverPetaTempatTidur'
 import { buatServerPemulangan } from '../../rawat-inap/tiruan/serverPemulangan'
+import { buatServerLab } from '../../lab/tiruan/serverLab'
 import { buatServerPenjamin } from '../../penjamin/tiruan/serverPenjamin'
 import { buatServerLokasi } from '../../organisasi/tiruan/serverLokasi'
 import { buatServerJadwal } from '../../jadwal-praktik/tiruan/serverJadwal'
@@ -49,6 +50,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     akses.tambahPenugasanDev('contoh_pendaftaran')
     akses.tambahPenugasanDev('contoh_perawat')
     akses.tambahPenugasanDev('contoh_dpjp_rawat_inap')
+    akses.tambahPenugasanDev('contoh_analis')
   }
   unitMilikSaya = akses.unitMilikSaya
   const lokasi = buatServerLokasi({ unit: organisasi.ringkasUnit, unitContoh: organisasi.akar.irna, sekarang: opsi.sekarang })
@@ -118,6 +120,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
   // 2.40: DPJP kunjungan RI contoh = dokter contoh SDM; akun yang masuk dianggap pegawai itu kecuali uji menggantinya.
   const dpjpRawatInap = { id: sdm.contoh.dokter, nama: sdm.ringkasPegawai(sdm.contoh.dokter)?.nama ?? 'Contoh Dokter' }
   let pegawaiPemulangan: () => string | null = () => dpjpRawatInap.id
+  const lab = buatServerLab({ boleh: akses.bolehSaya, sekarang: opsi.sekarang })
   const pemulangan = buatServerPemulangan({
     boleh: akses.bolehSaya,
     tempatTidur: petaTempatTidur.daftar,
@@ -186,6 +189,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     petaTempatTidur,
     permintaanKamar,
     pemulangan,
+    lab,
     /** Uji: pegawai akun yang masuk (bukan DPJP → sahkan 403 bukan_pemutus). */
     aturPegawaiPemulangan: (f: () => string | null) => (pegawaiPemulangan = f),
     dpjpRawatInap,
@@ -195,7 +199,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
         return { status: 403, isi: { error: { kode: 'wajib_ganti_sandi', pesan: 'Ganti sandi awal Anda lebih dulu.', rincian: [] } } }
       }
       // Peta TT sebelum lokasi: server lokasi menangani seluruh /tempat-tidur/* (data induk), termasuk /status.
-      return akses.tangani(r) ?? organisasi.tangani(r) ?? petaTempatTidur.tangani(r) ?? permintaanKamar.tangani(r) ?? pemulangan.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? matriks.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r) ?? instrumenTriase.tangani(r) ?? papanIgd.tangani(r) ?? formularium.tangani(r) ?? pasien.tangani(r) ?? kunjungan.tangani(r) ?? rawatJalan.tangani(r)
+      return akses.tangani(r) ?? organisasi.tangani(r) ?? petaTempatTidur.tangani(r) ?? permintaanKamar.tangani(r) ?? pemulangan.tangani(r) ?? lab.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? matriks.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r) ?? instrumenTriase.tangani(r) ?? papanIgd.tangani(r) ?? formularium.tangani(r) ?? pasien.tangani(r) ?? kunjungan.tangani(r) ?? rawatJalan.tangani(r)
     },
   }
 }

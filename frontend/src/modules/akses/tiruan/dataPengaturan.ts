@@ -60,6 +60,8 @@ const AKSI_KHUSUS: Record<string, [JenisAksi, boolean][]> = {
   'rawat_jalan.cppt': [['sahkan', false]],
   // Pengesahan resume medis oleh DPJP dengan PIN T1 (2.40).
   'rawat_inap.pemulangan': [['sahkan', false]],
+  // Terima spesimen di lab (2.30).
+  'penunjang.laboratorium': [['verifikasi', false]],
   'rekam_medis.pelepasan': [['setujui', true], ['ekspor', true]],
   // Usulan data induk (1.8c-be: aksi verifikasi/setujui di MenuBawaan; pemisahan tugas dijaga server).
   'master_data.usulan': [['verifikasi', false], ['setujui', false]],
@@ -78,7 +80,7 @@ const BAGIAN: Record<string, [kode: string, label: string, ikutInduk: boolean][]
 }
 const AKSI_BAGIAN: Record<string, JenisAksi[]> = { 'sdm.pegawai.identitas': ['lihat'], 'pendaftaran.pasien.identitas': ['lihat'] }
 
-export const TERSEDIA = new Set(['beranda', 'pendaftaran.pasien', 'pendaftaran.master_pasien', 'pendaftaran.antrean', 'rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat', 'rawat_jalan.cppt', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.penjamin', 'master_data.usulan', 'master_data.jadwal_praktik', 'master_data.tarif', 'sdm.pegawai', 'farmasi.formularium', 'igd.pendaftaran', 'igd.triase', 'master_data.instrumen_triase', 'igd.disposisi', 'master_data.matriks_perpindahan', 'igd.papan', 'master_data.papan_igd', 'rawat_inap.peta_tempat_tidur', 'pendaftaran.admisi', 'rawat_inap.pemulangan', 'rawat_inap.rencana_pulang', 'master_data.daftar_periksa_pulang'])
+export const TERSEDIA = new Set(['beranda', 'pendaftaran.pasien', 'pendaftaran.master_pasien', 'pendaftaran.antrean', 'rawat_jalan.worklist', 'rawat_jalan.asesmen_perawat', 'rawat_jalan.cppt', 'pengaturan.peran', 'pengaturan.akun', 'pengaturan.persetujuan', 'pengaturan.profil_rs', 'pengaturan.keamanan', 'pengaturan.penyiapan', 'pengaturan.integrasi', 'integrasi.satusehat', 'integrasi.bpjs', 'integrasi.log', 'master_data.organisasi', 'master_data.jenis_tugas', 'master_data.penjamin', 'master_data.usulan', 'master_data.jadwal_praktik', 'master_data.tarif', 'sdm.pegawai', 'farmasi.formularium', 'igd.pendaftaran', 'igd.triase', 'master_data.instrumen_triase', 'igd.disposisi', 'master_data.matriks_perpindahan', 'igd.papan', 'master_data.papan_igd', 'rawat_inap.peta_tempat_tidur', 'pendaftaran.admisi', 'rawat_inap.pemulangan', 'rawat_inap.rencana_pulang', 'master_data.daftar_periksa_pulang', 'penunjang.laboratorium'])
 /** Modul yang dimatikan di instalasi contoh, agar penanda "modul nonaktif" ikut teruji. */
 const MODUL_NONAKTIF = new Set(['kamar_operasi'])
 

@@ -87,6 +87,7 @@ export const router = createRouter({
         { path: 'master-data/organisasi', name: 'master-data-organisasi', component: () => import('@/modules/organisasi/pages/OrganisasiPage.vue'), meta: { judul: 'Organisasi, Unit, Ruang & Tempat Tidur' } },
         { path: 'master-data/penjamin', name: 'master-data-penjamin', component: () => import('@/modules/penjamin/pages/PenjaminPage.vue'), meta: { judul: 'Penjamin' } },
         { path: 'farmasi/formularium', name: 'farmasi-formularium', component: () => import('@/modules/formularium/pages/FormulariumPage.vue'), meta: { judul: 'Formularium' } },
+        { path: 'penunjang/laboratorium', name: 'penunjang-laboratorium', component: () => import('@/modules/lab/pages/DaftarKerjaLabPage.vue'), meta: { judul: 'Daftar kerja laboratorium' } },
         { path: 'farmasi/resep', name: 'farmasi-resep', component: () => import('@/modules/farmasi/pages/AntreanResepPage.vue'), meta: { judul: 'Antrean resep' } },
         { path: 'rekam-medis/akses-darurat', name: 'rekam-medis-akses-darurat', component: () => import('@/modules/rekam-medis/pages/TinjauanAksesDaruratPage.vue'), meta: { judul: 'Tinjauan akses darurat' } },
         { path: 'master-data/jadwal-praktik', name: 'master-data-jadwal-praktik', component: () => import('@/modules/jadwal-praktik/pages/JadwalPraktikPage.vue'), meta: { judul: 'Jadwal praktik & kuota poli' } },

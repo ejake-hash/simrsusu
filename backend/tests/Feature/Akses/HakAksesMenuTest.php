@@ -133,6 +133,18 @@ class HakAksesMenuTest extends TestCase
         }
     }
 
+    public function test_sub_menu_laboratorium_tersedia_bila_modul_19_aktif(): void
+    {
+        $pengguna = $this->buatPengguna();
+        $this->tugaskan($pengguna, $this->buatPeran(['penunjang.laboratorium']));
+        DB::table('inti.modul_aktif')->insert(['id' => (string) Str::uuid7(), 'modul_no' => 19]);
+
+        $menu = $this->masukLaluMenu($pengguna)->assertOk();
+
+        $this->assertSame('aktif', $this->item($menu, 'penunjang.laboratorium')['status']);
+        $this->assertSame('/penunjang/laboratorium', $this->item($menu, 'penunjang.laboratorium')['rute']);
+    }
+
     public function test_peran_memberi_sub_menu_dan_izin_dengan_status_dari_modul_aktif(): void
     {
         $pengguna = $this->buatPengguna();
