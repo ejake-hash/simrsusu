@@ -578,7 +578,7 @@ Dirinci 9 Nov 2026 dari PRD 7.00.2–7.00.5, 7.03, 7.04, 7.05, 7.08, 7.19, 7.20,
 | 2.37 | Farmasi: penyiapan, penyerahan, PIO, kurangi stok | BE+FE | M | 2.35, 2.36 · Siap |
 | 2.38 | Farmasi: racikan dengan komponen dan BUD | BE+FE | M | 2.37 · Siap |
 | 2.39 | Farmasi: obat kronis JKN 7 + 23 hari | BE+FE | M | 2.37 · Siap |
-| 2.40 | Pemulangan: rencana pulang, resume medis ber-TTE, daftar periksa | BE+FE | M | 2.29 · Siap |
+| 2.40 | Pemulangan: rencana pulang, resume medis ber-TTE, daftar periksa | BE+FE | M | 2.29 · **Selesai** (BE+kontrak #204 v0.39.0: GET/PUT `/kunjungan/{id}/rencana-pulang` non-klinis (`rawat_inap.rencana_pulang.*`, If-Match), POST `/kunjungan/{id}/pulang` lewat sel matriks rawat_inap → pulang/aps/rujuk_keluar/meninggal dengan alasan per butir wajib, TT → dibersihkan, episode selesai, tugas `RESUME_BELUM_TTE_48J`; GET/POST resume medis (potret sumber + isian DPJP), POST `/resume-medis/{id}/sahkan` PIN T1 hanya DPJP; data induk daftar periksa pulang; status TT rencana pulang/melewati dihitung saat peta dibaca; FE #205: Rawat Inap → Pemulangan / Rencana pulang (satu layar, gerbang per rute; pasien dari peta TT; rencana + daftar periksa dengan butir kasir "Menunggu kasir (Tahap D)"; resume dengan TtdModal DPJP; dialog pulang dengan dua penanda identitas dan alasan per butir), tautan Pemulangan di peta TT, Master Data → Daftar periksa pulang (ubah berdasar, If-Match); tiga sub-menu TERSEDIA; `dokter.poli` contoh = DPJP) |
 | 2.41 | Konsul / rujukan internal antar-poli | BE+FE | S | — · Siap |
 | 2.42 | Mode display papan IGD (token perangkat) | BE+FE | M | 2.25 · Siap |
 
@@ -948,6 +948,24 @@ meninggal (FR-05-07); adendum resume sah; tindakan (modul tindakan); kirim resum
 - (tinjauan #204) Episode rawat inap ditutup saat pulang walau kunjungan poli asal SPRI di episode itu masih `dilayani`
   (tidak diblokir); penutupan/penyelesaian kunjungan poli asal perlu aturan sendiri.
 - (tinjauan #204) Data induk daftar periksa pulang baru bisa diubah/dinonaktifkan; menambah butir baru (POST) belum ada.
+Asumsi FE #205: (1) Satu layar `PemulanganPage` untuk dua sub-menu: `/rawat-inap/pemulangan` bergerbang
+`rawat_inap.pemulangan.lihat`, `/rawat-inap/rencana-pulang` bergerbang `rawat_inap.rencana_pulang.lihat`; bagian rencana
+pulang, resume, dan tombol Pulangkan tampil menurut izinnya sendiri. Ketiga sub-menu (termasuk
+`master_data.daftar_periksa_pulang`) TERSEDIA lewat migrasi `2026_11_28_100000_pemulangan_tersedia` (`pasang()` + lupakan
+cache). (2) Tanpa `?kunjungan=` layar menampilkan pasien dirawat dari GET peta TT (TT yang membawa id kunjungan); tidak ada
+endpoint daftar pasien rawat inap. Identitas dua penanda diambil dari rencana pulang, lalu resume, lalu peta TT. Tautan
+tugas `RESUME_BELUM_TTE_48J` memakai jalur yang sama. (3) Peta TT menampilkan tautan Pemulangan pada TT yang membawa id
+kunjungan bagi pemegang lihat pemulangan atau lihat rencana pulang; status "Rencana pulang" sudah berteks + ikon sejak 2.27.
+(4) Dialog pulang memberi kolom alasan untuk butir wajib manual yang belum selesai menurut rencana yang terakhir dibaca
+(centang yang belum disimpan tidak ikut); rincian 422 `daftar_periksa_belum_lengkap` menambah butir yang belum terlihat
+(akun tanpa lihat rencana pulang). 404/409 `status_tidak_sesuai` menutup dialog dan memuat ulang. (5) Resume: setiap simpan
+isian = POST susun ulang (memotret ulang sumber); tombol Sahkan nonaktif selama ada isian yang belum disimpan agar yang
+disahkan sama dengan yang dibaca. TtdModal memakai DPJP (`dpjp.id`, pegawai) sebagai penanda tangan dan pegawai akun yang
+masuk sebagai pengguna: akun lain masuk mode "minta tanda tangan" tanpa tombol tanda tangani; server tetap memutus (403
+`bukan_pemutus`). (6) Akun contoh `dokter.poli` (DPJP dari SPRI-nya) diberi `rawat_inap.pemulangan.lihat/input/sahkan` dan
+`rawat_inap.rencana_pulang.lihat` (bukan izin sensitif, tanpa MFA); perawat contoh tetap memegang rencana pulang lewat menu
+rawat inap. (7) E2E pemulangan disambung ke `admisi-rawat-inap.spec.ts` (pasien hasil pindah ruang di CTHG-2-202-4) agar
+tidak mengulang SPRI → alokasi → tempatkan; spec data induk mengubah urutan RUJUK_BALIK lalu memulihkannya.
 
 ### 2.41 · Konsul / rujukan internal antar-poli
 FR     : FR-04-04, FR-07-25; `kunjungan.rujukan` arah `internal` (11.2)

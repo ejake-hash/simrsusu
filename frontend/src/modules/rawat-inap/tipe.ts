@@ -33,8 +33,8 @@ export interface TempatTidurPeta {
   /** Hari rawat pasien yang menempati TT (v0.37.0, dari penempatan pertama; pindah ruang tidak mengulang); null = kosong. */
   hari_rawat: number | null
   /**
-   * v0.38.0: kunjungan rawat inap yang menempati TT; hanya dikirim bagi pemegang rawat_inap.pindah_ruang.input di cakupan
-   * bangsal TT (tanpa izin kunci tidak ada).
+   * v0.38.0: kunjungan rawat inap yang menempati TT; hanya dikirim bagi pemegang rawat_inap.pindah_ruang.input (dan sejak
+   * v0.39.0 rawat_inap.pemulangan.lihat atau rawat_inap.rencana_pulang.lihat) di cakupan bangsal TT; tanpa izin kunci tidak ada.
    */
   kunjungan_rawat_inap_id?: string
   /** v0.38.0 (keputusan pemilik 11 Nov 2026): dua penanda identitas, syarat sama dengan id kunjungan. Hanya untuk dialog. */
@@ -108,4 +108,121 @@ export interface RawatInap {
 export interface FilterPetaServer {
   gedung_id: string | null
   bangsal_id: string | null
+}
+
+/** Pemulangan rawat inap (kontrak v0.39.0, tiket 2.40; skema RencanaPulang, ButirDaftarPeriksaPulang, ResumeMedis). */
+export type SumberButirPulang = 'manual' | 'kejadian'
+export type StatusButirPulang = 'belum' | 'selesai' | 'menunggu_kasir'
+
+export interface ButirDaftarPeriksaPulang {
+  kode: string
+  nama: string
+  sumber: SumberButirPulang
+  wajib: boolean
+  /** menunggu_kasir = sumber kejadian (tagihan/jaminan) sampai kasir Tahap D; tidak menahan pulang. */
+  status: StatusButirPulang
+  selesai_pada: string | null
+  selesai_oleh: Pelaku | null
+  alasan_tidak_selesai: string | null
+}
+
+export interface RencanaPulang {
+  kunjungan_id: string
+  kunjungan_status: StatusKunjungan
+  pasien: RingkasPasienKunjungan
+  hari_rawat: number | null
+  /** null = belum ada rencana; daftar periksa = pratinjau butir data induk aktif. */
+  id: string | null
+  status: 'direncanakan' | 'pulang' | 'batal' | null
+  rencana_pulang_pada: string | null
+  rencana_lama_rawat: number | null
+  daftar_periksa: ButirDaftarPeriksaPulang[]
+  /** If-Match PUT; null = belum ada rencana. */
+  versi: string | null
+}
+
+export interface IsianRencanaPulang {
+  rencana_pulang_pada: string
+  rencana_lama_rawat?: number | null
+  daftar_periksa?: { kode: string; selesai: boolean }[]
+}
+
+export type TujuanPulang = 'pulang' | 'aps' | 'rujuk_keluar' | 'meninggal'
+export interface IsianPulang {
+  tujuan: TujuanPulang
+  alasan: string
+  tanggapan: { kode: string; alasan: string }[]
+}
+
+export interface IsianResumeMedis {
+  ringkasan_perjalanan: string | null
+  kondisi_pulang: string | null
+  instruksi_pulang: string | null
+  obat_pulang: string | null
+  kontrol: string | null
+}
+
+export interface CpptResume {
+  id: string
+  kunjungan_id: string
+  profesi: string
+  penulis: string
+  disahkan_pada: string | null
+  subjektif: string | null
+  objektif: string | null
+  asesmen: string | null
+  plan: string | null
+}
+
+export interface ResumeMedis {
+  id: string
+  kunjungan_id: string
+  status: 'draf' | 'sah'
+  pasien: RingkasPasienKunjungan
+  /** DPJP kunjungan, satu-satunya pengesah. */
+  dpjp: Pelaku | null
+  sumber: {
+    cppt: CpptResume[]
+    cppt_berlabel: number
+    diagnosis: { kunjungan_id: string; sistem: string; kode: string; tampilan: string | null; jenis: 'utama' | 'sekunder' | 'komplikasi' | 'komorbid' }[]
+    resep: {
+      id: string
+      kunjungan_id: string
+      no_resep: string
+      disahkan_pada: string | null
+      butir: { barang: RingkasLokasiPeta; dosis: string | null; frekuensi_per_hari: number; jumlah_per_pakai: number; hari: number; jumlah: number; rute: string | null; aturan_pakai: string | null }[]
+    }[]
+    alergi: { zat: string; jenis: string; reaksi: string | null; tingkat: string | null }[]
+    tindakan: { tersedia: false }
+    terpotong: boolean
+    dipotret_pada: string
+  }
+  isian_dpjp: IsianResumeMedis
+  disusun_oleh: Pelaku | null
+  disusun_pada: string
+  disahkan_oleh: Pelaku | null
+  disahkan_pada: string | null
+  tanda_tangan_id: string | null
+  /** If-Match POST /resume-medis/{id}/sahkan. */
+  versi: string
+}
+
+/** Data induk daftar periksa pulang (v0.39.0, skema DaftarPeriksaPulangDataInduk). */
+export interface DaftarPeriksaPulangDataInduk {
+  id: string
+  kode: string
+  nama: string
+  sumber: SumberButirPulang
+  wajib: boolean
+  urutan: number
+  status: 'aktif' | 'nonaktif'
+  versi: string
+  diubah_pada: string
+}
+export interface UbahDaftarPeriksaPulang {
+  nama?: string
+  wajib?: boolean
+  urutan?: number
+  status?: 'aktif' | 'nonaktif'
+  dasar_perubahan: string
 }

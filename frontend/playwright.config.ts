@@ -5,7 +5,7 @@ import { defineConfig, devices } from '@playwright/test'
  * terpisah dan sudah di-seed AkunSintetisSeeder dengan AKUN_SINTETIS_SANDI = E2E_SANDI;
  * Vite dev server di bawah memproksi /api dan /sanctum ke SIMRS_API_URL.
  */
-const LAYAR_FASE2 = /(penjamin|buku-tarif|jadwal-praktik|gabung-rm|formularium|instrumen-triase|matriks-perpindahan|papan-igd)\.spec\.ts/
+const LAYAR_FASE2 = /(penjamin|buku-tarif|jadwal-praktik|gabung-rm|formularium|instrumen-triase|matriks-perpindahan|papan-igd|daftar-periksa-pulang)\.spec\.ts/
 /** Spec yang punya proyek berurutan sendiri; desktop/seluler mengabaikannya. */
 // Garis miring di depan: `papan-igd.spec.ts` (fase2) tidak ikut tertangkap pola `igd.spec.ts`.
 const LAYAR_FASE2_ATAU_BERURUTAN = [/\/(pengaturan|fase1|pendaftaran|antrean|rawat-jalan|akses-darurat|anjungan|igd|peta-tempat-tidur|admisi-rawat-inap)\.spec\.ts/, LAYAR_FASE2]

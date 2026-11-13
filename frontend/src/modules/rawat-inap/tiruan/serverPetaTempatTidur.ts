@@ -80,7 +80,7 @@ export function buatServerPetaTempatTidur(opsi: OpsiServerPetaTempatTidur) {
       hari_rawat: hariRawat[status] ?? null, ...(berpasien ? { kunjungan_rawat_inap_id: id(nomorRi++), pasien_rawat_inap: pasien } : {}),
     })
   }
-  /** Bentuk keluar: id kunjungan dan identitas pasien dibuang bila pemanggil tidak memegang rawat_inap.pindah_ruang.input. */
+  /** Bentuk keluar: id kunjungan dan identitas pasien dibuang bila pemanggil tidak memegang izin pembukanya. */
   const keluar = (tt: TempatTidurPeta, bolehPindah: boolean): TempatTidurPeta => {
     const salinan = structuredClone(tt)
     if (!bolehPindah || salinan.ditutup || !salinan.kunjungan_rawat_inap_id) {
@@ -98,7 +98,8 @@ export function buatServerPetaTempatTidur(opsi: OpsiServerPetaTempatTidur) {
       if (nilai && !UUID.test(nilai)) return error(422, 'validasi_gagal', 'Isian belum benar.', [{ kolom, pesan: 'Harus UUID.' }])
     }
     const data = daftar.filter((tt) => (!gedung || tt.gedung?.id === gedung) && (!bangsal || tt.bangsal.id === bangsal))
-    const bolehPindah = opsi.boleh('rawat_inap.pindah_ruang.input')
+    // v0.39.0: lihat pemulangan atau lihat rencana pulang juga membuka id kunjungan dan identitas.
+    const bolehPindah = ['rawat_inap.pindah_ruang.input', 'rawat_inap.pemulangan.lihat', 'rawat_inap.rencana_pulang.lihat'].some((i) => opsi.boleh(i))
     const isi = { data: data.map((tt) => keluar(tt, bolehPindah)), meta: { terpotong: false } }
     const e = sidik(isi)
     if (r.header['if-none-match'] === e) return { status: 304, header: { ...NO_STORE, ETag: e }, isi: null }

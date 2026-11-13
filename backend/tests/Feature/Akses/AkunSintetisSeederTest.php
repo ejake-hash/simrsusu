@@ -170,6 +170,14 @@ class AkunSintetisSeederTest extends TestCase
         $this->assertFalse($peranIzin('contoh_perawat', 'rawat_inap.pemulangan.sahkan'));
         $this->assertTrue($peranIzin('contoh_perawat', 'rawat_inap.pemulangan.input'));
         $this->assertTrue($peranIzin('contoh_perawat', 'rawat_inap.penempatan.input'));
+        // 2.40-fe: rencana pulang non-klinis untuk perawat; dokter poli contoh (DPJP) menyusun, memulangkan, dan mengesahkan.
+        foreach (['rawat_inap.rencana_pulang.lihat', 'rawat_inap.rencana_pulang.input', 'rawat_inap.rencana_pulang.perbaiki'] as $kode) {
+            $this->assertTrue($peranIzin('contoh_perawat', $kode), $kode);
+        }
+        foreach (['rawat_inap.pemulangan.lihat', 'rawat_inap.pemulangan.input', 'rawat_inap.pemulangan.sahkan', 'rawat_inap.rencana_pulang.lihat'] as $kode) {
+            $this->assertTrue($peranIzin('contoh_dokter_poli', $kode), $kode);
+            $this->assertFalse((bool) DB::table('akses.izin')->where('kode', $kode)->value('sensitif'), $kode);
+        }
         $this->assertTrue($evaluator->boleh($akun('admisi'), 'rawat_inap.penempatan.input'));
         $this->assertFalse($evaluator->boleh($akun('perawat'), 'rawat_inap.pindah_ruang.input'));
         $this->assertSame(1, PenggunaPeran::query()->where('pengguna_id', $akun('dokter')->id)->count());
