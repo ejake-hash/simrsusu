@@ -7,6 +7,8 @@ type Pelaku = { id: string; nama: string } | null
 /** Status per butir (v0.40.0, tiket 2.30): lab menambah sampel_diambil dan diterima_lab; tahap penunjang lain menyusul. */
 export type StatusPermintaanItem = 'dipesan' | 'sampel_diambil' | 'diterima_lab' | 'batal'
 export const LABEL_STATUS_ITEM: Record<StatusPermintaanItem, string> = { dipesan: 'Dipesan', sampel_diambil: 'Sampel diambil', diterima_lab: 'Diterima lab', batal: 'Dibatalkan' }
+/** Nada lencana status butir (lab dan Order penunjang): status tidak hanya warna, Lencana memberi ikon dan teks. */
+export const NADA_STATUS_ITEM: Record<StatusPermintaanItem, 'netral' | 'info' | 'ok'> = { dipesan: 'netral', sampel_diambil: 'info', diterima_lab: 'ok', batal: 'netral' }
 
 export interface PermintaanPemeriksaan {
   id: string

@@ -8,7 +8,7 @@ import Tombol from '@/design-system/components/Tombol.vue'
 import { tampilkanToast } from '@/design-system/components/toast'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import { ApiError } from '@/shared/api/klien'
-import { batalkanPermintaan, buatPermintaan, cariKatalog, daftarPermintaanEpisode, LABEL_STATUS_ITEM, type JenisPermintaan, type PermintaanPemeriksaan, type PrioritasPermintaan } from '@/shared/api/permintaanPemeriksaan'
+import { batalkanPermintaan, buatPermintaan, cariKatalog, daftarPermintaanEpisode, LABEL_STATUS_ITEM, NADA_STATUS_ITEM, type JenisPermintaan, type PermintaanPemeriksaan, type PrioritasPermintaan } from '@/shared/api/permintaanPemeriksaan'
 import { formatTanggalWaktu } from '@/shared/utils/waktu'
 
 /**
@@ -151,7 +151,7 @@ const ringkasItem = (p: PermintaanPemeriksaan) => p.item.map((i) => i.nama).join
           </p>
           <p class="butir">
             <span v-for="(i, n) in p.item" :key="i.id">
-              {{ i.nama }}<Lencana v-if="p.status !== 'batal' && i.status !== 'dipesan'" :jenis="i.status === 'diterima_lab' ? 'ok' : 'info'" class="status-butir">{{ LABEL_STATUS_ITEM[i.status] }}</Lencana>{{ n < p.item.length - 1 ? ', ' : '' }}
+              {{ i.nama }}<Lencana v-if="p.status !== 'batal' && i.status !== 'dipesan'" :jenis="NADA_STATUS_ITEM[i.status]" class="status-butir">{{ LABEL_STATUS_ITEM[i.status] }}</Lencana>{{ n < p.item.length - 1 ? ', ' : '' }}
             </span>
           </p>
           <span v-if="p.status === 'dipesan' && !p.dapat.batal && p.item.some((i) => i.status === 'diterima_lab')" class="ket">Sudah diterima lab, tidak bisa dibatalkan.</span>

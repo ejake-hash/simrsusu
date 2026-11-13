@@ -117,9 +117,9 @@ final class KunjunganContoh extends Command
                     ['cons_id' => '1234', 'secret_key' => 'rahasia-sintetis', 'user_key' => 'kunci-sintetis'], true, false, $oleh);
             }
 
-            // Modul 07 Rawat Jalan (worklist, asesmen perawat; 2.13), 08 Rawat Inap (peta TT; 2.27), 26 RME (CPPT; 2.14), dan
-            // 05 Pemulangan (2.40) dinyalakan RS lewat penyiapan; di lokal langsung aktif.
-            foreach ([5, 7, 8, 26] as $modul) {
+            // Modul 07 Rawat Jalan (worklist, asesmen perawat; 2.13), 08 Rawat Inap (peta TT; 2.27), 26 RME (CPPT; 2.14),
+            // 05 Pemulangan (2.40), dan 19 Laboratorium (daftar kerja lab; 2.30) dinyalakan RS lewat penyiapan; di lokal langsung aktif.
+            foreach ([5, 7, 8, 19, 26] as $modul) {
                 DB::table('inti.modul_aktif')->insertOrIgnore(['id' => (string) Str::uuid7(), 'modul_no' => $modul]);
             }
 

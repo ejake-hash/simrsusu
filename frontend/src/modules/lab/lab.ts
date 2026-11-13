@@ -1,6 +1,6 @@
 import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
 import { ApiError } from '@/shared/api/klien'
-import type { PrioritasPermintaan, StatusPermintaanItem } from '@/shared/api/permintaanPemeriksaan'
+import type { PrioritasPermintaan } from '@/shared/api/permintaanPemeriksaan'
 import type { BarisDaftarKerjaLab, ButirDaftarKerjaLab, LokasiPengambilanSpesimen } from './tipe'
 
 /** Aturan layar Daftar kerja lab (tiket 2.30, kontrak v0.40.0). Data sintetis di uji. */
@@ -13,14 +13,6 @@ export const LABEL_LOKASI_PENGAMBILAN: Record<LokasiPengambilanSpesimen, string>
   instalasi: 'Di instalasi laboratorium',
   samping_tt: 'Di samping tempat tidur',
   kamar_operasi: 'Di kamar operasi',
-}
-
-/** Nada lencana status butir: status tidak hanya warna (Lencana memberi ikon dan teks). */
-export const NADA_STATUS_ITEM: Record<StatusPermintaanItem, 'netral' | 'info' | 'ok'> = {
-  dipesan: 'netral',
-  sampel_diambil: 'info',
-  diterima_lab: 'ok',
-  batal: 'netral',
 }
 
 const LABEL_JENIS_KUNJUNGAN = { poliklinik: 'Poliklinik', igd: 'IGD', rawat_inap: 'Rawat inap' } as const

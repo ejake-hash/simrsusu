@@ -9,11 +9,11 @@ import { pesanError } from '@/modules/akses/pengaturan'
 import { INTERVAL_LAYAR_KERJA } from '@/modules/notifikasi/polling'
 import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
 import { ApiError } from '@/shared/api/klien'
-import { LABEL_STATUS_ITEM, type PrioritasPermintaan } from '@/shared/api/permintaanPemeriksaan'
+import { LABEL_STATUS_ITEM, NADA_STATUS_ITEM, type PrioritasPermintaan } from '@/shared/api/permintaanPemeriksaan'
 import { boleh } from '@/shared/composables/usePermission'
 import { formatTanggalWaktu } from '@/shared/utils/waktu'
 import { daftarKerjaLab } from '../api'
-import { bolehAmbil, bolehTerima, KUNCI_LAB, NADA_STATUS_ITEM, teksAsal, teksLokasi } from '../lab'
+import { bolehAmbil, bolehTerima, KUNCI_LAB, teksAsal, teksLokasi } from '../lab'
 import type { BarisDaftarKerjaLab, ButirDaftarKerjaLab } from '../tipe'
 
 /**

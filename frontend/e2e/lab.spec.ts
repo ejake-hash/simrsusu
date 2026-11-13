@@ -80,7 +80,12 @@ test('analis: order cito di seksi Cito, ambil sampel → barcode, terima di lab 
   const asal = new URL(info.project.use.baseURL ?? '').origin
   const page = await halamanAkun(browser, asal, 'analis')
   await tungguJatahPenuh(page.context().request, asal)
-  await page.goto('/penunjang/laboratorium')
+  // Sub-menu Laboratorium aktif (modul 19 dari lokal:kunjungan-contoh) dan dibuka dari kartu Penunjang di Beranda.
+  await page.goto('/')
+  const kartu = page.getByRole('region', { name: 'Modul saya' }).getByRole('article', { name: 'Penunjang' })
+  await expect(kartu.getByText(/Segera hadir/)).toHaveCount(0)
+  await kartu.getByRole('link', { name: 'Laboratorium', exact: true }).click()
+  await expect(page).toHaveURL(/\/penunjang\/laboratorium$/)
   await expect(page.getByRole('heading', { name: 'Daftar kerja laboratorium', level: 1 })).toBeVisible()
   const cito = page.getByRole('region', { name: 'Daftar kerja lab Cito' })
   const baris = cito.getByRole('row').filter({ hasText: indikasi })

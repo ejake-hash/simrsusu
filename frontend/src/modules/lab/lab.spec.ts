@@ -11,6 +11,8 @@ import { buatServerGabungan } from '@/modules/akses/tiruan/serverGabungan'
 import type { PermintaanTiruan } from '@/modules/akses/tiruan/serverTiruan'
 import { ID_SUPERADMIN } from '@/modules/akses/tiruan/serverTiruan'
 import { ApiError, klien } from '@/shared/api/klien'
+import type { PermintaanPemeriksaan, StatusPermintaanItem } from '@/shared/api/permintaanPemeriksaan'
+import OrderPenunjang from '@/shared/components/OrderPenunjang.vue'
 import { aturIzin, vCan } from '@/shared/composables/usePermission'
 import { ambilSpesimen, daftarKerjaLab, terimaSpesimen } from './api'
 import { bolehAmbil, bolehTerima, identitasPasien, kurangJenisSpesimen, perluMuatUlang, pesanGalatLab, teksAsal, teksLokasi } from './lab'
@@ -236,5 +238,60 @@ describe('DaftarKerjaLabPage: layar', () => {
     izinServer = new Set()
     await pasang()
     expect(seksi('Cito').textContent).toContain('Akses ditolak')
+  })
+
+  it('Muat lagi: halaman berikut seksi Rutin dimuat dengan kursor', async () => {
+    // Batas 1 per halaman agar dua order rutin sintetis terbagi dua halaman.
+    pasangTiruan(klien, {
+      tangani: (r: PermintaanTiruan) => {
+        if (r.jalur === '/lab/daftar-kerja') r.kueri.set('batas', '1')
+        permintaan.push(r)
+        return lab.tangani(r) ?? gabungan.tangani(r)
+      },
+    })
+    await pasang()
+    const rutin = seksi('Rutin')
+    expect(baris(rutin, 'Pasien Contoh Rawat Inap')).toBeDefined()
+    expect(baris(rutin, 'Pasien Contoh Tanpa Lokasi')).toBeUndefined()
+    tombol('Muat lagi', rutin)!.click()
+    await tenang()
+    expect(baris(rutin, 'Pasien Contoh Tanpa Lokasi')).toBeDefined()
+    expect(permintaan.some((p) => p.jalur === '/lab/daftar-kerja' && p.kueri.get('prioritas') === 'rutin' && p.kueri.get('kursor') === '1')).toBe(true)
+    expect(tombol('Muat lagi', rutin)).toBeUndefined()
+  })
+})
+
+describe('OrderPenunjang: status butir lab (v0.40.0)', () => {
+  const ORDER = (status: StatusPermintaanItem[], batal: boolean): PermintaanPemeriksaan => ({
+    id: 'order-1', kunjungan_id: 'k', episode_id: 'e', jenis: 'lab', prioritas: 'cito', diagnosis_kerja: 'Indikasi sintetis', catatan: null,
+    alasan_ganda: null, status: 'dipesan', pemesan: { id: 'p', nama: 'Contoh Dokter Poli' }, dipesan_pada: '2026-11-02T01:00:00.000Z',
+    item: status.map((s, n) => ({ id: `i${n}`, tarif_id: `t${n}`, kode_item: `CONTOH-LAB-0${n + 1}`, nama: `Pemeriksaan lab contoh ${n + 1}`, status: s })),
+    alasan_batal: null, dibatalkan_oleh: null, dibatalkan_pada: null, dapat: { batal },
+  })
+  async function pasangOrder(order: PermintaanPemeriksaan) {
+    pasangTiruan(klien, {
+      tangani: (r: PermintaanTiruan) =>
+        r.jalur === '/episode/e/permintaan-pemeriksaan' ? { status: 200, isi: { data: [order], meta: { kursor_berikutnya: null } } } : gabungan.tangani(r),
+    })
+    const { global } = plugin()
+    mount(OrderPenunjang, { attachTo: document.body, global, props: { kunjunganId: 'k', episodeId: 'e', bisaPesan: false } })
+    await tenang()
+    return document.querySelector('li')!
+  }
+
+  it('butir berstatus berteks; sudah diterima lab → tanpa tombol Batalkan dan keterangan tampil', async () => {
+    const li = await pasangOrder(ORDER(['diterima_lab', 'sampel_diambil'], false))
+    expect(li.textContent).toContain('Diterima lab')
+    expect(li.textContent).toContain('Sampel diambil')
+    expect(li.textContent).toContain('Sudah diterima lab, tidak bisa dibatalkan.')
+    expect(tombol('Batalkan', li)).toBeUndefined()
+  })
+
+  it('sampel diambil tapi belum diterima: Batalkan mengikuti dapat.batal, tanpa keterangan diterima', async () => {
+    const li = await pasangOrder(ORDER(['sampel_diambil', 'dipesan'], true))
+    expect(li.textContent).toContain('Sampel diambil')
+    expect(li.textContent).not.toContain('Dipesan')
+    expect(li.textContent).not.toContain('Sudah diterima lab')
+    expect(tombol('Batalkan', li)).toBeDefined()
   })
 })

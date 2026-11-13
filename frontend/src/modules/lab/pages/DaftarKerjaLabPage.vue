@@ -4,7 +4,6 @@ import { computed, nextTick, ref } from 'vue'
 import Dialog from '@/design-system/components/Dialog.vue'
 import Pesan from '@/design-system/components/Pesan.vue'
 import Tombol from '@/design-system/components/Tombol.vue'
-import { tampilkanToast } from '@/design-system/components/toast'
 import KolomIsian from '@/design-system/form/KolomIsian.vue'
 import HalamanModul from '@/layouts/HalamanModul.vue'
 import { errorKolom } from '@/modules/akses/pengaturan'
@@ -60,7 +59,6 @@ async function ambil() {
     hasil.value = `Sampel ${s.butir.nama} untuk ${s.baris.pasien.nama} tercatat. Barcode ${sp.barcode}.`
     fokusHasil = true
     bukaAmbil.value = false
-    tampilkanToast(`Barcode ${sp.barcode} dibuat.`, 'ok')
     await nextTick()
     await segarkan()
   } catch (e) {
@@ -93,7 +91,6 @@ async function terima() {
     hasil.value = `Spesimen ${sp.barcode} (${s.butir.nama}, ${s.baris.pasien.nama}) diterima di lab. Order ini tidak bisa lagi dibatalkan pemesan.`
     fokusHasil = true
     bukaTerima.value = false
-    tampilkanToast(`Spesimen ${sp.barcode} diterima.`, 'ok')
     await nextTick()
     await segarkan()
   } catch (e) {
@@ -109,7 +106,7 @@ async function terima() {
   <HalamanModul
     izin="penunjang.laboratorium.lihat"
     judul="Daftar kerja laboratorium"
-    :uraian="`Order lab aktif dari poliklinik, IGD, dan rawat inap. Cito di atas, lalu rutin; terlama di atas. Diperbarui otomatis tiap ${INTERVAL_LAYAR_KERJA / 1000} detik.`"
+    :uraian="`Order lab aktif dari semua pos. Cito di atas, lalu rutin; terlama di atas. Diperbarui otomatis tiap ${INTERVAL_LAYAR_KERJA / 1000} detik.`"
   >
     <div class="tumpukan">
       <div v-if="hasil" ref="elHasil" class="hasil" tabindex="-1">
@@ -159,10 +156,10 @@ async function terima() {
         <KolomIsian v-slot="a" label="Jenis spesimen" wajib petunjuk="Mis. darah vena, urin, swab. 2 sampai 100 karakter." :error="errorJenis ?? undefined">
           <input v-bind="a" v-model="jenis" type="text" class="isian" maxlength="100" autocomplete="off" />
         </KolomIsian>
-        <fieldset class="pilihan-lokasi" :aria-invalid="errorLokasi ? 'true' : undefined" :aria-describedby="errorLokasi ? 'galat-lokasi' : undefined">
+        <fieldset class="pilihan-lokasi">
           <legend class="kolom-label">Lokasi pengambilan <span class="kolom-wajib" aria-hidden="true">*</span></legend>
           <label v-for="(label, kode) in LABEL_LOKASI_PENGAMBILAN" :key="kode" class="pilihan" :class="{ dipilih: lokasi === kode }">
-            <input v-model="lokasi" type="radio" name="lokasi-pengambilan" :value="kode" />
+            <input v-model="lokasi" type="radio" name="lokasi-pengambilan" :value="kode" :aria-invalid="errorLokasi ? 'true' : undefined" :aria-describedby="errorLokasi ? 'galat-lokasi' : undefined" />
             <span>{{ label }}</span>
           </label>
           <p v-if="errorLokasi" id="galat-lokasi" class="galat">{{ errorLokasi }}</p>

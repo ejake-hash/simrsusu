@@ -817,7 +817,8 @@ lokasi pasien sudah menangani semua pos. Sub-menu `penunjang.laboratorium` masuk
 - Utang: indeks parsial `permintaan_item_aktif` ikut memuat butir order radiologi sampai alur radiologi (2.33) menambah
   status akhir butir; 2.33 wajib menambahkannya atau menyaring jenis.
 - Utang FE #207: polling daftar kerja lab memakai `refetchInterval` TanStack (pola Admisi rawat inap) tanpa header
-  `X-Permintaan-Latar`; pola latar yang ada (`useKueriBerPolling`) hanya untuk kueri ber-ETag tanpa kursor.
+  `X-Permintaan-Latar`; pola latar yang ada (`useKueriBerPolling`) hanya untuk kueri ber-ETag tanpa kursor. Dampak: polling
+  dihitung sebagai aktivitas pengguna, jadi sesi analis tidak pernah idle (timeout idle tidak berlaku) selama layar terbuka.
 Asumsi FE #207: (1) Tanpa cetak label; barcode tampil sebagai teks di pesan hasil dan di baris butir. (2) Jenis spesimen
 teks bebas 2–100 karakter (data induk menyusul). (3) Sub-menu TERSEDIA lewat migrasi
 `2026_11_30_100000_penunjang_laboratorium_tersedia` (`pasang()` + lupakan cache); akun di `AKUN` `fase1.spec.ts` tidak
