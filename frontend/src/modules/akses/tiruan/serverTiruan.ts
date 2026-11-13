@@ -177,11 +177,15 @@ export function buatServerTiruan(opsi: OpsiServerTiruan = {}) {
     'pendaftaran.pasien.lihat', 'master_data.penjamin.lihat',
   ])
   tambahPeran(uid(104), 'contoh_dokter', 'Contoh Dokter', izinMenu(pohon, ['igd', 'rawat_jalan', 'rekam_medis']))
+  // 2.40-fe: DPJP rawat inap (seeder: dokter.poli) menyusun, memulangkan, dan mengesahkan resume medis; membaca rencana pulang.
+  tambahPeran(uid(114), 'contoh_dpjp_rawat_inap', 'Contoh DPJP Rawat Inap', [
+    ...['lihat', 'input', 'sahkan'].map((a) => `rawat_inap.pemulangan.${a}`), 'rawat_inap.rencana_pulang.lihat', 'rawat_inap.peta_tempat_tidur.lihat',
+  ])
   tambahPeran(uid(105), 'contoh_kasir', 'Contoh Kasir', [...izinMenu(pohon, ['kasir']), 'kasir.tagihan.cetak', 'kasir.tagihan.lihat_rupiah'], { wajib_mfa: true })
   tambahPeran(uid(106), 'contoh_lama', 'Contoh Peran Lama', [], { status: 'nonaktif' })
   // Pemilik data induk organisasi (1.8a-be: akun data.induk); superadmin tidak memegangnya.
   tambahPeran(uid(107), 'contoh_data_induk', 'Contoh Admin Data Induk', [
-    ...['organisasi', 'jenis_tugas', 'penjamin', 'usulan', 'jadwal_praktik', 'instrumen_triase', 'matriks_perpindahan', 'papan_igd'].flatMap((s) => ['lihat', 'input', 'perbaiki'].map((a) => `master_data.${s}.${a}`)),
+    ...['organisasi', 'jenis_tugas', 'penjamin', 'usulan', 'jadwal_praktik', 'instrumen_triase', 'matriks_perpindahan', 'papan_igd', 'daftar_periksa_pulang'].flatMap((s) => ['lihat', 'input', 'perbaiki'].map((a) => `master_data.${s}.${a}`)),
     'master_data.usulan.verifikasi', 'master_data.usulan.setujui', 'master_data.tarif.lihat',
     ...['lihat', 'input', 'perbaiki'].map((a) => `farmasi.formularium.${a}`),
   ])

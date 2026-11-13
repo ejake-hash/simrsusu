@@ -48,6 +48,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
     akses.tambahPenugasanDev('contoh_integrasi')
     akses.tambahPenugasanDev('contoh_pendaftaran')
     akses.tambahPenugasanDev('contoh_perawat')
+    akses.tambahPenugasanDev('contoh_dpjp_rawat_inap')
   }
   unitMilikSaya = akses.unitMilikSaya
   const lokasi = buatServerLokasi({ unit: organisasi.ringkasUnit, unitContoh: organisasi.akar.irna, sekarang: opsi.sekarang })

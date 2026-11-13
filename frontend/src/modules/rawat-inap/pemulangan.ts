@@ -147,14 +147,14 @@ export const isianAwalRencana = (r: RencanaPulang, hariIni: string): IsianRencan
 export function kurangRencana(isi: IsianRencanaLayar): Record<string, string> {
   const e: Record<string, string> = {}
   if (!/^\d{4}-\d{2}-\d{2}$/.test(isi.tanggal)) e.rencana_pulang_pada = 'Isi tanggal rencana pulang.'
-  const lama = isi.lamaRawat.trim()
+  const lama = String(isi.lamaRawat ?? '').trim()
   if (lama !== '' && (!/^\d+$/.test(lama) || Number(lama) < 1 || Number(lama) > 365)) e.rencana_lama_rawat = 'Isi bilangan bulat 1 sampai 365 hari, atau kosongkan.'
   return e
 }
 
 /** Isian PUT: tanggal, lama rawat (null = kosongkan), dan centang butir manual yang berubah dari yang dibaca. */
 export function isianPutRencana(r: RencanaPulang, isi: IsianRencanaLayar): IsianRencanaPulang {
-  const lama = isi.lamaRawat.trim()
+  const lama = String(isi.lamaRawat ?? '').trim()
   const daftar = r.daftar_periksa
     .filter((b) => b.sumber === 'manual' && (isi.selesai[b.kode] ?? false) !== (b.status === 'selesai'))
     .map((b) => ({ kode: b.kode, selesai: isi.selesai[b.kode] ?? false }))

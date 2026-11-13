@@ -12,7 +12,11 @@ import { artisan, bersihkanPesertaSintetis, daftarkanKunjunganJkn, halamanAdmisi
  * memanggil `bersihkanPesertaSintetis` (kunjungan pasien contoh batal, penempatan aktifnya diakhiri lewat DB), lalu beforeAll
  * memulihkan status TT contoh lewat `lokal:kunjungan-contoh` dan afterAll menjalankan `--batal`. Seri: langkah berikut memakai
  * nomor kunjungan langkah sebelumnya. Spec ini proyek terakhir di playwright.config.ts.
+ * 2.40-fe: pasien yang sama lalu dipulangkan: perawat membuat rencana pulang dari peta TT (TT jadi "Rencana pulang"),
+ * `dokter.poli` (DPJP, pemberi SPRI) menyusun resume, memulangkan dengan alasan untuk butir wajib yang belum selesai (TT jadi
+ * "Dibersihkan"), lalu mengesahkan resume dengan PIN TTE sintetis (TtdSintetisSeeder, E2E_TTD_PIN).
  */
+const PIN = process.env.E2E_TTD_PIN ?? ''
 const kartu = '9990000000001'
 const nama = 'Peserta Sintetis BPJS'
 const poli = 'Poli Penyakit Dalam (contoh)'
@@ -20,6 +24,8 @@ const kodeTt = 'CTHG-2-202-3'
 const kodeTujuan = 'CTHG-2-202-4'
 let nomor = ''
 let nomorKunjungan = ''
+/** 2.40: jalur layar Pemulangan pasien ini (`?kunjungan=` id kunjungan rawat inap, sama dengan tautan tugas resume). */
+let jalurPemulangan = ''
 
 test.describe.configure({ mode: 'serial' })
 test.beforeAll(() => {
@@ -208,6 +214,112 @@ test('dokter memindahkan pasien dari peta TT: TT lama Dibersihkan, TT baru Teris
   const baru = page.getByRole('group', { name: `TT ${kodeTujuan}`, exact: true })
   await expect(baru).toContainText('Terisi')
   await expect(baru).toContainText('Hari ke-1')
+  expect(await pelanggaranAxe(page)).toEqual([])
+  await page.close()
+})
+
+/** Dari peta TT, buka layar Pemulangan pasien di TT tujuan pindah ruang. */
+async function bukaPemulangan(page: Page) {
+  const tt = await petaTt(page, kodeTujuan)
+  await tt.getByRole('link', { name: `Pemulangan pasien di ${kodeTujuan}` }).click()
+  await expect(page.getByRole('heading', { name: 'Pemulangan', level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: nama, level: 2 })).toBeVisible()
+}
+
+test('perawat membuat rencana pulang hari ini dari peta TT: TT jadi Rencana pulang', async ({ browser }, info) => {
+  test.setTimeout(120_000)
+  expect(nomorKunjungan).not.toBe('')
+  const asal = new URL(info.project.use.baseURL ?? '').origin
+  const page = await halamanAkun(browser, asal, 'perawat')
+  await tungguJatahPenuh(page.context().request, asal)
+  await bukaPemulangan(page)
+  const rencana = page.getByRole('region', { name: 'Rencana pulang dan daftar periksa' })
+  await expect(rencana).toContainText('Belum ada rencana pulang.')
+  await expect(rencana).toContainText('Menunggu kasir (Tahap D)')
+  // Butir kasir tidak bisa dicentang.
+  await expect(rencana.getByRole('checkbox', { name: /Tagihan/ })).toHaveCount(0)
+  for (const butir of ['Obat pulang dan edukasi', 'Surat kontrol', 'Rujuk balik']) await rencana.getByRole('checkbox', { name: new RegExp(butir) }).check()
+  expect(await pelanggaranAxe(page)).toEqual([])
+  await rencana.getByRole('button', { name: 'Buat rencana pulang' }).click()
+  await expect(page.getByText(new RegExp(`Rencana pulang ${nama} tersimpan`))).toBeVisible()
+  await expect(rencana.getByRole('button', { name: 'Simpan rencana pulang' })).toBeVisible()
+  expect(await pelanggaranAxe(page)).toEqual([])
+
+  await expect(await petaTt(page, kodeTujuan)).toContainText('Rencana pulang')
+  await page.close()
+})
+
+test('DPJP menyusun resume lalu memulangkan dengan alasan butir wajib: TT jadi Dibersihkan, pengingat resume', async ({ browser }, info) => {
+  test.setTimeout(150_000)
+  expect(nomorKunjungan).not.toBe('')
+  const asal = new URL(info.project.use.baseURL ?? '').origin
+  const page = await halamanAkun(browser, asal, 'dokter.poli')
+  await tungguJatahPenuh(page.context().request, asal)
+  await bukaPemulangan(page)
+  jalurPemulangan = new URL(page.url()).pathname + new URL(page.url()).search
+  const resume = page.getByRole('region', { name: 'Resume medis' })
+  await resume.getByRole('button', { name: 'Susun resume' }).click()
+  await expect(page.getByText('Draf resume medis tersusun dari sumber terbaru.')).toBeVisible()
+  await expect(resume).toContainText('Belum tersedia: modul tindakan menyusul.')
+  await resume.getByRole('textbox', { name: /Kondisi saat pulang/ }).fill('Stabil, uji sintetis e2e')
+  await resume.getByRole('button', { name: 'Simpan isian dan susun ulang' }).click()
+  await expect(page.getByText('Draf resume medis tersimpan; sumber dipotret ulang.')).toBeVisible()
+  expect(await pelanggaranAxe(page)).toEqual([])
+
+  await page.getByRole('button', { name: 'Pulangkan pasien' }).click()
+  const dialog = page.getByRole('alertdialog', { name: `Pulangkan ${nama}?` })
+  // Dua penanda identitas dan TT sebelum tombol konfirmasi (PRD 5.1 butir 9).
+  await expect(dialog).toContainText(new RegExp(`${nama}, No\\. RM .+, lahir `))
+  await expect(dialog).toContainText(`${kodeTujuan} · Bangsal Melati (contoh)`)
+  await dialog.getByRole('radio', { name: 'Pulang', exact: true }).check()
+  await dialog.getByRole('textbox', { name: /Alasan atau catatan keluar/ }).fill('Perbaikan klinis, uji sintetis e2e')
+  const konfirmasi = dialog.getByRole('button', { name: `Pulang: ${nama}` })
+  await expect(konfirmasi).toBeDisabled()
+  await dialog.getByRole('textbox', { name: /Alasan belum selesai: Lepas infus dan gelang/ }).fill('Dilepas saat pasien siap, uji e2e')
+  expect(await pelanggaranAxe(page)).toEqual([])
+  await konfirmasi.click()
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByText(new RegExp(`${nama} keluar rawat inap \\(Pulang\\)\\. TT ${kodeTujuan} kini Dibersihkan\\. Resume medis belum sah\\.`))).toBeVisible()
+  await expect(page.getByText(/Pasien sudah pulang dan resume medisnya belum sah/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Pulangkan pasien' })).toHaveCount(0)
+  expect(await pelanggaranAxe(page)).toEqual([])
+
+  const tt = await petaTt(page, kodeTujuan)
+  await expect(tt).toContainText('Dibersihkan')
+  await expect(tt.getByRole('link', { name: /Pemulangan/ })).toHaveCount(0)
+  await page.close()
+})
+
+test('DPJP mengesahkan resume dengan PIN TTE: resume sah dan hanya dibaca', async ({ browser }, info) => {
+  test.setTimeout(120_000)
+  if (!PIN) throw new Error('Set E2E_TTD_PIN sama dengan AKUN_SINTETIS_TTD_PIN saat seeding.')
+  expect(nomorKunjungan).not.toBe('')
+  const asal = new URL(info.project.use.baseURL ?? '').origin
+  const page = await halamanAkun(browser, asal, 'dokter.poli')
+  await tungguJatahPenuh(page.context().request, asal)
+  // Sesudah pulang pasien tidak lagi di daftar pasien dirawat; layar dibuka lewat bentuk tautan tugas RESUME_BELUM_TTE_48J.
+  await page.goto('/rawat-inap/pemulangan')
+  await expect(page.getByRole('heading', { name: 'Pemulangan', level: 1 })).toBeVisible()
+  await expect(page.getByRole('link', { name: new RegExp(nama) })).toHaveCount(0)
+  expect(jalurPemulangan).toMatch(/^\/rawat-inap\/pemulangan\?kunjungan=[0-9a-f-]{36}$/)
+  await page.goto(jalurPemulangan)
+  await expect(page.getByRole('heading', { name: nama, level: 2 })).toBeVisible()
+  await expect(page.getByText('Sudah pulang', { exact: true })).toBeVisible()
+  const resume = page.getByRole('region', { name: 'Resume medis' })
+  await resume.getByRole('button', { name: 'Sahkan dengan PIN' }).click()
+  const ttd = page.getByRole('dialog', { name: 'Tanda tangan elektronik (T1)' })
+  await expect(ttd).toContainText(new RegExp(`Resume medis · ${nama}, No\\. RM .+, lahir `))
+  await expect(ttd).toContainText('Kondisi saat pulang: Stabil, uji sintetis e2e')
+  await ttd.getByRole('checkbox').first().check()
+  const pin = ttd.getByLabel('PIN tanda tangan')
+  if (await pin.isVisible()) await pin.fill(PIN)
+  expect(await pelanggaranAxe(page)).toEqual([])
+  await ttd.getByRole('button', { name: 'Tanda tangani' }).click()
+  await expect(ttd).toBeHidden()
+  await expect(page.getByText(new RegExp(`Resume medis ${nama} sah, ditandatangani `))).toBeVisible()
+  await expect(resume).toContainText('Resume sudah sah dan final.')
+  await expect(resume.getByRole('button', { name: 'Sahkan dengan PIN' })).toHaveCount(0)
+  await expect(resume.getByRole('textbox')).toHaveCount(0)
   expect(await pelanggaranAxe(page)).toEqual([])
   await page.close()
 })
