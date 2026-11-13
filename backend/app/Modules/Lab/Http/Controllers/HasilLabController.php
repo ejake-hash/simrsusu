@@ -84,10 +84,9 @@ final class HasilLabController
         $sensitif = KelolaPermintaanPemeriksaan::unitSensitifTerbuka($pengguna);
         $terlihat = DB::table('kunjungan.kunjungan AS k')->join('inti.poliklinik AS pl', 'pl.id', '=', 'k.poli_id')->where('k.episode_id', $episode)
             ->where(fn ($q) => $q->whereNull('pl.nama_netral')->orWhereIn('pl.unit_organisasi_id', $sensitif))->select('k.id');
-        $query = DB::table('lab.hasil AS h')->where('h.episode_id', $episode)->where('h.status', 'divalidasi')
-            ->whereIn('h.permintaan_item_id', fn ($q) => $q->from('permintaan.permintaan_item AS i')
-                ->join('permintaan.permintaan_pemeriksaan AS p', 'p.id', '=', 'i.permintaan_pemeriksaan_id')
-                ->whereIn('p.kunjungan_id', $terlihat)->select('i.id'))
+        $query = DB::table('lab.hasil AS h')->join('permintaan.permintaan_item AS i', 'i.id', '=', 'h.permintaan_item_id')
+            ->join('permintaan.permintaan_pemeriksaan AS p', 'p.id', '=', 'i.permintaan_pemeriksaan_id')
+            ->where('p.episode_id', $episode)->whereIn('p.kunjungan_id', $terlihat)->where('h.status', 'divalidasi')
             ->select(['h.id', 'h.dikeluarkan_pada']);
 
         return Paginasi::respons($query, $request, 'h.dikeluarkan_pada', 'h.id', 'desc', function (Collection $baris) use ($pengguna) {

@@ -42,7 +42,7 @@ final class BacaHasilLab
             ->join('lab.pemeriksaan AS m', 'm.id', '=', 'h.pemeriksaan_id')
             ->join('pasien.pasien AS ps', 'ps.id', '=', 'p.pasien_id')
             ->whereIn('h.id', $hasilId)
-            ->get(['h.*', 'i.permintaan_pemeriksaan_id', 'i.kode_item', 'i.nama AS nama_item', 'm.jenis_hasil', 'm.butuh_otorisasi_spk',
+            ->get(['h.*', 'i.permintaan_pemeriksaan_id', 'p.episode_id', 'i.kode_item', 'i.nama AS nama_item', 'm.jenis_hasil', 'm.butuh_otorisasi_spk',
                 'ps.id AS ps_id', 'ps.no_rm', 'ps.nama AS ps_nama', 'ps.tanggal_lahir'])->keyBy('id');
         $adendum = DB::table('lab.hasil_adendum')->whereIn('hasil_id', $hasilId)->orderBy('dibuat_pada')->orderBy('id')->get()->groupBy('hasil_id');
         $pelaku = $this->pelaku->untuk($baris->pluck('diinput_oleh')->merge($baris->pluck('divalidasi_oleh'))->merge($baris->pluck('diotorisasi_oleh'))

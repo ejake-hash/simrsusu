@@ -50,7 +50,7 @@ final class KelolaHasilLab
             ];
             if ($ada === null) {
                 $id = (string) Str::uuid7();
-                DB::table('lab.hasil')->insert([...$isi, 'id' => $id, 'permintaan_item_id' => $item->id, 'episode_id' => $item->episode_id,
+                DB::table('lab.hasil')->insert([...$isi, 'id' => $id, 'permintaan_item_id' => $item->id,
                     'dibuat_pada' => now(), 'dibuat_oleh' => $oleh->id]);
                 $this->ubahItem($item, 'menunggu_validasi', $oleh);
             } else {

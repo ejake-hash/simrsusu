@@ -89,7 +89,7 @@ class HasilLabTest extends TestCase
 
         $res = $this->input($item, ['nilai' => 15, 'catatan' => 'Catatan sintetis'])->assertCreated()
             ->assertJsonPath('data.status', 'menunggu_validasi')->assertJsonPath('data.penanda', null)->assertJsonPath('data.kritis', false)
-            ->assertJsonPath('data.peringatan', null)->assertJsonPath('data.rujukan_min', 10.0)->assertJsonPath('data.kritis_maks', 30.0)
+            ->assertJsonPath('data.peringatan', null)->assertJsonPath('data.rujukan_min', 10)->assertJsonPath('data.kritis_maks', 30)
             ->assertJsonPath('data.satuan', 'u{contoh}')->assertJsonPath('data.diinput_oleh.id', $this->analis->id)
             ->assertJsonPath('data.dapat.validasi', true)->assertJsonPath('data.dapat.adendum', false);
         $this->assertSesuaiKontrak($res, 'POST', '/permintaan-item/{id}/hasil');
@@ -158,20 +158,20 @@ class HasilLabTest extends TestCase
         $laki = $this->pasien();
         $laki->forceFill(['jenis_kelamin' => 'laki_laki', 'tanggal_lahir' => $lahir])->save();
         $this->input($this->siapHasil($laki, 'UJI31-UMUR'), ['nilai' => 50])->assertCreated()
-            ->assertJsonPath('data.rujukan_min', 100.0)->assertJsonPath('data.penanda', 'l');
+            ->assertJsonPath('data.rujukan_min', 1)->assertJsonPath('data.penanda', 'l');
         // Sehari lebih muda: baris [0, umur).
         $muda = $this->pasien();
         $muda->forceFill(['jenis_kelamin' => 'laki_laki', 'tanggal_lahir' => Carbon::parse($lahir)->addDay()->toDateString()])->save();
         $this->input($this->siapHasil($muda, 'UJI31-UMUR'), ['nilai' => 50])->assertCreated()
-            ->assertJsonPath('data.rujukan_min', 1.0)->assertJsonPath('data.penanda', 'h');
+            ->assertJsonPath('data.rujukan_min', 1)->assertJsonPath('data.penanda', 'h');
         // Perempuan tanpa baris JK sendiri: baris semua JK.
         $this->input($this->siapHasil($this->pasien(), 'UJI31-UMUR'), ['nilai' => 50])->assertCreated()
-            ->assertJsonPath('data.rujukan_min', 1000.0)->assertJsonPath('data.penanda', 'l');
+            ->assertJsonPath('data.rujukan_min', 1000)->assertJsonPath('data.penanda', 'l');
         // Tanpa tanggal lahir dan JK tidak diketahui: hanya baris tanpa batas umur untuk semua JK.
         $anonim = $this->pasien();
         $item = $this->siapHasil($anonim, 'UJI31-UMUR');
         $anonim->forceFill(['tanpa_identitas' => true, 'tanggal_lahir' => null, 'jenis_kelamin' => 'tidak_diketahui'])->save();
-        $this->input($item, ['nilai' => 50])->assertCreated()->assertJsonPath('data.rujukan_min', 1000.0)->assertJsonPath('data.pasien.tanggal_lahir', null);
+        $this->input($item, ['nilai' => 50])->assertCreated()->assertJsonPath('data.rujukan_min', 1000)->assertJsonPath('data.pasien.tanggal_lahir', null);
         // Baris semua JK dibatasi umur → pasien tanpa tanggal lahir tidak punya rujukan → peringatan.
         DB::table('lab.nilai_rujukan')->where('pemeriksaan_id', $this->periksa['UJI31-UMUR'])->whereNull('jenis_kelamin')->update(['status' => 'nonaktif']);
         $this->rujukan('UJI31-UMUR', ['jenis_kelamin' => null, 'umur_min_hari' => 0, 'umur_maks_hari' => 365000, 'rujukan_min' => 3000]);
@@ -324,8 +324,8 @@ class HasilLabTest extends TestCase
 
         $this->travel(5)->minutes();
         $res = $this->adendum($hasil, ['nilai' => 3, 'alasan' => 'Koreksi salah ketik'])->assertCreated()
-            ->assertJsonPath('data.nilai', 15.0)->assertJsonPath('data.penanda', null)
-            ->assertJsonPath('data.adendum.0.nilai', 3.0)->assertJsonPath('data.adendum.0.penanda', 'll')->assertJsonPath('data.adendum.0.kritis', true)
+            ->assertJsonPath('data.nilai', 15)->assertJsonPath('data.penanda', null)
+            ->assertJsonPath('data.adendum.0.nilai', 3)->assertJsonPath('data.adendum.0.penanda', 'll')->assertJsonPath('data.adendum.0.kritis', true)
             ->assertJsonPath('data.adendum.0.alasan', 'Koreksi salah ketik')->assertJsonPath('data.adendum.0.dibuat_oleh.id', $this->analis->id);
         $this->assertSesuaiKontrak($res, 'POST', '/hasil-lab/{id}/adendum');
         $this->assertEquals(15, (float) DB::table('lab.hasil')->where('id', $hasil)->value('nilai'));

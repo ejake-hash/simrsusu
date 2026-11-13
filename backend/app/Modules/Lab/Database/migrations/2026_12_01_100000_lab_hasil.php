@@ -100,7 +100,6 @@ SQL);
             $table->uuid('id')->primary();
             $table->foreignUuid('permintaan_item_id')->unique()->constrained('permintaan.permintaan_item')->restrictOnDelete();
             $table->foreignUuid('pemeriksaan_id')->constrained('lab.pemeriksaan')->restrictOnDelete();
-            $table->foreignUuid('episode_id')->comment('Episode order (7.00.5 butir 1), disalin untuk linimasa')->constrained('kunjungan.episode')->restrictOnDelete();
             $table->decimal('nilai', 18, 6)->nullable();
             $table->text('nilai_teks')->nullable();
             $table->text('satuan')->nullable()->comment('Salinan data induk saat input');
@@ -136,8 +135,8 @@ SQL);
             AND ((status = 'menunggu_validasi') = (divalidasi_oleh IS NULL))
             AND ((status = 'divalidasi') = (dikeluarkan_pada IS NOT NULL))
             AND (diotorisasi_oleh IS NULL OR diotorisasi_oleh <> divalidasi_oleh))");
-        // Linimasa episode: hanya hasil final, keyset (dikeluarkan_pada, id).
-        DB::statement("CREATE INDEX hasil_linimasa ON lab.hasil (episode_id, dikeluarkan_pada, id) WHERE status = 'divalidasi'");
+        // Linimasa episode mulai dari order episode itu (permintaan_pemeriksaan.episode_id, ikut dipindah BentukEpisodeIgd),
+        // lalu hasil lewat permintaan_item_id (unik). Tanpa salinan episode_id di sini: tidak ada dua sumber yang harus sinkron.
 
         Schema::create('lab.hasil_adendum', function (Blueprint $table) {
             $table->comment('Adendum hasil lab tervalidasi (FR-26-06, 7.00.5 butir 3). Hasil asli tidak diubah. Tidak dihapus.');
