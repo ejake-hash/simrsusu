@@ -4,6 +4,9 @@ import { klien } from '@/shared/api/klien'
 export type JenisPermintaan = 'lab' | 'rad'
 export type PrioritasPermintaan = 'rutin' | 'cito'
 type Pelaku = { id: string; nama: string } | null
+/** Status per butir (v0.40.0, tiket 2.30): lab menambah sampel_diambil dan diterima_lab; tahap penunjang lain menyusul. */
+export type StatusPermintaanItem = 'dipesan' | 'sampel_diambil' | 'diterima_lab' | 'batal'
+export const LABEL_STATUS_ITEM: Record<StatusPermintaanItem, string> = { dipesan: 'Dipesan', sampel_diambil: 'Sampel diambil', diterima_lab: 'Diterima lab', batal: 'Dibatalkan' }
 
 export interface PermintaanPemeriksaan {
   id: string
@@ -17,7 +20,7 @@ export interface PermintaanPemeriksaan {
   status: 'dipesan' | 'batal'
   pemesan: Pelaku
   dipesan_pada: string
-  item: { id: string; tarif_id: string; kode_item: string; nama: string; status: 'dipesan' | 'batal' }[]
+  item: { id: string; tarif_id: string; kode_item: string; nama: string; status: StatusPermintaanItem }[]
   alasan_batal: string | null
   dibatalkan_oleh: Pelaku
   dibatalkan_pada: string | null
