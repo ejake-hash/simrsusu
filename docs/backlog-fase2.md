@@ -928,7 +928,7 @@ AccessEvaluator tidak diubah. GET rencana pulang tetap membawa identitas pasien 
 409 `status_tidak_sesuai` tanpa identitas (tinjauan #204). Keputusan pemilik 13 Nov 2026 (lanjutan): peta TT juga membuka
 id kunjungan + identitas bagi `rawat_inap.rencana_pulang.lihat` di cakupan unit bangsal TT, syarat sama. Kejadian
 `PasienPulang` diteruskan sesudah commit (`ShouldDispatchAfterCommit`). (2) Peta: tiap izin pembuka (pindah ruang, lihat
-pemulangan) lewat `periksa()` miliknya sendiri; `pemulangan.lihat` non-klinis, jadi perawat tanpa SIP menerima kunci, dan
+pemulangan, lihat rencana pulang) lewat `periksa()` miliknya sendiri; kedua izin lihat non-klinis, jadi perawat tanpa SIP menerima kunci, dan
 MFA berlaku bila RS menandai izin itu `butuh_mfa`. (3) Pulang tanpa rencana: rencana dibuat otomatis (tanggal = hari
 pulang) dengan butir data induk aktif, aturan alasan sama. (4) Kunjungan lain dalam episode (poli asal SPRI) tidak ditutup
 dan tidak menahan pulang; episode rawat inap selesai. (5) Tugas `RESUME_BELUM_TTE_48J` objek `kunjungan`, `tenggat_dari`
