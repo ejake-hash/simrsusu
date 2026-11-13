@@ -7,11 +7,11 @@ use App\Core\Http\Paginasi;
 use App\Modules\Akses\Application\AksesDaruratAktif;
 use App\Modules\Akses\Domain\Cakupan;
 use App\Modules\Akses\Models\Pengguna;
+use App\Modules\Lab\Application\AksesHasilLab;
 use App\Modules\Lab\Application\BacaDaftarKerjaLab;
 use App\Modules\Lab\Application\BacaHasilLab;
 use App\Modules\Lab\Application\KelolaHasilLab;
 use App\Modules\Lab\Application\RuteHasilLab;
-use App\Modules\RekamMedis\Application\AksesCatatan;
 use App\Modules\RekamMedis\Application\KelolaPermintaanPemeriksaan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Gate;
 
 /**
  * Hasil lab (tiket 2.31, kontrak v0.41.0): input (penunjang.laboratorium.input), validasi analis
- * (penunjang.laboratorium.sahkan) atau otorisasi Sp.PK (penunjang.laboratorium.setujui), adendum (sahkan), semuanya
+ * (penunjang.laboratorium.sahkan) atau otorisasi Sp.PK (penunjang.laboratorium.setujui), adendum (sahkan; setujui bila butuh Sp.PK), semuanya
  * cakupan RS; linimasa hasil tervalidasi per episode (pola daftar order episode 2.16). Respons `no-store`.
  */
 final class HasilLabController
@@ -29,7 +29,7 @@ final class HasilLabController
     public function __construct(
         private readonly KelolaHasilLab $kelola,
         private readonly BacaHasilLab $baca,
-        private readonly AksesCatatan $akses,
+        private readonly AksesHasilLab $akses,
         private readonly AksesDaruratAktif $darurat,
         private readonly RuteHasilLab $rute,
     ) {}
@@ -59,7 +59,10 @@ final class HasilLabController
 
     public function adendum(Request $request, string $hasil): JsonResponse
     {
-        Gate::authorize(BacaHasilLab::IZIN_SAHKAN, Cakupan::rs());
+        // Izin tepat (sahkan, atau setujui untuk pemeriksaan butuh otorisasi Sp.PK) diperiksa KelolaHasilLab dari data induk.
+        if (! Gate::allows(BacaHasilLab::IZIN_SAHKAN, Cakupan::rs())) {
+            Gate::authorize(BacaHasilLab::IZIN_SETUJUI, Cakupan::rs());
+        }
         $isian = $request->validate([
             'nilai' => ['nullable', 'numeric', 'between:-999999999999,999999999999'],
             'nilai_teks' => ['nullable', 'string', 'max:500'],
@@ -77,7 +80,7 @@ final class HasilLabController
         abort_unless(DB::table('kunjungan.episode')->where('id', $episode)->exists(), 404);
         /** @var Pengguna $pengguna */
         $pengguna = $request->user();
-        if (! $this->akses->bolehBacaKunjungan($pengguna, [$izin], ['episode_id' => $episode])) {
+        if (! $this->akses->bolehBukaEpisode($pengguna, $episode)) {
             throw new ApiError(403, 'akses_ditolak', 'Episode ini di luar cakupan akses Anda.');
         }
         $this->darurat->catatBaca($request, AksesDaruratAktif::pasienEpisode($episode), null, 'hasil_lab');

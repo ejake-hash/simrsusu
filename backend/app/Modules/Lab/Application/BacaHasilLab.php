@@ -110,7 +110,7 @@ final class BacaHasilLab
                 'input' => $status === 'menunggu_validasi' && $boleh['input'],
                 'validasi' => ($status === 'menunggu_validasi' && $boleh['sahkan'])
                     || ($status === 'menunggu_otorisasi' && $boleh['setujui'] && (string) $h->divalidasi_oleh !== $pengguna->id),
-                'adendum' => $status === 'divalidasi' && $boleh['sahkan'],
+                'adendum' => $status === 'divalidasi' && ($h->butuh_otorisasi_spk ? $boleh['setujui'] : $boleh['sahkan']),
             ],
         ];
     }

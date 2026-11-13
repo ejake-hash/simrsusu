@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
  *
  * Pemilihan baris nilai rujukan: pemeriksaan sama, aktif, umur pasien (hari, tanggal lahir → tanggal spesimen diambil,
  * zona RS) di [umur_min_hari, umur_maks_hari), JK pasien didahulukan lalu baris JK null (semua). Pasien tanpa tanggal lahir
- * hanya cocok dengan baris tanpa batas umur (0 sampai tanpa batas).
+ * hanya cocok dengan baris tanpa batas umur (0 sampai tanpa batas). Tanggal lahir sesudah tanggal spesimen → tanpa rujukan.
  */
 final class HitungPenanda
 {
@@ -69,8 +69,12 @@ final class HitungPenanda
 
     private function rujukan(string $pemeriksaanId, ?string $tanggalLahir, string $jenisKelamin, string $tanggalSpesimen): ?object
     {
+        // Selisih bertanda: tanggal lahir sesudah tanggal spesimen = data tidak sah → tanpa rujukan (penanda null + peringatan).
         $umur = $tanggalLahir === null ? null
-            : (int) Carbon::parse(substr($tanggalLahir, 0, 10))->startOfDay()->diffInDays(Carbon::parse($tanggalSpesimen)->startOfDay(), true);
+            : (int) round(Carbon::parse(substr($tanggalLahir, 0, 10))->startOfDay()->diffInDays(Carbon::parse($tanggalSpesimen)->startOfDay(), false));
+        if ($umur !== null && $umur < 0) {
+            return null;
+        }
 
         return DB::table('lab.nilai_rujukan')->where('pemeriksaan_id', $pemeriksaanId)->where('status', 'aktif')
             ->where(fn ($q) => $q->whereNull('jenis_kelamin')->orWhere('jenis_kelamin', $jenisKelamin))

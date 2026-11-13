@@ -115,10 +115,12 @@ final class KelolaHasilLab
                 ?? throw new ApiError(404, 'tidak_ditemukan', 'Hasil lab tidak ditemukan.');
             $item = $this->kunciItem((string) $itemId);
             $h = DB::table('lab.hasil')->where('id', $hasilId)->lockForUpdate()->first(['id', 'status', 'pemeriksaan_id', 'satuan']);
+            $m = DB::table('lab.pemeriksaan')->where('id', $h->pemeriksaan_id)->first();
+            // Koreksi tidak boleh melewati otorisasi empat mata: pemeriksaan butuh Sp.PK → adendum oleh pemegang `setujui`.
+            Gate::forUser($oleh)->authorize(self::izinAdendum((bool) $m->butuh_otorisasi_spk), Cakupan::rs());
             if ($h->status !== 'divalidasi') {
                 throw new ApiError(409, 'status_tidak_sesuai', 'Adendum hanya untuk hasil yang sudah divalidasi.', [['status' => $h->status]]);
             }
-            $m = DB::table('lab.pemeriksaan')->where('id', $h->pemeriksaan_id)->first();
             [$nilai, $teks] = $this->nilai($m, $isian);
             $id = (string) Str::uuid7();
             DB::table('lab.hasil_adendum')->insert([
@@ -131,6 +133,12 @@ final class KelolaHasilLab
 
             return $hasilId;
         });
+    }
+
+    /** Izin adendum: `setujui` (Sp.PK) untuk pemeriksaan butuh otorisasi Sp.PK, selain itu `sahkan`. */
+    public static function izinAdendum(bool $butuhOtorisasiSpk): string
+    {
+        return $butuhOtorisasiSpk ? BacaHasilLab::IZIN_SETUJUI : BacaHasilLab::IZIN_SAHKAN;
     }
 
     /**

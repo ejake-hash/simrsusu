@@ -843,8 +843,8 @@ Utang 2.31-be (kontrak v0.41.0):
   dari seeder sintetis `lokal:kunjungan-contoh`). Butir tanpa data induk → 422 `pemeriksaan_lab_belum_diatur`.
 - Panel (satu order banyak parameter) belum ada: satu butir order = satu `lab.hasil`.
 - Tautan jenis tugas `HASIL_LAB_TINDAK_LANJUT` (`/penunjang/laboratorium/hasil/{hasil_id}`) menunggu layar PR FE 2.31.
-- Penanggung jawab IGD tanpa akun dokter jatuh ke pemesan (kunjungan IGD belum punya unit organisasi); linimasa episode
-  memakai cek akses order 2.16 (unit poli), jadi DPJP bangsal butuh izin baca pemeriksaan di unit poli asal atau cakupan RS.
+- Perawat ruang/unit bangsal belum menerima tugas hasil lab (perlu keputusan akses rawat inap): tugas hanya ke akun yang
+  bisa membuka linimasa hasil (DPJP lewat relasi perawatan, keputusan pemilik 13 Nov 2026); selain itu jatuh ke pemesan.
 
 ### 2.32 · Lab: pelaporan nilai kritis
 Tujuan : nilai kritis dilaporkan ke penanggung jawab saat itu dengan baca ulang dan jam lapor, lalu masuk CPPT.

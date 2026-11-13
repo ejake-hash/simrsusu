@@ -13,9 +13,10 @@ use Illuminate\Support\Facades\DB;
 /**
  * Hasil mengikuti pasien (tiket 2.31; FR-00-09, 7.00.5 butir 2). Saat hasil final (atau adendum), di transaksi pemanggil:
  * tugas HASIL_LAB_TINDAK_LANJUT ke penanggung jawab pasien saat itu, dan notifikasi informasi ke pemesan bila pemesan bukan
- * penanggung jawab itu. Urutan lokasi = `lokasi_saat_ini` daftar kerja lab: TT aktif → DPJP kunjungan rawat inap (akun tak
- * ada → unit bangsal); kunjungan IGD aktif → dokter kunjungan IGD; selain itu (atau dokter IGD tanpa akun) → pemesan.
- * Judul tanpa data pasien dan tanpa nilai (7.53).
+ * penanggung jawab itu. Urutan lokasi = `lokasi_saat_ini` daftar kerja lab: TT aktif → DPJP kunjungan rawat inap; kunjungan
+ * IGD aktif → dokter kunjungan IGD; selain itu → pemesan. Tugas hanya ke akun yang bisa membuka linimasa hasil episode
+ * (AksesHasilLab, keputusan pemilik 13 Nov 2026); penanggung jawab tanpa akun atau tanpa akses → pemesan (unit
+ * bangsal/IGD belum menerima tugas: perlu keputusan akses rawat inap). Judul tanpa data pasien dan tanpa nilai (7.53).
  */
 final class RuteHasilLab
 {
@@ -27,6 +28,7 @@ final class RuteHasilLab
         private readonly KotakKerja $kotakKerja,
         private readonly Pemberitahu $pemberitahu,
         private readonly PenerimaTugas $penerima,
+        private readonly AksesHasilLab $akses,
     ) {}
 
     /**
@@ -38,9 +40,9 @@ final class RuteHasilLab
         $p = DB::table('lab.hasil AS h')->join('permintaan.permintaan_item AS i', 'i.id', '=', 'h.permintaan_item_id')
             ->join('permintaan.permintaan_pemeriksaan AS p', 'p.id', '=', 'i.permintaan_pemeriksaan_id')
             ->join('kunjungan.kunjungan AS k', 'k.id', '=', 'p.kunjungan_id')
-            ->where('h.id', $hasilId)->first(['p.pasien_id', 'p.pemesan_id', 'k.nomor']);
+            ->where('h.id', $hasilId)->first(['p.pasien_id', 'p.pemesan_id', 'p.episode_id', 'k.nomor']);
         $pemesan = ['pengguna', (string) $p->pemesan_id];
-        [$pelaksana, $unit] = $this->penanggungJawab((string) $p->pasien_id) ?? [$pemesan, null];
+        [$pelaksana, $unit] = $this->penanggungJawab((string) $p->pasien_id, (string) $p->episode_id) ?? [$pemesan, null];
 
         $judul = ($adendum ? 'Adendum hasil lab' : 'Hasil lab').' kunjungan '.$p->nomor.' untuk ditindaklanjuti';
         $tugas = $this->kotakKerja->buat(self::TUGAS, $objekId, $judul, $pelaksana, $unit, ['hasil_id' => $hasilId]);
@@ -81,22 +83,25 @@ final class RuteHasilLab
         return DB::transaction(fn () => $objek->sum(fn ($id) => $this->kotakKerja->selesaikan(self::TUGAS, (string) $id, 'Hasil dibuka penanggung jawab')));
     }
 
-    /** @return array{0: array{0: string, 1: string}, 1: string|null}|null [pelaksana, unit teguran] */
-    private function penanggungJawab(string $pasienId): ?array
+    /**
+     * Penanggung jawab saat ini yang bisa membuka linimasa episode order; null = jatuh ke pemesan.
+     *
+     * @return array{0: array{0: string, 1: string}, 1: string|null}|null [pelaksana, unit teguran]
+     */
+    private function penanggungJawab(string $pasienId, string $episodeId): ?array
     {
         $ri = DB::table('kunjungan.penempatan_tempat_tidur AS pn')->join('kunjungan.kunjungan AS k', 'k.id', '=', 'pn.kunjungan_id')
             ->where('pn.pasien_id', $pasienId)->whereNull('pn.selesai_pada')->first(['k.pegawai_id', 'k.unit_id']);
         if ($ri !== null) {
-            // Kunjungan rawat inap selalu ber-unit (unit bangsal TT saat ini, kunjungan_jenis_cek).
-            $akun = $this->akun($ri->pegawai_id);
-            $unit = (string) $ri->unit_id;
+            $akun = $this->akunBisaBuka($ri->pegawai_id, $episodeId);
 
-            return [$akun !== null ? ['pengguna', $akun] : ['unit', $unit], $unit];
+            // Unit bangsal (kunjungan rawat inap selalu ber-unit) hanya sebagai unit teguran tugas DPJP.
+            return $akun === null ? null : [['pengguna', $akun], (string) $ri->unit_id];
         }
         $igd = DB::table('kunjungan.kunjungan')->where('pasien_id', $pasienId)->where('jenis_kunjungan', 'igd')
             ->whereIn('status', ['terdaftar', 'dilayani'])->first(['pegawai_id']);
         if ($igd !== null) {
-            $akun = $this->akun($igd->pegawai_id);
+            $akun = $this->akunBisaBuka($igd->pegawai_id, $episodeId);
 
             return $akun === null ? null : [['pengguna', $akun], null];
         }
@@ -104,13 +109,19 @@ final class RuteHasilLab
         return null;
     }
 
-    private function akun(mixed $pegawaiId): ?string
+    /** Akun aktif pegawai itu yang bisa membuka GET /episode/{id}/hasil-lab episode order (tugas tanpa akses tak berguna). */
+    private function akunBisaBuka(mixed $pegawaiId, string $episodeId): ?string
     {
         if ($pegawaiId === null) {
             return null;
         }
-        $id = Pengguna::query()->where('pegawai_id', (string) $pegawaiId)->where('status', 'aktif')->orderBy('id')->value('id');
+        foreach (Pengguna::query()->where('pegawai_id', (string) $pegawaiId)->where('status', 'aktif')->orderBy('id')->limit(5)->get() as $akun) {
+            if ($this->akses->bolehBukaEpisode($akun, $episodeId)) {
+                return (string) $akun->id;
+            }
+        }
 
-        return $id === null ? null : (string) $id;
+        return null;
     }
 }
+

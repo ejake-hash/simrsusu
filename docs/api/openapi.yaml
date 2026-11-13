@@ -8137,8 +8137,8 @@ paths:
         akun yang memvalidasi → 409 `sudah_memvalidasi` (empat mata, FR-19-05); berhasil → `divalidasi`. Status
         `divalidasi` → 409 `hasil_sudah_divalidasi`; order atau butir batal → 409 `status_tidak_sesuai`.
         Saat `divalidasi` (hasil keluar), di transaksi yang sama (FR-00-09, 7.00.5 butir 2): tugas kotak kerja
-        `HASIL_LAB_TINDAK_LANJUT` ke penanggung jawab pasien saat itu (TT aktif → DPJP kunjungan rawat inap, tanpa akun →
-        unit bangsal; kunjungan IGD aktif → dokter kunjungan IGD; selain itu → pemesan), dan notifikasi informasi ke
+        `HASIL_LAB_TINDAK_LANJUT` ke penanggung jawab pasien saat itu yang bisa membuka GET /episode/{id}/hasil-lab (TT aktif →
+        DPJP kunjungan rawat inap; kunjungan IGD aktif → dokter kunjungan IGD; tanpa akun/akses atau selain itu → pemesan), dan notifikasi informasi ke
         pemesan bila pemesan bukan penanggung jawab itu. Judul tanpa data pasien dan tanpa nilai. Audit
         `lab.hasil_divalidasi` / `lab.hasil_diotorisasi` (id hasil; tanpa nilai).
       responses:
@@ -8159,7 +8159,8 @@ paths:
       operationId: adendumHasilLab
       summary: Koreksi hasil lab tervalidasi lewat adendum bertanda (hasil asli tidak diubah)
       description: |
-        Izin: penunjang.laboratorium.sahkan cakupan RS. Hasil tidak ada → 404; hasil belum `divalidasi` → 409
+        Izin: penunjang.laboratorium.sahkan cakupan RS; pemeriksaan bertanda `butuh_otorisasi_spk` → penunjang.laboratorium.setujui
+        (Sp.PK, bersyarat SIP/SPK) agar koreksi tidak melewati otorisasi empat mata. Hasil tidak ada → 404; hasil belum `divalidasi` → 409
         `status_tidak_sesuai`. Isian sesuai jenis hasil seperti input hasil, `alasan` wajib. Penanda dan peringatan
         dihitung ulang dari data induk aktif (umur pada tanggal spesimen). Baris adendum baru; nilai hasil asli tetap.
         Tanpa TTE. Tugas `HASIL_LAB_TINDAK_LANJUT` dan notifikasi pemesan dibuat lagi seperti validasi, bertanda adendum.
@@ -8195,8 +8196,9 @@ paths:
       operationId: linimasaHasilLabEpisode
       summary: Linimasa hasil lab tervalidasi satu episode (terbaru dulu), adendum di dalam tiap hasil
       description: |
-        Izin: rawat_jalan.pemeriksaan.lihat, cakupan unit salah satu kunjungan episode ini (pola daftar order episode;
-        akses darurat aktif dicatat sebagai baca). Episode tidak ada → 404; di luar cakupan → 403. Hanya hasil
+        Izin: rawat_jalan.pemeriksaan.lihat, lalu cakupan unit salah satu kunjungan episode ini (pola daftar order episode;
+        akses darurat aktif dicatat sebagai baca) ATAU relasi perawatan aktif dengan pasien episode (lapis 4, mis. DPJP
+        rawat inap; keputusan pemilik 13 Nov 2026). Episode tidak ada → 404; selain itu → 403. Hanya hasil
         `divalidasi`; urut `(dikeluarkan_pada, id)` terbaru dulu. Hasil order dari poli bertanda sensitif hanya dikirim
         bila unitnya dalam cakupan akun (9.2.5). Membuka linimasa menyelesaikan tugas `HASIL_LAB_TINDAK_LANJUT` terbuka
         milik akun ini (langsung, lewat peran, atau unit cakupannya) untuk hasil di halaman itu.

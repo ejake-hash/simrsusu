@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Lab;
 
+use App\Modules\Akses\Application\KelolaRelasiPerawatan;
 use App\Modules\Akses\Domain\Cakupan;
+use App\Modules\Akses\Domain\Totp;
 use App\Modules\Akses\Models\Izin;
 use App\Modules\Akses\Models\Pengguna;
 use App\Modules\Akses\Models\Peran;
@@ -13,6 +15,7 @@ use App\Modules\MasterData\Models\JadwalPraktik;
 use App\Modules\MasterData\Models\Kamar;
 use App\Modules\MasterData\Models\KelasRawat;
 use App\Modules\MasterData\Models\Lokasi;
+use App\Modules\MasterData\Models\Poliklinik;
 use App\Modules\MasterData\Models\TempatTidur;
 use App\Modules\MasterData\Models\UnitOrganisasi;
 use App\Modules\Pendaftaran\Models\Pasien;
@@ -268,17 +271,30 @@ class HasilLabTest extends TestCase
         $this->assertSesuaiKontrak($tolak, 'POST', '/hasil-lab/{id}/validasi');
         $this->assertSame('menunggu_otorisasi', DB::table('lab.hasil')->where('id', $hasil2)->value('status'));
         $this->sebagai($spk);
-        $this->validasi($hasil2)->assertOk()->assertJsonPath('data.status', 'divalidasi');
+        $this->validasi($hasil2)->assertOk()->assertJsonPath('data.status', 'divalidasi')->assertJsonPath('data.dapat.adendum', true);
+
+        // Adendum hasil butuh Sp.PK: analis (sahkan saja) → 403; Sp.PK (setujui) boleh.
+        $this->sebagai($this->analis);
+        $this->assertSesuaiKontrak($this->adendum($hasil2, ['nilai' => 1.2, 'alasan' => 'Koreksi salah ketik'])->assertForbidden(),
+            'POST', '/hasil-lab/{id}/adendum');
+        $this->sebagai($spk);
+        $this->adendum($hasil2, ['nilai' => 1.2, 'alasan' => 'Koreksi salah ketik'])->assertCreated()
+            ->assertJsonPath('data.adendum.0.dibuat_oleh.id', $spk->id);
+        $this->assertSame(1, DB::table('lab.hasil_adendum')->where('hasil_id', $hasil2)->count());
     }
 
-    public function test_hasil_mengikuti_pasien_ke_dpjp_tt_unit_dan_dokter_igd_pemesan_dapat_notifikasi(): void
+    public function test_hasil_mengikuti_pasien_ke_dpjp_berelasi_dan_jatuh_ke_pemesan_bila_tidak_bisa_membuka(): void
     {
-        // Order dari poli, sesudahnya pasien ditempatkan di TT rawat inap dengan DPJP lain.
+        // Order dari poli, sesudahnya pasien ditempatkan di TT rawat inap dengan DPJP lain: izin lihat pemeriksaan hanya di
+        // unit bangsal (bukan unit poli order) + relasi perawatan DPJP rawat inap aktif (keputusan pemilik 13 Nov 2026).
         $pasien = $this->pasien();
         $item = $this->siapHasil($pasien, 'UJI31-NUM');
         $dpjpPegawai = $this->dokter();
         $dpjp = $this->buatPengguna(['pegawai_id' => $dpjpPegawai->id]);
         [$ri, $unitRuang] = $this->rawatInap($pasien, $dpjpPegawai->id);
+        $this->tugaskan($dpjp, $this->buatPeran(['rawat_jalan.pemeriksaan']), cakupan: new Cakupan('unit', $unitRuang));
+        app(KelolaRelasiPerawatan::class)->berikan($pasien->id, $dpjpPegawai->id, KelolaRelasiPerawatan::PERAN_DPJP_RAWAT_INAP,
+            'kunjungan', $ri, now()->subMinute(), null, $this->dokter->id);
         $hasil = (string) $this->input($item, ['nilai' => 15])->assertCreated()->json('data.id');
         $this->validasi($hasil)->assertOk();
         $tugas = $this->tugas($hasil);
@@ -288,29 +304,75 @@ class HasilLabTest extends TestCase
         $this->assertSame(0, $this->notifikasiInformasi($dpjp));
         $this->assertSame(1, DB::table('notifikasi.notifikasi')->where('pengguna_id', $dpjp->id)->where('jenis', 'HASIL_LAB_TINDAK_LANJUT')->count());
 
-        // DPJP tanpa akun aktif → tugas ke unit bangsal TT saat ini.
-        /** @var Pegawai $tanpaAkun */
-        $tanpaAkun = Pegawai::factory()->create(['profesi' => 'dokter']);
-        DB::table('kunjungan.kunjungan')->where('id', $ri)->update(['pegawai_id' => $tanpaAkun->id]);
+        // DPJP membuka linimasa lewat relasi perawatan → 200, tugasnya selesai.
+        $episode = (string) DB::table('kunjungan.kunjungan')->where('id', $this->kunjunganItem($item))->value('episode_id');
+        $this->sebagai($dpjp);
+        $res = $this->minta('GET', "/api/v1/episode/$episode/hasil-lab")->assertOk()->assertJsonPath('data.*.id', [$hasil]);
+        $this->assertSesuaiKontrak($res, 'GET', '/episode/{id}/hasil-lab');
+        $this->assertSame('selesai', DB::table('inti.tugas')->where('id', $tugas[0]->id)->value('status'));
+        // Izin dan cakupan sama tanpa relasi → 403.
+        $tanpaRelasi = $this->buatPengguna(['pegawai_id' => $this->dokter()->id]);
+        $this->tugaskan($tanpaRelasi, $this->buatPeran(['rawat_jalan.pemeriksaan']), cakupan: new Cakupan('unit', $unitRuang));
+        $this->sebagai($tanpaRelasi);
+        $this->minta('GET', "/api/v1/episode/$episode/hasil-lab")->assertForbidden();
+
+        // Relasi berakhir: DPJP tidak bisa membuka hasil → tugas ke pemesan (tanpa notifikasi tambahan).
+        app(KelolaRelasiPerawatan::class)->akhiri('kunjungan', $ri, 'Uji sintetis', $this->dokter->id);
         $item2 = $this->siapHasil($pasien, 'UJI31-TEKS');
         $hasil2 = (string) $this->input($item2, ['nilai_teks' => 'Negatif contoh'])->assertCreated()->json('data.id');
         $this->validasi($hasil2)->assertOk();
-        $this->assertSame(['unit', $unitRuang], [$this->tugas($hasil2)[0]->pelaksana_jenis, $this->tugas($hasil2)[0]->pelaksana_id]);
+        $this->assertSame(['pengguna', $this->dokter->id], [$this->tugas($hasil2)[0]->pelaksana_jenis, $this->tugas($hasil2)[0]->pelaksana_id]);
+        $this->assertSame(1, $this->notifikasiInformasi($this->dokter));
 
-        // Pasien lain di IGD: tugas ke dokter kunjungan IGD.
-        $igdPasien = $this->pasien();
-        $item3 = $this->siapHasil($igdPasien, 'UJI31-NUM');
+        // DPJP tanpa akun aktif → pemesan (unit bangsal belum menerima tugas).
+        /** @var Pegawai $tanpaAkun */
+        $tanpaAkun = Pegawai::factory()->create(['profesi' => 'dokter']);
+        DB::table('kunjungan.kunjungan')->where('id', $ri)->update(['pegawai_id' => $tanpaAkun->id]);
+        $item3 = $this->siapHasil($pasien, 'UJI31-KOSONG');
+        $hasil3 = (string) $this->input($item3, ['nilai' => 1])->assertCreated()->json('data.id');
+        $this->validasi($hasil3)->assertOk();
+        $this->assertSame(['pengguna', $this->dokter->id], [$this->tugas($hasil3)[0]->pelaksana_jenis, $this->tugas($hasil3)[0]->pelaksana_id]);
+    }
+
+    public function test_hasil_pasien_igd_ke_dokter_igd_yang_bisa_membuka_selain_itu_pemesan(): void
+    {
+        // Dokter IGD dengan izin lihat pemeriksaan cakupan RS: tugas ke dokter IGD, pemesan dapat notifikasi.
+        $pasien = $this->pasien();
+        $item = $this->siapHasil($pasien, 'UJI31-NUM');
         $dokterIgdPegawai = $this->dokter();
         $dokterIgd = $this->buatPengguna(['pegawai_id' => $dokterIgdPegawai->id]);
-        $this->kunjunganIgd($igdPasien, $dokterIgdPegawai->id);
-        $hasil3 = (string) $this->input($item3, ['nilai' => 15])->assertCreated()->json('data.id');
-        $this->validasi($hasil3)->assertOk();
-        $this->assertSame(['pengguna', $dokterIgd->id], [$this->tugas($hasil3)[0]->pelaksana_jenis, $this->tugas($hasil3)[0]->pelaksana_id]);
-        $this->assertSame(3, $this->notifikasiInformasi($this->dokter));
+        $this->tugaskan($dokterIgd, $this->buatPeran(['rawat_jalan.pemeriksaan']));
+        $this->kunjunganIgd($pasien, $dokterIgdPegawai->id);
+        $hasil = (string) $this->input($item, ['nilai' => 15])->assertCreated()->json('data.id');
+        $this->validasi($hasil)->assertOk();
+        $this->assertSame(['pengguna', $dokterIgd->id], [$this->tugas($hasil)[0]->pelaksana_jenis, $this->tugas($hasil)[0]->pelaksana_id]);
+        $this->assertSame(1, $this->notifikasiInformasi($this->dokter));
         $judul = DB::table('notifikasi.notifikasi')->where('pengguna_id', $this->dokter->id)->where('jenis', 'HASIL_LAB_INFORMASI')->pluck('judul')->implode(' ');
         $this->assertStringNotContainsString('Pasien Sintetis', $judul);
-        $this->assertStringNotContainsString('Negatif', $judul);
+        $this->assertStringNotContainsString('15', $judul);
+
+        // Dokter IGD tanpa izin lihat pemeriksaan (tidak bisa membuka hasil) → tugas ke pemesan.
+        $lain = $this->pasien();
+        $item2 = $this->siapHasil($lain, 'UJI31-NUM');
+        $tanpaIzin = $this->dokter();
+        $this->buatPengguna(['pegawai_id' => $tanpaIzin->id]);
+        $this->kunjunganIgd($lain, $tanpaIzin->id);
+        $hasil2 = (string) $this->input($item2, ['nilai' => 15])->assertCreated()->json('data.id');
+        $this->validasi($hasil2)->assertOk();
+        $this->assertSame(['pengguna', $this->dokter->id], [$this->tugas($hasil2)[0]->pelaksana_jenis, $this->tugas($hasil2)[0]->pelaksana_id]);
+        $this->assertSame(1, $this->notifikasiInformasi($this->dokter));
     }
+
+    public function test_tanggal_lahir_sesudah_tanggal_spesimen_tanpa_penanda_dan_peringatan(): void
+    {
+        $pasien = $this->pasien();
+        $item = $this->siapHasil($pasien, 'UJI31-NUM');
+        // Data tidak sah (lahir sesudah spesimen diambil): tidak memakai baris rujukan mana pun.
+        $pasien->forceFill(['tanggal_lahir' => Carbon::parse(self::SENIN)->addDays(3)->toDateString()])->save();
+        $this->input($item, ['nilai' => 3])->assertCreated()->assertJsonPath('data.penanda', null)
+            ->assertJsonPath('data.peringatan', 'nilai_rujukan_tidak_ada')->assertJsonPath('data.rujukan_min', null);
+    }
+
 
     public function test_adendum_baris_baru_nilai_asli_tetap_penanda_dihitung_ulang(): void
     {
@@ -446,6 +508,67 @@ class HasilLabTest extends TestCase
         $jenis = DB::table('inti.jenis_tugas')->where('kode', 'HASIL_LAB_TINDAK_LANJUT')->first();
         $this->assertNotNull($jenis);
         $this->assertSame([1440, -240, 0, 720], [(int) $jenis->batas_menit, (int) $jenis->pengingat_menit, (int) $jenis->teguran_menit, (int) $jenis->eskalasi_menit]);
+    }
+
+    public function test_linimasa_menyaring_poli_sensitif_dan_mencatat_baca_akses_darurat(): void
+    {
+        // Episode harian yang sama: satu order dari poli umum, satu dari poli bertanda sensitif (punya nama netral).
+        $pasien = $this->pasien();
+        [$iUmum] = $this->butirOrder($this->order($pasien, ['UJI31-NUM']));
+        $unitS = UnitOrganisasi::query()->create(['kode' => 'UJI31-POLI-S', 'nama' => 'Poli S (uji)', 'jenis' => 'poli', 'berlaku_dari' => '2026-01-01']);
+        $poliS = Poliklinik::query()->create(['kode' => 'UJI31S', 'nama' => 'Poli Sensitif Uji', 'unit_organisasi_id' => $unitS->id]);
+        $poliS->forceFill(['nama_netral' => 'Klinik 31', 'antrean_prefiks' => 'K31', 'antrean_area' => 'poli-k31'])->save();
+        $this->masukSebagai($this->petugasPendaftaran());
+        $this->sesi = null;
+        $kS = (string) $this->daftarKunjungan($pasien, $this->jadwal($this->dokter(), ['poli_id' => $poliS->id]))->assertCreated()->json('data.id');
+        DB::table('kunjungan.kunjungan')->where('id', $kS)->update(['status' => 'dilayani']);
+        $this->sebagai($this->dokter);
+        $pS = (string) $this->minta('POST', "/api/v1/kunjungan/$kS/permintaan-pemeriksaan", [
+            'jenis' => 'lab', 'prioritas' => 'rutin', 'diagnosis_kerja' => 'Indikasi sintetis uji', 'alasan_ganda' => 'Uji sintetis berulang',
+            'item' => [['tarif_id' => $this->tarif['UJI31-TEKS']]],
+        ])->assertCreated()->json('data.id');
+        [$iS] = $this->butirOrder($pS);
+        $this->sebagai($this->analis);
+        $this->terima($iUmum);
+        $this->terima($iS);
+        $hUmum = (string) $this->input($iUmum, ['nilai' => 15])->assertCreated()->json('data.id');
+        $this->validasi($hUmum)->assertOk();
+        $hS = (string) $this->input($iS, ['nilai_teks' => 'Negatif contoh'])->assertCreated()->json('data.id');
+        $this->validasi($hS)->assertOk();
+        $episode = (string) DB::table('kunjungan.kunjungan')->where('id', $kS)->value('episode_id');
+        $this->assertSame($episode, (string) DB::table('kunjungan.kunjungan')->where('id', $this->kunjunganItem($iUmum))->value('episode_id'));
+
+        // Cakupan unit poli umum saja: hasil order poli sensitif tersaring. Cakupan RS: keduanya.
+        $umum = $this->buatPengguna();
+        $this->tugaskan($umum, $this->buatPeran(['rawat_jalan.pemeriksaan']), cakupan: new Cakupan('unit', $this->poli->unit_organisasi_id));
+        $this->sebagai($umum);
+        $this->minta('GET', "/api/v1/episode/$episode/hasil-lab")->assertOk()->assertJsonPath('data.*.id', [$hUmum]);
+        $this->sebagai($this->dokter);
+        $this->minta('GET', "/api/v1/episode/$episode/hasil-lab")->assertOk()->assertJsonCount(2, 'data');
+
+        // Akses darurat aktif (lapis 3) di luar cakupan: boleh baca dan pembacaan tercatat di audit.log_akses.
+        $rahasia = Totp::rahasiaBaru();
+        $darurat = $this->buatPengguna(['pegawai_id' => $this->dokter()->id]);
+        $darurat->forceFill(['mfa_rahasia_enkripsi' => $rahasia, 'mfa_aktif_pada' => now()])->save();
+        $peran = $this->buatPeran(['rawat_jalan.pemeriksaan', 'rawat_jalan.cppt']);
+        PeranIzin::query()->create(['peran_id' => $peran->id, 'izin_id' => Izin::query()->where('kode', 'rawat_jalan.cppt.darurat')->value('id')]);
+        $this->tugaskan($darurat, $peran, cakupan: new Cakupan('unit', $this->unitLain()));
+        $this->sebagai($darurat);
+        $this->minta('GET', "/api/v1/episode/$episode/hasil-lab")->assertForbidden();
+        $this->assertSame(0, DB::table('audit.log_akses')->where('pengguna_id', $darurat->id)->count());
+        $aksesId = (string) Str::uuid7();
+        DB::table('akses.akses_darurat')->insert(['id' => $aksesId, 'pengguna_id' => $darurat->id, 'pasien_id' => $pasien->id,
+            'kategori_alasan' => 'pelayanan_lanjutan', 'alasan' => 'Alasan sintetis uji', 'mulai_pada' => now()->subMinute(), 'berakhir_pada' => now()->addHour()]);
+        $this->minta('GET', "/api/v1/episode/$episode/hasil-lab")->assertOk();
+        $log = DB::table('audit.log_akses')->where('pengguna_id', $darurat->id)->get();
+        $this->assertCount(1, $log);
+        $this->assertSame(['hasil_lab', 'lihat', $aksesId, $pasien->id], [$log[0]->layar, $log[0]->aksi, $log[0]->akses_darurat_id, $log[0]->pasien_id]);
+    }
+
+    private function unitLain(): string
+    {
+        return UnitOrganisasi::query()->create(['kode' => 'UJI31-LAIN-'.Str::random(4), 'nama' => 'Poli lain (uji)', 'jenis' => 'poli',
+            'berlaku_dari' => '2026-01-01'])->id;
     }
 
     private function sebagai(Pengguna $pengguna): void
