@@ -8,6 +8,7 @@ import { errorKolom } from '@/modules/akses/pengaturan'
 import { pulangkanPasien } from '../api'
 import {
   butirPerluAlasan,
+  type ButirAlasan,
   galatButirPulang,
   gabungButirAlasan,
   kurangPulang,
@@ -40,6 +41,8 @@ const tujuan = ref<TujuanPulang | ''>('')
 const alasan = ref('')
 const tanggapan = ref<Record<string, string>>({})
 const galat = ref<unknown>(null)
+/** Butir dari rincian 422 yang belum ada di rencana; tetap ada sampai dialog dibuka ulang, agar kiriman berikutnya membawanya. */
+const butirServer = ref<ButirAlasan[]>([])
 const mengirim = ref(false)
 
 watch(buka, (b) => {
@@ -48,9 +51,11 @@ watch(buka, (b) => {
   alasan.value = ''
   tanggapan.value = {}
   galat.value = null
+  butirServer.value = []
 })
 
-const butir = computed(() => gabungButirAlasan(butirPerluAlasan(props.daftarPeriksa ?? []), galat.value))
+const butirRencana = computed<ButirAlasan[]>(() => butirPerluAlasan(props.daftarPeriksa ?? []).map((b) => ({ kode: b.kode, nama: b.nama })))
+const butir = computed(() => [...butirRencana.value, ...butirServer.value.filter((s) => !butirRencana.value.some((b) => b.kode === s.kode))])
 const galatButir = computed(() => galatButirPulang(galat.value))
 const galatIsian = computed(() => errorKolom(galat.value, ['alasan', 'tujuan']))
 const pesan = computed(() => (galat.value ? pesanGalatPulang(galat.value) : null))
@@ -59,21 +64,23 @@ const kurang = computed(() => kurangPulang({ identitasAda: !!props.pasien, tujua
 async function kirim() {
   const t = tujuan.value
   if (kurang.value || !t) return
+  // Isian dibangun sebelum galat dikosongkan (butir dari 422 tersimpan di butirServer, bukan di galat).
+  const isian = { tujuan: t, alasan: alasan.value.trim(), tanggapan: butir.value.map((b) => ({ kode: b.kode, alasan: (tanggapan.value[b.kode] ?? '').trim() })) }
   mengirim.value = true
   galat.value = null
   try {
-    const hasil = await pulangkanPasien(props.kunjunganId, {
-      tujuan: t,
-      alasan: alasan.value.trim(),
-      tanggapan: butir.value.map((b) => ({ kode: b.kode, alasan: (tanggapan.value[b.kode] ?? '').trim() })),
-    })
+    const hasil = await pulangkanPasien(props.kunjunganId, isian)
+    butirServer.value = []
     buka.value = false
     emit('selesai', hasil, t)
   } catch (e) {
     if (pulangBasi(e)) {
       buka.value = false
       emit('basi', pesanGalatPulang(e) ?? 'Data pasien sudah berubah. Halaman dimuat ulang.')
-    } else galat.value = e
+    } else {
+      butirServer.value = gabungButirAlasan(butir.value, e).filter((b) => !butirRencana.value.some((r) => r.kode === b.kode))
+      galat.value = e
+    }
   } finally {
     mengirim.value = false
   }

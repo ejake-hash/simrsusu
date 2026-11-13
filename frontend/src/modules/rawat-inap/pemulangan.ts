@@ -1,6 +1,7 @@
 import type { NamaIkon } from '@/design-system/ikon/ikon'
 import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
 import { ApiError } from '@/shared/api/klien'
+import { boleh } from '@/shared/composables/usePermission'
 import type { JenisLencana } from './peta'
 import type { ButirDaftarPeriksaPulang, IsianRencanaPulang, IsianResumeMedis, RencanaPulang, ResumeMedis, TempatTidurPeta, TujuanPulang } from './tipe'
 
@@ -25,8 +26,13 @@ export const KUNCI_PEMULANGAN = {
   dataInduk: (status: string | null) => ['data-induk-daftar-periksa-pulang', status ?? 'semua'] as const,
 }
 
-/** Rute layar; tautan tugas RESUME_BELUM_TTE_48J dari server memakai bentuk yang sama (`?kunjungan=`). */
-export const rutePemulangan = (kunjunganId: string) => ({ path: '/rawat-inap/pemulangan', query: { kunjungan: kunjunganId } })
+/**
+ * Jalur layar menurut izin: pemegang lihat pemulangan ke /rawat-inap/pemulangan (juga bentuk tautan tugas
+ * RESUME_BELUM_TTE_48J), selain itu ke /rawat-inap/rencana-pulang agar peran yang hanya memegang rencana pulang tidak
+ * berakhir di "Akses ditolak".
+ */
+export const jalurPemulangan = () => (boleh(IZIN_PEMULANGAN.lihat) ? '/rawat-inap/pemulangan' : '/rawat-inap/rencana-pulang')
+export const rutePemulangan = (kunjunganId: string, path: string = jalurPemulangan()) => ({ path, query: { kunjungan: kunjunganId } })
 
 /**
  * Tautan "Pemulangan" di peta TT: TT berpasien yang membawa id kunjungan RI (server mengirimnya bagi pemegang pindah ruang,
@@ -216,8 +222,8 @@ export function ringkasResumeTtd(r: ResumeMedis): string {
 export const KODE_TTE = ['pin_wajib', 'pin_salah', 'ttd_terkunci', 'ttd_belum_aktif'] as const
 
 /** Pesan galat susun/sahkan resume selain kode TTE. */
-export function pesanGalatResume(e: unknown, aksi: 'susun' | 'sahkan'): string {
-  if (!(e instanceof ApiError)) return aksi === 'susun' ? 'Resume gagal disusun. Coba lagi.' : 'Resume gagal disahkan. Coba lagi.'
+export function pesanGalatResume(e: unknown, aksi: 'muat' | 'susun' | 'sahkan'): string {
+  if (!(e instanceof ApiError)) return { muat: 'Resume medis gagal dimuat. Coba lagi.', susun: 'Resume gagal disusun. Coba lagi.', sahkan: 'Resume gagal disahkan. Coba lagi.' }[aksi]
   switch (e.kode) {
     case 'bukan_pemutus':
       return 'Resume medis hanya bisa disahkan DPJP pasien ini dengan akunnya sendiri.'

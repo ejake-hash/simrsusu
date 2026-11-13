@@ -88,14 +88,15 @@ async function sesudahPulang(hasil: RawatInap, tujuan: TujuanPulang) {
   const tt = ttPasien.value?.kode ?? null
   pulangBaru.value = { hasil, tujuan }
   await muatUlang()
-  const sah = resume.data.value?.status === 'sah'
-  tampilkanToast(`${hasil.pasien.nama} keluar rawat inap (${LABEL_TUJUAN[tujuan]}).${tt ? ` TT ${tt} kini Dibersihkan.` : ''}${sah ? '' : ' Resume medis belum sah.'}`, 'ok')
+  tampilkanToast(`${hasil.pasien.nama} keluar rawat inap (${LABEL_TUJUAN[tujuan]}).${tt ? ` TT ${tt} kini Dibersihkan.` : ''}${resumeTerbacaBelumSah.value ? ' Resume medis belum sah.' : ''}`, 'ok')
 }
 async function sesudahBasi(pesan: string) {
   await muatUlang()
   tampilkanToast(pesan, 'error')
 }
-const resumeBelumSah = computed(() => sudahPulang.value && (!izinResume.value || resume.data.value?.status !== 'sah'))
+/** Hanya bila status resume terbaca (izin lihat pemulangan) dan memang belum sah; null = belum disusun. */
+const resumeTerbacaBelumSah = computed(() => izinResume.value && resume.isSuccess.value && resume.data.value?.status !== 'sah')
+const resumeBelumSah = computed(() => sudahPulang.value && resumeTerbacaBelumSah.value)
 </script>
 
 <template>
@@ -116,7 +117,7 @@ const resumeBelumSah = computed(() => sudahPulang.value && (!izinResume.value ||
       <KeadaanKosong v-else-if="!berpasien.length" judul="Tidak ada pasien dirawat yang bisa dibuka" uraian="Belum ada TT terisi di cakupan Anda, atau izin Anda tidak membuka identitas pasien di bangsal itu." />
       <ul v-else class="daftar-pasien">
         <li v-for="tt in berpasien" :key="tt.id">
-          <RouterLink :to="rutePemulangan(tt.kunjungan_rawat_inap_id!)" class="baris-pasien">
+          <RouterLink :to="rutePemulangan(tt.kunjungan_rawat_inap_id!, route.path)" class="baris-pasien">
             <span class="nama">{{ tt.pasien_rawat_inap!.nama }}</span>
             <span class="ket">No. RM {{ formatNoRm(tt.pasien_rawat_inap!.no_rm) }} · lahir {{ formatTanggal(tt.pasien_rawat_inap!.tanggal_lahir) ?? '-' }}</span>
             <span class="ket"><code>{{ tt.kode }}</code> · {{ tt.bangsal.nama }}<template v-if="teksHariRawat(tt)"> · {{ teksHariRawat(tt) }}</template></span>
@@ -165,7 +166,7 @@ const resumeBelumSah = computed(() => sudahPulang.value && (!izinResume.value ||
 
       <div v-if="resumeBelumSah" class="blok" role="status">
         <Pesan jenis="peringatan">
-          Pasien sudah pulang dan resume medisnya belum sah. DPJP perlu mengesahkannya dalam 2 × 24 jam sejak pulang; tugas pengingat sudah dikirim ke DPJP.
+          Pasien sudah pulang dan resume medisnya belum sah. DPJP perlu mengesahkannya; tugas pengingat ada di kotak kerja DPJP.
         </Pesan>
       </div>
 

@@ -45,7 +45,11 @@ const kueri = useQuery({ queryKey: kunci, queryFn: () => bacaResumeMedis(props.k
 const resume = computed<ResumeMedis | null>(() => kueri.data.value ?? null)
 const draf = computed(() => !resume.value || resume.value.status === 'draf')
 const bisaSusun = computed(() => boleh(IZIN_PEMULANGAN.input) && draf.value)
-const bisaSahkan = computed(() => boleh(IZIN_PEMULANGAN.sahkan) && resume.value?.status === 'draf')
+const izinSahkan = computed(() => boleh(IZIN_PEMULANGAN.sahkan) && resume.value?.status === 'draf')
+// TTE hanya pemilik akun (PRD 5.1): pegawai akun ≠ DPJP → tanpa tombol, cukup keterangan siapa pengesahnya. DPJP tak
+// tercatat → tombol tetap ada dan server yang memutus.
+const bukanDpjp = computed(() => !!resume.value?.dpjp && resume.value.dpjp.id !== (sesi.pengguna?.pegawai?.id ?? ''))
+const bisaSahkan = computed(() => izinSahkan.value && !bukanDpjp.value)
 
 const isian = ref<IsianResumeMedis>(isianDariResume(null))
 watch(
@@ -129,7 +133,7 @@ const teksButirResep = (b: ResumeMedis['sumber']['resep'][number]['butir'][numbe
     </div>
 
     <KeadaanKosong v-if="kueri.isPending.value" jenis="memuat" judul="Memuat resume medis" />
-    <KeadaanKosong v-else-if="kueri.isError.value" jenis="error" judul="Resume medis gagal dimuat" :uraian="pesanGalatResume(kueri.error.value, 'susun')">
+    <KeadaanKosong v-else-if="kueri.isError.value" jenis="error" judul="Resume medis gagal dimuat" :uraian="pesanGalatResume(kueri.error.value, 'muat')">
       <template #aksi><Tombol @click="kueri.refetch()">Coba lagi</Tombol></template>
     </KeadaanKosong>
     <KeadaanKosong
@@ -219,6 +223,7 @@ const teksButirResep = (b: ResumeMedis['sumber']['resep'][number]['butir'][numbe
           <Tombol type="submit" :sibuk="menyusun">{{ adaPerubahan ? 'Simpan isian dan susun ulang' : 'Susun ulang dari sumber terbaru' }}</Tombol>
           <span v-if="bisaSahkan && adaPerubahan" class="ket">Simpan isian dulu agar yang disahkan sama dengan yang Anda baca.</span>
           <Tombol v-if="bisaSahkan" varian="utama" :disabled="adaPerubahan || menyusun || undefined" @click="mintaSahkan">Sahkan dengan PIN</Tombol>
+          <span v-else-if="izinSahkan && bukanDpjp" class="ket">Disahkan oleh DPJP, {{ resume.dpjp?.nama }}, dengan akunnya sendiri.</span>
         </div>
       </form>
       <template v-else>
@@ -231,6 +236,7 @@ const teksButirResep = (b: ResumeMedis['sumber']['resep'][number]['butir'][numbe
         <div v-if="bisaSahkan" class="aksi">
           <Tombol varian="utama" @click="mintaSahkan">Sahkan dengan PIN</Tombol>
         </div>
+        <p v-else-if="izinSahkan && bukanDpjp" class="ket">Disahkan oleh DPJP, {{ resume.dpjp?.nama }}, dengan akunnya sendiri.</p>
       </template>
     </div>
 

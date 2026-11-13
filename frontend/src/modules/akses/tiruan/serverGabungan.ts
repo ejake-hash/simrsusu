@@ -195,7 +195,7 @@ export function buatServerGabungan(opsi: Omit<OpsiServerTiruan, 'unit' | 'pegawa
         return { status: 403, isi: { error: { kode: 'wajib_ganti_sandi', pesan: 'Ganti sandi awal Anda lebih dulu.', rincian: [] } } }
       }
       // Peta TT sebelum lokasi: server lokasi menangani seluruh /tempat-tidur/* (data induk), termasuk /status.
-      return akses.tangani(r) ?? organisasi.tangani(r) ?? petaTempatTidur.tangani(r) ?? permintaanKamar.tangani(r) ?? pemulangan.tangani(r) ??lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? matriks.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r) ?? instrumenTriase.tangani(r) ?? papanIgd.tangani(r) ?? formularium.tangani(r) ?? pasien.tangani(r) ?? kunjungan.tangani(r) ?? rawatJalan.tangani(r)
+      return akses.tangani(r) ?? organisasi.tangani(r) ?? petaTempatTidur.tangani(r) ?? permintaanKamar.tangani(r) ?? pemulangan.tangani(r) ?? lokasi.tangani(r) ?? sdm.tangani(r) ?? jadwal.tangani(r) ?? tarif.tangani(r) ?? matriks.tangani(r) ?? notifikasi.tangani(r) ?? ttd.tangani(r) ?? usulan.tangani(r) ?? penyiapan.tangani(r) ?? integrasi.tangani(r) ?? penjamin.tangani(r) ?? instrumenTriase.tangani(r) ?? papanIgd.tangani(r) ?? formularium.tangani(r) ?? pasien.tangani(r) ?? kunjungan.tangani(r) ?? rawatJalan.tangani(r)
     },
   }
 }

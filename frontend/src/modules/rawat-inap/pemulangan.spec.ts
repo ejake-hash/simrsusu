@@ -332,6 +332,19 @@ describe('pemulangan: layar', () => {
     expect(d.textContent).toContain('Alasan belum selesai: Lepas infus dan gelang')
     expect(d.querySelector('[role="alert"]')!.textContent).toMatch(/Lengkapi alasan/)
     expect(d.textContent).toContain('Selesaikan butir ini atau tulis alasan belum selesai.')
+    // Kiriman kedua membawa alasan butir dari rincian 422 dan berhasil (tinjauan #205).
+    for (const nama of ['Obat pulang dan edukasi', 'Surat kontrol', 'Rujuk balik', 'Lepas infus dan gelang']) isi(`Alasan belum selesai: ${nama}`, 'Diselesaikan di RS rujukan', d)
+    await tenang()
+    const konfirmasi = document.querySelector('button[form="form-pulangkan"]') as HTMLButtonElement
+    expect(konfirmasi.disabled).toBe(false)
+    permintaan = []
+    konfirmasi.click()
+    await tenang()
+    const kirim = permintaan.find((p) => p.jalur.endsWith('/pulang'))!
+    expect((kirim.isi as { tanggapan: { kode: string }[] }).tanggapan.map((t) => t.kode)).toEqual(['OBAT_EDUKASI', 'SURAT_KONTROL', 'RUJUK_BALIK', 'LEPAS_INFUS_GELANG'])
+    expect(dialog()).toBeNull()
+    expect(daftarToast.value.map((t) => t.pesan).join(' ')).toMatch(/keluar rawat inap \(Rujuk keluar\)/)
+    expect((await kunjunganDi('CTHG-2-201-1')).status).toBe('dibersihkan')
   })
 
   it('resume: susun, isi kondisi pulang, sahkan lewat TtdModal (PIN) → sah dan hanya dibaca', async () => {
@@ -362,25 +375,35 @@ describe('pemulangan: layar', () => {
     expect(document.querySelectorAll('textarea')).toHaveLength(0)
   })
 
-  it('resume: akun bukan DPJP masuk mode minta tanda tangan (TTE hanya pemilik akun)', async () => {
+  it('resume: pemegang izin sahkan yang bukan DPJP tidak mendapat tombol, hanya keterangan pengesah (TTE hanya pemilik akun)', async () => {
     const k = (await kunjunganDi('CTHG-2-201-1')).kunjungan_rawat_inap_id!
     await susunResumeMedis(k)
     useSesiStore().pengguna = penggunaTiruan({ id: ID_SUPERADMIN, mfa_aktif: true, pegawai: { id: 'pegawai-lain', nama: 'Dokter Lain' } })
     await halaman(k)
-    tombol('Sahkan dengan PIN')!.click()
-    await tenang()
-    const d = dialog()!
-    expect(d.textContent).toContain('Minta tanda tangan')
-    expect(d.textContent).toContain('Anda masuk sebagai Dokter Lain')
-    expect(tombol('Tanda tangani', d)).toBeUndefined()
+    expect(tombol('Sahkan dengan PIN')).toBeUndefined()
+    expect(document.body.textContent).toContain(`Disahkan oleh DPJP, ${gabungan.dpjpRawatInap.nama}, dengan akunnya sendiri.`)
+    expect(dialog()).toBeNull()
+  })
+
+  it('akun hanya izin rencana pulang: tautan peta dan pilihan pasien menuju /rawat-inap/rencana-pulang', async () => {
+    aturIzin(['rawat_inap.peta_tempat_tidur.lihat', 'rawat_inap.rencana_pulang.lihat', 'rawat_inap.rencana_pulang.input'])
+    await pasang(PetaTempatTidurPage, '/rawat-inap/peta-tempat-tidur')
+    const tautanPeta = [...document.querySelectorAll('a')].find((a) => a.getAttribute('aria-label') === 'Pemulangan pasien di CTHG-2-201-1')!
+    expect(tautanPeta.getAttribute('href')).toMatch(/^\/rawat-inap\/rencana-pulang\?kunjungan=[0-9a-f-]{36}$/)
+    terpasang.splice(0).forEach((w) => w.unmount())
+    await pasang(PemulanganPage, '/rawat-inap/rencana-pulang', { izin: 'rawat_inap.rencana_pulang.lihat', judul: 'Rencana pulang' })
+    const pilihan = [...document.querySelectorAll('a')].filter((a) => a.getAttribute('href')?.includes('?kunjungan='))
+    expect(pilihan).toHaveLength(2)
+    expect(pilihan.every((a) => a.getAttribute('href')!.startsWith('/rawat-inap/rencana-pulang?kunjungan='))).toBe(true)
   })
 
   it('peta TT: tautan Pemulangan hanya bagi izin lihat pemulangan/rencana pulang', async () => {
-    aturIzin(['rawat_inap.peta_tempat_tidur.lihat', 'rawat_inap.rencana_pulang.lihat'])
+    aturIzin(['rawat_inap.peta_tempat_tidur.lihat', 'rawat_inap.rencana_pulang.lihat', 'rawat_inap.pemulangan.lihat'])
     await pasang(PetaTempatTidurPage, '/rawat-inap/peta-tempat-tidur')
     const tautan = [...document.querySelectorAll('a')].filter((a) => a.getAttribute('aria-label')?.startsWith('Pemulangan pasien di'))
     expect(tautan).toHaveLength(2)
     expect(tautan[0]!.getAttribute('aria-label')).toBe('Pemulangan pasien di CTHG-2-201-1')
+    expect(tautan[0]!.getAttribute('href')).toMatch(/^\/rawat-inap\/pemulangan\?kunjungan=/)
     terpasang.splice(0).forEach((w) => w.unmount())
     aturIzin(['rawat_inap.peta_tempat_tidur.lihat'])
     await pasang(PetaTempatTidurPage, '/rawat-inap/peta-tempat-tidur')
