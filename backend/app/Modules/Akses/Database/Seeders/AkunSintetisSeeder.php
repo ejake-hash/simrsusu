@@ -169,6 +169,10 @@ final class AkunSintetisSeeder extends Seeder
             // Tiket 2.29-fe (v0.38.0): pindah ruang dimulai dari peta TT (id kunjungan RI + pilihan TT tujuan); data induk TT
             // tanpa data pasien, bukan izin sensitif.
             'rawat_inap.peta_tempat_tidur.lihat',
+            // Tiket 2.40-fe: dokter poli contoh = DPJP pasien yang dirawat dari SPRI-nya: menyusun dan mengesahkan resume (PIN T1,
+            // TtdSintetisSeeder), memulangkan lewat sel matriks (IZIN_KLINIS, bukan sensitif), dan membaca rencana pulang
+            // (non-klinis) agar dialog pulang menampilkan butir wajib yang belum selesai.
+            'rawat_inap.pemulangan.lihat', 'rawat_inap.pemulangan.input', 'rawat_inap.pemulangan.sahkan', 'rawat_inap.rencana_pulang.lihat',
         ]],
         // Tiket 2.21: akses darurat CPPT (izin sensitif, klinis, butuh MFA); worklist dan CPPT dibaca dari layar rawat jalan.
         'contoh_dokter_darurat' => ['Contoh Dokter Akses Darurat', 'dokter.darurat', [

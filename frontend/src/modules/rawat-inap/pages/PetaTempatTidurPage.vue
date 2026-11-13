@@ -15,6 +15,7 @@ import { formatNoRm, formatTanggal } from '@/modules/pendaftaran/pasien'
 import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
 import { bacaPetaTempatTidur, pindahRuang, tandaiKosongSiap } from '../api'
+import { bolehBukaPemulangan, IZIN_PEMULANGAN, rutePemulangan } from '../pemulangan'
 import {
   bolehPindahRuang,
   bolehTandaiKosongSiap,
@@ -90,6 +91,8 @@ function hapusFilterKlien() {
 }
 
 const izinPerbaiki = computed(() => boleh('rawat_inap.peta_tempat_tidur.perbaiki'))
+// 2.40: tautan ke layar Pemulangan bagi pemegang lihat pemulangan atau lihat rencana pulang (server mengirim id kunjungan).
+const izinPemulangan = computed(() => boleh(IZIN_PEMULANGAN.lihat) || boleh(IZIN_PEMULANGAN.rencanaLihat))
 const keteranganTt = (tt: TempatTidurPeta) => [tt.kelas_rawat.nama, ...tandaTambahan(tt)].join(' · ')
 
 // ── Tandai kosong siap: konfirmasi singkat, lalu peta dimuat ulang sebelum hasil diumumkan ──
@@ -285,6 +288,7 @@ const fokusSesudahTutup = () => (fokusSesudah ? (document.getElementById(fokusSe
                   <span v-if="dijadwalkanTutup(tt)" class="tutup-terjadwal"><Ikon nama="gembok" :ukuran="12" />Dijadwalkan tutup, tidak bisa dialokasikan</span>
                   <Tombol v-if="bolehTandaiKosongSiap(tt, izinPerbaiki)" class="aksi" :aria-label="`Tandai kosong siap ${tt.kode}`" @click="minta(tt)">Tandai kosong siap</Tombol>
                   <Tombol v-if="bolehPindahRuang(tt, izinPindah)" class="aksi" :aria-label="`Pindah ruang pasien di ${tt.kode}`" @click="mintaPindah(tt)">Pindah ruang</Tombol>
+                  <RouterLink v-if="bolehBukaPemulangan(tt, izinPemulangan)" class="tombol aksi" :to="rutePemulangan(tt.kunjungan_rawat_inap_id!)" :aria-label="`Pemulangan pasien di ${tt.kode}`">Pemulangan</RouterLink>
                 </div>
               </li>
             </ul>

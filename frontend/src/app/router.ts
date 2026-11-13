@@ -59,6 +59,10 @@ export const router = createRouter({
         { path: 'igd/papan', name: 'igd-papan', component: () => import('@/modules/igd/pages/PapanIgdPage.vue'), meta: { judul: 'Papan pasien IGD' } },
         { path: 'master-data/papan-igd', name: 'master-data-papan-igd', component: () => import('@/modules/papan-igd/pages/AreaPapanIgdPage.vue'), meta: { judul: 'Area & batas papan IGD' } },
         { path: 'rawat-inap/peta-tempat-tidur', name: 'rawat-inap-peta-tempat-tidur', component: () => import('@/modules/rawat-inap/pages/PetaTempatTidurPage.vue'), meta: { judul: 'Peta tempat tidur' } },
+        // 2.40: satu layar untuk dua sub-menu; gerbang = izin lihat sub-menu rutenya, bagian lain menurut izinnya sendiri.
+        { path: 'rawat-inap/pemulangan', name: 'rawat-inap-pemulangan', component: () => import('@/modules/rawat-inap/pages/PemulanganPage.vue'), props: { izin: 'rawat_inap.pemulangan.lihat', judul: 'Pemulangan' }, meta: { judul: 'Pemulangan' } },
+        { path: 'rawat-inap/rencana-pulang', name: 'rawat-inap-rencana-pulang', component: () => import('@/modules/rawat-inap/pages/PemulanganPage.vue'), props: { izin: 'rawat_inap.rencana_pulang.lihat', judul: 'Rencana pulang' }, meta: { judul: 'Rencana pulang' } },
+        { path: 'master-data/daftar-periksa-pulang', name: 'master-data-daftar-periksa-pulang', component: () => import('@/modules/rawat-inap/pages/DaftarPeriksaPulangPage.vue'), meta: { judul: 'Daftar periksa pulang' } },
         // Gerbang izin di HalamanModul (tanpa <menu>.<sub>.lihat → Akses ditolak + Minta akses, tiket 1.2d).
         { path: 'pengaturan/peran', name: 'pengaturan-peran', component: () => import('@/modules/akses/pages/PeranPage.vue'), meta: { judul: 'Peran & izin' } },
         {
