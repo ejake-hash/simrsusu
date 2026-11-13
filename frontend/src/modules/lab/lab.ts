@@ -63,18 +63,25 @@ export function teksBatasKritis(h: NilaiHasilLab): string | null {
 /**
  * Isian hasil → badan permintaan. Jenis hasil diketahui dari hasil yang sudah ada; untuk input pertama daftar kerja
  * belum membawa jenisnya, jadi angka dikirim sebagai `nilai` dan teks lain sebagai `nilai_teks` (server menolak 422
- * bila jenisnya lain; layar mengulang sekali sebagai teks). Koma atau titik = pemisah desimal.
+ * bila jenisnya lain; layar mengulang sekali sebagai teks). Pemisah desimal hanya koma: angka bertitik ("10.000",
+ * "10.5", "1.234,5") ditolak agar pemisah ribuan tidak terbaca sebagai desimal.
  */
+export const GALAT_TITIK_DESIMAL = 'Pakai koma untuk desimal, tanpa pemisah ribuan.'
 export function bacaIsianHasil(teks: string, jenis: HasilLab['jenis_hasil'] | null): { isian: IsianHasilLab } | { galat: string } {
   const t = teks.trim()
   if (!t) return { galat: 'Isi hasil pemeriksaan.' }
   if (t.length > 500) return { galat: 'Hasil paling banyak 500 karakter.' }
-  const angka = /^-?\d+(?:[.,]\d+)?$/.test(t) ? Number(t.replace(',', '.')) : null
   if (jenis === 'teks') return { isian: { nilai_teks: t } }
+  if (/^-?\d[\d.]*(?:,\d+)?$/.test(t) && t.includes('.')) return { galat: GALAT_TITIK_DESIMAL }
+  const angka = /^-?\d+(?:,\d+)?$/.test(t) ? Number(t.replace(',', '.')) : null
   if (angka !== null) return { isian: { nilai: angka } }
   if (jenis === 'numerik') return { galat: 'Hasil pemeriksaan ini berupa angka, mis. 4,5.' }
   return { isian: { nilai_teks: t } }
 }
+
+/** Hasil di layar berbeda dari hasil terbaru server (input ulang petugas lain): validator harus diberi tahu. */
+export const hasilBerubah = (lama: HasilLab, baru: HasilLab) =>
+  (['status', 'nilai', 'nilai_teks', 'satuan', 'penanda', 'peringatan', 'catatan'] as const).some((k) => lama[k] !== baru[k])
 
 export function kurangAlasanAdendum(alasan: string): string | null {
   const t = alasan.trim()

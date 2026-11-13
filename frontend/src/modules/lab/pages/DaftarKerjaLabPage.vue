@@ -11,12 +11,14 @@ import { errorKolom } from '@/modules/akses/pengaturan'
 import { INTERVAL_LAYAR_KERJA } from '@/modules/notifikasi/polling'
 import { ApiError } from '@/shared/api/klien'
 import { boleh } from '@/shared/composables/usePermission'
-import { ambilSpesimen, inputHasilLab, terimaSpesimen, validasiHasilLab } from '../api'
+import { ambilSpesimen, butirTerbaru, inputHasilLab, terimaSpesimen, validasiHasilLab } from '../api'
 import DialogAdendumHasilLab from '../components/DialogAdendumHasilLab.vue'
 import SeksiDaftarKerja from '../components/SeksiDaftarKerja.vue'
 import TampilanHasilLab from '../components/TampilanHasilLab.vue'
 import {
   bacaIsianHasil,
+  bolehValidasi,
+  hasilBerubah,
   identitasPasien,
   KUNCI_LAB,
   kurangJenisSpesimen,
@@ -207,12 +209,41 @@ const bukaValidasi = ref(false)
 const galatValidasi = ref<unknown>(null)
 const memvalidasi = ref(false)
 const otorisasi = computed(() => sasaranValidasi.value?.hasil.status === 'menunggu_otorisasi')
-function mintaValidasi(baris: BarisDaftarKerjaLab, butir: ButirDaftarKerjaLab) {
+/** Hasil dimuat ulang dari server saat dialog dibuka; tombol konfirmasi menunggu muat ulang selesai. */
+const memuatValidasi = ref(false)
+const hasilBerubahPesan = ref<string | null>(null)
+const tidakBisaValidasi = ref<string | null>(null)
+let nomorMuat = 0
+async function mintaValidasi(baris: BarisDaftarKerjaLab, butir: ButirDaftarKerjaLab) {
   if (!butir.hasil) return
-  sasaranValidasi.value = { baris, butir, hasil: butir.hasil }
+  const tampil = butir.hasil
+  sasaranValidasi.value = { baris, butir, hasil: tampil }
   galatValidasi.value = null
+  hasilBerubahPesan.value = null
+  tidakBisaValidasi.value = null
   fokusHasil = false
   bukaValidasi.value = true
+  memuatValidasi.value = true
+  const nomor = ++nomorMuat
+  try {
+    const tahapButir = butir.status === 'menunggu_otorisasi' ? 'otorisasi' : 'hasil'
+    const baru = await butirTerbaru(baris.prioritas, tahapButir, baris.id, butir.id)
+    if (nomor !== nomorMuat) return
+    if (!baru?.hasil || !bolehValidasi(baru)) {
+      tidakBisaValidasi.value = 'Hasil ini sudah tidak menunggu tindakan Anda (sudah diproses atau dibatalkan). Daftar kerja sudah dimuat ulang.'
+      await segarkan()
+      return
+    }
+    sasaranValidasi.value = { baris, butir: baru, hasil: baru.hasil }
+    if (hasilBerubah(tampil, baru.hasil)) {
+      hasilBerubahPesan.value = `Hasil berubah sejak daftar terakhir dimuat. Tadi: ${ringkasHasil(tampil)}. Sekarang: ${ringkasHasil(baru.hasil)}. Periksa lagi sebelum melanjutkan.`
+      void segarkan()
+    }
+  } catch (e) {
+    if (nomor === nomorMuat) galatValidasi.value = e
+  } finally {
+    if (nomor === nomorMuat) memuatValidasi.value = false
+  }
 }
 const uraianValidasi = computed(() => {
   const h = sasaranValidasi.value?.hasil
@@ -223,7 +254,7 @@ const uraianValidasi = computed(() => {
 })
 async function validasi() {
   const s = sasaranValidasi.value
-  if (!s) return
+  if (!s || memuatValidasi.value || tidakBisaValidasi.value) return
   memvalidasi.value = true
   galatValidasi.value = null
   try {
@@ -446,14 +477,21 @@ async function adendumSelesai(h: HasilLab) {
           <dd>{{ sasaranValidasi.hasil.divalidasi_oleh?.nama ?? 'Tidak tercatat' }}</dd>
         </div>
       </dl>
+      <p v-if="memuatValidasi" class="ket-muat" role="status">Memeriksa hasil terbaru dari server…</p>
       <div role="alert">
+        <div v-if="hasilBerubahPesan" class="blok-galat">
+          <Pesan jenis="peringatan">{{ hasilBerubahPesan }}</Pesan>
+        </div>
+        <div v-if="tidakBisaValidasi" class="blok-galat">
+          <Pesan jenis="error">{{ tidakBisaValidasi }}</Pesan>
+        </div>
         <div v-if="galatValidasi" class="blok-galat">
           <Pesan jenis="error">{{ pesanGalatLab(galatValidasi) }}</Pesan>
         </div>
       </div>
       <template #aksi>
         <Tombol :disabled="memvalidasi || undefined" @click="bukaValidasi = false">Batal</Tombol>
-        <Tombol varian="utama" :sibuk="memvalidasi" @click="validasi">{{ otorisasi ? 'Otorisasi hasil' : 'Validasi hasil' }}</Tombol>
+        <Tombol v-if="!tidakBisaValidasi" varian="utama" :sibuk="memvalidasi" :disabled="memuatValidasi || undefined" @click="validasi">{{ otorisasi ? 'Otorisasi hasil' : 'Validasi hasil' }}</Tombol>
       </template>
     </Dialog>
 
@@ -528,5 +566,10 @@ async function adendumSelesai(h: HasilLab) {
 }
 .blok-galat {
   margin-top: var(--space-3);
+}
+.ket-muat {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
 }
 </style>

@@ -9,6 +9,21 @@ export async function daftarKerjaLab(prioritas: PrioritasPermintaan, kursor: str
   return data
 }
 
+/**
+ * Butir terbaru dari server lewat daftar kerja (kontrak belum punya GET hasil per id): telusuri halaman tahap itu sampai
+ * order ditemukan. null = butir sudah keluar dari tahap itu (divalidasi, dibatalkan, atau tahapnya berubah).
+ */
+export async function butirTerbaru(prioritas: PrioritasPermintaan, tahap: TahapDaftarKerjaLab, orderId: string, itemId: string): Promise<BarisDaftarKerjaLab['item'][number] | null> {
+  let kursor: string | null = null
+  do {
+    const h: Halaman<BarisDaftarKerjaLab> = await daftarKerjaLab(prioritas, kursor, 200, tahap)
+    const o = h.data.find((b) => b.id === orderId)
+    if (o) return o.item.find((i) => i.id === itemId) ?? null
+    kursor = h.meta.kursor_berikutnya
+  } while (kursor)
+  return null
+}
+
 /** POST /permintaan-item/{id}/spesimen: catat pengambilan sampel; barcode dibuat server. */
 export async function ambilSpesimen(itemId: string, isian: { jenis: string; lokasi_pengambilan: LokasiPengambilanSpesimen }): Promise<Spesimen> {
   const { data } = await klien.post<{ data: Spesimen }>(`/permintaan-item/${itemId}/spesimen`, isian)

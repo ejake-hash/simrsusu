@@ -134,9 +134,15 @@ describe('hasil lab: aturan layar', () => {
     expect(teksBatasKritis({ ...DASAR, kritis_min: null })).toBe('Kritis bila di atas 30')
   })
 
-  it('isian hasil: angka (koma/titik) → nilai, teks → nilai_teks, jenis diketahui dipaksa', () => {
+  it('isian hasil: desimal hanya koma, titik ditolak; teks → nilai_teks, jenis diketahui dipaksa', () => {
+    const titik = { galat: 'Pakai koma untuk desimal, tanpa pemisah ribuan.' }
     expect(bacaIsianHasil(' 4,5 ', null)).toEqual({ isian: { nilai: 4.5 } })
-    expect(bacaIsianHasil('12.25', null)).toEqual({ isian: { nilai: 12.25 } })
+    expect(bacaIsianHasil('10,5', null)).toEqual({ isian: { nilai: 10.5 } })
+    expect(bacaIsianHasil('-1,2', null)).toEqual({ isian: { nilai: -1.2 } })
+    expect(bacaIsianHasil('10.000', null)).toEqual(titik)
+    expect(bacaIsianHasil('10.5', null)).toEqual(titik)
+    expect(bacaIsianHasil('1.234,5', null)).toEqual(titik)
+    expect(bacaIsianHasil('10.000', 'numerik')).toEqual(titik)
     expect(bacaIsianHasil('Positif', null)).toEqual({ isian: { nilai_teks: 'Positif' } })
     expect(bacaIsianHasil('5', 'teks')).toEqual({ isian: { nilai_teks: '5' } })
     expect(bacaIsianHasil('Positif', 'numerik')).toEqual({ galat: 'Hasil pemeriksaan ini berupa angka, mis. 4,5.' })
@@ -261,6 +267,66 @@ describe('DaftarKerjaLabPage: tahap Hasil dan Otorisasi', () => {
     expect(document.body.textContent).toContain('Hasil Pemeriksaan lab contoh satu untuk Pasien Contoh Cito divalidasi. Hasil keluar ke pemesan dan penanggung jawab pasien.')
     // Butir divalidasi tetap tampil selama butir lain di order ini masih di tahap Hasil; adendum tersedia.
     expect(tombolLabel('Adendum Pemeriksaan lab contoh satu Pasien Contoh Cito')).not.toBeNull()
+  })
+
+  it('dialog validasi memuat ulang hasil dari server; nilai berubah → validator diberi tahu dan hasil terbaru tampil', async () => {
+    const cito = await siapkanCito()
+    await inputHasilLab(cito.item[0]!.id, { nilai: 5 })
+    await pasang()
+    await pilihTab('Hasil')
+    // Petugas lain menginput ulang sesudah daftar di layar dimuat.
+    await inputHasilLab(cito.item[0]!.id, { nilai: 50 })
+    const sebelum = permintaan.length
+    tombolLabel('Validasi Pemeriksaan lab contoh satu Pasien Contoh Cito')!.click()
+    await tenang()
+    const d = dialog()!
+    expect(permintaan.slice(sebelum).some((p) => p.jalur === '/lab/daftar-kerja' && p.kueri.get('tahap') === 'hasil' && p.kueri.get('prioritas') === 'cito')).toBe(true)
+    expect(d.textContent).toContain('Hasil berubah sejak daftar terakhir dimuat. Tadi: 5 {contoh}, Rendah. Sekarang: 50 {contoh}, Sangat tinggi.')
+    expect(d.textContent).toContain('Sangat tinggi')
+    tombol('Validasi hasil', d)!.click()
+    await tenang()
+    expect(document.body.textContent).toContain('divalidasi. Hasil keluar')
+  })
+
+  it('dialog validasi: hasil sudah diproses orang lain → tanpa tombol konfirmasi, daftar dimuat ulang', async () => {
+    const cito = await siapkanCito()
+    const h = await inputHasilLab(cito.item[0]!.id, { nilai: 5 })
+    await pasang()
+    await pilihTab('Hasil')
+    await validasiHasilLab(h.id)
+    tombolLabel('Validasi Pemeriksaan lab contoh satu Pasien Contoh Cito')!.click()
+    await tenang()
+    expect(dialog()!.textContent).toContain('Hasil ini sudah tidak menunggu tindakan Anda')
+    expect(tombol('Validasi hasil', dialog()!)).toBeUndefined()
+    // Hanya validasi langsung lewat API di atas; layar tidak mengirim validasi.
+    expect(permintaan.filter((p) => p.jalur.endsWith('/validasi'))).toHaveLength(1)
+  })
+
+  it('input dan adendum menolak titik desimal tanpa mengirim', async () => {
+    const cito = await siapkanCito()
+    await pasang()
+    await pilihTab('Hasil')
+    tombolLabel('Input hasil Pemeriksaan lab contoh satu Pasien Contoh Cito')!.click()
+    await tenang()
+    await isi(dialog()!.querySelector<HTMLInputElement>('input[type="text"]')!, '10.000')
+    tombol('Simpan hasil', document)!.click()
+    await tenang()
+    expect(dialog()!.textContent).toContain('Pakai koma untuk desimal, tanpa pemisah ribuan.')
+    expect(permintaan.some((p) => p.metode === 'post' && p.jalur.endsWith('/hasil'))).toBe(false)
+    document.body.innerHTML = ''
+    const h = await inputHasilLab(cito.item[0]!.id, { nilai: 5 })
+    await validasiHasilLab(h.id)
+    await pasang()
+    await pilihTab('Hasil')
+    tombolLabel('Adendum Pemeriksaan lab contoh satu Pasien Contoh Cito')!.click()
+    await tenang()
+    const d = dialog()!
+    await isi(d.querySelector<HTMLInputElement>('input[type="text"]')!, '1.234,5')
+    await isi(d.querySelector('textarea')!, 'Salah ketik sintetis')
+    tombol('Simpan adendum', document)!.click()
+    await tenang()
+    expect(d.textContent).toContain('Pakai koma untuk desimal, tanpa pemisah ribuan.')
+    expect(permintaan.some((p) => p.jalur.endsWith('/adendum'))).toBe(false)
   })
 
   it('jenis hasil belum diketahui: angka untuk pemeriksaan teks dikirim ulang sekali sebagai teks', async () => {

@@ -23,7 +23,7 @@ const bagian = (h: NilaiHasilLab) => [teksRujukan(h), teksBatasKritis(h)].filter
     </div>
     <span v-if="bagian(hasil)" class="ket">{{ bagian(hasil) }}</span>
     <span v-if="hasil.peringatan === 'nilai_rujukan_tidak_ada'" class="peringatan">
-      <Lencana jenis="info">{{ TEKS_TANPA_RUJUKAN }}</Lencana>
+      <Lencana jenis="peringatan">{{ TEKS_TANPA_RUJUKAN }}</Lencana>
     </span>
     <span v-if="hasil.catatan" class="ket">Catatan: {{ hasil.catatan }}</span>
     <template v-if="pelaku">
@@ -39,7 +39,7 @@ const bagian = (h: NilaiHasilLab) => [teksRujukan(h), teksBatasKritis(h)].filter
         </div>
         <span v-if="bagian(a)" class="ket">{{ bagian(a) }}</span>
         <span v-if="a.peringatan === 'nilai_rujukan_tidak_ada'" class="peringatan">
-          <Lencana jenis="info">{{ TEKS_TANPA_RUJUKAN }}</Lencana>
+          <Lencana jenis="peringatan">{{ TEKS_TANPA_RUJUKAN }}</Lencana>
         </span>
         <span class="ket">{{ a.dibuat_oleh?.nama ?? 'Petugas tidak tercatat' }}, {{ formatTanggalWaktu(a.dibuat_pada) }}</span>
         <span class="ket">Alasan: {{ a.alasan }}</span>

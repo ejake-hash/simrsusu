@@ -25,6 +25,19 @@ const indikasi = `Indikasi cito e2e ${jalan}`
 const alasanAdendum = `Koreksi uji sintetis ${jalan}`
 const identitas = new RegExp(`${nama}, No\\. RM [\\d.]+, lahir `)
 let nomor = ''
+/** Awal tahap Hasil jalan ini: linimasa hanya mengecek hasil yang keluar sejak saat itu. */
+let mulaiHasil = 0
+
+/**
+ * Pola "Keluar …, HH.MM" untuk tiap menit sejak `mulai` sampai sekarang (zona Asia/Jakarta, sama dengan konteks
+ * Playwright): hasil episode yang sama dari jalan sebelumnya hari ini tidak ikut tercocokkan.
+ */
+function waktuKeluarJalanIni(mulai: number): RegExp {
+  const jam = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false })
+  const menit = new Set<string>()
+  for (let t = mulai - 60_000; t <= Date.now() + 60_000; t += 30_000) menit.add(jam.format(new Date(t)).replace(':', '[.:]'))
+  return new RegExp(`Keluar [^,]+, (${[...menit].join('|')})`)
+}
 
 test.describe.configure({ mode: 'serial' })
 test.beforeAll(() => {
@@ -40,7 +53,10 @@ test.afterAll(() => {
 /** Dokter poli membuka Pemeriksaan kunjungan `nomor` (semua tahap) dan mengembalikan panel pemeriksaan dokter. */
 async function bukaPemeriksaan(browser: Browser, asal: string): Promise<{ page: Page; panel: Locator; order: Locator }> {
   const page = await halamanAkun(browser, asal, 'dokter.poli')
-  await page.goto('/rawat-jalan/pemeriksaan')
+  // Masuk lewat kartu Rawat Jalan di Beranda (klik menu, bukan page.goto ke rute pemeriksaan).
+  await page.goto('/')
+  await page.getByRole('region', { name: 'Modul saya' }).getByRole('article', { name: 'Rawat Jalan' }).getByRole('link', { name: 'Pemeriksaan', exact: true }).click()
+  await expect(page).toHaveURL(/\/rawat-jalan\/pemeriksaan$/)
   await expect(page.getByRole('heading', { name: 'Pemeriksaan', level: 1 })).toBeVisible()
   await page.getByRole('combobox', { name: 'Poliklinik' }).selectOption({ label: poli })
   await page.getByRole('combobox', { name: 'Tahap' }).selectOption('')
@@ -162,6 +178,7 @@ test('analis tahap Hasil: input hasil berpenanda, validasi beridentitas, adendum
   const asal = new URL(info.project.use.baseURL ?? '').origin
   const page = await halamanAkun(browser, asal, 'analis')
   await tungguJatahPenuh(page.context().request, asal)
+  mulaiHasil = Date.now()
   await bukaLab(page)
   await page.getByRole('tab', { name: 'Hasil' }).click()
   const baris = page.getByRole('region', { name: 'Daftar kerja lab Cito' }).getByRole('row').filter({ hasText: indikasi })
@@ -250,15 +267,21 @@ test('pemesan melihat hasil di linimasa kunjungan: penanda berteks dan adendum b
   test.setTimeout(90_000)
   const asal = new URL(info.project.use.baseURL ?? '').origin
   const { page, panel } = await bukaPemeriksaan(browser, asal)
+  expect(mulaiHasil).toBeGreaterThan(0)
   const linimasa = panel.getByRole('region', { name: 'Hasil laboratorium' })
-  const hasilSatu = linimasa.getByRole('listitem').filter({ hasText: alasanAdendum }).first()
-  await expect(hasilSatu).toContainText(satu)
+  // Kartu hasil (bukan butir adendum di dalamnya) yang keluar di jalan ini, per pemeriksaan.
+  const kartuJalanIni = (p: string) => linimasa.getByRole('listitem').filter({ hasText: waktuKeluarJalanIni(mulaiHasil) }).filter({ hasText: p })
+  // Hasil satu dikenali pasti lewat alasan adendum yang unik per jalan.
+  const hasilSatu = kartuJalanIni(satu).filter({ hasText: alasanAdendum })
+  await expect(hasilSatu).toHaveCount(1)
   await expect(hasilSatu).toContainText('Rendah')
   await expect(hasilSatu).toContainText('Hasil asli')
   await expect(hasilSatu).toContainText('Adendum')
-  await expect(linimasa.getByRole('listitem').filter({ hasText: tiga }).first()).toContainText('Tinggi')
-  await expect(linimasa.getByRole('listitem').filter({ hasText: tiga }).first()).toContainText('Diotorisasi Sp.PK')
-  await expect(linimasa.getByRole('listitem').filter({ hasText: empat }).first()).toContainText('Tanpa nilai rujukan RS, tidak ditandai')
+  await expect(kartuJalanIni(tiga)).toHaveCount(1)
+  await expect(kartuJalanIni(tiga)).toContainText('Tinggi')
+  await expect(kartuJalanIni(tiga)).toContainText('Diotorisasi Sp.PK')
+  await expect(kartuJalanIni(empat)).toHaveCount(1)
+  await expect(kartuJalanIni(empat)).toContainText('Tanpa nilai rujukan RS, tidak ditandai')
   expect(await pelanggaranAxe(page)).toEqual([])
   await page.close()
 })
